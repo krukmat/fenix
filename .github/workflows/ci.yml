@@ -95,19 +95,33 @@ jobs:
     name: E2E Tests
     needs: test
     runs-on: ubuntu-latest
-    # Skip E2E job when the Node test project is not present yet.
-    if: ${{ hashFiles('tests/e2e/package-lock.json') != '' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Detect E2E project
+        id: e2e_check
+        run: |
+          if [ -f tests/e2e/package-lock.json ] && [ -f tests/e2e/package.json ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip E2E (project not present yet)
+        if: steps.e2e_check.outputs.enabled != 'true'
+        run: |
+          echo "Skipping E2E job because tests/e2e/package.json or tests/e2e/package-lock.json was not found."
+
       - name: Setup Go
+        if: steps.e2e_check.outputs.enabled == 'true'
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
 
       - name: Setup Node.js
+        if: steps.e2e_check.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -115,19 +129,22 @@ jobs:
           cache-dependency-path: tests/e2e/package-lock.json
 
       - name: Build binary
+        if: steps.e2e_check.outputs.enabled == 'true'
         run: make build
 
       - name: Install E2E dependencies
+        if: steps.e2e_check.outputs.enabled == 'true'
         run: |
           cd tests/e2e
           npm ci
 
       - name: Run E2E tests
+        if: steps.e2e_check.outputs.enabled == 'true'
         run: make test-e2e
 
       - name: Upload E2E results
+        if: always() && steps.e2e_check.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: e2e-results
           path: tests/e2e/test-results/
