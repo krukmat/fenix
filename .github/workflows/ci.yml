@@ -95,6 +95,8 @@ jobs:
     name: E2E Tests
     needs: test
     runs-on: ubuntu-latest
+    # Skip E2E job when the Node test project is not present yet.
+    if: ${{ hashFiles('tests/e2e/package-lock.json') != '' }}
 
     steps:
       - name: Checkout code
