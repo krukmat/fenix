@@ -196,14 +196,8 @@ func (h *PipelineHandler) ListStages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PipelineHandler) UpdateStage(w http.ResponseWriter, r *http.Request) {
-	stageID := chi.URLParam(r, "stage_id")
-	existing, err := h.service.GetStage(r.Context(), stageID)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "stage not found")
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get stage: %v", err))
+	stageID, existing, ok := h.getStageForUpdate(w, r)
+	if !ok {
 		return
 	}
 	var req UpdatePipelineStageRequest
@@ -211,12 +205,7 @@ func (h *PipelineHandler) UpdateStage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Name == "" {
-		req.Name = existing.Name
-	}
-	if req.Position == 0 {
-		req.Position = existing.Position
-	}
+	req = fillStageDefaults(req, existing)
 	out, err := h.service.UpdateStage(r.Context(), stageID, crm.UpdatePipelineStageInput{
 		Name:           req.Name,
 		Position:       req.Position,
@@ -232,6 +221,30 @@ func (h *PipelineHandler) UpdateStage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
+}
+
+func (h *PipelineHandler) getStageForUpdate(w http.ResponseWriter, r *http.Request) (string, *crm.PipelineStage, bool) {
+	stageID := chi.URLParam(r, "stage_id")
+	existing, err := h.service.GetStage(r.Context(), stageID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "stage not found")
+		return "", nil, false
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get stage: %v", err))
+		return "", nil, false
+	}
+	return stageID, existing, true
+}
+
+func fillStageDefaults(req UpdatePipelineStageRequest, existing *crm.PipelineStage) UpdatePipelineStageRequest {
+	if req.Name == "" {
+		req.Name = existing.Name
+	}
+	if req.Position == 0 {
+		req.Position = existing.Position
+	}
+	return req
 }
 
 func (h *PipelineHandler) DeleteStage(w http.ResponseWriter, r *http.Request) {

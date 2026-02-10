@@ -236,19 +236,8 @@ func (h *ContactHandler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contactID := chi.URLParam(r, "id")
-	if contactID == "" {
-		writeError(w, http.StatusBadRequest, "contact id is required")
-		return
-	}
-
-	existing, err := h.contactService.Get(ctx, wsID, contactID)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "contact not found")
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get contact: %v", err))
+	contactID, existing, ok := h.getContactForUpdate(w, r, wsID)
+	if !ok {
 		return
 	}
 
@@ -270,6 +259,27 @@ func (h *ContactHandler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
+}
+
+func (h *ContactHandler) getContactForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Contact, bool) {
+	ctx := r.Context()
+	contactID := chi.URLParam(r, "id")
+	if contactID == "" {
+		writeError(w, http.StatusBadRequest, "contact id is required")
+		return "", nil, false
+	}
+
+	existing, err := h.contactService.Get(ctx, wsID, contactID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "contact not found")
+		return "", nil, false
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get contact: %v", err))
+		return "", nil, false
+	}
+
+	return contactID, existing, true
 }
 
 // DeleteContact handles DELETE /api/v1/contacts/{id}

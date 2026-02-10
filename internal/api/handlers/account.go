@@ -215,20 +215,8 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accountID := chi.URLParam(r, "id")
-	if accountID == "" {
-		writeError(w, http.StatusBadRequest, "account id is required")
-		return
-	}
-
-	// First fetch existing account to preserve unmodified fields
-	existing, err := h.accountService.Get(ctx, wsID, accountID)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "account not found")
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get account: %v", err))
+	accountID, existing, ok := h.getAccountForUpdate(w, r, wsID)
+	if !ok {
 		return
 	}
 
@@ -255,6 +243,27 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
+}
+
+func (h *AccountHandler) getAccountForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Account, bool) {
+	ctx := r.Context()
+	accountID := chi.URLParam(r, "id")
+	if accountID == "" {
+		writeError(w, http.StatusBadRequest, "account id is required")
+		return "", nil, false
+	}
+
+	existing, err := h.accountService.Get(ctx, wsID, accountID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "account not found")
+		return "", nil, false
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get account: %v", err))
+		return "", nil, false
+	}
+
+	return accountID, existing, true
 }
 
 // DeleteAccount handles DELETE /api/v1/accounts/{id}

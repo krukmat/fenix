@@ -221,20 +221,8 @@ func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	leadID := chi.URLParam(r, "id")
-	if leadID == "" {
-		writeError(w, http.StatusBadRequest, "lead id is required")
-		return
-	}
-
-	// First fetch existing lead to check existence
-	existing, err := h.leadService.Get(ctx, wsID, leadID)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "lead not found")
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get lead: %v", err))
+	leadID, existing, ok := h.getLeadForUpdate(w, r, wsID)
+	if !ok {
 		return
 	}
 
@@ -261,6 +249,27 @@ func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
+}
+
+func (h *LeadHandler) getLeadForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Lead, bool) {
+	ctx := r.Context()
+	leadID := chi.URLParam(r, "id")
+	if leadID == "" {
+		writeError(w, http.StatusBadRequest, "lead id is required")
+		return "", nil, false
+	}
+
+	existing, err := h.leadService.Get(ctx, wsID, leadID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "lead not found")
+		return "", nil, false
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get lead: %v", err))
+		return "", nil, false
+	}
+
+	return leadID, existing, true
 }
 
 // DeleteLead handles DELETE /api/v1/leads/{id}
