@@ -4,6 +4,11 @@
 
 package sqlcgen
 
+import (
+	"encoding/json"
+	"time"
+)
+
 type Account struct {
 	ID          string  `db:"id" json:"id"`
 	WorkspaceID string  `db:"workspace_id" json:"workspaceId"`
@@ -50,6 +55,23 @@ type Attachment struct {
 	Sensitivity *string `db:"sensitivity" json:"sensitivity"`
 	Metadata    *string `db:"metadata" json:"metadata"`
 	CreatedAt   string  `db:"created_at" json:"createdAt"`
+}
+
+type AuditEvent struct {
+	ID                 string          `db:"id" json:"id"`
+	WorkspaceID        string          `db:"workspace_id" json:"workspaceId"`
+	ActorID            string          `db:"actor_id" json:"actorId"`
+	ActorType          string          `db:"actor_type" json:"actorType"`
+	Action             string          `db:"action" json:"action"`
+	EntityType         *string         `db:"entity_type" json:"entityType"`
+	EntityID           *string         `db:"entity_id" json:"entityId"`
+	Details            json.RawMessage `db:"details" json:"details"`
+	PermissionsChecked json.RawMessage `db:"permissions_checked" json:"permissionsChecked"`
+	Outcome            string          `db:"outcome" json:"outcome"`
+	TraceID            *string         `db:"trace_id" json:"traceId"`
+	IpAddress          *string         `db:"ip_address" json:"ipAddress"`
+	UserAgent          *string         `db:"user_agent" json:"userAgent"`
+	CreatedAt          time.Time       `db:"created_at" json:"createdAt"`
 }
 
 type CaseTicket struct {

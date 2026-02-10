@@ -18,6 +18,8 @@ type Querier interface {
 	CountActivitiesByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountAttachmentsByEntity(ctx context.Context, arg CountAttachmentsByEntityParams) (int64, error)
 	CountAttachmentsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
+	// Counts total audit events for a workspace
+	CountAuditEventsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountCasesByStatus(ctx context.Context, arg CountCasesByStatusParams) (int64, error)
 	CountCasesByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountContactsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
@@ -44,6 +46,10 @@ type Querier interface {
 	// SQL queries for attachment table
 	// Task 1.5: File attachment management queries
 	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) error
+	// Queries for audit_event table
+	// Related to: Task 1.7, internal/domain/audit
+	// Creates a new audit event (append-only, immutable)
+	CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) error
 	// SQL queries for case_ticket table
 	// Task 1.5: Case/Support ticket management queries
 	CreateCase(ctx context.Context, arg CreateCaseParams) error
@@ -97,6 +103,8 @@ type Querier interface {
 	GetAccountByID(ctx context.Context, arg GetAccountByIDParams) (Account, error)
 	GetActivityByID(ctx context.Context, arg GetActivityByIDParams) (Activity, error)
 	GetAttachmentByID(ctx context.Context, arg GetAttachmentByIDParams) (Attachment, error)
+	// Retrieves a single audit event by ID
+	GetAuditEventByID(ctx context.Context, id string) (AuditEvent, error)
 	GetCaseByID(ctx context.Context, arg GetCaseByIDParams) (CaseTicket, error)
 	GetContactByID(ctx context.Context, arg GetContactByIDParams) (Contact, error)
 	GetDealByID(ctx context.Context, arg GetDealByIDParams) (Deal, error)
@@ -127,6 +135,19 @@ type Querier interface {
 	ListAttachmentsByEntity(ctx context.Context, arg ListAttachmentsByEntityParams) ([]Attachment, error)
 	ListAttachmentsByUploader(ctx context.Context, arg ListAttachmentsByUploaderParams) ([]Attachment, error)
 	ListAttachmentsByWorkspace(ctx context.Context, arg ListAttachmentsByWorkspaceParams) ([]Attachment, error)
+	// Lists audit events filtered by action type
+	ListAuditEventsByAction(ctx context.Context, arg ListAuditEventsByActionParams) ([]AuditEvent, error)
+	// Lists audit events for a specific actor
+	ListAuditEventsByActor(ctx context.Context, arg ListAuditEventsByActorParams) ([]AuditEvent, error)
+	// Lists audit events for a specific entity
+	ListAuditEventsByEntity(ctx context.Context, arg ListAuditEventsByEntityParams) ([]AuditEvent, error)
+	// Lists audit events filtered by outcome (success/denied/error)
+	ListAuditEventsByOutcome(ctx context.Context, arg ListAuditEventsByOutcomeParams) ([]AuditEvent, error)
+	// Lists audit events within a time range
+	ListAuditEventsByTimeRange(ctx context.Context, arg ListAuditEventsByTimeRangeParams) ([]AuditEvent, error)
+	// Lists audit events for a workspace with pagination
+	// Results ordered by created_at DESC (newest first)
+	ListAuditEventsByWorkspace(ctx context.Context, arg ListAuditEventsByWorkspaceParams) ([]AuditEvent, error)
 	ListCasesByAccount(ctx context.Context, arg ListCasesByAccountParams) ([]CaseTicket, error)
 	ListCasesByOwner(ctx context.Context, arg ListCasesByOwnerParams) ([]CaseTicket, error)
 	ListCasesBySLADeadline(ctx context.Context, arg ListCasesBySLADeadlineParams) ([]CaseTicket, error)

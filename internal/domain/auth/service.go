@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	domainaudit "github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	pkgauth "github.com/matiasleandrokruk/fenix/pkg/auth"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -52,12 +53,32 @@ type AuthService interface {
 
 // authService is the concrete implementation backed by SQLite.
 type authService struct {
-	db *sql.DB
+	db          *sql.DB
+	auditLogger auditLogger
+}
+
+type auditLogger interface {
+	LogWithDetails(
+		ctx context.Context,
+		workspaceID string,
+		actorID string,
+		actorType domainaudit.ActorType,
+		action string,
+		entityType *string,
+		entityID *string,
+		details *domainaudit.EventDetails,
+		outcome domainaudit.Outcome,
+	) error
 }
 
 // NewAuthService creates a new AuthService backed by the provided DB.
 func NewAuthService(db *sql.DB) AuthService {
 	return &authService{db: db}
+}
+
+// NewAuthServiceWithAudit creates a new AuthService with audit logging.
+func NewAuthServiceWithAudit(db *sql.DB, logger auditLogger) AuthService {
+	return &authService{db: db, auditLogger: logger}
 }
 
 // Register creates a new workspace and user, then returns a JWT.
@@ -85,8 +106,11 @@ func (s *authService) Register(ctx context.Context, input RegisterInput) (*AuthR
 
 	token, err := pkgauth.GenerateJWT(userID, workspaceID)
 	if err != nil {
+		s.logAuthFailure(ctx, workspaceID, userID, "register", "jwt_generation_failed")
 		return nil, fmt.Errorf("failed to generate JWT: %w", err)
 	}
+
+	s.logAuthSuccess(ctx, workspaceID, userID, "register")
 
 	return &AuthResult{Token: token, UserID: userID, WorkspaceID: workspaceID}, nil
 }
@@ -151,24 +175,30 @@ func (s *authService) Login(ctx context.Context, input LoginInput) (*AuthResult,
 
 	if err != nil {
 		// Whether the user doesn't exist or there's a DB error, return generic message
+		s.logAuthFailure(ctx, "unknown", "unknown", "login", "user_not_found_or_query_error")
 		return nil, ErrInvalidCredentials
 	}
 
 	// User found but has no password hash (OIDC-only account)
 	if !passwordHash.Valid || passwordHash.String == "" {
+		s.logAuthFailure(ctx, workspaceID, userID, "login", "missing_password_hash")
 		return nil, ErrInvalidCredentials
 	}
 
 	// Verify password (constant-time comparison via bcrypt)
 	if !pkgauth.VerifyPassword(passwordHash.String, input.Password) {
+		s.logAuthFailure(ctx, workspaceID, userID, "login", "invalid_password")
 		return nil, ErrInvalidCredentials
 	}
 
 	// Credentials valid — issue JWT
 	token, err := pkgauth.GenerateJWT(userID, workspaceID)
 	if err != nil {
+		s.logAuthFailure(ctx, workspaceID, userID, "login", "jwt_generation_failed")
 		return nil, fmt.Errorf("failed to generate JWT: %w", err)
 	}
+
+	s.logAuthSuccess(ctx, workspaceID, userID, "login")
 
 	return &AuthResult{
 		Token:       token,
@@ -212,4 +242,38 @@ func isUniqueViolation(err error) bool {
 		return false
 	}
 	return strings.Contains(err.Error(), "UNIQUE constraint failed")
+}
+
+func (s *authService) logAuthSuccess(ctx context.Context, workspaceID, userID, action string) {
+	if s.auditLogger == nil {
+		return
+	}
+	_ = s.auditLogger.LogWithDetails(
+		ctx,
+		workspaceID,
+		userID,
+		domainaudit.ActorTypeUser,
+		action,
+		nil,
+		nil,
+		nil,
+		domainaudit.OutcomeSuccess,
+	)
+}
+
+func (s *authService) logAuthFailure(ctx context.Context, workspaceID, userID, action, reason string) {
+	if s.auditLogger == nil {
+		return
+	}
+	_ = s.auditLogger.LogWithDetails(
+		ctx,
+		workspaceID,
+		userID,
+		domainaudit.ActorTypeUser,
+		action,
+		nil,
+		nil,
+		&domainaudit.EventDetails{Metadata: map[string]any{"reason": reason}},
+		domainaudit.OutcomeError,
+	)
 }

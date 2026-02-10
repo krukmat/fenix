@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/matiasleandrokruk/fenix/internal/api/handlers"
 	apmiddleware "github.com/matiasleandrokruk/fenix/internal/api/middleware"
+	domainaudit "github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 )
@@ -19,6 +20,7 @@ import (
 // Task 1.6.13: Public routes (/health, /auth/*) vs protected routes (/api/v1/*)
 func NewRouter(db *sql.DB) *chi.Mux {
 	r := chi.NewRouter()
+	auditService := domainaudit.NewAuditService(db)
 
 	// Global middleware (runs on all routes)
 	r.Use(middleware.RequestID)
@@ -36,7 +38,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 	})
 
 	// Auth endpoints — public, no JWT required (Task 1.6.13)
-	authHandler := handlers.NewAuthHandler(domainauth.NewAuthService(db))
+	authHandler := handlers.NewAuthHandler(domainauth.NewAuthServiceWithAudit(db, auditService))
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", authHandler.Register) // POST /auth/register
 		r.Post("/login", authHandler.Login)       // POST /auth/login
@@ -48,6 +50,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 	// AuthMiddleware validates the token and injects UserID + WorkspaceID into context.
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(apmiddleware.AuthMiddleware)
+		r.Use(apmiddleware.AuditMiddleware(auditService))
 
 		// Account endpoints (Task 1.3.8)
 		accountHandler := handlers.NewAccountHandler(crm.NewAccountService(db))
