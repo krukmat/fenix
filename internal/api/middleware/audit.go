@@ -127,30 +127,23 @@ func actionFromRequest(method, path string) (string, *string, *string) {
 }
 
 func singularEntity(entity string) string {
-	switch entity {
-	case "accounts":
-		return "account"
-	case "contacts":
-		return "contact"
-	case "leads":
-		return "lead"
-	case "deals":
-		return "deal"
-	case "cases":
-		return "case"
-	case "pipelines":
-		return "pipeline"
-	case "activities":
-		return "activity"
-	case "notes":
-		return "note"
-	case "attachments":
-		return "attachment"
-	case "timeline":
-		return "timeline"
-	default:
-		return ""
+	entityMap := map[string]string{
+		"accounts":    "account",
+		"contacts":    "contact",
+		"leads":       "lead",
+		"deals":       "deal",
+		"cases":       "case",
+		"pipelines":   "pipeline",
+		"activities":  "activity",
+		"notes":       "note",
+		"attachments": "attachment",
+		"timeline":    "timeline",
 	}
+
+	if value, ok := entityMap[entity]; ok {
+		return value
+	}
+	return ""
 }
 
 func actionForCollection(method, entity string) string {
