@@ -1,0 +1,55 @@
+# sqlc configuration for FenixCRM
+# sqlc generates type-safe Go code from SQL queries
+# Documentation: https://docs.sqlc.dev/en/latest/reference/config.html
+# ADR-001: all code under internal/ — paths reflect internal/infra/sqlite/
+
+version: "2"
+
+sql:
+  - engine: "sqlite"
+    # Database schema files (migration SQL files)
+    # sqlc reads these to understand the schema for type-safe query generation
+    schema:
+      - "internal/infra/sqlite/migrations"
+    # SQL query files with sqlc annotations (-- name: QueryName :cmd)
+    queries:
+      - "internal/infra/sqlite/queries"
+    # Generated code output
+    gen:
+      go:
+        # Go package name for generated code
+        package: "sqlcgen"
+        # Output directory (internal/ per ADR-001)
+        out: "internal/infra/sqlite/sqlcgen"
+        # Use database/sql — compatible with modernc.org/sqlite (pure Go, no CGO)
+        sql_package: "database/sql"
+        # JSON tags for API serialization
+        emit_json_tags: true
+        # camelCase JSON fields (e.g. workspaceId, createdAt)
+        json_tags_case_style: "camel"
+        # Pointer types for nullable columns (NULL-safe handling)
+        emit_pointers_for_null_types: true
+        # db struct tags for database/sql scanning
+        emit_db_tags: true
+        # Prepared statements disabled (SQLite WAL handles this)
+        emit_prepared_queries: false
+        # Querier interface for testing without stubbing individual functions
+        emit_interface: true
+        # Empty slices instead of nil for ListX queries with no rows
+        emit_empty_slices: true
+        # Column-level type overrides
+        # Note: do NOT use db_type "integer" → bool globally (breaks IDs/counts/enums)
+        # Instead override specific boolean columns by table.column
+        overrides:
+          # tool_definition.requires_approval: 0|1 → bool
+          - column: "tool_definition.requires_approval"
+            go_type: "bool"
+          # tool_definition.idempotent: 0|1 → bool
+          - column: "tool_definition.idempotent"
+            go_type: "bool"
+          # note.is_internal: 0|1 → bool
+          - column: "note.is_internal"
+            go_type: "bool"
+          # evidence.pii_redacted: 0|1 → bool
+          - column: "evidence.pii_redacted"
+            go_type: "bool"

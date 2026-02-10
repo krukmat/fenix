@@ -1,0 +1,186 @@
+# FenixCRM Makefile
+# Task 1.1: Project Setup
+# Following implementation plan exactly
+
+.PHONY: all test build run lint fmt complexity check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell
+
+# Variables
+BINARY_NAME=fenix
+MODULE=github.com/matiasleandrokruk/fenix
+BUILD_DIR=.
+VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+LDFLAGS=-ldflags "-X $(MODULE)/internal/version.Version=$(VERSION) -X $(MODULE)/internal/version.BuildTime=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# Default target
+all: test build
+
+# Run all tests (unit + integration)
+test:
+	@echo "Running tests..."
+	go test -v -race -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out
+
+# Run only unit tests
+test-unit:
+	@echo "Running unit tests..."
+	go test -v -short ./...
+
+# Run only integration tests
+test-integration:
+	@echo "Running integration tests..."
+	go test -v -run Integration ./...
+
+# Run E2E tests (requires UI built)
+test-e2e:
+	@echo "Running E2E tests..."
+	cd tests/e2e && npm test
+
+# Build the binary
+build:
+	@echo "Building $(BINARY_NAME)..."
+	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/fenix
+
+# Build for multiple platforms
+build-all:
+	@echo "Building for all platforms..."
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/fenix
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/fenix
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/fenix
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/fenix
+
+# Run the server (dev mode)
+run:
+	@echo "Running server..."
+	go run ./cmd/fenix
+
+# Run with hot reload (requires air)
+dev:
+	@echo "Running with hot reload..."
+	air -c .air.toml
+
+# Run linter
+lint:
+	@echo "Running linter..."
+	golangci-lint run ./...
+
+# Check cyclomatic complexity — fails if any function exceeds threshold 7
+# Threshold rationale: 7 is the industry-standard limit for maintainable code.
+# Functions above 7 are harder to test (need more test cases) and harder to understand.
+# Usage: make complexity
+COMPLEXITY_THRESHOLD=7
+GOCYCLO=$(shell go env GOPATH)/bin/gocyclo
+# Find production Go files (exclude *_test.go) under internal/
+PROD_GO_FILES=$(shell find ./internal -name '*.go' ! -name '*_test.go')
+complexity:
+	@echo "Checking cyclomatic complexity (threshold: $(COMPLEXITY_THRESHOLD), production code only)..."
+	@test -f $(GOCYCLO) || go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+	@$(GOCYCLO) -over $(COMPLEXITY_THRESHOLD) -avg $(PROD_GO_FILES) 2>&1 | \
+		tee /tmp/gocyclo_out.txt; \
+	violations=$$(grep -v "^Average:" /tmp/gocyclo_out.txt); \
+	if [ -n "$$violations" ]; then \
+		echo "FAILED: functions above threshold $(COMPLEXITY_THRESHOLD) found — refactor before merging"; \
+		exit 1; \
+	else \
+		echo "PASSED: all production functions at or below $(COMPLEXITY_THRESHOLD)"; \
+	fi
+
+# Run all quality gates before merge (complexity + lint + tests)
+check: complexity lint test
+	@echo "All quality gates passed — safe to merge."
+
+# Format code
+fmt:
+	@echo "Formatting code..."
+	go fmt ./...
+
+# Apply pending migrations
+migrate-up:
+	@echo "Applying migrations..."
+	go run ./cmd/fenix migrate up
+
+# Rollback last migration
+migrate-down:
+	@echo "Rolling back migration..."
+	go run ./cmd/fenix migrate down
+
+# Show current migration version
+# Task 1.2.9: DB targets added
+migrate-version:
+	@echo "Checking migration version..."
+	go run ./cmd/fenix migrate version
+
+# Open SQLite shell (requires sqlite3 CLI)
+db-shell:
+	@echo "Opening SQLite shell..."
+	sqlite3 ./data/fenixcrm.db
+
+# Create new migration
+	@echo "Creating migration $(NAME)..."
+	@read -p "Enter migration name: " name; \
+	go run ./cmd/fenix migrate create $$name
+
+# Generate Go code from SQL queries
+sqlc-generate:
+	@echo "Generating sqlc code..."
+	sqlc generate
+
+# Build Docker image
+docker-build:
+	@echo "Building Docker image..."
+	docker build -t $(BINARY_NAME):latest .
+
+# Run Docker container
+docker-run:
+	@echo "Running Docker container..."
+	docker run -v ./data:/data -p 8080:8080 $(BINARY_NAME):latest
+
+# Clean build artifacts
+clean:
+	@echo "Cleaning..."
+	rm -f $(BINARY_NAME) $(BINARY_NAME)-*
+	rm -f coverage.out
+
+# Install development dependencies
+install-tools:
+	@echo "Installing dev tools..."
+	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+
+# CI target - runs all checks (complexity gate must pass before lint and tests)
+ci: fmt complexity lint test build
+	@echo "All CI checks passed!"
+
+# Version info
+version:
+	@echo "Version: $(VERSION)"
+	@./$(BINARY_NAME) --version 2>/dev/null || echo "Binary not built yet"
+
+# Help
+help:
+	@echo "FenixCRM Makefile"
+	@echo ""
+	@echo "Targets:"
+	@echo "  make test              - Run all tests"
+	@echo "  make test-unit         - Run unit tests only"
+	@echo "  make test-integration  - Run integration tests only"
+	@echo "  make test-e2e          - Run E2E tests"
+	@echo "  make build             - Build binary"
+	@echo "  make build-all         - Build for all platforms"
+	@echo "  make run               - Run server (dev)"
+	@echo "  make dev               - Run with hot reload"
+	@echo "  make lint              - Run linter"
+	@echo "  make complexity        - Check cyclomatic complexity (threshold: 7)"
+	@echo "  make check             - Run all quality gates (complexity + lint + tests)"
+	@echo "  make fmt               - Format code"
+	@echo "  make migrate-up        - Apply migrations"
+	@echo "  make migrate-down      - Rollback migration"
+	@echo "  make migrate-create    - Create new migration"
+	@echo "  make sqlc-generate     - Generate sqlc code"
+	@echo "  make docker-build      - Build Docker image"
+	@echo "  make docker-run        - Run Docker container"
+	@echo "  make clean             - Clean build artifacts"
+	@echo "  make install-tools     - Install dev dependencies"
+	@echo "  make ci                - Run all CI checks"
+	@echo "  make version           - Show version info"
+	@echo "  make help              - Show this help"
