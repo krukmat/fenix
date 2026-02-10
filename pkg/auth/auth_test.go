@@ -173,7 +173,7 @@ func TestParseJWT_ValidToken(t *testing.T) {
 	}
 
 	if claims == nil {
-		t.Error("ParseJWT returned nil claims")
+		t.Fatal("ParseJWT returned nil claims")
 	}
 
 	if claims.UserID != userID {
@@ -228,7 +228,13 @@ func TestJWT_Expiry(t *testing.T) {
 	workspaceID := "ws-uuid-456"
 	token, _ := GenerateJWT(userID, workspaceID)
 
-	claims, _ := ParseJWT(token)
+	claims, err := ParseJWT(token)
+	if err != nil {
+		t.Fatalf("ParseJWT failed: %v", err)
+	}
+	if claims == nil {
+		t.Fatal("ParseJWT returned nil claims")
+	}
 
 	// Token should have an expiry time set
 	if claims.ExpiresAt == nil {
@@ -249,7 +255,13 @@ func TestJWT_ClaimsIncludeRequired(t *testing.T) {
 	workspaceID := "ws-uuid-456"
 	token, _ := GenerateJWT(userID, workspaceID)
 
-	claims, _ := ParseJWT(token)
+	claims, err := ParseJWT(token)
+	if err != nil {
+		t.Fatalf("ParseJWT failed: %v", err)
+	}
+	if claims == nil {
+		t.Fatal("ParseJWT returned nil claims")
+	}
 
 	// Check all required claims
 	if claims.UserID == "" {

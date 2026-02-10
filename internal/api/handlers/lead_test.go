@@ -125,12 +125,15 @@ func TestLeadHandler_ListLeads(t *testing.T) {
 	handler := NewLeadHandler(svc)
 
 	for i := 1; i <= 3; i++ {
-		svc.Create(context.Background(), crm.CreateLeadInput{
+		_, err := svc.Create(context.Background(), crm.CreateLeadInput{
 			WorkspaceID: wsID,
 			Source:      "website",
 			Status:      "new",
 			OwnerID:     ownerID,
 		})
+		if err != nil {
+			t.Fatalf("seed create lead %d error = %v", i, err)
+		}
 	}
 
 	req := httptest.NewRequest("GET", "/api/v1/leads?limit=2&offset=0", nil)
@@ -176,24 +179,30 @@ func TestLeadHandler_ListLeadsByOwner(t *testing.T) {
 	handler := NewLeadHandler(svc)
 
 	// Create leads for different owners
-	svc.Create(context.Background(), crm.CreateLeadInput{
+	if _, err := svc.Create(context.Background(), crm.CreateLeadInput{
 		WorkspaceID: wsID,
 		Source:      "website",
 		Status:      "new",
 		OwnerID:     ownerID,
-	})
-	svc.Create(context.Background(), crm.CreateLeadInput{
+	}); err != nil {
+		t.Fatalf("seed create owner lead 1 error = %v", err)
+	}
+	if _, err := svc.Create(context.Background(), crm.CreateLeadInput{
 		WorkspaceID: wsID,
 		Source:      "referral",
 		Status:      "qualified",
 		OwnerID:     ownerID,
-	})
-	svc.Create(context.Background(), crm.CreateLeadInput{
+	}); err != nil {
+		t.Fatalf("seed create owner lead 2 error = %v", err)
+	}
+	if _, err := svc.Create(context.Background(), crm.CreateLeadInput{
 		WorkspaceID: wsID,
 		Source:      "event",
 		Status:      "new",
 		OwnerID:     otherOwnerID,
-	})
+	}); err != nil {
+		t.Fatalf("seed create other owner lead error = %v", err)
+	}
 
 	// List leads for specific owner
 	req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/leads?owner_id=%s&limit=10", ownerID), nil)

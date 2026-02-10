@@ -111,7 +111,10 @@ func (h *ContactHandler) CreateContact(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(contactToResponse(contact))
+	if err := json.NewEncoder(w).Encode(contactToResponse(contact)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // GetContact handles GET /api/v1/contacts/{id}
@@ -141,7 +144,10 @@ func (h *ContactHandler) GetContact(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(contactToResponse(contact))
+	if err := json.NewEncoder(w).Encode(contactToResponse(contact)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // ListContacts handles GET /api/v1/contacts
@@ -176,7 +182,10 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // ListContactsByAccount handles GET /api/v1/accounts/{account_id}/contacts
@@ -212,7 +221,10 @@ func (h *ContactHandler) ListContactsByAccount(w http.ResponseWriter, r *http.Re
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // UpdateContact handles PUT /api/v1/contacts/{id}
@@ -254,7 +266,10 @@ func (h *ContactHandler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(contactToResponse(updated))
+	if err := json.NewEncoder(w).Encode(contactToResponse(updated)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // DeleteContact handles DELETE /api/v1/contacts/{id}

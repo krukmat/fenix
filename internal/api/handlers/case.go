@@ -70,7 +70,10 @@ func (h *CaseHandler) CreateCase(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(out)
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *CaseHandler) GetCase(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +92,10 @@ func (h *CaseHandler) GetCase(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get case: %v", err))
 		return
 	}
-	json.NewEncoder(w).Encode(out)
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *CaseHandler) ListCases(w http.ResponseWriter, r *http.Request) {
@@ -104,7 +110,10 @@ func (h *CaseHandler) ListCases(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list cases: %v", err))
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}})
+	if err := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {

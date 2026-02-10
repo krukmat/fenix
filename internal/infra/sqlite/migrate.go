@@ -133,7 +133,9 @@ func loadMigrationFiles() ([]migrationFile, error) {
 // "042_add_vector_index.up.sql" → 42
 func versionFromFilename(name string) int {
 	var version int
-	fmt.Sscanf(name, "%d_", &version)
+	if _, err := fmt.Sscanf(name, "%d_", &version); err != nil {
+		return 0
+	}
 	return version
 }
 
@@ -153,7 +155,9 @@ func applyMigration(db *sql.DB, version int, name, sqlContent string) error {
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback() //nolint:errcheck — rollback on panic/error is intentional
+	defer func() {
+		_ = tx.Rollback() //nolint:errcheck // rollback on panic/error is intentional
+	}()
 
 	// Execute the migration SQL (may contain multiple statements)
 	if _, err := tx.Exec(sqlContent); err != nil {

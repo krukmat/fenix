@@ -59,7 +59,10 @@ func (h *NoteHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(out)
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *NoteHandler) GetNote(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +81,10 @@ func (h *NoteHandler) GetNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get note: %v", err))
 		return
 	}
-	json.NewEncoder(w).Encode(out)
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *NoteHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +99,10 @@ func (h *NoteHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list notes: %v", err))
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}})
+	if err := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *NoteHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +126,10 @@ func (h *NoteHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update note: %v", err))
 		return
 	}
-	json.NewEncoder(w).Encode(out)
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *NoteHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {

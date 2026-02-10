@@ -1,0 +1,13 @@
+mode: set
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:23.53,24.71 1 1
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:24.71,26.24 2 1
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:26.24,29.4 2 1
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:31.3,32.17 2 1
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:32.17,35.4 2 1
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:38.3,42.40 4 1
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:49.49,51.18 2 1
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:51.18,53.3 1 1
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:56.2,57.40 2 1
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:57.40,59.3 1 1
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:61.2,63.14 3 1
+github.com/matiasleandrokruk/fenix/internal/api/middleware/auth.go:68.63,72.2 3 1

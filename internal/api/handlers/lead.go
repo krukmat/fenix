@@ -48,18 +48,18 @@ type UpdateLeadRequest struct {
 
 // LeadResponse is the response body for lead operations.
 type LeadResponse struct {
-	ID          string     `json:"id"`
-	WorkspaceID string     `json:"workspaceId"`
-	ContactID   *string    `json:"contactId,omitempty"`
-	AccountID   *string    `json:"accountId,omitempty"`
-	Source      *string    `json:"source,omitempty"`
-	Status      string     `json:"status"`
-	OwnerID     string     `json:"ownerId"`
-	Score       *float64   `json:"score,omitempty"`
-	Metadata    *string    `json:"metadata,omitempty"`
-	CreatedAt   string     `json:"createdAt"`
-	UpdatedAt   string     `json:"updatedAt"`
-	DeletedAt   *string    `json:"deletedAt,omitempty"`
+	ID          string   `json:"id"`
+	WorkspaceID string   `json:"workspaceId"`
+	ContactID   *string  `json:"contactId,omitempty"`
+	AccountID   *string  `json:"accountId,omitempty"`
+	Source      *string  `json:"source,omitempty"`
+	Status      string   `json:"status"`
+	OwnerID     string   `json:"ownerId"`
+	Score       *float64 `json:"score,omitempty"`
+	Metadata    *string  `json:"metadata,omitempty"`
+	CreatedAt   string   `json:"createdAt"`
+	UpdatedAt   string   `json:"updatedAt"`
+	DeletedAt   *string  `json:"deletedAt,omitempty"`
 }
 
 // PaginatedResponse is a generic paginated response structure.
@@ -109,7 +109,10 @@ func (h *LeadHandler) CreateLead(w http.ResponseWriter, r *http.Request) {
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(leadToResponse(lead))
+	if err := json.NewEncoder(w).Encode(leadToResponse(lead)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // GetLead handles GET /api/v1/leads/{id}
@@ -142,7 +145,10 @@ func (h *LeadHandler) GetLead(w http.ResponseWriter, r *http.Request) {
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(leadToResponse(lead))
+	if err := json.NewEncoder(w).Encode(leadToResponse(lead)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // ListLeads handles GET /api/v1/leads with pagination and owner filter
@@ -199,7 +205,10 @@ func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // UpdateLead handles PUT /api/v1/leads/{id}
@@ -248,7 +257,10 @@ func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(leadToResponse(updated))
+	if err := json.NewEncoder(w).Encode(leadToResponse(updated)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // DeleteLead handles DELETE /api/v1/leads/{id}

@@ -49,24 +49,24 @@ type UpdateAccountRequest struct {
 
 // AccountResponse is the response body for account operations.
 type AccountResponse struct {
-	ID          string      `json:"id"`
-	WorkspaceID string      `json:"workspaceId"`
-	Name        string      `json:"name"`
-	Domain      *string     `json:"domain,omitempty"`
-	Industry    *string     `json:"industry,omitempty"`
-	SizeSegment *string     `json:"sizeSegment,omitempty"`
-	OwnerID     string      `json:"ownerId"`
-	Address     *string     `json:"address,omitempty"`
-	Metadata    *string     `json:"metadata,omitempty"`
-	CreatedAt   string      `json:"createdAt"`
-	UpdatedAt   string      `json:"updatedAt"`
-	DeletedAt   *string     `json:"deletedAt,omitempty"`
+	ID          string  `json:"id"`
+	WorkspaceID string  `json:"workspaceId"`
+	Name        string  `json:"name"`
+	Domain      *string `json:"domain,omitempty"`
+	Industry    *string `json:"industry,omitempty"`
+	SizeSegment *string `json:"sizeSegment,omitempty"`
+	OwnerID     string  `json:"ownerId"`
+	Address     *string `json:"address,omitempty"`
+	Metadata    *string `json:"metadata,omitempty"`
+	CreatedAt   string  `json:"createdAt"`
+	UpdatedAt   string  `json:"updatedAt"`
+	DeletedAt   *string `json:"deletedAt,omitempty"`
 }
 
 // ListAccountsResponse is the response body for listing accounts.
 type ListAccountsResponse struct {
 	Data []AccountResponse `json:"data"`
-	Meta Meta             `json:"meta"`
+	Meta Meta              `json:"meta"`
 }
 
 // Meta contains pagination metadata.
@@ -117,7 +117,10 @@ func (h *AccountHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(accountToResponse(account))
+	if err := json.NewEncoder(w).Encode(accountToResponse(account)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // GetAccount handles GET /api/v1/accounts/{id}
@@ -150,7 +153,10 @@ func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(accountToResponse(account))
+	if err := json.NewEncoder(w).Encode(accountToResponse(account)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // ListAccounts handles GET /api/v1/accounts with pagination
@@ -189,7 +195,10 @@ func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // UpdateAccount handles PUT /api/v1/accounts/{id}
@@ -242,7 +251,10 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(accountToResponse(updated))
+	if err := json.NewEncoder(w).Encode(accountToResponse(updated)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 // DeleteAccount handles DELETE /api/v1/accounts/{id}
@@ -316,5 +328,7 @@ func formatDeletedAt(t *time.Time) *string {
 func writeError(w http.ResponseWriter, statusCode int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
+		http.Error(w, `{"error":"failed to encode error response"}`, http.StatusInternalServerError)
+	}
 }

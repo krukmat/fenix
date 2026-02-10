@@ -107,11 +107,14 @@ func TestAccountService_List(t *testing.T) {
 
 	// Create 3 accounts
 	for i := 1; i <= 3; i++ {
-		svc.Create(context.Background(), crm.CreateAccountInput{
+		_, err := svc.Create(context.Background(), crm.CreateAccountInput{
 			WorkspaceID: wsID,
 			Name:        "Account " + string(rune('0'+byte(i))),
 			OwnerID:     ownerID,
 		})
+		if err != nil {
+			t.Fatalf("Create() error in seed account %d = %v; want nil", i, err)
+		}
 	}
 
 	// Act: List with limit 2
@@ -154,7 +157,9 @@ func TestAccountService_ListExcludesDeleted(t *testing.T) {
 	})
 
 	// Delete one
-	svc.Delete(context.Background(), wsID, acc2.ID)
+	if err := svc.Delete(context.Background(), wsID, acc2.ID); err != nil {
+		t.Fatalf("Delete() error = %v; want nil", err)
+	}
 
 	// Act: List should return only 1
 	accounts, _, _ := svc.List(context.Background(), wsID, crm.ListAccountsInput{
@@ -187,9 +192,9 @@ func TestAccountService_Update(t *testing.T) {
 
 	// Act
 	updated, err := svc.Update(context.Background(), wsID, created.ID, crm.UpdateAccountInput{
-		Name:    "New Name",
+		Name:     "New Name",
 		Industry: "Finance",
-		OwnerID: ownerID, // Must pass valid FK
+		OwnerID:  ownerID, // Must pass valid FK
 	})
 
 	// Assert
@@ -244,21 +249,27 @@ func TestAccountService_ListByOwner(t *testing.T) {
 	owner2 := createUser(t, db, wsID)
 
 	// Create accounts: 2 for owner1, 1 for owner2
-	svc.Create(context.Background(), crm.CreateAccountInput{
+	if _, err := svc.Create(context.Background(), crm.CreateAccountInput{
 		WorkspaceID: wsID,
 		Name:        "Owner1 Account 1",
 		OwnerID:     owner1,
-	})
-	svc.Create(context.Background(), crm.CreateAccountInput{
+	}); err != nil {
+		t.Fatalf("Create() owner1 account 1 error = %v; want nil", err)
+	}
+	if _, err := svc.Create(context.Background(), crm.CreateAccountInput{
 		WorkspaceID: wsID,
 		Name:        "Owner1 Account 2",
 		OwnerID:     owner1,
-	})
-	svc.Create(context.Background(), crm.CreateAccountInput{
+	}); err != nil {
+		t.Fatalf("Create() owner1 account 2 error = %v; want nil", err)
+	}
+	if _, err := svc.Create(context.Background(), crm.CreateAccountInput{
 		WorkspaceID: wsID,
 		Name:        "Owner2 Account 1",
 		OwnerID:     owner2,
-	})
+	}); err != nil {
+		t.Fatalf("Create() owner2 account 1 error = %v; want nil", err)
+	}
 
 	// Act
 	accounts, err := svc.ListByOwner(context.Background(), wsID, owner1)

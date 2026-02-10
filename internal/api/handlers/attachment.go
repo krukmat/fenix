@@ -61,7 +61,10 @@ func (h *AttachmentHandler) CreateAttachment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(out)
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *AttachmentHandler) GetAttachment(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +83,10 @@ func (h *AttachmentHandler) GetAttachment(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get attachment: %v", err))
 		return
 	}
-	json.NewEncoder(w).Encode(out)
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *AttachmentHandler) ListAttachments(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +101,10 @@ func (h *AttachmentHandler) ListAttachments(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list attachments: %v", err))
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}})
+	if err := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *AttachmentHandler) DeleteAttachment(w http.ResponseWriter, r *http.Request) {

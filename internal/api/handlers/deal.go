@@ -92,7 +92,10 @@ func (h *DealHandler) GetDeal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get deal: %v", err))
 		return
 	}
-	json.NewEncoder(w).Encode(out)
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +110,10 @@ func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list deals: %v", err))
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}})
+	if err := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		return
+	}
 }
 
 func (h *DealHandler) UpdateDeal(w http.ResponseWriter, r *http.Request) {

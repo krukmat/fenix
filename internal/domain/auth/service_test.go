@@ -5,10 +5,8 @@ package auth_test
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
@@ -336,12 +334,4 @@ func mustOpenDB(t *testing.T) *sql.DB {
 	}
 
 	return db
-}
-
-// randID generates a unique random ID string for test isolation.
-var counter int64
-
-func randID() string {
-	counter++
-	return time.Now().Format("20060102150405") + fmt.Sprintf("%04d", counter)
 }

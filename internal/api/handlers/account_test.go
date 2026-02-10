@@ -137,11 +137,14 @@ func TestAccountHandler_ListAccounts(t *testing.T) {
 
 	// Create 3 accounts
 	for i := 1; i <= 3; i++ {
-		svc.Create(context.Background(), crm.CreateAccountInput{
+		_, err := svc.Create(context.Background(), crm.CreateAccountInput{
 			WorkspaceID: wsID,
 			Name:        fmt.Sprintf("Account %d", i),
 			OwnerID:     ownerID,
 		})
+		if err != nil {
+			t.Fatalf("seed create account %d error = %v", i, err)
+		}
 	}
 
 	req := httptest.NewRequest("GET", "/api/v1/accounts?limit=2&offset=0", nil)
@@ -277,7 +280,9 @@ func TestAccountHandler_DeleteAlreadyDeleted(t *testing.T) {
 		Name:        "Already Deleted",
 		OwnerID:     ownerID,
 	})
-	svc.Delete(context.Background(), wsID, created.ID)
+	if err := svc.Delete(context.Background(), wsID, created.ID); err != nil {
+		t.Fatalf("seed delete account error = %v", err)
+	}
 
 	// Try to delete again
 	req := httptest.NewRequest("DELETE", fmt.Sprintf("/api/v1/accounts/%s", created.ID), nil)
@@ -307,11 +312,14 @@ func TestAccountHandler_ListAccounts_LimitCapped(t *testing.T) {
 
 	// Create 3 accounts
 	for i := 1; i <= 3; i++ {
-		svc.Create(context.Background(), crm.CreateAccountInput{
+		_, err := svc.Create(context.Background(), crm.CreateAccountInput{
 			WorkspaceID: wsID,
 			Name:        fmt.Sprintf("Cap Test Account %d", i),
 			OwnerID:     ownerID,
 		})
+		if err != nil {
+			t.Fatalf("seed create cap test account %d error = %v", i, err)
+		}
 	}
 
 	req := httptest.NewRequest("GET", "/api/v1/accounts?limit=999999&offset=0", nil)
@@ -343,7 +351,6 @@ func TestAccountHandler_ListAccounts_LimitCapped(t *testing.T) {
 func contextWithWorkspaceID(ctx context.Context, wsID string) context.Context {
 	return context.WithValue(ctx, ctxkeys.WorkspaceID, wsID)
 }
-
 
 // mustOpenDBWithMigrations opens an in-memory DB with migrations applied.
 func mustOpenDBWithMigrations(t *testing.T) *sql.DB {
