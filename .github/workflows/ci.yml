@@ -35,9 +35,15 @@ jobs:
         # gocyclo exits with code 1 when violations found — causes this step to fail, blocking merge.
         # Threshold 7: industry standard for maintainable, testable functions.
         run: |
+          set -euo pipefail
           echo "=== Cyclomatic Complexity Report (threshold: 7, production code only) ==="
-          PROD_FILES=$(find ./internal -name '*.go' ! -name '*_test.go' | tr '\n' ' ')
-          VIOLATIONS=$(gocyclo -over 7 $PROD_FILES | grep -v "^Average:")
+
+          # Use xargs + null delimiters to pass files correctly to gocyclo.
+          # This avoids treating all files as a single path (which can cause false PASS).
+          VIOLATIONS=$(find ./internal -name '*.go' ! -name '*_test.go' -print0 \
+            | xargs -0 gocyclo -over 7 \
+            | grep -v "^Average:" || true)
+
           if [ -n "$VIOLATIONS" ]; then
             echo "$VIOLATIONS"
             echo ""
