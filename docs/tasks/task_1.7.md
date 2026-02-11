@@ -1,4 +1,4 @@
-# Task 1.7: Audit Logging Foundation
+pues # Task 1.7: Audit Logging Foundation
 
 > **Status**: 🟡 In Progress (base de auditoría implementada; integraciones API/auth pendientes)
 > **Priority**: P0 (Phase 1, Week 3)
