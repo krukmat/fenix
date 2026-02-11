@@ -10,7 +10,21 @@ sql:
     # Database schema files (migration SQL files)
     # sqlc reads these to understand the schema for type-safe query generation
     schema:
-      - "internal/infra/sqlite/migrations"
+      # List individual migration files to exclude 012_knowledge_fts.up.sql
+      # (CREATE VIRTUAL TABLE fts5 syntax is not supported by sqlc parser)
+      - "internal/infra/sqlite/migrations/001_init_schema.up.sql"
+      - "internal/infra/sqlite/migrations/002_crm_accounts.up.sql"
+      - "internal/infra/sqlite/migrations/003_crm_contacts.up.sql"
+      - "internal/infra/sqlite/migrations/004_crm_pipelines.up.sql"
+      - "internal/infra/sqlite/migrations/005_crm_leads.up.sql"
+      - "internal/infra/sqlite/migrations/006_crm_deals.up.sql"
+      - "internal/infra/sqlite/migrations/007_crm_cases.up.sql"
+      - "internal/infra/sqlite/migrations/008_crm_supporting.up.sql"
+      - "internal/infra/sqlite/migrations/009_auth_index.up.sql"
+      - "internal/infra/sqlite/migrations/010_audit_base.up.sql"
+      - "internal/infra/sqlite/migrations/011_knowledge.up.sql"
+      # 012_knowledge_fts.up.sql excluded: CREATE VIRTUAL TABLE fts5 not supported by sqlc parser
+      # Applied at runtime via MigrateUp (embed.FS picks up all *.up.sql files)
     # SQL query files with sqlc annotations (-- name: QueryName :cmd)
     queries:
       - "internal/infra/sqlite/queries"

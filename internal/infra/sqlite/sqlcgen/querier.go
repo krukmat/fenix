@@ -25,12 +25,16 @@ type Querier interface {
 	CountContactsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountDealsByPipeline(ctx context.Context, arg CountDealsByPipelineParams) (int64, error)
 	CountDealsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
+	// Task 2.2: Count total knowledge items for a workspace
+	CountKnowledgeItemsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountLeadsByStatus(ctx context.Context, arg CountLeadsByStatusParams) (int64, error)
 	CountLeadsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountNotesByEntity(ctx context.Context, arg CountNotesByEntityParams) (int64, error)
 	CountNotesByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountOverdueCases(ctx context.Context, workspaceID string) (int64, error)
 	CountPendingActivitiesByAssignee(ctx context.Context, arg CountPendingActivitiesByAssigneeParams) (int64, error)
+	// Task 2.4/2.7: Count pending embeddings for a workspace
+	CountPendingEmbeddingsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountPipelineStagesByPipeline(ctx context.Context, pipelineID string) (int64, error)
 	CountPipelinesByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountTimelineEventsByEntity(ctx context.Context, arg CountTimelineEventsByEntityParams) (int64, error)
@@ -60,6 +64,26 @@ type Querier interface {
 	// SQL queries for deal table
 	// Task 1.5: Deal management queries
 	CreateDeal(ctx context.Context, arg CreateDealParams) error
+	// ============================================================================
+	// EMBEDDING DOCUMENT QUERIES
+	// ============================================================================
+	// Task 2.2/2.4: Insert a chunk with pending embedding status
+	CreateEmbeddingDocument(ctx context.Context, arg CreateEmbeddingDocumentParams) error
+	// ============================================================================
+	// EVIDENCE QUERIES
+	// ============================================================================
+	// Task 2.6: Store a search result snapshot
+	CreateEvidence(ctx context.Context, arg CreateEvidenceParams) error
+	// Queries for knowledge layer tables
+	// Related to: Task 2.1, internal/domain/knowledge
+	// SECURITY NOTE: All queries include workspace_id filter to enforce multi-tenant isolation.
+	// Vector search (vec_embedding) is NOT handled here - modernc.org/sqlite requires
+	// raw sql.DB queries for virtual tables. See Task 2.5 for safe vector query patterns.
+	// ============================================================================
+	// KNOWLEDGE ITEM QUERIES
+	// ============================================================================
+	// Task 2.1/2.2: Insert a new knowledge item
+	CreateKnowledgeItem(ctx context.Context, arg CreateKnowledgeItemParams) error
 	// SQL queries for lead table
 	// Task 1.5: Lead management queries
 	CreateLead(ctx context.Context, arg CreateLeadParams) error
@@ -93,6 +117,8 @@ type Querier interface {
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) error
 	DeleteActivity(ctx context.Context, arg DeleteActivityParams) error
 	DeleteAttachment(ctx context.Context, arg DeleteAttachmentParams) error
+	// Task 2.7: Remove all chunks when knowledge item is deleted/reindexed
+	DeleteEmbeddingDocumentsByKnowledgeItem(ctx context.Context, arg DeleteEmbeddingDocumentsByKnowledgeItemParams) error
 	DeleteNote(ctx context.Context, arg DeleteNoteParams) error
 	DeletePipeline(ctx context.Context, arg DeletePipelineParams) error
 	DeletePipelineStage(ctx context.Context, id string) error
@@ -108,6 +134,14 @@ type Querier interface {
 	GetCaseByID(ctx context.Context, arg GetCaseByIDParams) (CaseTicket, error)
 	GetContactByID(ctx context.Context, arg GetContactByIDParams) (Contact, error)
 	GetDealByID(ctx context.Context, arg GetDealByIDParams) (Deal, error)
+	// Task 2.4: Get a single embedding document
+	GetEmbeddingDocumentByID(ctx context.Context, arg GetEmbeddingDocumentByIDParams) (EmbeddingDocument, error)
+	// Task 2.6: Retrieve a single evidence record
+	GetEvidenceByID(ctx context.Context, arg GetEvidenceByIDParams) (Evidence, error)
+	// Task 2.7: Find knowledge item linked to a CRM entity
+	GetKnowledgeItemByEntity(ctx context.Context, arg GetKnowledgeItemByEntityParams) (KnowledgeItem, error)
+	// Task 2.1/2.2: Retrieve a single knowledge item (excludes soft-deleted)
+	GetKnowledgeItemByID(ctx context.Context, arg GetKnowledgeItemByIDParams) (KnowledgeItem, error)
 	GetLatestTimelineEventByEntity(ctx context.Context, arg GetLatestTimelineEventByEntityParams) (TimelineEvent, error)
 	GetLeadByID(ctx context.Context, arg GetLeadByIDParams) (Lead, error)
 	GetNoteByID(ctx context.Context, arg GetNoteByIDParams) (Note, error)
@@ -161,6 +195,16 @@ type Querier interface {
 	ListDealsByStage(ctx context.Context, arg ListDealsByStageParams) ([]Deal, error)
 	ListDealsByStatus(ctx context.Context, arg ListDealsByStatusParams) ([]Deal, error)
 	ListDealsByWorkspace(ctx context.Context, arg ListDealsByWorkspaceParams) ([]Deal, error)
+	// Task 2.4: Get all chunks for a knowledge item (for embedding job)
+	ListEmbeddingDocumentsByKnowledgeItem(ctx context.Context, arg ListEmbeddingDocumentsByKnowledgeItemParams) ([]EmbeddingDocument, error)
+	// Task 2.6: List evidence for a knowledge item, ordered by score
+	ListEvidenceByKnowledgeItem(ctx context.Context, arg ListEvidenceByKnowledgeItemParams) ([]Evidence, error)
+	// Task 2.6: List evidence filtered by search method
+	ListEvidenceByMethod(ctx context.Context, arg ListEvidenceByMethodParams) ([]Evidence, error)
+	// Task 2.7: List knowledge items linked to a specific entity type
+	ListKnowledgeItemsByEntity(ctx context.Context, arg ListKnowledgeItemsByEntityParams) ([]KnowledgeItem, error)
+	// Task 2.2: List all knowledge items for a workspace (paginated)
+	ListKnowledgeItemsByWorkspace(ctx context.Context, arg ListKnowledgeItemsByWorkspaceParams) ([]KnowledgeItem, error)
 	ListLeadsByAccount(ctx context.Context, arg ListLeadsByAccountParams) ([]Lead, error)
 	ListLeadsByOwner(ctx context.Context, arg ListLeadsByOwnerParams) ([]Lead, error)
 	ListLeadsByStatus(ctx context.Context, arg ListLeadsByStatusParams) ([]Lead, error)
@@ -171,6 +215,8 @@ type Querier interface {
 	ListNotesByWorkspace(ctx context.Context, arg ListNotesByWorkspaceParams) ([]Note, error)
 	ListOpenCasesByPriority(ctx context.Context, workspaceID string) ([]CaseTicket, error)
 	ListPendingActivitiesByAssignee(ctx context.Context, arg ListPendingActivitiesByAssigneeParams) ([]Activity, error)
+	// Task 2.4: Get all chunks waiting to be embedded (for background job)
+	ListPendingEmbeddingsByWorkspace(ctx context.Context, arg ListPendingEmbeddingsByWorkspaceParams) ([]EmbeddingDocument, error)
 	ListPipelineStagesByPipeline(ctx context.Context, pipelineID string) ([]PipelineStage, error)
 	ListPipelinesByEntityType(ctx context.Context, arg ListPipelinesByEntityTypeParams) ([]Pipeline, error)
 	ListPipelinesByWorkspace(ctx context.Context, arg ListPipelinesByWorkspaceParams) ([]Pipeline, error)
@@ -189,6 +235,8 @@ type Querier interface {
 	SoftDeleteCase(ctx context.Context, arg SoftDeleteCaseParams) error
 	SoftDeleteContact(ctx context.Context, arg SoftDeleteContactParams) error
 	SoftDeleteDeal(ctx context.Context, arg SoftDeleteDealParams) error
+	// Task 2.2/2.7: Soft delete a knowledge item (preserves audit trail)
+	SoftDeleteKnowledgeItem(ctx context.Context, arg SoftDeleteKnowledgeItemParams) error
 	SoftDeleteLead(ctx context.Context, arg SoftDeleteLeadParams) error
 	SumDealAmountByPipeline(ctx context.Context, arg SumDealAmountByPipelineParams) (interface{}, error)
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) error
@@ -196,6 +244,11 @@ type Querier interface {
 	UpdateCase(ctx context.Context, arg UpdateCaseParams) error
 	UpdateContact(ctx context.Context, arg UpdateContactParams) error
 	UpdateDeal(ctx context.Context, arg UpdateDealParams) error
+	// Task 2.4: Mark a chunk as embedded (or failed)
+	UpdateEmbeddingDocumentStatus(ctx context.Context, arg UpdateEmbeddingDocumentStatusParams) error
+	// Task 2.7: Update normalized content after CDC reindex
+	// Triggers knowledge_item_au which re-syncs FTS5 index
+	UpdateKnowledgeItemNormalizedContent(ctx context.Context, arg UpdateKnowledgeItemNormalizedContentParams) error
 	UpdateLead(ctx context.Context, arg UpdateLeadParams) error
 	UpdateNote(ctx context.Context, arg UpdateNoteParams) error
 	UpdatePipeline(ctx context.Context, arg UpdatePipelineParams) error

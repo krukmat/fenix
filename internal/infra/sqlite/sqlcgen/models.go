@@ -131,6 +131,45 @@ type Deal struct {
 	DeletedAt     *string  `db:"deleted_at" json:"deletedAt"`
 }
 
+type EmbeddingDocument struct {
+	ID              string     `db:"id" json:"id"`
+	KnowledgeItemID string     `db:"knowledge_item_id" json:"knowledgeItemId"`
+	WorkspaceID     string     `db:"workspace_id" json:"workspaceId"`
+	ChunkIndex      int64      `db:"chunk_index" json:"chunkIndex"`
+	ChunkText       string     `db:"chunk_text" json:"chunkText"`
+	TokenCount      *int64     `db:"token_count" json:"tokenCount"`
+	EmbeddingStatus string     `db:"embedding_status" json:"embeddingStatus"`
+	EmbeddedAt      *time.Time `db:"embedded_at" json:"embeddedAt"`
+	CreatedAt       time.Time  `db:"created_at" json:"createdAt"`
+}
+
+type Evidence struct {
+	ID              string    `db:"id" json:"id"`
+	KnowledgeItemID string    `db:"knowledge_item_id" json:"knowledgeItemId"`
+	WorkspaceID     string    `db:"workspace_id" json:"workspaceId"`
+	Method          string    `db:"method" json:"method"`
+	Score           float64   `db:"score" json:"score"`
+	Snippet         *string   `db:"snippet" json:"snippet"`
+	PiiRedacted     bool      `db:"pii_redacted" json:"piiRedacted"`
+	Metadata        *string   `db:"metadata" json:"metadata"`
+	CreatedAt       time.Time `db:"created_at" json:"createdAt"`
+}
+
+type KnowledgeItem struct {
+	ID                string     `db:"id" json:"id"`
+	WorkspaceID       string     `db:"workspace_id" json:"workspaceId"`
+	SourceType        string     `db:"source_type" json:"sourceType"`
+	Title             string     `db:"title" json:"title"`
+	RawContent        string     `db:"raw_content" json:"rawContent"`
+	NormalizedContent *string    `db:"normalized_content" json:"normalizedContent"`
+	EntityType        *string    `db:"entity_type" json:"entityType"`
+	EntityID          *string    `db:"entity_id" json:"entityId"`
+	Metadata          *string    `db:"metadata" json:"metadata"`
+	CreatedAt         time.Time  `db:"created_at" json:"createdAt"`
+	UpdatedAt         time.Time  `db:"updated_at" json:"updatedAt"`
+	DeletedAt         *time.Time `db:"deleted_at" json:"deletedAt"`
+}
+
 type Lead struct {
 	ID          string   `db:"id" json:"id"`
 	WorkspaceID string   `db:"workspace_id" json:"workspaceId"`
