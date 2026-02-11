@@ -182,9 +182,12 @@ func TestKnowledgeItem_SoftDelete_ExcludedFromQueries(t *testing.T) {
 
 	// Should not appear in standard query
 	var count int
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT COUNT(*) FROM knowledge_item WHERE id = ? AND deleted_at IS NULL`, itemID,
 	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to count soft-deleted knowledge_item: %v", err)
+	}
 	if count != 0 {
 		t.Errorf("expected soft-deleted item to be excluded, got count=%d", count)
 	}
@@ -233,16 +236,22 @@ func TestKnowledgeItem_WorkspaceIsolation(t *testing.T) {
 	insertKnowledgeItem(t, db, newID(), wsB, "Doc B", "content b", "content b")
 
 	var count int
-	db.QueryRow(
+	err := db.QueryRow(
 		`SELECT COUNT(*) FROM knowledge_item WHERE workspace_id = ? AND deleted_at IS NULL`, wsA,
 	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to count workspace A knowledge items: %v", err)
+	}
 	if count != 1 {
 		t.Errorf("expected 1 item in workspace A, got %d", count)
 	}
 
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT COUNT(*) FROM knowledge_item WHERE workspace_id = ? AND deleted_at IS NULL`, wsB,
 	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to count workspace B knowledge items: %v", err)
+	}
 	if count != 1 {
 		t.Errorf("expected 1 item in workspace B, got %d", count)
 	}
@@ -295,19 +304,25 @@ func TestFTS5_AutoSync_OnUpdate(t *testing.T) {
 
 	// Old content should no longer match
 	var count int
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT COUNT(*) FROM knowledge_item_fts WHERE knowledge_item_fts MATCH 'original' AND workspace_id = ?`,
 		wsID,
 	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to query FTS5 old content count: %v", err)
+	}
 	if count != 0 {
 		t.Errorf("expected old content 'original' to be removed from FTS5 after update, got count=%d", count)
 	}
 
 	// New content should match
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT COUNT(*) FROM knowledge_item_fts WHERE knowledge_item_fts MATCH 'keywords' AND workspace_id = ?`,
 		wsID,
 	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to query FTS5 new content count: %v", err)
+	}
 	if count == 0 {
 		t.Error("expected new content 'keywords' to be indexed in FTS5 after update, got 0")
 	}
@@ -324,25 +339,31 @@ func TestFTS5_AutoSync_OnDelete(t *testing.T) {
 
 	// Verify it's indexed
 	var count int
-	db.QueryRow(
+	err := db.QueryRow(
 		`SELECT COUNT(*) FROM knowledge_item_fts WHERE knowledge_item_fts MATCH 'temporary' AND workspace_id = ?`,
 		wsID,
 	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to query FTS5 count before delete: %v", err)
+	}
 	if count == 0 {
 		t.Fatal("expected FTS5 to index 'temporary' before delete")
 	}
 
 	// Delete the item
-	_, err := db.Exec(`DELETE FROM knowledge_item WHERE id = ?`, itemID)
+	_, err = db.Exec(`DELETE FROM knowledge_item WHERE id = ?`, itemID)
 	if err != nil {
 		t.Fatalf("failed to delete knowledge_item: %v", err)
 	}
 
 	// FTS5 should no longer contain it
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT COUNT(*) FROM knowledge_item_fts WHERE knowledge_item_fts MATCH 'temporary' AND workspace_id = ?`,
 		wsID,
 	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to query FTS5 count after delete: %v", err)
+	}
 	if count != 0 {
 		t.Errorf("expected FTS5 to remove 'temporary' after delete trigger, got count=%d", count)
 	}
@@ -361,19 +382,25 @@ func TestFTS5_WorkspaceIsolation(t *testing.T) {
 
 	// Search in wsA should NOT return wsB results
 	var count int
-	db.QueryRow(
+	err := db.QueryRow(
 		`SELECT COUNT(*) FROM knowledge_item_fts WHERE knowledge_item_fts MATCH 'beta' AND workspace_id = ?`,
 		wsA,
 	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to query FTS5 beta count for workspace A: %v", err)
+	}
 	if count != 0 {
 		t.Errorf("SECURITY VIOLATION: workspace A FTS5 search returned workspace B results (count=%d)", count)
 	}
 
 	// wsA can find its own content
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT COUNT(*) FROM knowledge_item_fts WHERE knowledge_item_fts MATCH 'alpha' AND workspace_id = ?`,
 		wsA,
 	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to query FTS5 alpha count for workspace A: %v", err)
+	}
 	if count == 0 {
 		t.Error("workspace A should find its own content via FTS5")
 	}
@@ -419,8 +446,13 @@ func TestEmbeddingDocument_Insert_And_List(t *testing.T) {
 			Text   string
 			Status string
 		}
-		rows.Scan(&c.ID, &c.Index, &c.Text, &c.Status)
+		if err := rows.Scan(&c.ID, &c.Index, &c.Text, &c.Status); err != nil {
+			t.Fatalf("failed to scan embedding_document row: %v", err)
+		}
 		chunks = append(chunks, c)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("row iteration error for embedding_document: %v", err)
 	}
 
 	if len(chunks) != 2 {
@@ -456,9 +488,12 @@ func TestEmbeddingDocument_StatusTransition_ToEmbedded(t *testing.T) {
 
 	var status string
 	var embeddedAt sql.NullTime
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT embedding_status, embedded_at FROM embedding_document WHERE id = ?`, chunkID,
 	).Scan(&status, &embeddedAt)
+	if err != nil {
+		t.Fatalf("failed to query embedding_document status transition: %v", err)
+	}
 
 	if status != "embedded" {
 		t.Errorf("expected status 'embedded', got %s", status)
@@ -507,18 +542,24 @@ func TestEmbeddingDocument_WorkspaceIsolation(t *testing.T) {
 
 	// Searching with workspace_id filter must NOT return other workspace's chunks
 	var count int
-	db.QueryRow(
+	err := db.QueryRow(
 		`SELECT COUNT(*) FROM embedding_document WHERE workspace_id = ?`, wsA,
 	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to count embedding_document rows for workspace A: %v", err)
+	}
 	if count != 1 {
 		t.Errorf("expected only 1 embedding_document for workspace A, got %d", count)
 	}
 
 	// This is the pattern used in safe vector search (Task 2.5):
 	// JOIN embedding_document ON vec_embedding.id = embedding_document.id WHERE embedding_document.workspace_id = ?
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT COUNT(*) FROM embedding_document WHERE workspace_id = ?`, wsB,
 	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to count embedding_document rows for workspace B: %v", err)
+	}
 	if count != 1 {
 		t.Errorf("expected only 1 embedding_document for workspace B, got %d", count)
 	}
@@ -612,8 +653,13 @@ func TestEvidence_ListByKnowledgeItem_OrderedByScore(t *testing.T) {
 	var scores []float64
 	for rows.Next() {
 		var s float64
-		rows.Scan(&s)
+		if err := rows.Scan(&s); err != nil {
+			t.Fatalf("failed to scan evidence row: %v", err)
+		}
 		scores = append(scores, s)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("row iteration error for evidence list: %v", err)
 	}
 
 	if len(scores) != 3 {
