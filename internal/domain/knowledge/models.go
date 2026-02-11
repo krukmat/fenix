@@ -15,12 +15,15 @@ import "time"
 type SourceType string
 
 const (
-	SourceTypeDocument SourceType = "document"
-	SourceTypeEmail    SourceType = "email"
-	SourceTypeCall     SourceType = "call"
-	SourceTypeNote     SourceType = "note"
-	SourceTypeCase     SourceType = "case"
-	SourceTypeTicket   SourceType = "ticket"
+	SourceTypeDocument  SourceType = "document"
+	SourceTypeEmail     SourceType = "email"
+	SourceTypeCall      SourceType = "call"
+	SourceTypeNote      SourceType = "note"
+	SourceTypeCase      SourceType = "case"
+	SourceTypeTicket    SourceType = "ticket"
+	SourceTypeKBArticle SourceType = "kb_article"
+	SourceTypeAPI       SourceType = "api"
+	SourceTypeOther     SourceType = "other"
 )
 
 // EmbeddingStatus tracks the lifecycle of a chunk through the embedding pipeline (Task 2.4).

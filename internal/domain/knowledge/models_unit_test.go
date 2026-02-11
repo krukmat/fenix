@@ -92,6 +92,9 @@ func TestSourceType_Constants(t *testing.T) {
 		{"note", SourceTypeNote, "note"},
 		{"case", SourceTypeCase, "case"},
 		{"ticket", SourceTypeTicket, "ticket"},
+		{"kb_article", SourceTypeKBArticle, "kb_article"},
+		{"api", SourceTypeAPI, "api"},
+		{"other", SourceTypeOther, "other"},
 	}
 	for _, c := range cases {
 		if string(c.value) != c.want {

@@ -13,7 +13,7 @@
 CREATE TABLE knowledge_item (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
-    source_type TEXT NOT NULL CHECK(source_type IN ('email', 'document', 'kb_article', 'api', 'other')),
+    source_type TEXT NOT NULL CHECK(source_type IN ('email', 'document', 'kb_article', 'api', 'note', 'call', 'case', 'ticket', 'other')),
     title TEXT NOT NULL,
     raw_content TEXT NOT NULL,                   -- Original unmodified content
     normalized_content TEXT,                     -- HTML-stripped, lowercase for indexing

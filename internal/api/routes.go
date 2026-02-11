@@ -13,6 +13,8 @@ import (
 	domainaudit "github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
+	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
+	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 )
 
 // NewRouter creates and configures a new chi router with all routes.
@@ -143,6 +145,14 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Route("/timeline", func(r chi.Router) {
 			r.Get("/", timelineHandler.ListTimeline)
 			r.Get("/{entity_type}/{entity_id}", timelineHandler.ListTimelineByEntity)
+		})
+
+		// Task 2.2: Knowledge ingestion pipeline
+		knowledgeIngestHandler := handlers.NewKnowledgeIngestHandler(
+			knowledge.NewIngestService(db, eventbus.New()),
+		)
+		r.Route("/knowledge", func(r chi.Router) {
+			r.Post("/ingest", knowledgeIngestHandler.Ingest) // POST /api/v1/knowledge/ingest
 		})
 	})
 
