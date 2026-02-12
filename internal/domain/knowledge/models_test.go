@@ -30,6 +30,11 @@ func setupTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}
+	// IMPORTANT: with ":memory:" each SQLite connection has its own isolated DB.
+	// Restrict pool to a single connection so async goroutines in tests (embedder)
+	// see the same schema/data and avoid intermittent "no such table" failures.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	if err := sqlite.MigrateUp(db); err != nil {
 		t.Fatalf("failed to run migrations: %v", err)
 	}

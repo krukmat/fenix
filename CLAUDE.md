@@ -18,6 +18,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Implementation plan (13 weeks, 4 phases, TDD): `docs/implementation-plan.md`
 - Corrections applied (audit report): `docs/CORRECTIONS-APPLIED.md`
 
+**Source of truth rules (MANDATORY)**:
+- Before planning or implementing any task, ALWAYS read `docs/implementation-plan.md` for the task spec and `docs/architecture.md` for architectural constraints.
+- These two documents are the primary source of truth. Only deviate with explicit user approval.
+- If the implementation plan is ambiguous or conflicts with the architecture doc, ask the user before proceeding.
+
 ---
 
 ## Core Design Principles

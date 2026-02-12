@@ -6,6 +6,7 @@ package knowledge
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -302,18 +303,204 @@ func TestEmbedderService_Start_ReceivesEventAndEmbeds(t *testing.T) {
 		t.Fatalf("ingest failed: %v", err)
 	}
 
-	// Wait for async embedder to process (1s budget — LLM retries in other tests take ~300ms)
-	deadline := time.Now().Add(1 * time.Second)
+	// Wait for async embedder to process.
+	// Under -race and CI load, the goroutine scheduler can delay this path,
+	// so we keep a slightly wider budget to avoid flaky timeouts.
+	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		var status string
-		db.QueryRowContext(context.Background(),
-			`SELECT embedding_status FROM embedding_document WHERE knowledge_item_id = ? LIMIT 1`,
-			item.ID,
-		).Scan(&status) //nolint:errcheck
+		err := db.QueryRowContext(context.Background(),
+			`SELECT embedding_status FROM embedding_document WHERE knowledge_item_id = ? AND workspace_id = ? LIMIT 1`,
+			item.ID, wsID,
+		).Scan(&status)
+		if err != nil {
+			t.Fatalf("failed to query embedding status: %v", err)
+		}
 		if status == string(EmbeddingStatusEmbedded) {
 			return // success
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Error("timeout: embedder did not process knowledge.ingested event within 500ms")
+	t.Error("timeout: embedder did not process knowledge.ingested event within 3s")
+}
+
+// ============================================================================
+// Task 2.4 audit remediation: branch coverage for storeVectors, encodeEmbedding,
+// EmbedChunks storeVectors-error path, callEmbedWithRetry ctx.Done(), Start bad payload.
+// ============================================================================
+
+// TestEmbedderService_StoreVectors_DBClosed covers the storeVectors BeginTx error branch.
+// When the DB is closed before EmbedChunks runs, storeVectors returns an error and
+// EmbedChunks must call markAllFailed + return an error.
+func TestEmbedderService_StoreVectors_DBClosed(t *testing.T) {
+	db := setupTestDB(t)
+
+	stub := newStubEmbedder(3)
+	svc := NewEmbedderService(db, stub)
+	wsID := createWorkspace(t, db)
+
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+
+	item, err := ingest.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID: wsID,
+		SourceType:  SourceTypeDocument,
+		Title:       "StoreVectors Error Test",
+		RawContent:  "content to embed",
+	})
+	if err != nil {
+		t.Fatalf("ingest failed: %v", err)
+	}
+
+	// Close DB — triggers BeginTx error inside storeVectors
+	db.Close()
+
+	embedErr := svc.EmbedChunks(context.Background(), item.ID, wsID)
+	if embedErr == nil {
+		t.Error("expected EmbedChunks to return error when DB is closed")
+	}
+}
+
+// TestEmbedderService_EmbedChunks_FetchError covers the fetchPendingChunks error branch.
+// When the DB is closed before EmbedChunks runs, fetchPendingChunks returns an error.
+func TestEmbedderService_EmbedChunks_FetchError(t *testing.T) {
+	db := setupTestDB(t)
+
+	stub := newStubEmbedder(3)
+	svc := NewEmbedderService(db, stub)
+	wsID := createWorkspace(t, db)
+
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+
+	_, err := ingest.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID: wsID,
+		SourceType:  SourceTypeDocument,
+		Title:       "Fetch Error Test",
+		RawContent:  "some content",
+	})
+	if err != nil {
+		t.Fatalf("ingest failed: %v", err)
+	}
+
+	// Close DB before fetching — fetchPendingChunks will fail
+	db.Close()
+
+	embedErr := svc.EmbedChunks(context.Background(), "nonexistent-item", wsID)
+	if embedErr == nil {
+		t.Error("expected EmbedChunks to return error when DB is closed during fetch")
+	}
+}
+
+// TestEncodeEmbedding_NaN covers the encodeEmbedding error branch.
+// json.Marshal fails for float32 NaN values (JSON does not support NaN/Inf).
+func TestEncodeEmbedding_NaN(t *testing.T) {
+	vec := []float32{float32(math.NaN()), 0.1, 0.2}
+	_, err := encodeEmbedding(vec)
+	if err == nil {
+		t.Error("expected encodeEmbedding to return error for NaN values")
+	}
+}
+
+// TestEncodeEmbedding_Valid covers the happy path of encodeEmbedding.
+func TestEncodeEmbedding_Valid(t *testing.T) {
+	vec := []float32{0.1, 0.2, 0.3}
+	got, err := encodeEmbedding(vec)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got == "" {
+		t.Error("expected non-empty JSON string")
+	}
+}
+
+// TestEmbedderService_CallEmbedWithRetry_ContextCancelled covers the ctx.Done()
+// branch inside callEmbedWithRetry's backoff select.
+func TestEmbedderService_CallEmbedWithRetry_ContextCancelled(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	callCount := 0
+	stub := &stubEmbedder{
+		embedFunc: func(_ context.Context, _ llm.EmbedRequest) (*llm.EmbedResponse, error) {
+			callCount++
+			return nil, errors.New("forced error")
+		},
+	}
+	svc := NewEmbedderService(db, stub)
+
+	// Cancel context immediately so the backoff select picks ctx.Done()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before first retry backoff
+
+	wsID := createWorkspace(t, db)
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+
+	item, err := ingest.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID: wsID,
+		SourceType:  SourceTypeDocument,
+		Title:       "Ctx Cancel Test",
+		RawContent:  "content for retry cancel test",
+	})
+	if err != nil {
+		t.Fatalf("ingest failed: %v", err)
+	}
+
+	embedErr := svc.EmbedChunks(ctx, item.ID, wsID)
+	if embedErr == nil {
+		t.Error("expected EmbedChunks to return error when context is cancelled")
+	}
+}
+
+// TestEmbedderService_Start_BadPayload covers the Start() branch where the event
+// payload cannot be cast to IngestedEventPayload — the service must continue running.
+func TestEmbedderService_Start_BadPayload(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	stub := newStubEmbedder(3)
+	svc := NewEmbedderService(db, stub)
+
+	bus := eventbus.New()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go svc.Start(ctx, bus)
+
+	// Publish a bad payload (string instead of IngestedEventPayload)
+	bus.Publish(TopicKnowledgeIngested, "this-is-not-a-valid-payload")
+
+	// Give goroutine time to process without crashing
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify embedder is still alive by publishing a valid event after the bad one
+	wsID := createWorkspace(t, db)
+	ingest := NewIngestService(db, bus)
+
+	item, err := ingest.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID: wsID,
+		SourceType:  SourceTypeDocument,
+		Title:       "Recovery After Bad Payload",
+		RawContent:  "content after bad payload",
+	})
+	if err != nil {
+		t.Fatalf("ingest failed: %v", err)
+	}
+
+	// Embedder should recover and process the valid event
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		var status string
+		db.QueryRowContext(context.Background(), //nolint:errcheck
+			`SELECT embedding_status FROM embedding_document WHERE knowledge_item_id = ? LIMIT 1`,
+			item.ID,
+		).Scan(&status) //nolint:errcheck
+		if status == string(EmbeddingStatusEmbedded) {
+			return // success — embedder survived bad payload and processed good one
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Error("timeout: embedder did not recover after bad payload within 3s")
 }
