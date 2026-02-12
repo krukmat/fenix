@@ -47,10 +47,13 @@ func TestIngestService_CreateItem_And_Chunks(t *testing.T) {
 
 	// Verify embedding_document rows were created
 	var chunkCount int
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT COUNT(*) FROM embedding_document WHERE knowledge_item_id = ? AND workspace_id = ?`,
 		item.ID, wsID,
 	).Scan(&chunkCount)
+	if err != nil {
+		t.Fatalf("failed to count embedding_document rows: %v", err)
+	}
 	if chunkCount < 2 {
 		t.Errorf("expected at least 2 chunks for 600-token text, got %d", chunkCount)
 	}
@@ -86,10 +89,15 @@ func TestIngestService_ChunksHaveStatusPending(t *testing.T) {
 
 	for rows.Next() {
 		var status string
-		rows.Scan(&status)
+		if err := rows.Scan(&status); err != nil {
+			t.Fatalf("failed to scan embedding status row: %v", err)
+		}
 		if status != string(EmbeddingStatusPending) {
 			t.Errorf("expected chunk status 'pending', got %q", status)
 		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("row iteration error for chunk statuses: %v", err)
 	}
 }
 
@@ -114,9 +122,12 @@ func TestIngestService_ShortContent_CreatesSingleChunk(t *testing.T) {
 	}
 
 	var chunkCount int
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT COUNT(*) FROM embedding_document WHERE knowledge_item_id = ?`, item.ID,
 	).Scan(&chunkCount)
+	if err != nil {
+		t.Fatalf("failed to count chunks for short content: %v", err)
+	}
 	if chunkCount != 1 {
 		t.Errorf("expected 1 chunk for short text, got %d", chunkCount)
 	}
@@ -146,9 +157,12 @@ func TestIngestService_EmptyContent_CreatesItemWithNoChunks(t *testing.T) {
 	}
 
 	var chunkCount int
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT COUNT(*) FROM embedding_document WHERE knowledge_item_id = ?`, item.ID,
 	).Scan(&chunkCount)
+	if err != nil {
+		t.Fatalf("failed to count chunks for empty content: %v", err)
+	}
 	if chunkCount != 0 {
 		t.Errorf("expected 0 chunks for empty content, got %d", chunkCount)
 	}
@@ -198,19 +212,25 @@ func TestIngestService_Idempotent_SameEntity_UpdatesAndReplacesChunks(t *testing
 
 	// Title and content must be updated
 	var title, rawContent string
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT title, raw_content FROM knowledge_item WHERE id = ?`, item1.ID,
 	).Scan(&title, &rawContent)
+	if err != nil {
+		t.Fatalf("failed to query updated knowledge_item: %v", err)
+	}
 	if title != "Case v2" {
 		t.Errorf("expected updated title 'Case v2', got %q", title)
 	}
 
 	// Only one knowledge_item should exist for this entity
 	var itemCount int
-	db.QueryRow(
+	err = db.QueryRow(
 		`SELECT COUNT(*) FROM knowledge_item WHERE workspace_id = ? AND entity_type = ? AND entity_id = ? AND deleted_at IS NULL`,
 		wsID, entityType, entityID,
 	).Scan(&itemCount)
+	if err != nil {
+		t.Fatalf("failed to count knowledge_item rows for entity: %v", err)
+	}
 	if itemCount != 1 {
 		t.Errorf("expected exactly 1 knowledge_item for entity, got %d", itemCount)
 	}
@@ -246,8 +266,14 @@ func TestIngestService_WorkspaceIsolation(t *testing.T) {
 	}
 
 	var countA, countB int
-	db.QueryRow(`SELECT COUNT(*) FROM knowledge_item WHERE workspace_id = ? AND deleted_at IS NULL`, wsA).Scan(&countA)
-	db.QueryRow(`SELECT COUNT(*) FROM knowledge_item WHERE workspace_id = ? AND deleted_at IS NULL`, wsB).Scan(&countB)
+	err = db.QueryRow(`SELECT COUNT(*) FROM knowledge_item WHERE workspace_id = ? AND deleted_at IS NULL`, wsA).Scan(&countA)
+	if err != nil {
+		t.Fatalf("failed to count knowledge_item rows for workspace A: %v", err)
+	}
+	err = db.QueryRow(`SELECT COUNT(*) FROM knowledge_item WHERE workspace_id = ? AND deleted_at IS NULL`, wsB).Scan(&countB)
+	if err != nil {
+		t.Fatalf("failed to count knowledge_item rows for workspace B: %v", err)
+	}
 
 	if countA != 1 {
 		t.Errorf("expected 1 item in workspace A, got %d", countA)
@@ -346,7 +372,10 @@ func TestIngestService_Idempotent_ChunkCount_IsReplaced(t *testing.T) {
 	}
 
 	var chunksAfterFirst int
-	db.QueryRow(`SELECT COUNT(*) FROM embedding_document WHERE knowledge_item_id = ?`, item.ID).Scan(&chunksAfterFirst)
+	err = db.QueryRow(`SELECT COUNT(*) FROM embedding_document WHERE knowledge_item_id = ?`, item.ID).Scan(&chunksAfterFirst)
+	if err != nil {
+		t.Fatalf("failed to count chunks after first ingest: %v", err)
+	}
 	if chunksAfterFirst < 2 {
 		t.Fatalf("expected >=2 chunks after first ingest, got %d", chunksAfterFirst)
 	}
@@ -365,7 +394,10 @@ func TestIngestService_Idempotent_ChunkCount_IsReplaced(t *testing.T) {
 	}
 
 	var chunksAfterSecond int
-	db.QueryRow(`SELECT COUNT(*) FROM embedding_document WHERE knowledge_item_id = ?`, item.ID).Scan(&chunksAfterSecond)
+	err = db.QueryRow(`SELECT COUNT(*) FROM embedding_document WHERE knowledge_item_id = ?`, item.ID).Scan(&chunksAfterSecond)
+	if err != nil {
+		t.Fatalf("failed to count chunks after second ingest: %v", err)
+	}
 	if chunksAfterSecond != 1 {
 		t.Errorf("expected exactly 1 chunk after re-ingest with short text, got %d (old chunks not replaced)", chunksAfterSecond)
 	}
