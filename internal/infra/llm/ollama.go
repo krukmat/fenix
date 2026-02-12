@@ -117,7 +117,7 @@ func (p *OllamaProvider) ChatCompletion(ctx context.Context, req ChatRequest) (*
 
 	msgs := make([]ollamaChatMessage, len(req.Messages))
 	for i, m := range req.Messages {
-		msgs[i] = ollamaChatMessage{Role: m.Role, Content: m.Content}
+		msgs[i] = ollamaChatMessage(m)
 	}
 
 	opts := buildChatOptions(req)
