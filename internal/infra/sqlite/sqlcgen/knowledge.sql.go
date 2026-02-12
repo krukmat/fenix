@@ -178,6 +178,25 @@ func (q *Queries) DeleteEmbeddingDocumentsByKnowledgeItem(ctx context.Context, a
 	return err
 }
 
+const deleteVecEmbeddingsByKnowledgeItem = `-- name: DeleteVecEmbeddingsByKnowledgeItem :exec
+DELETE FROM vec_embedding
+WHERE id IN (
+    SELECT ed.id FROM embedding_document ed
+    WHERE ed.knowledge_item_id = ? AND ed.workspace_id = ?
+)
+`
+
+type DeleteVecEmbeddingsByKnowledgeItemParams struct {
+	KnowledgeItemID string `db:"knowledge_item_id" json:"knowledgeItemId"`
+	WorkspaceID     string `db:"workspace_id" json:"workspaceId"`
+}
+
+// Task 2.4: Remove vectors for all chunks of a knowledge_item (on re-ingest).
+func (q *Queries) DeleteVecEmbeddingsByKnowledgeItem(ctx context.Context, arg DeleteVecEmbeddingsByKnowledgeItemParams) error {
+	_, err := q.db.ExecContext(ctx, deleteVecEmbeddingsByKnowledgeItem, arg.KnowledgeItemID, arg.WorkspaceID)
+	return err
+}
+
 const getEmbeddingDocumentByID = `-- name: GetEmbeddingDocumentByID :one
 SELECT id, knowledge_item_id, workspace_id, chunk_index, chunk_text, token_count, embedding_status, embedded_at, created_at FROM embedding_document
 WHERE id = ? AND workspace_id = ?
@@ -299,6 +318,33 @@ func (q *Queries) GetKnowledgeItemByID(ctx context.Context, arg GetKnowledgeItem
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const insertVecEmbedding = `-- name: InsertVecEmbedding :exec
+
+INSERT INTO vec_embedding (id, workspace_id, embedding, created_at)
+VALUES (?, ?, ?, ?)
+`
+
+type InsertVecEmbeddingParams struct {
+	ID          string    `db:"id" json:"id"`
+	WorkspaceID string    `db:"workspace_id" json:"workspaceId"`
+	Embedding   string    `db:"embedding" json:"embedding"`
+	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
+}
+
+// ============================================================================
+// vec_embedding queries (Task 2.4)
+// ============================================================================
+// Task 2.4: Store a float32 vector as JSON TEXT for an embedding_document chunk.
+func (q *Queries) InsertVecEmbedding(ctx context.Context, arg InsertVecEmbeddingParams) error {
+	_, err := q.db.ExecContext(ctx, insertVecEmbedding,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Embedding,
+		arg.CreatedAt,
+	)
+	return err
 }
 
 const listEmbeddingDocumentsByKnowledgeItem = `-- name: ListEmbeddingDocumentsByKnowledgeItem :many

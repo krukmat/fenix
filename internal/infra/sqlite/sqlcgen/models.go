@@ -264,6 +264,13 @@ type UserRole struct {
 	CreatedAt string `db:"created_at" json:"createdAt"`
 }
 
+type VecEmbedding struct {
+	ID          string    `db:"id" json:"id"`
+	WorkspaceID string    `db:"workspace_id" json:"workspaceId"`
+	Embedding   string    `db:"embedding" json:"embedding"`
+	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
+}
+
 type Workspace struct {
 	ID        string  `db:"id" json:"id"`
 	Name      string  `db:"name" json:"name"`

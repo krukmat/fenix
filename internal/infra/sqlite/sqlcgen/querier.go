@@ -125,6 +125,8 @@ type Querier interface {
 	DeletePipelineStagesByPipeline(ctx context.Context, pipelineID string) error
 	DeleteRole(ctx context.Context, arg DeleteRoleParams) error
 	DeleteUser(ctx context.Context, arg DeleteUserParams) error
+	// Task 2.4: Remove vectors for all chunks of a knowledge_item (on re-ingest).
+	DeleteVecEmbeddingsByKnowledgeItem(ctx context.Context, arg DeleteVecEmbeddingsByKnowledgeItemParams) error
 	DeleteWorkspace(ctx context.Context, id string) error
 	GetAccountByID(ctx context.Context, arg GetAccountByIDParams) (Account, error)
 	GetActivityByID(ctx context.Context, arg GetActivityByIDParams) (Activity, error)
@@ -157,6 +159,11 @@ type Querier interface {
 	GetUserRole(ctx context.Context, arg GetUserRoleParams) (UserRole, error)
 	GetWorkspaceByID(ctx context.Context, id string) (Workspace, error)
 	GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error)
+	// ============================================================================
+	// vec_embedding queries (Task 2.4)
+	// ============================================================================
+	// Task 2.4: Store a float32 vector as JSON TEXT for an embedding_document chunk.
+	InsertVecEmbedding(ctx context.Context, arg InsertVecEmbeddingParams) error
 	ListAccountsByOwner(ctx context.Context, arg ListAccountsByOwnerParams) ([]Account, error)
 	ListAccountsByWorkspace(ctx context.Context, arg ListAccountsByWorkspaceParams) ([]Account, error)
 	ListActiveUsersByWorkspace(ctx context.Context, workspaceID string) ([]UserAccount, error)

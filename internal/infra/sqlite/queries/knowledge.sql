@@ -135,3 +135,20 @@ SELECT * FROM evidence
 WHERE workspace_id = ? AND method = ?
 ORDER BY score DESC
 LIMIT ? OFFSET ?;
+
+-- ============================================================================
+-- vec_embedding queries (Task 2.4)
+-- ============================================================================
+
+-- name: InsertVecEmbedding :exec
+-- Task 2.4: Store a float32 vector as JSON TEXT for an embedding_document chunk.
+INSERT INTO vec_embedding (id, workspace_id, embedding, created_at)
+VALUES (?, ?, ?, ?);
+
+-- name: DeleteVecEmbeddingsByKnowledgeItem :exec
+-- Task 2.4: Remove vectors for all chunks of a knowledge_item (on re-ingest).
+DELETE FROM vec_embedding
+WHERE id IN (
+    SELECT ed.id FROM embedding_document ed
+    WHERE ed.knowledge_item_id = ? AND ed.workspace_id = ?
+);

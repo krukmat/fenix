@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 
@@ -14,7 +15,9 @@ import (
 	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
+	"github.com/matiasleandrokruk/fenix/internal/infra/config"
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
+	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
 )
 
 // NewRouter creates and configures a new chi router with all routes.
@@ -148,9 +151,17 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		})
 
 		// Task 2.2: Knowledge ingestion pipeline
-		knowledgeIngestHandler := handlers.NewKnowledgeIngestHandler(
-			knowledge.NewIngestService(db, eventbus.New()),
-		)
+		// Task 2.4: Shared event bus — IngestService publishes, EmbedderService subscribes
+		knowledgeBus := eventbus.New()
+		ingestSvc := knowledge.NewIngestService(db, knowledgeBus)
+
+		// Task 2.4: EmbedderService — async goroutine processes knowledge.ingested events
+		cfg := config.Load()
+		llmProvider := llm.NewOllamaProvider(cfg.OllamaBaseURL, cfg.OllamaModel)
+		embedder := knowledge.NewEmbedderService(db, llmProvider)
+		go embedder.Start(context.Background(), knowledgeBus)
+
+		knowledgeIngestHandler := handlers.NewKnowledgeIngestHandler(ingestSvc)
 		r.Route("/knowledge", func(r chi.Router) {
 			r.Post("/ingest", knowledgeIngestHandler.Ingest) // POST /api/v1/knowledge/ingest
 		})
