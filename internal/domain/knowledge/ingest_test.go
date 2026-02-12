@@ -295,6 +295,83 @@ func TestIngestService_PublishesEvent(t *testing.T) {
 }
 
 // ============================================================================
+// Error Branch Tests (Task 2.2 audit remediation)
+// ============================================================================
+
+// TestIngestService_ClosedDB_ReturnsError covers the BeginTx error branch in Ingest.
+// A closed *sql.DB makes BeginTx return an error immediately.
+func TestIngestService_ClosedDB_ReturnsError(t *testing.T) {
+	db := setupTestDB(t)
+	// Close DB before calling Ingest — BeginTx will fail
+	db.Close()
+
+	bus := eventbus.New()
+	svc := NewIngestService(db, bus)
+
+	_, err := svc.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID: "ws-does-not-matter",
+		SourceType:  SourceTypeDocument,
+		Title:       "Error Test",
+		RawContent:  "some content",
+	})
+	if err == nil {
+		t.Error("expected Ingest to return error when DB is closed, got nil")
+	}
+}
+
+// TestIngestService_Idempotent_ChunkCount_IsReplaced verifies that re-ingesting
+// the same entity replaces ALL old chunks (covers insertChunks + deleteOldChunks path).
+// Before re-ingest: 2 chunks. After re-ingest with shorter text: 1 chunk.
+func TestIngestService_Idempotent_ChunkCount_IsReplaced(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	bus := eventbus.New()
+	svc := NewIngestService(db, bus)
+	wsID := createWorkspace(t, db)
+	entityID := newID()
+	entityType := "case"
+
+	// First ingest: 600 tokens → 2 chunks
+	item, err := svc.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID: wsID,
+		SourceType:  SourceTypeCase,
+		Title:       "Case v1",
+		RawContent:  buildText(600),
+		EntityType:  &entityType,
+		EntityID:    &entityID,
+	})
+	if err != nil {
+		t.Fatalf("first ingest failed: %v", err)
+	}
+
+	var chunksAfterFirst int
+	db.QueryRow(`SELECT COUNT(*) FROM embedding_document WHERE knowledge_item_id = ?`, item.ID).Scan(&chunksAfterFirst)
+	if chunksAfterFirst < 2 {
+		t.Fatalf("expected >=2 chunks after first ingest, got %d", chunksAfterFirst)
+	}
+
+	// Second ingest same entity: short text → 1 chunk
+	_, err = svc.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID: wsID,
+		SourceType:  SourceTypeCase,
+		Title:       "Case v2",
+		RawContent:  "just a few words",
+		EntityType:  &entityType,
+		EntityID:    &entityID,
+	})
+	if err != nil {
+		t.Fatalf("second ingest failed: %v", err)
+	}
+
+	var chunksAfterSecond int
+	db.QueryRow(`SELECT COUNT(*) FROM embedding_document WHERE knowledge_item_id = ?`, item.ID).Scan(&chunksAfterSecond)
+	if chunksAfterSecond != 1 {
+		t.Errorf("expected exactly 1 chunk after re-ingest with short text, got %d (old chunks not replaced)", chunksAfterSecond)
+	}
+}
+
+// ============================================================================
 // Helpers
 // ============================================================================
 

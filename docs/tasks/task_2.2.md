@@ -107,11 +107,15 @@ POST /api/v1/knowledge/ingest
 - `TestEventBus_MultipleSubscribers`
 - `TestEventBus_NonBlockingPublish`
 
-### knowledge_ingest_test.go (handler, no DB — uses service mock)
+### knowledge_ingest_test.go (handler, integration — real DB + real IngestService)
 - `TestKnowledgeIngestHandler_Success_Returns201`
 - `TestKnowledgeIngestHandler_MissingTitle_Returns400`
-- `TestKnowledgeIngestHandler_MissingContent_Returns400`
+- `TestKnowledgeIngestHandler_MissingSourceType_Returns400`
 - `TestKnowledgeIngestHandler_InvalidSourceType_Returns400`
+- `TestKnowledgeIngestHandler_NoWorkspaceContext_Returns401`
+
+> **Nota de implementación**: se optó por integración real (DB en memoria + IngestService real) en lugar de mock.
+> Mayor confianza de integración entre capas. Tests de error difíciles de forzar (BeginTx, rollback) cubiertos en `ingest_test.go`.
 
 ---
 
