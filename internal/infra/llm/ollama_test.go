@@ -200,3 +200,60 @@ func TestOllamaProvider_ModelInfo_ReturnsMetadata(t *testing.T) {
 		t.Errorf("expected provider 'ollama', got %q", meta.Provider)
 	}
 }
+
+// ============================================================================
+// buildChatOptions tests (Task 2.3 audit remediation)
+// ============================================================================
+
+func TestBuildChatOptions_WithTemperature(t *testing.T) {
+	t.Parallel()
+
+	req := ChatRequest{
+		Messages:    []Message{{Role: "user", Content: "hi"}},
+		Temperature: 0.7,
+	}
+	opts := buildChatOptions(req)
+	if opts == nil {
+		t.Fatal("expected non-nil opts map when Temperature is set")
+	}
+	temp, ok := opts["temperature"]
+	if !ok {
+		t.Error("expected 'temperature' key in opts")
+	}
+	if temp != float32(0.7) {
+		t.Errorf("expected temperature 0.7, got %v", temp)
+	}
+}
+
+func TestBuildChatOptions_WithMaxTokens(t *testing.T) {
+	t.Parallel()
+
+	req := ChatRequest{
+		Messages:  []Message{{Role: "user", Content: "hi"}},
+		MaxTokens: 256,
+	}
+	opts := buildChatOptions(req)
+	if opts == nil {
+		t.Fatal("expected non-nil opts map when MaxTokens is set")
+	}
+	predict, ok := opts["num_predict"]
+	if !ok {
+		t.Error("expected 'num_predict' key in opts")
+	}
+	if predict != 256 {
+		t.Errorf("expected num_predict 256, got %v", predict)
+	}
+}
+
+func TestBuildChatOptions_BothZero_ReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	req := ChatRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+		// Temperature and MaxTokens left at zero values
+	}
+	opts := buildChatOptions(req)
+	if opts != nil {
+		t.Errorf("expected nil opts when both Temperature and MaxTokens are zero, got %v", opts)
+	}
+}
