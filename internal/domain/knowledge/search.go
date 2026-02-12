@@ -209,7 +209,6 @@ func rrfMerge(bm25Results []bm25Row, vecResults []vectorRow, limit int) []Search
 	type docInfo struct {
 		title   string
 		snippet string
-		score   float64
 		method  EvidenceMethod
 	}
 

@@ -390,7 +390,7 @@ func TestSearchService_BM25_InvalidFTSSyntax(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bm25Search should degrade gracefully on FTS5 syntax error, got: %v", err)
 	}
-	if results != nil && len(results) != 0 {
+	if len(results) != 0 {
 		t.Errorf("expected empty results for invalid FTS5 query, got %d", len(results))
 	}
 }
