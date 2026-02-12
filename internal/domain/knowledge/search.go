@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync"
 
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
@@ -60,18 +61,42 @@ func NewSearchService(db *sql.DB, provider llm.LLMProvider) *SearchService {
 }
 
 // HybridSearch runs BM25 + vector search in parallel and merges results via RRF.
+// BM25 (FTS5) and LLM.Embed() run concurrently to overlap Ollama RTT with DB query.
 // Graceful degradation: if LLM.Embed() fails, returns BM25-only results without error.
+// Task 2.5 audit: switched from sequential to parallel execution.
 func (s *SearchService) HybridSearch(ctx context.Context, input SearchInput) (*SearchResults, error) {
 	limit := resolveLimit(input.Limit)
 
-	// Run BM25 search (always available, no LLM required)
-	bm25Results, err := s.bm25Search(ctx, input.Query, input.WorkspaceID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("search: bm25: %w", err)
-	}
+	var (
+		bm25Results []bm25Row
+		vecResults  []vectorRow
+		bm25Err     error
+		mu          sync.Mutex
+		wg          sync.WaitGroup
+	)
 
-	// Run vector search — degrade gracefully if LLM fails
-	vecResults := s.vectorSearchWithFallback(ctx, input.Query, input.WorkspaceID, limit)
+	wg.Add(2)
+
+	// Goroutine 1: BM25 search via FTS5 (always available, no LLM required)
+	go func() {
+		defer wg.Done()
+		res, err := s.bm25Search(ctx, input.Query, input.WorkspaceID, limit)
+		mu.Lock()
+		bm25Results, bm25Err = res, err
+		mu.Unlock()
+	}()
+
+	// Goroutine 2: vector search — degrade gracefully if LLM embed fails
+	go func() {
+		defer wg.Done()
+		vecResults = s.vectorSearchWithFallback(ctx, input.Query, input.WorkspaceID, limit)
+	}()
+
+	wg.Wait()
+
+	if bm25Err != nil {
+		return nil, fmt.Errorf("search: bm25: %w", bm25Err)
+	}
 
 	items := rrfMerge(bm25Results, vecResults, limit)
 	return &SearchResults{Items: items, Query: input.Query}, nil

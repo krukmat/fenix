@@ -6,7 +6,9 @@ package knowledge
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
@@ -322,6 +324,77 @@ func TestSearchService_Limit_Respected(t *testing.T) {
 	}
 }
 
+// TestSearchService_VectorFallback_EmptyEmbeddings covers the
+// len(resp.Embeddings) == 0 branch in vectorSearchWithFallback (Task 2.5 audit).
+func TestSearchService_VectorFallback_EmptyEmbeddings(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	// Stub that returns a successful response but with zero embeddings
+	stub := &stubEmbedder{
+		embedFunc: func(_ context.Context, _ llm.EmbedRequest) (*llm.EmbedResponse, error) {
+			return &llm.EmbedResponse{Embeddings: [][]float32{}}, nil // empty, not nil
+		},
+	}
+
+	wsID := createWorkspace(t, db)
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	svc := NewSearchService(db, stub)
+
+	// Ingest without embedding (stub returns empty, so EmbedChunks won't store vectors)
+	_, err := ingest.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID: wsID,
+		SourceType:  SourceTypeDocument,
+		Title:       "BM25 Only Doc",
+		RawContent:  "this is searchable via keyword fallback",
+	})
+	if err != nil {
+		t.Fatalf("ingest failed: %v", err)
+	}
+
+	// vectorSearchWithFallback will return nil (empty embeddings path) — BM25 still works
+	results, err := svc.HybridSearch(context.Background(), SearchInput{
+		Query:       "keyword fallback",
+		WorkspaceID: wsID,
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("HybridSearch should not fail when embeddings are empty: %v", err)
+	}
+	// BM25 should still find the doc
+	found := false
+	for _, r := range results.Items {
+		if r.Title == "BM25 Only Doc" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected BM25 to find 'BM25 Only Doc' even when vector path returns empty embeddings")
+	}
+}
+
+// TestSearchService_BM25_InvalidFTSSyntax covers the QueryContext error branch
+// in bm25Search — FTS5 MATCH with invalid/empty query returns nil results (Task 2.5 audit).
+func TestSearchService_BM25_InvalidFTSSyntax(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	stub := newStubEmbedder(3)
+	wsID := createWorkspace(t, db)
+	svc := NewSearchService(db, stub)
+
+	// FTS5 interprets empty string as syntax error — triggers the //nolint:nilerr path
+	results, err := svc.bm25Search(context.Background(), "\"\"\"invalid fts5\"\"\"", wsID, 10)
+	// bm25Search treats FTS5 errors as no results (graceful degradation)
+	if err != nil {
+		t.Fatalf("bm25Search should degrade gracefully on FTS5 syntax error, got: %v", err)
+	}
+	if results != nil && len(results) != 0 {
+		t.Errorf("expected empty results for invalid FTS5 query, got %d", len(results))
+	}
+}
+
 func TestSearchService_LLMEmbedFails_FallbackToBM25(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
@@ -364,5 +437,59 @@ func TestSearchService_LLMEmbedFails_FallbackToBM25(t *testing.T) {
 	// BM25 should still return the pricing doc
 	if len(results.Items) == 0 {
 		t.Error("expected BM25 fallback to return results even when vector search fails")
+	}
+}
+
+// ============================================================================
+// Performance smoke test — Task 2.5 audit, Item 3
+// Validates that HybridSearch overhead (excluding Ollama RTT) is negligible.
+// With stub LLM the whole cycle must complete under 500ms for 10 documents.
+// ============================================================================
+
+func TestSearchService_Performance_Under500ms(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	stub := newStubEmbedder(4)
+	wsID := createWorkspace(t, db)
+
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	embedder := NewEmbedderService(db, stub)
+	svc := NewSearchService(db, stub)
+
+	// Ingest and embed 10 documents covering varied topics
+	topics := []struct{ title, content string }{
+		{"Customer Onboarding", "onboarding guide for new enterprise customers"},
+		{"Pricing Strategy", "pricing discount policy for enterprise customers"},
+		{"Support Process", "how to handle customer support tickets"},
+		{"Sales Playbook", "sales methodology for closing enterprise deals"},
+		{"Technical FAQ", "frequently asked questions about API integration"},
+		{"Security Policy", "security and compliance requirements for data handling"},
+		{"Renewal Process", "steps for customer contract renewal and upsell"},
+		{"Escalation Guide", "escalation matrix for critical production issues"},
+		{"Release Notes", "product release notes for version 2.0 features"},
+		{"Training Materials", "onboarding training materials for new support agents"},
+	}
+	for i, topic := range topics {
+		ingestAndEmbedDoc(t, ingest, embedder, wsID, topic.title, fmt.Sprintf("%s (doc %d)", topic.content, i))
+	}
+
+	start := time.Now()
+	results, err := svc.HybridSearch(context.Background(), SearchInput{
+		Query:       "enterprise customer",
+		WorkspaceID: wsID,
+		Limit:       10,
+	})
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("HybridSearch failed: %v", err)
+	}
+	if len(results.Items) == 0 {
+		t.Error("expected results for 'enterprise customer' query")
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("HybridSearch exceeded 500ms p95 target: took %v (stub LLM, 10 docs)", elapsed)
 	}
 }

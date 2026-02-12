@@ -89,6 +89,31 @@ func TestKnowledgeSearchHandler_Success_Returns200(t *testing.T) {
 	}
 }
 
+// TestKnowledgeSearchHandler_InvalidJSON_Returns400 covers the json.Decode error branch
+// in Search handler — malformed body should return 400 (Task 2.5 audit).
+func TestKnowledgeSearchHandler_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+
+	stub := &searchStubLLM{}
+	searchSvc := knowledge.NewSearchService(db, stub)
+	handler := NewKnowledgeSearchHandler(searchSvc)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/search",
+		bytes.NewBufferString(`{not valid json`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+
+	rr := httptest.NewRecorder()
+	handler.Search(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid JSON body, got %d — body: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestKnowledgeSearchHandler_MissingQuery_Returns400(t *testing.T) {
 	t.Parallel()
 
