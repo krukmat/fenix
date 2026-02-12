@@ -161,9 +161,14 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		embedder := knowledge.NewEmbedderService(db, llmProvider)
 		go embedder.Start(context.Background(), knowledgeBus)
 
+		// Task 2.5: SearchService — hybrid BM25 + vector search with RRF ranking
+		searchSvc := knowledge.NewSearchService(db, llmProvider)
+
 		knowledgeIngestHandler := handlers.NewKnowledgeIngestHandler(ingestSvc)
+		knowledgeSearchHandler := handlers.NewKnowledgeSearchHandler(searchSvc)
 		r.Route("/knowledge", func(r chi.Router) {
-			r.Post("/ingest", knowledgeIngestHandler.Ingest) // POST /api/v1/knowledge/ingest
+			r.Post("/ingest", knowledgeIngestHandler.Ingest)   // POST /api/v1/knowledge/ingest
+			r.Post("/search", knowledgeSearchHandler.Search)   // POST /api/v1/knowledge/search
 		})
 	})
 

@@ -130,6 +130,14 @@ type Querier interface {
 	DeleteWorkspace(ctx context.Context, id string) error
 	GetAccountByID(ctx context.Context, arg GetAccountByIDParams) (Account, error)
 	GetActivityByID(ctx context.Context, arg GetActivityByIDParams) (Activity, error)
+	// ============================================================================
+	// search queries (Task 2.5)
+	// ============================================================================
+	// Task 2.5: Fetches all embedded vectors for a workspace for in-memory cosine
+	// distance calculation. workspace_id filter via JOIN (multi-tenant security).
+	// Note: BM25/FTS5 query (SearchKnowledgeItemFTS) is executed as raw SQL in
+	// search.go because sqlc does not support CREATE VIRTUAL TABLE fts5 syntax.
+	GetAllEmbeddedVectorsByWorkspace(ctx context.Context, workspaceID string) ([]GetAllEmbeddedVectorsByWorkspaceRow, error)
 	GetAttachmentByID(ctx context.Context, arg GetAttachmentByIDParams) (Attachment, error)
 	// Retrieves a single audit event by ID
 	GetAuditEventByID(ctx context.Context, id string) (AuditEvent, error)

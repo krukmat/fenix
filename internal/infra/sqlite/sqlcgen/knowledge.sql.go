@@ -197,6 +197,51 @@ func (q *Queries) DeleteVecEmbeddingsByKnowledgeItem(ctx context.Context, arg De
 	return err
 }
 
+const getAllEmbeddedVectorsByWorkspace = `-- name: GetAllEmbeddedVectorsByWorkspace :many
+
+SELECT v.id, v.embedding, ed.knowledge_item_id
+FROM vec_embedding v
+JOIN embedding_document ed ON v.id = ed.id
+WHERE ed.workspace_id = ?
+  AND ed.embedding_status = 'embedded'
+`
+
+type GetAllEmbeddedVectorsByWorkspaceRow struct {
+	ID              string `db:"id" json:"id"`
+	Embedding       string `db:"embedding" json:"embedding"`
+	KnowledgeItemID string `db:"knowledge_item_id" json:"knowledgeItemId"`
+}
+
+// ============================================================================
+// search queries (Task 2.5)
+// ============================================================================
+// Task 2.5: Fetches all embedded vectors for a workspace for in-memory cosine
+// distance calculation. workspace_id filter via JOIN (multi-tenant security).
+// Note: BM25/FTS5 query (SearchKnowledgeItemFTS) is executed as raw SQL in
+// search.go because sqlc does not support CREATE VIRTUAL TABLE fts5 syntax.
+func (q *Queries) GetAllEmbeddedVectorsByWorkspace(ctx context.Context, workspaceID string) ([]GetAllEmbeddedVectorsByWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAllEmbeddedVectorsByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAllEmbeddedVectorsByWorkspaceRow{}
+	for rows.Next() {
+		var i GetAllEmbeddedVectorsByWorkspaceRow
+		if err := rows.Scan(&i.ID, &i.Embedding, &i.KnowledgeItemID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEmbeddingDocumentByID = `-- name: GetEmbeddingDocumentByID :one
 SELECT id, knowledge_item_id, workspace_id, chunk_index, chunk_text, token_count, embedding_status, embedded_at, created_at FROM embedding_document
 WHERE id = ? AND workspace_id = ?

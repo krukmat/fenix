@@ -152,3 +152,18 @@ WHERE id IN (
     SELECT ed.id FROM embedding_document ed
     WHERE ed.knowledge_item_id = ? AND ed.workspace_id = ?
 );
+
+-- ============================================================================
+-- search queries (Task 2.5)
+-- ============================================================================
+
+-- name: GetAllEmbeddedVectorsByWorkspace :many
+-- Task 2.5: Fetches all embedded vectors for a workspace for in-memory cosine
+-- distance calculation. workspace_id filter via JOIN (multi-tenant security).
+-- Note: BM25/FTS5 query (SearchKnowledgeItemFTS) is executed as raw SQL in
+-- search.go because sqlc does not support CREATE VIRTUAL TABLE fts5 syntax.
+SELECT v.id, v.embedding, ed.knowledge_item_id
+FROM vec_embedding v
+JOIN embedding_document ed ON v.id = ed.id
+WHERE ed.workspace_id = ?
+  AND ed.embedding_status = 'embedded';
