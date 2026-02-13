@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -408,6 +409,6 @@ func setupWorkspaceAndOwner(t *testing.T, db *sql.DB) (workspaceID, ownerID stri
 var randIDCounter int64 = 0
 
 func randID() string {
-	randIDCounter++
-	return time.Now().Format("20060102150405") + "-" + fmt.Sprintf("%d", randIDCounter)
+	n := atomic.AddInt64(&randIDCounter, 1)
+	return time.Now().Format("20060102150405") + "-" + fmt.Sprintf("%d", n)
 }
