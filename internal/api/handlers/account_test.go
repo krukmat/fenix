@@ -360,6 +360,11 @@ func mustOpenDBWithMigrations(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("NewDB error = %v", err)
 	}
+	// IMPORTANT: :memory: databases are per-connection in SQLite.
+	// Force a single connection so migrations and subsequent queries
+	// always run against the same in-memory DB.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	t.Cleanup(func() { db.Close() })
 
 	if err := sqlite.MigrateUp(db); err != nil {

@@ -81,6 +81,15 @@ jobs:
       - name: Run tests
         run: make test
 
+      - name: Race stability gate
+        run: make race-stability
+
+      - name: Global coverage gate
+        run: make coverage-gate
+
+      - name: TDD coverage gate
+        run: make coverage-tdd
+
       - name: Build binary
         run: make build
 
