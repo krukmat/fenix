@@ -300,6 +300,101 @@ func TestReindexService_QueueWorkspaceReindex_EntityFilter(t *testing.T) {
 	}
 }
 
+func TestReindexService_HandleRecordChange_InvalidEvent_ReturnsError(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	reindex := NewReindexService(db, bus, ingest, audit.NewAuditService(db))
+
+	err := reindex.HandleRecordChange(context.Background(), RecordChangedEvent{})
+	if err == nil {
+		t.Fatal("expected error for invalid record change event")
+	}
+}
+
+func TestReindexService_HandleRecordChange_NoLinkedKnowledgeItem_ReturnsNil(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	wsID := createWorkspace(t, db)
+
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	reindex := NewReindexService(db, bus, ingest, audit.NewAuditService(db))
+
+	err := reindex.HandleRecordChange(context.Background(), RecordChangedEvent{
+		EntityType:  EntityTypeAccount,
+		EntityID:    newID(),
+		WorkspaceID: wsID,
+		ChangeType:  ChangeTypeUpdated,
+		OccurredAt:  time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("expected nil when no linked knowledge item exists, got: %v", err)
+	}
+}
+
+func TestReindexService_ForwardRecordEvents_AssignsChangeType(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	reindex := NewReindexService(db, bus, ingest, audit.NewAuditService(db))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	out := reindex.forwardRecordEvents(ctx, TopicRecordUpdated, ChangeTypeUpdated)
+
+	expected := RecordChangedEvent{
+		EntityType:  EntityTypeCaseTicket,
+		EntityID:    newID(),
+		WorkspaceID: newID(),
+		OccurredAt:  time.Now(),
+	}
+	bus.Publish(TopicRecordUpdated, expected)
+
+	select {
+	case got := <-out:
+		if got.EntityType != expected.EntityType || got.EntityID != expected.EntityID || got.WorkspaceID != expected.WorkspaceID {
+			t.Fatalf("unexpected forwarded payload: %+v", got)
+		}
+		if got.ChangeType != ChangeTypeUpdated {
+			t.Fatalf("expected change type %s, got %s", ChangeTypeUpdated, got.ChangeType)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected forwarded event")
+	}
+}
+
+func TestReindexService_Start_StopsOnContextCancel(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	reindex := NewReindexService(db, bus, ingest, audit.NewAuditService(db))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
+	go func() {
+		reindex.Start(ctx)
+		close(done)
+	}()
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected Start to stop after context cancellation")
+	}
+}
+
 func createUserForReindex(t *testing.T, db *sql.DB, workspaceID string) string {
 	t.Helper()
 	id := newID()
