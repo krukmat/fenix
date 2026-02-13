@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
+	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -72,10 +74,15 @@ type ListCasesInput struct {
 type CaseService struct {
 	db      *sql.DB
 	querier sqlcgen.Querier
+	bus     eventbus.EventBus
 }
 
 func NewCaseService(db *sql.DB) *CaseService {
 	return &CaseService{db: db, querier: sqlcgen.New(db)}
+}
+
+func NewCaseServiceWithBus(db *sql.DB, bus eventbus.EventBus) *CaseService {
+	return &CaseService{db: db, querier: sqlcgen.New(db), bus: bus}
 }
 
 func (s *CaseService) Create(ctx context.Context, input CreateCaseInput) (*CaseTicket, error) {
@@ -115,6 +122,7 @@ func (s *CaseService) Create(ctx context.Context, input CreateCaseInput) (*CaseT
 	if err := createTimelineEvent(ctx, s.querier, input.WorkspaceID, "case_ticket", id, input.OwnerID, "created"); err != nil {
 		return nil, fmt.Errorf("create case timeline: %w", err)
 	}
+	s.publishRecordChanged(knowledge.ChangeTypeCreated, input.WorkspaceID, id)
 
 	return s.Get(ctx, input.WorkspaceID, id)
 }
@@ -175,6 +183,7 @@ func (s *CaseService) Update(ctx context.Context, workspaceID, caseID string, in
 	if err := createTimelineEvent(ctx, s.querier, workspaceID, "case_ticket", caseID, input.OwnerID, "updated"); err != nil {
 		return nil, fmt.Errorf("update case timeline: %w", err)
 	}
+	s.publishRecordChanged(knowledge.ChangeTypeUpdated, workspaceID, caseID)
 
 	return s.Get(ctx, workspaceID, caseID)
 }
@@ -193,7 +202,21 @@ func (s *CaseService) Delete(ctx context.Context, workspaceID, caseID string) er
 	if err := createTimelineEvent(ctx, s.querier, workspaceID, "case_ticket", caseID, "", "deleted"); err != nil {
 		return fmt.Errorf("delete case timeline: %w", err)
 	}
+	s.publishRecordChanged(knowledge.ChangeTypeDeleted, workspaceID, caseID)
 	return nil
+}
+
+func (s *CaseService) publishRecordChanged(changeType knowledge.ChangeType, workspaceID, caseID string) {
+	if s.bus == nil {
+		return
+	}
+	s.bus.Publish(knowledge.TopicForChangeType(changeType), knowledge.RecordChangedEvent{
+		EntityType:  knowledge.EntityTypeCaseTicket,
+		EntityID:    caseID,
+		WorkspaceID: workspaceID,
+		ChangeType:  changeType,
+		OccurredAt:  time.Now(),
+	})
 }
 
 func rowToCaseTicket(row sqlcgen.CaseTicket) *CaseTicket {

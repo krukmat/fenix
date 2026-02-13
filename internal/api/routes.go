@@ -57,8 +57,18 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Use(apmiddleware.AuthMiddleware)
 		r.Use(apmiddleware.AuditMiddleware(auditService))
 
+		// Shared app services for protected APIs
+		knowledgeBus := eventbus.New()
+		cfg := config.Load()
+		llmProvider := llm.NewOllamaProvider(cfg.OllamaBaseURL, cfg.OllamaModel)
+		ingestSvc := knowledge.NewIngestService(db, knowledgeBus)
+		embedder := knowledge.NewEmbedderService(db, llmProvider)
+		reindexSvc := knowledge.NewReindexService(db, knowledgeBus, ingestSvc, auditService)
+		go embedder.Start(context.Background(), knowledgeBus)
+		go reindexSvc.Start(context.Background())
+
 		// Account endpoints (Task 1.3.8)
-		accountHandler := handlers.NewAccountHandler(crm.NewAccountService(db))
+		accountHandler := handlers.NewAccountHandler(crm.NewAccountServiceWithBus(db, knowledgeBus))
 		contactHandler := handlers.NewContactHandler(crm.NewContactService(db))
 		r.Route("/accounts", func(r chi.Router) {
 			r.Post("/", accountHandler.CreateAccount)       // POST /api/v1/accounts
@@ -80,7 +90,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		// Lead endpoints (Task 1.5)
 		leadHandler := handlers.NewLeadHandler(crm.NewLeadService(db))
 		dealHandler := handlers.NewDealHandler(crm.NewDealService(db))
-		caseHandler := handlers.NewCaseHandler(crm.NewCaseService(db))
+		caseHandler := handlers.NewCaseHandler(crm.NewCaseServiceWithBus(db, knowledgeBus))
 		pipelineHandler := handlers.NewPipelineHandler(crm.NewPipelineService(db))
 		activityHandler := handlers.NewActivityHandler(crm.NewActivityService(db))
 		noteHandler := handlers.NewNoteHandler(crm.NewNoteService(db))
@@ -150,17 +160,6 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			r.Get("/{entity_type}/{entity_id}", timelineHandler.ListTimelineByEntity)
 		})
 
-		// Task 2.2: Knowledge ingestion pipeline
-		// Task 2.4: Shared event bus — IngestService publishes, EmbedderService subscribes
-		knowledgeBus := eventbus.New()
-		ingestSvc := knowledge.NewIngestService(db, knowledgeBus)
-
-		// Task 2.4: EmbedderService — async goroutine processes knowledge.ingested events
-		cfg := config.Load()
-		llmProvider := llm.NewOllamaProvider(cfg.OllamaBaseURL, cfg.OllamaModel)
-		embedder := knowledge.NewEmbedderService(db, llmProvider)
-		go embedder.Start(context.Background(), knowledgeBus)
-
 		// Task 2.5: SearchService — hybrid BM25 + vector search with RRF ranking
 		searchSvc := knowledge.NewSearchService(db, llmProvider)
 		// Task 2.6: EvidencePackService — curated evidence packs for AI layer
@@ -169,10 +168,12 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		knowledgeIngestHandler := handlers.NewKnowledgeIngestHandler(ingestSvc)
 		knowledgeSearchHandler := handlers.NewKnowledgeSearchHandler(searchSvc)
 		knowledgeEvidenceHandler := handlers.NewKnowledgeEvidenceHandler(evidenceSvc)
+		knowledgeReindexHandler := handlers.NewKnowledgeReindexHandler(reindexSvc)
 		r.Route("/knowledge", func(r chi.Router) {
 			r.Post("/ingest", knowledgeIngestHandler.Ingest)   // POST /api/v1/knowledge/ingest
 			r.Post("/search", knowledgeSearchHandler.Search)   // POST /api/v1/knowledge/search
 			r.Post("/evidence", knowledgeEvidenceHandler.Build) // POST /api/v1/knowledge/evidence
+			r.Post("/reindex", knowledgeReindexHandler.Reindex) // POST /api/v1/knowledge/reindex
 		})
 	})
 

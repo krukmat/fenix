@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
+	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -61,6 +63,7 @@ type ListAccountsInput struct {
 type AccountService struct {
 	db      *sql.DB
 	querier sqlcgen.Querier
+	bus     eventbus.EventBus
 }
 
 // NewAccountService creates an AccountService instance.
@@ -68,6 +71,15 @@ func NewAccountService(db *sql.DB) *AccountService {
 	return &AccountService{
 		db:      db,
 		querier: sqlcgen.New(db),
+	}
+}
+
+// NewAccountServiceWithBus creates an AccountService with CDC event publishing enabled.
+func NewAccountServiceWithBus(db *sql.DB, bus eventbus.EventBus) *AccountService {
+	return &AccountService{
+		db:      db,
+		querier: sqlcgen.New(db),
+		bus:     bus,
 	}
 }
 
@@ -100,6 +112,7 @@ func (s *AccountService) Create(ctx context.Context, input CreateAccountInput) (
 	if err != nil {
 		return nil, fmt.Errorf("create account: %w", err)
 	}
+	s.publishRecordChanged(knowledge.ChangeTypeCreated, input.WorkspaceID, accountID)
 
 	// Return the created account by fetching it
 	return s.Get(ctx, input.WorkspaceID, accountID)
@@ -187,6 +200,7 @@ func (s *AccountService) Update(ctx context.Context, workspaceID, accountID stri
 	if err != nil {
 		return nil, fmt.Errorf("update account: %w", err)
 	}
+	s.publishRecordChanged(knowledge.ChangeTypeUpdated, workspaceID, accountID)
 
 	return s.Get(ctx, workspaceID, accountID)
 }
@@ -205,8 +219,22 @@ func (s *AccountService) Delete(ctx context.Context, workspaceID, accountID stri
 	if err != nil {
 		return fmt.Errorf("soft delete account: %w", err)
 	}
+	s.publishRecordChanged(knowledge.ChangeTypeDeleted, workspaceID, accountID)
 
 	return nil
+}
+
+func (s *AccountService) publishRecordChanged(changeType knowledge.ChangeType, workspaceID, accountID string) {
+	if s.bus == nil {
+		return
+	}
+	s.bus.Publish(knowledge.TopicForChangeType(changeType), knowledge.RecordChangedEvent{
+		EntityType:  knowledge.EntityTypeAccount,
+		EntityID:    accountID,
+		WorkspaceID: workspaceID,
+		ChangeType:  changeType,
+		OccurredAt:  time.Now(),
+	})
 }
 
 // --- internal helpers ---
