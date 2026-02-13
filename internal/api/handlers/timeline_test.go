@@ -101,3 +101,23 @@ func TestTimelineHandler_ListTimelineByEntity_Success(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 }
+
+func TestTimelineHandler_ListTimelineByEntity_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	handler := NewTimelineHandler(crm.NewTimelineService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline/account/a1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("entity_type", "account")
+	rctx.URLParams.Add("entity_id", "a1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	handler.ListTimelineByEntity(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}

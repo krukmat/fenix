@@ -126,3 +126,56 @@ func TestAttachmentHandler_DeleteAttachment_SuccessEvenIfMissing(t *testing.T) {
 		t.Fatalf("expected 204, got %d body=%s", rr.Code, rr.Body.String())
 	}
 }
+
+func TestAttachmentHandler_GetAttachment_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewAttachmentHandler(crm.NewAttachmentService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/attachments/a1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "a1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.GetAttachment(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestAttachmentHandler_ListAttachments_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewAttachmentHandler(crm.NewAttachmentService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/attachments", nil)
+	rr := httptest.NewRecorder()
+	h.ListAttachments(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestAttachmentHandler_DeleteAttachment_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewAttachmentHandler(crm.NewAttachmentService(db))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/attachments/a1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "a1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.DeleteAttachment(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}

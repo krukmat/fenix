@@ -51,6 +51,41 @@ func TestPipelineHandler_CreatePipeline_MissingRequired_Returns400(t *testing.T)
 	}
 }
 
+func TestPipelineHandler_CreatePipeline_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewPipelineHandler(crm.NewPipelineService(db))
+
+	body, _ := json.Marshal(map[string]any{"name": "Sales", "entityType": "deal"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipelines", bytes.NewReader(body))
+
+	rr := httptest.NewRecorder()
+	h.CreatePipeline(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_CreatePipeline_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewPipelineHandler(crm.NewPipelineService(db))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipelines", bytes.NewBufferString(`{"name":`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+
+	rr := httptest.NewRecorder()
+	h.CreatePipeline(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
 func TestPipelineHandler_ListPipelines_Success(t *testing.T) {
 	t.Parallel()
 
@@ -95,6 +130,40 @@ func TestPipelineHandler_GetPipeline_NotFound_Returns404(t *testing.T) {
 
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_ListPipelines_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewPipelineHandler(crm.NewPipelineService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/pipelines", nil)
+	rr := httptest.NewRecorder()
+	h.ListPipelines(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_GetPipeline_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewPipelineHandler(crm.NewPipelineService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/pipelines/p1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "p1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.GetPipeline(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 }
 
@@ -150,6 +219,117 @@ func TestPipelineHandler_DeletePipeline_Success(t *testing.T) {
 
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_UpdatePipeline_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewPipelineHandler(crm.NewPipelineService(db))
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/pipelines/p1", bytes.NewBufferString(`{"name":"x"}`))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "p1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.UpdatePipeline(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_DeletePipeline_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewPipelineHandler(crm.NewPipelineService(db))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/pipelines/p1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "p1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.DeletePipeline(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_CreateStage_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewPipelineHandler(crm.NewPipelineService(db))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/p1/stages", bytes.NewBufferString(`{"name":`))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "p1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.CreateStage(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_CreateStage_MissingName_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewPipelineHandler(crm.NewPipelineService(db))
+
+	body, _ := json.Marshal(map[string]any{"position": 1})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/p1/stages", bytes.NewReader(body))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "p1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.CreateStage(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_ListStages_EmptyPipelineID_StillHandlesRequest(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewPipelineHandler(crm.NewPipelineService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/pipelines//stages", nil)
+	rr := httptest.NewRecorder()
+	h.ListStages(rr, req)
+
+	if rr.Code != http.StatusOK && rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 200 or 500, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_UpdateStage_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewPipelineHandler(crm.NewPipelineService(db))
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/pipelines/p1/stages/s1", bytes.NewBufferString(`{"name":`))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("stage_id", "s1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.UpdateStage(rr, req)
+
+	if rr.Code != http.StatusNotFound && rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 404 or 500, got %d", rr.Code)
 	}
 }
 

@@ -126,3 +126,75 @@ func TestActivityHandler_UpdateActivity_NotFound_Returns404(t *testing.T) {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
 }
+
+func TestActivityHandler_GetActivity_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewActivityHandler(crm.NewActivityService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/activities/a1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "a1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.GetActivity(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestActivityHandler_ListActivities_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewActivityHandler(crm.NewActivityService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/activities", nil)
+	rr := httptest.NewRecorder()
+	h.ListActivities(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestActivityHandler_UpdateActivity_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewActivityHandler(crm.NewActivityService(db))
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/activities/a1", bytes.NewBufferString(`{"subject":"x"}`))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "a1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.UpdateActivity(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestActivityHandler_DeleteActivity_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewActivityHandler(crm.NewActivityService(db))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/activities/a1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "a1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.DeleteActivity(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}

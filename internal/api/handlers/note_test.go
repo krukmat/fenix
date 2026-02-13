@@ -12,6 +12,79 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 )
 
+func TestNoteHandler_GetNote_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	handler := NewNoteHandler(crm.NewNoteService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/notes/n1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "n1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	handler.GetNote(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestNoteHandler_ListNotes_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	handler := NewNoteHandler(crm.NewNoteService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/notes", nil)
+	rr := httptest.NewRecorder()
+	handler.ListNotes(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestNoteHandler_UpdateNote_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	handler := NewNoteHandler(crm.NewNoteService(db))
+
+	body := bytes.NewBufferString(`{"content":"updated"}`)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/notes/n1", body)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "n1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	handler.UpdateNote(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestNoteHandler_DeleteNote_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	handler := NewNoteHandler(crm.NewNoteService(db))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/notes/n1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "n1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	handler.DeleteNote(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
 func TestNoteHandler_CreateNote_InvalidJSON_Returns400(t *testing.T) {
 	t.Parallel()
 

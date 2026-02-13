@@ -62,6 +62,132 @@ func TestDealHandler_CreateGetDelete(t *testing.T) {
 	}
 }
 
+func TestDealHandler_CreateDeal_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	body, _ := json.Marshal(map[string]any{"title": "x"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deals", bytes.NewReader(body))
+
+	rr := httptest.NewRecorder()
+	h.CreateDeal(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestDealHandler_CreateDeal_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deals", bytes.NewBufferString(`{"accountId":`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+
+	rr := httptest.NewRecorder()
+	h.CreateDeal(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestDealHandler_CreateDeal_MissingRequired_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	body, _ := json.Marshal(map[string]any{"title": "only title"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deals", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+
+	rr := httptest.NewRecorder()
+	h.CreateDeal(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestDealHandler_ListDeals_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/deals", nil)
+	rr := httptest.NewRecorder()
+	h.ListDeals(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestDealHandler_GetDeal_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/deals/d1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "d1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.GetDeal(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestDealHandler_UpdateDeal_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/deals/d1", bytes.NewBufferString(`{"title":"u"}`))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "d1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.UpdateDeal(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestDealHandler_DeleteDeal_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/deals/d1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "d1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.DeleteDeal(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
 func createAccountForTask15(t *testing.T, db *sql.DB, wsID, ownerID, name string) string {
 	t.Helper()
 	id := "acc-" + randID()

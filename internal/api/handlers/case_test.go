@@ -166,3 +166,75 @@ func TestCaseHandler_DeleteCase_Success(t *testing.T) {
 		t.Fatalf("expected sql.ErrNoRows after delete, got %v", getErr)
 	}
 }
+
+func TestCaseHandler_GetCase_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewCaseHandler(crm.NewCaseService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/cases/c1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "c1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.GetCase(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestCaseHandler_ListCases_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewCaseHandler(crm.NewCaseService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/cases", nil)
+	rr := httptest.NewRecorder()
+	h.ListCases(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestCaseHandler_UpdateCase_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewCaseHandler(crm.NewCaseService(db))
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/cases/c1", bytes.NewBufferString(`{"subject":"x"}`))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "c1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.UpdateCase(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestCaseHandler_DeleteCase_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewCaseHandler(crm.NewCaseService(db))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/cases/c1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "c1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.DeleteCase(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
