@@ -1,6 +1,6 @@
 # Task 2.6 — Coverage & Quality Gateway Plan
 
-**Status**: 🟡 In execution (Etapa 1 aplicada)
+**Status**: � Etapa de gate COVERAGE_MIN>=60 aplicada y validada
 **Date**: 2026-02-13
 **Related**: `task_2.6.md`, `task_2.7.md`, `.github/workflows/ci.yml`, `Makefile`
 
@@ -181,3 +181,41 @@ Validación local con esos mismos valores:
 - TDD: **66.9%** → PASS contra 65
 
 Conclusión: el pipeline soporta correctamente este escalón superior.
+
+---
+
+## 12) Actualización 2026-02-13 — COVERAGE_MIN elevado a 60
+
+Se aplicó una mejora estructural del gate global para alinearlo a código de aplicación (no generado):
+
+- `Makefile`:
+  - `COVERAGE_MIN` default actualizado a **60**.
+  - `coverage-gate` ahora evalúa `coverage_gate.out` filtrando:
+    - `internal/infra/sqlite/sqlcgen/*` (código generado)
+    - `cmd/fenix/main.go` (bootstrap)
+    - `internal/version/*` (wiring/version metadata)
+- `.github/workflows/ci.yml`:
+  - Job `Global coverage gate` actualizado a `COVERAGE_MIN=60 make coverage-gate`.
+
+### Validación local posterior al cambio
+
+- `go test ./...` ✅
+- `make coverage-gate` con min 60 ✅
+  - **Total coverage (gate scope): 77.9%**
+- `make coverage-app-gate` (`COVERAGE_APP_MIN=70`) ✅
+  - **App coverage: 77.9%**
+- `make coverage-tdd` (`TDD_COVERAGE_MIN=76`) ✅
+  - **TDD coverage: 76.3%**
+
+### Nota de priorización por referencias de módulos
+
+Para priorizar próximos incrementos se agregó criterio de fan-in (cantidad de paquetes que importan cada módulo):
+
+- `internal/infra/sqlite`: **6** referencias
+- `internal/domain/crm`: **2** referencias
+- `internal/domain/knowledge`: **2** referencias
+- `internal/domain/auth`: **2** referencias
+- `internal/api/handlers`: **1** referencia
+- `internal/api`: **1** referencia
+
+Interpretación: priorizar módulos con alto fan-in y alto retorno de cobertura en código de negocio (`domain/*`, `api/handlers`) para sostener el nuevo umbral sin flakes.

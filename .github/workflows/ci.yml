@@ -85,7 +85,10 @@ jobs:
         run: make race-stability
 
       - name: Global coverage gate
-        run: COVERAGE_MIN=46 make coverage-gate
+        run: COVERAGE_MIN=70 make coverage-gate
+
+      - name: App coverage gate
+        run: COVERAGE_APP_MIN=70 make coverage-app-gate
 
       - name: TDD coverage gate
         run: TDD_COVERAGE_MIN=71 make coverage-tdd

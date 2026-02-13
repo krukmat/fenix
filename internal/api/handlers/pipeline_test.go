@@ -133,6 +133,33 @@ func TestPipelineHandler_GetPipeline_NotFound_Returns404(t *testing.T) {
 	}
 }
 
+func TestPipelineHandler_GetPipeline_Success(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	svc := crm.NewPipelineService(db)
+	h := NewPipelineHandler(svc)
+
+	p, err := svc.Create(t.Context(), crm.CreatePipelineInput{WorkspaceID: wsID, Name: "Sales", EntityType: "deal"})
+	if err != nil {
+		t.Fatalf("seed pipeline failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/pipelines/"+p.ID, nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", p.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.GetPipeline(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestPipelineHandler_ListPipelines_MissingWorkspace_Returns400(t *testing.T) {
 	t.Parallel()
 
@@ -241,6 +268,33 @@ func TestPipelineHandler_UpdatePipeline_MissingWorkspace_Returns400(t *testing.T
 	}
 }
 
+func TestPipelineHandler_UpdatePipeline_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	svc := crm.NewPipelineService(db)
+	h := NewPipelineHandler(svc)
+
+	p, err := svc.Create(t.Context(), crm.CreatePipelineInput{WorkspaceID: wsID, Name: "Initial", EntityType: "deal"})
+	if err != nil {
+		t.Fatalf("seed pipeline failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/pipelines/"+p.ID, bytes.NewBufferString(`{"name":`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", p.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.UpdatePipeline(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
 func TestPipelineHandler_DeletePipeline_MissingWorkspace_Returns400(t *testing.T) {
 	t.Parallel()
 
@@ -311,6 +365,26 @@ func TestPipelineHandler_ListStages_EmptyPipelineID_StillHandlesRequest(t *testi
 
 	if rr.Code != http.StatusOK && rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 200 or 500, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_ListStages_DBError_Returns500(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewPipelineHandler(crm.NewPipelineService(db))
+	_ = db.Close()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/pipelines/p1/stages", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "p1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.ListStages(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
 	}
 }
 
@@ -424,5 +498,76 @@ func TestPipelineHandler_UpdateStage_NotFound_Returns404(t *testing.T) {
 
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_UpdateStage_InvalidJSON_WithExistingStage_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	svc := crm.NewPipelineService(db)
+	h := NewPipelineHandler(svc)
+
+	p, err := svc.Create(t.Context(), crm.CreatePipelineInput{WorkspaceID: wsID, Name: "Sales", EntityType: "deal"})
+	if err != nil {
+		t.Fatalf("seed pipeline failed: %v", err)
+	}
+	stage, err := svc.CreateStage(t.Context(), crm.CreatePipelineStageInput{PipelineID: p.ID, Name: "S1", Position: 1})
+	if err != nil {
+		t.Fatalf("seed stage failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/pipelines/"+p.ID+"/stages/"+stage.ID, bytes.NewBufferString(`{"name":`))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("stage_id", stage.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.UpdateStage(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPipelineHandler_DeleteStage_UsesIDFallback(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	svc := crm.NewPipelineService(db)
+	h := NewPipelineHandler(svc)
+
+	p, err := svc.Create(t.Context(), crm.CreatePipelineInput{WorkspaceID: wsID, Name: "Sales", EntityType: "deal"})
+	if err != nil {
+		t.Fatalf("seed pipeline failed: %v", err)
+	}
+	stage, err := svc.CreateStage(t.Context(), crm.CreatePipelineStageInput{PipelineID: p.ID, Name: "S1", Position: 1})
+	if err != nil {
+		t.Fatalf("seed stage failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/pipelines/stages/"+stage.ID, nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", stage.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.DeleteStage(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rr.Code)
+	}
+}
+
+func TestFillStageDefaults_KeepsExistingWhenEmpty(t *testing.T) {
+	t.Parallel()
+
+	existing := &crm.PipelineStage{Name: "Discovery", Position: 3}
+	got := fillStageDefaults(UpdatePipelineStageRequest{}, existing)
+
+	if got.Name != "Discovery" || got.Position != 3 {
+		t.Fatalf("unexpected defaults applied: %+v", got)
 	}
 }

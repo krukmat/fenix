@@ -188,6 +188,125 @@ func TestDealHandler_DeleteDeal_MissingWorkspace_Returns400(t *testing.T) {
 	}
 }
 
+func TestDealHandler_ListDeals_Success(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	accountID := createAccountForTask15(t, db, wsID, ownerID, "List Deal Account")
+	pipelineID, stageID := createPipelineAndStageForTask15(t, db, wsID)
+
+	_, err := crm.NewDealService(db).Create(context.Background(), crm.CreateDealInput{
+		WorkspaceID: wsID,
+		AccountID:   accountID,
+		PipelineID:  pipelineID,
+		StageID:     stageID,
+		OwnerID:     ownerID,
+		Title:       "Deal list",
+	})
+	if err != nil {
+		t.Fatalf("seed deal create error = %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/deals?limit=10&offset=0", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	h.ListDeals(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestDealHandler_UpdateDeal_Success(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	accountID := createAccountForTask15(t, db, wsID, ownerID, "Update Deal Account")
+	pipelineID, stageID := createPipelineAndStageForTask15(t, db, wsID)
+
+	created, err := crm.NewDealService(db).Create(context.Background(), crm.CreateDealInput{
+		WorkspaceID: wsID,
+		AccountID:   accountID,
+		PipelineID:  pipelineID,
+		StageID:     stageID,
+		OwnerID:     ownerID,
+		Title:       "Deal before",
+	})
+	if err != nil {
+		t.Fatalf("seed deal create error = %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]any{"title": "Deal after", "status": "open"})
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/deals/"+created.ID, bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", created.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.UpdateDeal(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestDealHandler_UpdateDeal_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	accountID := createAccountForTask15(t, db, wsID, ownerID, "Update JSON Account")
+	pipelineID, stageID := createPipelineAndStageForTask15(t, db, wsID)
+	created, err := crm.NewDealService(db).Create(context.Background(), crm.CreateDealInput{
+		WorkspaceID: wsID,
+		AccountID:   accountID,
+		PipelineID:  pipelineID,
+		StageID:     stageID,
+		OwnerID:     ownerID,
+		Title:       "Deal JSON",
+	})
+	if err != nil {
+		t.Fatalf("seed deal create error = %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/deals/"+created.ID, bytes.NewBufferString(`{"title":`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", created.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.UpdateDeal(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestBuildUpdateDealInput_UsesExistingValues(t *testing.T) {
+	t.Parallel()
+
+	existing := &crm.Deal{AccountID: "a1", PipelineID: "p1", StageID: "s1", OwnerID: "u1", Title: "old"}
+	got := buildUpdateDealInput(UpdateDealRequest{Title: "new"}, existing)
+
+	if got.AccountID != "a1" || got.PipelineID != "p1" || got.StageID != "s1" || got.OwnerID != "u1" {
+		t.Fatalf("expected fallback fields from existing, got %+v", got)
+	}
+	if got.Title != "new" {
+		t.Fatalf("expected updated title, got %q", got.Title)
+	}
+}
+
 func createAccountForTask15(t *testing.T, db *sql.DB, wsID, ownerID, name string) string {
 	t.Helper()
 	id := "acc-" + randID()

@@ -693,6 +693,79 @@ func TestNilEntityFields(t *testing.T) {
 	}
 }
 
+func TestListByOutcome_And_ListByAction(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	service := NewAuditService(db)
+	ctx := context.Background()
+
+	workspaceID := uuid.NewV7().String()
+	otherWorkspaceID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, workspaceID)
+	createWorkspaceForTest(t, db, otherWorkspaceID)
+	actorID := uuid.NewV7().String()
+
+	fixtures := []struct {
+		ws      string
+		action  string
+		outcome Outcome
+	}{
+		{workspaceID, "create_account", OutcomeSuccess},
+		{workspaceID, "create_account", OutcomeDenied},
+		{workspaceID, "delete_account", OutcomeDenied},
+		{workspaceID, "delete_account", OutcomeError},
+		{otherWorkspaceID, "create_account", OutcomeDenied},
+	}
+
+	for _, fx := range fixtures {
+		event := &AuditEvent{
+			ID:          uuid.NewV7().String(),
+			WorkspaceID: fx.ws,
+			ActorID:     actorID,
+			ActorType:   ActorTypeUser,
+			Action:      fx.action,
+			Outcome:     fx.outcome,
+			CreatedAt:   time.Now(),
+		}
+		if err := service.Log(ctx, event); err != nil {
+			t.Fatalf("Log failed: %v", err)
+		}
+	}
+
+	byOutcome, err := service.ListByOutcome(ctx, workspaceID, OutcomeDenied, 10, 0)
+	if err != nil {
+		t.Fatalf("ListByOutcome failed: %v", err)
+	}
+	if len(byOutcome) != 2 {
+		t.Fatalf("expected 2 denied events in workspace, got %d", len(byOutcome))
+	}
+	for _, e := range byOutcome {
+		if e.WorkspaceID != workspaceID {
+			t.Fatalf("unexpected workspace in outcome filter: %s", e.WorkspaceID)
+		}
+		if e.Outcome != OutcomeDenied {
+			t.Fatalf("unexpected outcome in result: %s", e.Outcome)
+		}
+	}
+
+	byAction, err := service.ListByAction(ctx, workspaceID, "delete_account", 10, 0)
+	if err != nil {
+		t.Fatalf("ListByAction failed: %v", err)
+	}
+	if len(byAction) != 2 {
+		t.Fatalf("expected 2 delete_account events in workspace, got %d", len(byAction))
+	}
+	for _, e := range byAction {
+		if e.WorkspaceID != workspaceID {
+			t.Fatalf("unexpected workspace in action filter: %s", e.WorkspaceID)
+		}
+		if e.Action != "delete_account" {
+			t.Fatalf("unexpected action in result: %s", e.Action)
+		}
+	}
+}
+
 // Helper functions
 
 func strPtr(s string) *string {

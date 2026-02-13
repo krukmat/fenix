@@ -345,6 +345,64 @@ func TestAccountHandler_ListAccounts_LimitCapped(t *testing.T) {
 	}
 }
 
+func TestAccountHandler_GetAccount_MissingID_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewAccountHandler(crm.NewAccountService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/accounts/", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	handler.GetAccount(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestAccountHandler_UpdateAccount_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	svc := crm.NewAccountService(db)
+	handler := NewAccountHandler(svc)
+
+	created, _ := svc.Create(context.Background(), crm.CreateAccountInput{WorkspaceID: wsID, Name: "A", OwnerID: ownerID})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/accounts/"+created.ID, bytes.NewBufferString(`{"name":`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", created.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	handler.UpdateAccount(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestFormatDeletedAt(t *testing.T) {
+	t.Parallel()
+
+	if got := formatDeletedAt(nil); got != nil {
+		t.Fatalf("expected nil, got %v", got)
+	}
+
+	ts := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	got := formatDeletedAt(&ts)
+	if got == nil || *got == "" {
+		t.Fatalf("expected formatted timestamp, got %v", got)
+	}
+}
+
 // --- helpers ---
 
 // contextWithWorkspaceID adds workspace_id to the request context.

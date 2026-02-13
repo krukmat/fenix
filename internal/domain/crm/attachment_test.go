@@ -69,3 +69,48 @@ func TestAttachmentService_GetAndList_WithSeededRows(t *testing.T) {
 		t.Fatalf("expected attachments, got total=%d len=%d", total, len(list))
 	}
 }
+
+func TestAttachmentService_Delete_Existing_ReturnsTimelineConstraintErrorButDeletesRow(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	svc := crm.NewAttachmentService(db)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	_, err := db.Exec(`
+		INSERT INTO attachment (
+			id, workspace_id, entity_type, entity_id, uploader_id,
+			filename, storage_path, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, "att-del-1", wsID, "account", "acc-1", ownerID, "to-delete.txt", "/tmp/to-delete.txt", now)
+	if err != nil {
+		t.Fatalf("seed attachment insert error = %v", err)
+	}
+
+	err = svc.Delete(context.Background(), wsID, "att-del-1")
+	if err == nil {
+		t.Fatalf("expected delete attachment timeline error, got nil")
+	}
+	if !strings.Contains(err.Error(), "delete attachment timeline") {
+		t.Fatalf("expected delete attachment timeline error, got %v", err)
+	}
+
+	_, getErr := svc.Get(context.Background(), wsID, "att-del-1")
+	if getErr == nil {
+		t.Fatalf("expected attachment to be deleted")
+	}
+}
+
+func TestAttachmentService_Delete_Missing_SucceedsWithoutTimeline(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	svc := crm.NewAttachmentService(db)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+
+	err := svc.Delete(context.Background(), wsID, "att-missing")
+	if err != nil {
+		t.Fatalf("expected delete missing to succeed, got %v", err)
+	}
+}
