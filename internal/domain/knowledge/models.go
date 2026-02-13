@@ -138,9 +138,11 @@ const (
 // It groups deduplicated Evidence records, computes overall confidence, and carries
 // any warnings (stale data, filtered results, etc.) for the calling agent/copilot.
 type EvidencePack struct {
-	Sources    []Evidence
-	Confidence ConfidenceLevel
-	Warnings   []string
+	Sources         []Evidence
+	Confidence      ConfidenceLevel
+	TotalCandidates int // total results from hybrid search before filtering/dedup
+	FilteredCount   int // how many were removed by permissions/dedup/freshness
+	Warnings        []string
 }
 
 // ============================================================================
@@ -177,4 +179,11 @@ type CreateEvidenceInput struct {
 	Snippet         *string
 	PiiRedacted     bool
 	Metadata        *string
+}
+
+// BuildEvidencePackInput carries parameters for building an evidence pack (Task 2.6).
+type BuildEvidencePackInput struct {
+	Query       string
+	WorkspaceID string
+	Limit       int // 0 uses default (10), capped at 50
 }

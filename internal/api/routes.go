@@ -163,12 +163,16 @@ func NewRouter(db *sql.DB) *chi.Mux {
 
 		// Task 2.5: SearchService — hybrid BM25 + vector search with RRF ranking
 		searchSvc := knowledge.NewSearchService(db, llmProvider)
+		// Task 2.6: EvidencePackService — curated evidence packs for AI layer
+		evidenceSvc := knowledge.NewEvidencePackService(db, searchSvc, knowledge.DefaultEvidenceConfig())
 
 		knowledgeIngestHandler := handlers.NewKnowledgeIngestHandler(ingestSvc)
 		knowledgeSearchHandler := handlers.NewKnowledgeSearchHandler(searchSvc)
+		knowledgeEvidenceHandler := handlers.NewKnowledgeEvidenceHandler(evidenceSvc)
 		r.Route("/knowledge", func(r chi.Router) {
 			r.Post("/ingest", knowledgeIngestHandler.Ingest)   // POST /api/v1/knowledge/ingest
 			r.Post("/search", knowledgeSearchHandler.Search)   // POST /api/v1/knowledge/search
+			r.Post("/evidence", knowledgeEvidenceHandler.Build) // POST /api/v1/knowledge/evidence
 		})
 	})
 
