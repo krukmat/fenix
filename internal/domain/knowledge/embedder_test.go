@@ -291,6 +291,9 @@ func TestEmbedderService_Start_ReceivesEventAndEmbeds(t *testing.T) {
 
 	// Start embedder listener in background
 	go svc.Start(ctx, bus)
+	// Give subscriber goroutine time to attach before first publish.
+	// Without this, event publish can race subscribe and be dropped by design.
+	time.Sleep(50 * time.Millisecond)
 
 	// Ingest triggers the event
 	item, err := ingest.Ingest(context.Background(), CreateKnowledgeItemInput{
@@ -306,7 +309,7 @@ func TestEmbedderService_Start_ReceivesEventAndEmbeds(t *testing.T) {
 	// Wait for async embedder to process.
 	// Under -race and CI load, the goroutine scheduler can delay this path,
 	// so we keep a slightly wider budget to avoid flaky timeouts.
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
 		var status string
 		err := db.QueryRowContext(context.Background(),
@@ -321,7 +324,7 @@ func TestEmbedderService_Start_ReceivesEventAndEmbeds(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Error("timeout: embedder did not process knowledge.ingested event within 3s")
+	t.Error("timeout: embedder did not process knowledge.ingested event within 8s")
 }
 
 // ============================================================================
@@ -468,6 +471,8 @@ func TestEmbedderService_Start_BadPayload(t *testing.T) {
 	defer cancel()
 
 	go svc.Start(ctx, bus)
+	// Ensure subscriber is attached before publishing test events.
+	time.Sleep(50 * time.Millisecond)
 
 	// Publish a bad payload (string instead of IngestedEventPayload)
 	bus.Publish(TopicKnowledgeIngested, "this-is-not-a-valid-payload")
@@ -490,7 +495,7 @@ func TestEmbedderService_Start_BadPayload(t *testing.T) {
 	}
 
 	// Embedder should recover and process the valid event
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
 		var status string
 		db.QueryRowContext(context.Background(), //nolint:errcheck
@@ -502,5 +507,5 @@ func TestEmbedderService_Start_BadPayload(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Error("timeout: embedder did not recover after bad payload within 3s")
+	t.Error("timeout: embedder did not recover after bad payload within 8s")
 }

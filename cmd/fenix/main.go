@@ -7,36 +7,43 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/matiasleandrokruk/fenix/internal/version"
 )
 
 func main() {
-	// Parse command line flags
-	var (
-		showVersion = flag.Bool("version", false, "Show version information")
-		showHelp    = flag.Bool("help", false, "Show help")
-	)
-	flag.Parse()
+	os.Exit(run(os.Args[1:], os.Stdout))
+}
 
-	// Handle version flag
-	if *showVersion {
-		fmt.Println(version.String())
-		os.Exit(0)
+func run(args []string, out io.Writer) int {
+	fs := flag.NewFlagSet("fenix", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+
+	showVersion := fs.Bool("version", false, "Show version information")
+	showHelp := fs.Bool("help", false, "Show help")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
 	}
 
-	// Handle help flag
+	if *showVersion {
+		fmt.Fprintln(out, version.String()) //nolint:errcheck
+		return 0
+	}
+
 	if *showHelp {
-		printHelp()
-		os.Exit(0)
+		printHelp(out)
+		return 0
 	}
 
 	// Default: print version (as per test requirement)
-	fmt.Println(version.String())
+	fmt.Fprintln(out, version.String()) //nolint:errcheck
+	return 0
 }
 
-func printHelp() {
+func printHelp(out io.Writer) {
 	helpText := `FenixCRM - Agentic CRM OS
 
 Usage:
@@ -54,5 +61,5 @@ Examples:
   fenix --version
   fenix serve --port 8080
   fenix migrate up`
-	fmt.Println(helpText)
+	fmt.Fprintln(out, helpText) //nolint:errcheck
 }

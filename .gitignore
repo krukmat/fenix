@@ -2,3 +2,8 @@
 **/.DS_Store
 internal/.DS_Store
 docs/tasks/*
+coverage_tdd.out
+coverage.out
+.github/.DS_Store
+internal/.DS_Store
+Modelfile.qwen_review
