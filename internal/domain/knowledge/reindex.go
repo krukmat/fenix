@@ -74,37 +74,44 @@ func NewReindexService(db *sql.DB, bus eventbus.EventBus, ingest *IngestService,
 
 // Start subscribes to record.created|updated|deleted topics and handles events.
 func (s *ReindexService) Start(ctx context.Context) {
-	createdCh := s.bus.Subscribe(TopicRecordCreated)
-	updatedCh := s.bus.Subscribe(TopicRecordUpdated)
-	deletedCh := s.bus.Subscribe(TopicRecordDeleted)
+	createdCh := s.forwardRecordEvents(ctx, TopicRecordCreated, ChangeTypeCreated)
+	updatedCh := s.forwardRecordEvents(ctx, TopicRecordUpdated, ChangeTypeUpdated)
+	deletedCh := s.forwardRecordEvents(ctx, TopicRecordDeleted, ChangeTypeDeleted)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case evt := <-createdCh:
-			record, ok := evt.Payload.(RecordChangedEvent)
-			if !ok {
-				continue
-			}
-			record.ChangeType = ChangeTypeCreated
+		case record := <-createdCh:
 			_ = s.HandleRecordChange(ctx, record)
-		case evt := <-updatedCh:
-			record, ok := evt.Payload.(RecordChangedEvent)
-			if !ok {
-				continue
-			}
-			record.ChangeType = ChangeTypeUpdated
+		case record := <-updatedCh:
 			_ = s.HandleRecordChange(ctx, record)
-		case evt := <-deletedCh:
-			record, ok := evt.Payload.(RecordChangedEvent)
-			if !ok {
-				continue
-			}
-			record.ChangeType = ChangeTypeDeleted
+		case record := <-deletedCh:
 			_ = s.HandleRecordChange(ctx, record)
 		}
 	}
+}
+
+func (s *ReindexService) forwardRecordEvents(ctx context.Context, topic string, changeType ChangeType) <-chan RecordChangedEvent {
+	sub := s.bus.Subscribe(topic)
+	out := make(chan RecordChangedEvent)
+	go func() {
+		defer close(out)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case evt := <-sub:
+				record, ok := evt.Payload.(RecordChangedEvent)
+				if !ok {
+					continue
+				}
+				record.ChangeType = changeType
+				out <- record
+			}
+		}
+	}()
+	return out
 }
 
 // QueueWorkspaceReindex publishes reindex update events for all linked entities.
@@ -114,25 +121,7 @@ func (s *ReindexService) QueueWorkspaceReindex(ctx context.Context, workspaceID 
 	queued := 0
 
 	for {
-		var (
-			items []sqlcgen.KnowledgeItem
-			err   error
-		)
-
-		if entityType != nil && *entityType != "" {
-			items, err = s.q.ListKnowledgeItemsByEntity(ctx, sqlcgen.ListKnowledgeItemsByEntityParams{
-				WorkspaceID: workspaceID,
-				EntityType:  entityType,
-				Limit:       batchSize,
-				Offset:      int64(offset),
-			})
-		} else {
-			items, err = s.q.ListKnowledgeItemsByWorkspace(ctx, sqlcgen.ListKnowledgeItemsByWorkspaceParams{
-				WorkspaceID: workspaceID,
-				Limit:       batchSize,
-				Offset:      int64(offset),
-			})
-		}
+		items, err := s.listKnowledgeBatch(ctx, workspaceID, entityType, batchSize, offset)
 		if err != nil {
 			return 0, err
 		}
@@ -140,19 +129,7 @@ func (s *ReindexService) QueueWorkspaceReindex(ctx context.Context, workspaceID 
 			break
 		}
 
-		for _, item := range items {
-			if item.EntityType == nil || item.EntityID == nil {
-				continue
-			}
-			s.bus.Publish(TopicRecordUpdated, RecordChangedEvent{
-				EntityType:  *item.EntityType,
-				EntityID:    *item.EntityID,
-				WorkspaceID: workspaceID,
-				ChangeType:  ChangeTypeUpdated,
-				OccurredAt:  time.Now(),
-			})
-			queued++
-		}
+		queued += s.publishBatchUpdateEvents(workspaceID, items)
 
 		offset += len(items)
 		if len(items) < batchSize {
@@ -163,12 +140,77 @@ func (s *ReindexService) QueueWorkspaceReindex(ctx context.Context, workspaceID 
 	return queued, nil
 }
 
+func (s *ReindexService) listKnowledgeBatch(ctx context.Context, workspaceID string, entityType *string, batchSize, offset int) ([]sqlcgen.KnowledgeItem, error) {
+	if entityType != nil && *entityType != "" {
+		return s.q.ListKnowledgeItemsByEntity(ctx, sqlcgen.ListKnowledgeItemsByEntityParams{
+			WorkspaceID: workspaceID,
+			EntityType:  entityType,
+			Limit:       int64(batchSize),
+			Offset:      int64(offset),
+		})
+	}
+
+	return s.q.ListKnowledgeItemsByWorkspace(ctx, sqlcgen.ListKnowledgeItemsByWorkspaceParams{
+		WorkspaceID: workspaceID,
+		Limit:       int64(batchSize),
+		Offset:      int64(offset),
+	})
+}
+
+func (s *ReindexService) publishBatchUpdateEvents(workspaceID string, items []sqlcgen.KnowledgeItem) int {
+	queued := 0
+	for _, item := range items {
+		if item.EntityType == nil || item.EntityID == nil {
+			continue
+		}
+		s.bus.Publish(TopicRecordUpdated, RecordChangedEvent{
+			EntityType:  *item.EntityType,
+			EntityID:    *item.EntityID,
+			WorkspaceID: workspaceID,
+			ChangeType:  ChangeTypeUpdated,
+			OccurredAt:  time.Now(),
+		})
+		queued++
+	}
+	return queued
+}
+
 // HandleRecordChange updates or soft-deletes linked knowledge items after CRM changes.
 func (s *ReindexService) HandleRecordChange(ctx context.Context, evt RecordChangedEvent) error {
+	if err := validateRecordChangeEvent(evt); err != nil {
+		return err
+	}
+
+	item, err := s.getLinkedKnowledgeItem(ctx, evt)
+	if err != nil {
+		return err
+	}
+	if item == nil {
+		return nil
+	}
+
+	start := eventStartTime(evt)
+	opErr := s.applyChange(ctx, evt, *item)
+
+	s.logReindexAudit(ctx, evt, opErr, time.Since(start))
+	return opErr
+}
+
+func validateRecordChangeEvent(evt RecordChangedEvent) error {
 	if evt.EntityType == "" || evt.EntityID == "" || evt.WorkspaceID == "" {
 		return errors.New("invalid record change event")
 	}
+	return nil
+}
 
+func eventStartTime(evt RecordChangedEvent) time.Time {
+	if evt.OccurredAt.IsZero() {
+		return time.Now()
+	}
+	return evt.OccurredAt
+}
+
+func (s *ReindexService) getLinkedKnowledgeItem(ctx context.Context, evt RecordChangedEvent) (*sqlcgen.KnowledgeItem, error) {
 	entityType := evt.EntityType
 	entityID := evt.EntityID
 
@@ -179,26 +221,19 @@ func (s *ReindexService) HandleRecordChange(ctx context.Context, evt RecordChang
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil
+			return nil, nil
 		}
-		return err
+		return nil, err
 	}
 
-	start := evt.OccurredAt
-	if start.IsZero() {
-		start = time.Now()
-	}
+	return &item, nil
+}
 
-	var opErr error
-	switch evt.ChangeType {
-	case ChangeTypeDeleted:
-		opErr = s.handleDelete(ctx, item)
-	default:
-		opErr = s.handleUpsert(ctx, evt, item)
+func (s *ReindexService) applyChange(ctx context.Context, evt RecordChangedEvent, item sqlcgen.KnowledgeItem) error {
+	if evt.ChangeType == ChangeTypeDeleted {
+		return s.handleDelete(ctx, item)
 	}
-
-	s.logReindexAudit(ctx, evt, opErr, time.Since(start))
-	return opErr
+	return s.handleUpsert(ctx, evt, item)
 }
 
 func (s *ReindexService) handleDelete(ctx context.Context, item sqlcgen.KnowledgeItem) error {
@@ -251,43 +286,51 @@ func (s *ReindexService) handleUpsert(ctx context.Context, evt RecordChangedEven
 func (s *ReindexService) buildKnowledgePayloadFromEntity(ctx context.Context, evt RecordChangedEvent) (string, string, SourceType, error) {
 	switch evt.EntityType {
 	case EntityTypeCaseTicket:
-		row, err := s.q.GetCaseByID(ctx, sqlcgen.GetCaseByIDParams{ID: evt.EntityID, WorkspaceID: evt.WorkspaceID})
-		if err != nil {
-			return "", "", "", err
-		}
-		desc := ""
-		if row.Description != nil {
-			desc = *row.Description
-		}
-		raw := strings.TrimSpace(strings.Join([]string{
-			"Subject: " + row.Subject,
-			"Description: " + desc,
-			"Priority: " + row.Priority,
-			"Status: " + row.Status,
-		}, "\n"))
-		return row.Subject, raw, SourceTypeCase, nil
+		return s.buildCasePayload(ctx, evt)
 	case EntityTypeAccount:
-		row, err := s.q.GetAccountByID(ctx, sqlcgen.GetAccountByIDParams{ID: evt.EntityID, WorkspaceID: evt.WorkspaceID})
-		if err != nil {
-			return "", "", "", err
-		}
-		domain := ""
-		if row.Domain != nil {
-			domain = *row.Domain
-		}
-		industry := ""
-		if row.Industry != nil {
-			industry = *row.Industry
-		}
-		raw := strings.TrimSpace(strings.Join([]string{
-			"Name: " + row.Name,
-			"Domain: " + domain,
-			"Industry: " + industry,
-		}, "\n"))
-		return row.Name, raw, SourceTypeDocument, nil
+		return s.buildAccountPayload(ctx, evt)
 	default:
 		return "", "", "", fmt.Errorf("unsupported entity_type for reindex: %s", evt.EntityType)
 	}
+}
+
+func (s *ReindexService) buildCasePayload(ctx context.Context, evt RecordChangedEvent) (string, string, SourceType, error) {
+	row, err := s.q.GetCaseByID(ctx, sqlcgen.GetCaseByIDParams{ID: evt.EntityID, WorkspaceID: evt.WorkspaceID})
+	if err != nil {
+		return "", "", "", err
+	}
+	desc := ""
+	if row.Description != nil {
+		desc = *row.Description
+	}
+	raw := strings.TrimSpace(strings.Join([]string{
+		"Subject: " + row.Subject,
+		"Description: " + desc,
+		"Priority: " + row.Priority,
+		"Status: " + row.Status,
+	}, "\n"))
+	return row.Subject, raw, SourceTypeCase, nil
+}
+
+func (s *ReindexService) buildAccountPayload(ctx context.Context, evt RecordChangedEvent) (string, string, SourceType, error) {
+	row, err := s.q.GetAccountByID(ctx, sqlcgen.GetAccountByIDParams{ID: evt.EntityID, WorkspaceID: evt.WorkspaceID})
+	if err != nil {
+		return "", "", "", err
+	}
+	domain := ""
+	if row.Domain != nil {
+		domain = *row.Domain
+	}
+	industry := ""
+	if row.Industry != nil {
+		industry = *row.Industry
+	}
+	raw := strings.TrimSpace(strings.Join([]string{
+		"Name: " + row.Name,
+		"Domain: " + domain,
+		"Industry: " + industry,
+	}, "\n"))
+	return row.Name, raw, SourceTypeDocument, nil
 }
 
 func (s *ReindexService) logReindexAudit(ctx context.Context, evt RecordChangedEvent, opErr error, latency time.Duration) {
