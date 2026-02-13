@@ -97,8 +97,8 @@ race-stability:
 # Coverage gate over app-relevant profile generated from `coverage.out`.
 # Excludes generated/sqlc and bootstrap wiring to avoid penalizing quality gate
 # with non-business code that is intentionally not unit tested.
-# Task 2.6 baby-steps phase B target.
-COVERAGE_MIN?=78
+# Task 2.6 baby-steps phase 3 target.
+COVERAGE_MIN?=79
 coverage-gate:
 	@echo "Checking global coverage threshold ($(COVERAGE_MIN)%)..."
 	@awk 'NR==1{print; next} \
@@ -118,8 +118,8 @@ coverage-gate:
 	echo "PASSED: coverage gate met"
 
 # Coverage over application code (excluding generated/sqlc and bootstrap wiring)
-# Baby step phase B target towards 80%.
-COVERAGE_APP_MIN?=78
+# Baby step phase 3 target towards 80%.
+COVERAGE_APP_MIN?=79
 coverage-app:
 	@echo "Generating app-only coverage profile (excluding generated/bootstrap code)..."
 	@awk 'NR==1{print; next} \
@@ -143,8 +143,8 @@ coverage-app-gate: coverage-app
 	echo "PASSED: app coverage gate met"
 
 # Additional gate focused on TDD-heavy packages
-# Baby step phase 2 target towards 80%.
-TDD_COVERAGE_MIN?=78
+# Baby step phase 3 target towards 80%.
+TDD_COVERAGE_MIN?=79
 coverage-tdd:
 	@echo "Checking TDD package coverage threshold ($(TDD_COVERAGE_MIN)%)..."
 	go test -coverprofile=coverage_tdd.out ./internal/api ./internal/api/handlers ./internal/domain/knowledge ./pkg/auth >/tmp/tdd_coverage.log 2>&1

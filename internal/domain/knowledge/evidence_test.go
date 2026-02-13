@@ -126,6 +126,106 @@ func TestCosineSimilarityFloat64(t *testing.T) {
 	}
 }
 
+func TestNewEvidencePackService_AppliesDefaultConfigValues(t *testing.T) {
+	db := evidenceSetupTestDB(t)
+	defer db.Close()
+
+	svc := NewEvidencePackService(db, nil, EvidenceConfig{})
+
+	if svc.cfg.DefaultTopK != 10 {
+		t.Fatalf("expected DefaultTopK=10, got %d", svc.cfg.DefaultTopK)
+	}
+	if svc.cfg.DedupThreshold != 0.95 {
+		t.Fatalf("expected DedupThreshold=0.95, got %f", svc.cfg.DedupThreshold)
+	}
+	if svc.cfg.HighConfidenceMin != 0.8 {
+		t.Fatalf("expected HighConfidenceMin=0.8, got %f", svc.cfg.HighConfidenceMin)
+	}
+	if svc.cfg.MediumConfidenceMin != 0.5 {
+		t.Fatalf("expected MediumConfidenceMin=0.5, got %f", svc.cfg.MediumConfidenceMin)
+	}
+	if svc.cfg.FreshnessWarning <= 0 {
+		t.Fatalf("expected FreshnessWarning > 0, got %s", svc.cfg.FreshnessWarning)
+	}
+}
+
+func TestEvidencePackService_HelperMethods(t *testing.T) {
+	svc := &EvidencePackService{cfg: DefaultEvidenceConfig()}
+
+	if got := svc.resolveTopK(0); got != svc.cfg.DefaultTopK {
+		t.Fatalf("resolveTopK(0)=%d, want default %d", got, svc.cfg.DefaultTopK)
+	}
+	if got := svc.resolveTopK(maxEvidenceTopK + 100); got != maxEvidenceTopK {
+		t.Fatalf("resolveTopK(over max)=%d, want %d", got, maxEvidenceTopK)
+	}
+	if got := svc.resolveTopK(7); got != 7 {
+		t.Fatalf("resolveTopK(7)=%d, want 7", got)
+	}
+
+	if got := svc.filteredCount(2, 5); got != 0 {
+		t.Fatalf("filteredCount should never be negative, got %d", got)
+	}
+	if got := svc.filteredCount(10, 4); got != 6 {
+		t.Fatalf("filteredCount(10,4)=%d, want 6", got)
+	}
+
+	warnings := svc.buildWarnings(2, 1)
+	if len(warnings) != 2 {
+		t.Fatalf("expected 2 warnings, got %d (%v)", len(warnings), warnings)
+	}
+}
+
+func TestEvidencePackService_PackConfidenceAndNormalizeScore(t *testing.T) {
+	svc := &EvidencePackService{cfg: DefaultEvidenceConfig()}
+
+	if got := svc.packConfidence(nil); got != ConfidenceLow {
+		t.Fatalf("packConfidence(nil)=%v, want %v", got, ConfidenceLow)
+	}
+
+	highRaw := 2.0 / float64(rrfK+1)
+	high := svc.packConfidence([]SearchResult{{Score: highRaw}})
+	if high != ConfidenceHigh {
+		t.Fatalf("expected high confidence for normalized max score, got %v", high)
+	}
+
+	if got := svc.normalizeConfidenceScore(0); got != 0 {
+		t.Fatalf("normalizeConfidenceScore(0)=%f, want 0", got)
+	}
+	if got := svc.normalizeConfidenceScore(highRaw * 10); got != 1.0 {
+		t.Fatalf("normalizeConfidenceScore(>max)=%f, want 1.0", got)
+	}
+}
+
+func TestEvidencePackService_EmptyEvidencePackAndWarnings(t *testing.T) {
+	svc := &EvidencePackService{cfg: DefaultEvidenceConfig()}
+
+	empty := svc.emptyEvidencePack()
+	if empty == nil {
+		t.Fatal("expected non-nil empty evidence pack")
+	}
+	if len(empty.Sources) != 0 {
+		t.Fatalf("expected zero sources in empty pack, got %d", len(empty.Sources))
+	}
+	if empty.Confidence != ConfidenceLow {
+		t.Fatalf("expected low confidence for empty pack, got %v", empty.Confidence)
+	}
+	if len(empty.Warnings) == 0 {
+		t.Fatal("expected warning in empty pack")
+	}
+
+	if warnings := svc.buildWarnings(0, 0); len(warnings) != 0 {
+		t.Fatalf("expected no warnings when counters are zero, got %v", warnings)
+	}
+}
+
+func TestEvidencePackService_NormalizeConfidenceScore_Negative(t *testing.T) {
+	svc := &EvidencePackService{cfg: DefaultEvidenceConfig()}
+
+	if got := svc.normalizeConfidenceScore(-0.5); got != 0 {
+		t.Fatalf("normalizeConfidenceScore(negative)=%f, want 0", got)
+	}
+}
+
 // ============================================================================
 // Integration tests (real DB + stub LLM)
 // ============================================================================

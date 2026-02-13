@@ -368,6 +368,29 @@ func TestJWT_CustomExpiry(t *testing.T) {
 	}
 }
 
+func TestGetJWTSecret(t *testing.T) {
+	// No t.Parallel(): muta variables de entorno.
+	t.Setenv("JWT_SECRET", "my-test-secret")
+
+	got := getJWTSecret()
+	if string(got) != "my-test-secret" {
+		t.Fatalf("expected JWT secret from env, got %q", string(got))
+	}
+}
+
+func TestGetJWTSecret_PanicsWhenMissing(t *testing.T) {
+	// No t.Parallel(): muta variables de entorno.
+	t.Setenv("JWT_SECRET", "")
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic when JWT_SECRET is missing")
+		}
+	}()
+
+	_ = getJWTSecret()
+}
+
 // ===== HELPER FUNCTIONS (test utilities) =====
 
 // isValidBcryptHash checks if a string looks like a valid bcrypt hash.

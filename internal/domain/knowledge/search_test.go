@@ -88,6 +88,27 @@ func TestDecodeEmbedding_Invalid(t *testing.T) {
 	}
 }
 
+func TestResolveLimit(t *testing.T) {
+	tests := []struct {
+		name  string
+		in    int
+		want  int
+	}{
+		{name: "default when zero", in: 0, want: defaultLimit},
+		{name: "default when negative", in: -3, want: defaultLimit},
+		{name: "cap at max", in: maxLimit + 10, want: maxLimit},
+		{name: "keep value in range", in: 7, want: 7},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveLimit(tt.in); got != tt.want {
+				t.Fatalf("resolveLimit(%d)=%d, want %d", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 // ============================================================================
 // TestRRFMerge — unit test for RRF ranking formula
 // ============================================================================
