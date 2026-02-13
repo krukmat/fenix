@@ -55,6 +55,58 @@ func TestLeadHandler_CreateLead(t *testing.T) {
 	}
 }
 
+func TestLeadHandler_CreateLead_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	_, ownerID := setupWorkspaceAndOwner(t, db)
+	handler := NewLeadHandler(crm.NewLeadService(db))
+	body, _ := json.Marshal(map[string]any{"ownerId": ownerID})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/leads", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	handler.CreateLead(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestLeadHandler_CreateLead_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewLeadHandler(crm.NewLeadService(db))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/leads", bytes.NewBufferString(`{"ownerId":`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	w := httptest.NewRecorder()
+	handler.CreateLead(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestLeadHandler_CreateLead_MissingOwner_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewLeadHandler(crm.NewLeadService(db))
+	body, _ := json.Marshal(map[string]any{"status": "new"})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/leads", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	w := httptest.NewRecorder()
+	handler.CreateLead(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
 func TestLeadHandler_GetLead(t *testing.T) {
 	t.Parallel()
 
@@ -350,5 +402,47 @@ func TestLeadHandler_DeleteLead_NotFound_Returns404(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status=%d want=%d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestLeadHandler_UpdateLead_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	svc := crm.NewLeadService(db)
+	handler := NewLeadHandler(svc)
+
+	created, _ := svc.Create(context.Background(), crm.CreateLeadInput{WorkspaceID: wsID, Status: "new", OwnerID: ownerID})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/leads/"+created.ID, bytes.NewBufferString(`{"status":`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", created.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+	handler.UpdateLead(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestLeadHandler_DeleteLead_MissingID_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewLeadHandler(crm.NewLeadService(db))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/leads/", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+	handler.DeleteLead(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
 	}
 }

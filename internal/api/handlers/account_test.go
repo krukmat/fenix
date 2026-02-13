@@ -60,6 +60,58 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 	}
 }
 
+func TestAccountHandler_CreateAccount_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	_, ownerID := setupWorkspaceAndOwner(t, db)
+	handler := NewAccountHandler(crm.NewAccountService(db))
+
+	body, _ := json.Marshal(map[string]any{"name": "A", "ownerId": ownerID})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/accounts", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	handler.CreateAccount(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestAccountHandler_CreateAccount_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewAccountHandler(crm.NewAccountService(db))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/accounts", bytes.NewBufferString(`{"name":`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	w := httptest.NewRecorder()
+	handler.CreateAccount(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestAccountHandler_CreateAccount_MissingRequired_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewAccountHandler(crm.NewAccountService(db))
+
+	body, _ := json.Marshal(map[string]any{"name": "A"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/accounts", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	w := httptest.NewRecorder()
+	handler.CreateAccount(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
 // TestAccountHandler_GetAccount tests GET /api/v1/accounts/:id
 func TestAccountHandler_GetAccount(t *testing.T) {
 	t.Parallel()
@@ -383,6 +435,46 @@ func TestAccountHandler_UpdateAccount_InvalidJSON_Returns400(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	handler.UpdateAccount(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestAccountHandler_UpdateAccount_MissingID_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewAccountHandler(crm.NewAccountService(db))
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/accounts/", bytes.NewBufferString(`{"name":"x"}`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	handler.UpdateAccount(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestAccountHandler_DeleteAccount_MissingID_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewAccountHandler(crm.NewAccountService(db))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/accounts/", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	handler.DeleteAccount(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)

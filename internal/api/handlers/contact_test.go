@@ -43,6 +43,58 @@ func TestContactHandler_CreateContact(t *testing.T) {
 	}
 }
 
+func TestContactHandler_CreateContact_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	_, ownerID := setupWorkspaceAndOwner(t, db)
+	handler := NewContactHandler(crm.NewContactService(db))
+	body, _ := json.Marshal(map[string]any{"accountId": "a1", "firstName": "A", "lastName": "B", "ownerId": ownerID})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/contacts", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	handler.CreateContact(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestContactHandler_CreateContact_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewContactHandler(crm.NewContactService(db))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/contacts", bytes.NewBufferString(`{"accountId":`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	w := httptest.NewRecorder()
+	handler.CreateContact(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestContactHandler_CreateContact_MissingRequired_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewContactHandler(crm.NewContactService(db))
+	body, _ := json.Marshal(map[string]any{"firstName": "A"})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/contacts", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	w := httptest.NewRecorder()
+	handler.CreateContact(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
 func TestContactHandler_GetContact(t *testing.T) {
 	t.Parallel()
 
@@ -283,6 +335,49 @@ func TestContactHandler_DeleteContact_NotFound_Returns404(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status=%d want=%d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestContactHandler_UpdateContact_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	accountID := createAccountForHandler(t, db, wsID, ownerID)
+	svc := crm.NewContactService(db)
+	handler := NewContactHandler(svc)
+
+	created, _ := svc.Create(context.Background(), crm.CreateContactInput{WorkspaceID: wsID, AccountID: accountID, FirstName: "A", LastName: "B", OwnerID: ownerID})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/contacts/"+created.ID, bytes.NewBufferString(`{"firstName":`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", created.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+	handler.UpdateContact(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestContactHandler_DeleteContact_MissingID_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewContactHandler(crm.NewContactService(db))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/contacts/", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+	handler.DeleteContact(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
 	}
 }
 
