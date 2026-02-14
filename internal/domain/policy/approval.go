@@ -143,42 +143,87 @@ func (s *ApprovalService) DecideApprovalRequest(ctx context.Context, id, decisio
 		return err
 	}
 
-	if req.ApproverID != decidedBy {
-		return ErrApprovalForbidden
-	}
-
-	if req.Status != ApprovalStatusPending {
-		if req.Status == ApprovalStatusExpired {
-			return ErrApprovalExpired
-		}
-		return ErrApprovalAlreadyClosed
+	if err := validateApprovalDecision(req, decidedBy); err != nil {
+		return err
 	}
 
 	now := time.Now().UTC()
-	if !req.ExpiresAt.After(now) {
-		if _, err := s.db.ExecContext(ctx, `
-			UPDATE approval_request
-			SET status = ?, decided_at = ?, updated_at = ?, decided_by = ?
-			WHERE id = ?
-		`, string(ApprovalStatusExpired), now, now, decidedBy, id); err != nil {
-			return err
-		}
-
-		_ = s.audit.LogWithDetails(
-			ctx,
-			req.WorkspaceID,
-			decidedBy,
-			audit.ActorTypeUser,
-			"approval.expired",
-			req.ResourceType,
-			req.ResourceID,
-			&audit.EventDetails{Metadata: map[string]any{"approval_id": id}},
-			audit.OutcomeSuccess,
-		)
-
-		return ErrApprovalExpired
+	if err := s.expireIfNeeded(ctx, req, id, decidedBy, now); err != nil {
+		return err
 	}
 
+	return s.applyDecision(ctx, req, id, decidedBy, status, now)
+}
+
+func (s *ApprovalService) GetPendingApprovals(ctx context.Context, userID string) ([]*ApprovalRequest, error) {
+	now := time.Now().UTC()
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, workspace_id, requested_by, approver_id, decided_by,
+		       action, resource_type, resource_id, payload, reason,
+		       status, expires_at, decided_at, created_at, updated_at
+		FROM approval_request
+		WHERE approver_id = ? AND status = ?
+		ORDER BY created_at ASC
+	`, userID, string(ApprovalStatusPending))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items, expiredIDs, err := collectPendingApprovals(rows, now)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.markApprovalsExpired(ctx, expiredIDs, now); err != nil {
+		return nil, err
+	}
+
+	return items, nil
+}
+
+func validateApprovalDecision(req *ApprovalRequest, decidedBy string) error {
+	if req.ApproverID != decidedBy {
+		return ErrApprovalForbidden
+	}
+	if req.Status == ApprovalStatusExpired {
+		return ErrApprovalExpired
+	}
+	if req.Status != ApprovalStatusPending {
+		return ErrApprovalAlreadyClosed
+	}
+	return nil
+}
+
+func (s *ApprovalService) expireIfNeeded(ctx context.Context, req *ApprovalRequest, id, decidedBy string, now time.Time) error {
+	if req.ExpiresAt.After(now) {
+		return nil
+	}
+
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE approval_request
+		SET status = ?, decided_at = ?, updated_at = ?, decided_by = ?
+		WHERE id = ?
+	`, string(ApprovalStatusExpired), now, now, decidedBy, id); err != nil {
+		return err
+	}
+
+	_ = s.audit.LogWithDetails(
+		ctx,
+		req.WorkspaceID,
+		decidedBy,
+		audit.ActorTypeUser,
+		"approval.expired",
+		req.ResourceType,
+		req.ResourceID,
+		&audit.EventDetails{Metadata: map[string]any{"approval_id": id}},
+		audit.OutcomeSuccess,
+	)
+
+	return ErrApprovalExpired
+}
+
+func (s *ApprovalService) applyDecision(ctx context.Context, req *ApprovalRequest, id, decidedBy string, status ApprovalStatus, now time.Time) error {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE approval_request
 		SET status = ?, decided_by = ?, decided_at = ?, updated_at = ?
@@ -216,27 +261,13 @@ func (s *ApprovalService) DecideApprovalRequest(ctx context.Context, id, decisio
 	return nil
 }
 
-func (s *ApprovalService) GetPendingApprovals(ctx context.Context, userID string) ([]*ApprovalRequest, error) {
-	now := time.Now().UTC()
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, workspace_id, requested_by, approver_id, decided_by,
-		       action, resource_type, resource_id, payload, reason,
-		       status, expires_at, decided_at, created_at, updated_at
-		FROM approval_request
-		WHERE approver_id = ? AND status = ?
-		ORDER BY created_at ASC
-	`, userID, string(ApprovalStatusPending))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
+func collectPendingApprovals(rows *sql.Rows, now time.Time) ([]*ApprovalRequest, []string, error) {
 	items := make([]*ApprovalRequest, 0)
 	expiredIDs := make([]string, 0)
 	for rows.Next() {
 		item, err := scanApprovalRequest(rows)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if !item.ExpiresAt.After(now) {
 			expiredIDs = append(expiredIDs, item.ID)
@@ -245,20 +276,22 @@ func (s *ApprovalService) GetPendingApprovals(ctx context.Context, userID string
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	return items, expiredIDs, nil
+}
 
+func (s *ApprovalService) markApprovalsExpired(ctx context.Context, expiredIDs []string, now time.Time) error {
 	for _, id := range expiredIDs {
 		if _, err := s.db.ExecContext(ctx, `
 			UPDATE approval_request
 			SET status = ?, updated_at = ?
 			WHERE id = ?
 		`, string(ApprovalStatusExpired), now, id); err != nil {
-			return nil, err
+			return err
 		}
 	}
-
-	return items, nil
+	return nil
 }
 
 func (s *ApprovalService) getApprovalByID(ctx context.Context, id string) (*ApprovalRequest, error) {
