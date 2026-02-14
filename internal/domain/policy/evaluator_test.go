@@ -19,6 +19,10 @@ func setupPolicyTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("sqlite.NewDB failed: %v", err)
 	}
+	// IMPORTANT: sqlite :memory: is per-connection.
+	// Force a single connection so migrations and queries share same DB.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	if err := sqlite.MigrateUp(db); err != nil {
 		t.Fatalf("sqlite.MigrateUp failed: %v", err)
 	}

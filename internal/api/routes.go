@@ -15,6 +15,7 @@ import (
 	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
+	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
 	"github.com/matiasleandrokruk/fenix/internal/infra/config"
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
@@ -169,11 +170,17 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		knowledgeSearchHandler := handlers.NewKnowledgeSearchHandler(searchSvc)
 		knowledgeEvidenceHandler := handlers.NewKnowledgeEvidenceHandler(evidenceSvc)
 		knowledgeReindexHandler := handlers.NewKnowledgeReindexHandler(reindexSvc)
+		approvalHandler := handlers.NewApprovalHandler(policy.NewApprovalService(db, auditService))
 		r.Route("/knowledge", func(r chi.Router) {
 			r.Post("/ingest", knowledgeIngestHandler.Ingest)   // POST /api/v1/knowledge/ingest
 			r.Post("/search", knowledgeSearchHandler.Search)   // POST /api/v1/knowledge/search
 			r.Post("/evidence", knowledgeEvidenceHandler.Build) // POST /api/v1/knowledge/evidence
 			r.Post("/reindex", knowledgeReindexHandler.Reindex) // POST /api/v1/knowledge/reindex
+		})
+
+		r.Route("/approvals", func(r chi.Router) {
+			r.Get("/", approvalHandler.ListPendingApprovals) // GET /api/v1/approvals
+			r.Put("/{id}", approvalHandler.DecideApproval)   // PUT /api/v1/approvals/{id}
 		})
 	})
 
