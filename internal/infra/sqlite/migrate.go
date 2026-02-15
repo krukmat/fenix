@@ -99,10 +99,7 @@ func loadMigrationFiles() ([]migrationFile, error) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(path, ".up.sql") {
+		if d.IsDir() || !strings.HasSuffix(path, ".up.sql") {
 			return nil
 		}
 

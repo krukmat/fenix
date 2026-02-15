@@ -26,8 +26,8 @@ type CreateCaseRequest struct {
 	Priority    string `json:"priority,omitempty"`
 	Status      string `json:"status,omitempty"`
 	Channel     string `json:"channel,omitempty"`
-	SlaConfig   string `json:"slaConfig,omitempty"`
-	SlaDeadline string `json:"slaDeadline,omitempty"`
+	SLAConfig   string `json:"slaConfig,omitempty"`
+	SLADeadline string `json:"slaDeadline,omitempty"`
 	Metadata    string `json:"metadata,omitempty"`
 }
 
@@ -60,8 +60,8 @@ func (h *CaseHandler) CreateCase(w http.ResponseWriter, r *http.Request) {
 		Priority:    req.Priority,
 		Status:      req.Status,
 		Channel:     req.Channel,
-		SlaConfig:   req.SlaConfig,
-		SlaDeadline: req.SlaDeadline,
+		SLAConfig:   req.SLAConfig,
+		SLADeadline: req.SLADeadline,
 		Metadata:    req.Metadata,
 	})
 	if err != nil {
@@ -173,8 +173,8 @@ func buildUpdateCaseInput(req UpdateCaseRequest, existing *crm.CaseTicket) crm.U
 		Priority:    coalesce(req.Priority, existing.Priority),
 		Status:      coalesce(req.Status, existing.Status),
 		Channel:     req.Channel,
-		SlaConfig:   req.SlaConfig,
-		SlaDeadline: req.SlaDeadline,
+		SLAConfig:   req.SLAConfig,
+		SLADeadline: req.SLADeadline,
 		Metadata:    req.Metadata,
 	}
 }

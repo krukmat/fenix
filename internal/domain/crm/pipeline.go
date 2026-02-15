@@ -26,7 +26,7 @@ type PipelineStage struct {
 	Name           string    `json:"name"`
 	Position       int64     `json:"position"`
 	Probability    *float64  `json:"probability,omitempty"`
-	SlaHours       *int64    `json:"slaHours,omitempty"`
+	SLAHours       *int64    `json:"slaHours,omitempty"`
 	RequiredFields *string   `json:"requiredFields,omitempty"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
@@ -55,7 +55,7 @@ type CreatePipelineStageInput struct {
 	Name           string
 	Position       int64
 	Probability    *float64
-	SlaHours       *int64
+	SLAHours       *int64
 	RequiredFields string
 }
 
@@ -63,7 +63,7 @@ type UpdatePipelineStageInput struct {
 	Name           string
 	Position       int64
 	Probability    *float64
-	SlaHours       *int64
+	SLAHours       *int64
 	RequiredFields string
 }
 
@@ -153,7 +153,7 @@ func (s *PipelineService) CreateStage(ctx context.Context, input CreatePipelineS
 		Name:           input.Name,
 		Position:       input.Position,
 		Probability:    input.Probability,
-		SlaHours:       input.SlaHours,
+		SlaHours:       input.SLAHours,
 		RequiredFields: nullString(input.RequiredFields),
 		CreatedAt:      now,
 		UpdatedAt:      now,
@@ -189,7 +189,7 @@ func (s *PipelineService) UpdateStage(ctx context.Context, stageID string, input
 		Name:           input.Name,
 		Position:       input.Position,
 		Probability:    input.Probability,
-		SlaHours:       input.SlaHours,
+		SlaHours:       input.SLAHours,
 		RequiredFields: nullString(input.RequiredFields),
 		UpdatedAt:      time.Now().UTC().Format(time.RFC3339),
 		ID:             stageID,
@@ -230,7 +230,7 @@ func rowToPipelineStage(row sqlcgen.PipelineStage) *PipelineStage {
 		Name:           row.Name,
 		Position:       row.Position,
 		Probability:    row.Probability,
-		SlaHours:       row.SlaHours,
+		SLAHours:       row.SlaHours,
 		RequiredFields: row.RequiredFields,
 		CreatedAt:      createdAt,
 		UpdatedAt:      updatedAt,

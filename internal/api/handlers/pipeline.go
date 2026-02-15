@@ -29,7 +29,7 @@ type CreatePipelineStageRequest struct {
 	Name           string   `json:"name"`
 	Position       int64    `json:"position"`
 	Probability    *float64 `json:"probability,omitempty"`
-	SlaHours       *int64   `json:"slaHours,omitempty"`
+	SLAHours       *int64   `json:"slaHours,omitempty"`
 	RequiredFields string   `json:"requiredFields,omitempty"`
 }
 
@@ -168,7 +168,7 @@ func (h *PipelineHandler) CreateStage(w http.ResponseWriter, r *http.Request) {
 		Name:           req.Name,
 		Position:       req.Position,
 		Probability:    req.Probability,
-		SlaHours:       req.SlaHours,
+		SLAHours:       req.SLAHours,
 		RequiredFields: req.RequiredFields,
 	})
 	if err != nil {
@@ -210,7 +210,7 @@ func (h *PipelineHandler) UpdateStage(w http.ResponseWriter, r *http.Request) {
 		Name:           req.Name,
 		Position:       req.Position,
 		Probability:    req.Probability,
-		SlaHours:       req.SlaHours,
+		SLAHours:       req.SLAHours,
 		RequiredFields: req.RequiredFields,
 	})
 	if err != nil {

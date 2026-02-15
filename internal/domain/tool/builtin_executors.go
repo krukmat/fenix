@@ -146,8 +146,8 @@ func buildUpdateCaseInput(existing *crm.CaseTicket, in updateCaseParams) crm.Upd
 		Priority:    firstNonEmpty(in.Priority, existing.Priority),
 		Status:      firstNonEmpty(in.Status, existing.Status),
 		Channel:     derefString(existing.Channel),
-		SlaConfig:   derefString(existing.SlaConfig),
-		SlaDeadline: derefString(existing.SlaDeadline),
+		SLAConfig:   derefString(existing.SLAConfig),
+		SLADeadline: derefString(existing.SLADeadline),
 		Metadata:    firstNonEmpty(metadataFromTags(in.Tags), derefString(existing.Metadata)),
 	}
 }

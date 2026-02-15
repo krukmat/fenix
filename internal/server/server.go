@@ -59,7 +59,7 @@ func NewServer(db *sql.DB, config Config) *Server {
 }
 
 // Start starts the HTTP server and blocks until an error occurs.
-func (s *Server) Start(ctx context.Context) error {
+func (s *Server) Start(_ context.Context) error {
 	fmt.Printf("Starting HTTP server on %s\n", s.http.Addr)
 	return s.http.ListenAndServe()
 }

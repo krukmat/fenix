@@ -301,9 +301,9 @@ func (s *EvidencePackService) normalizeConfidenceScore(raw float64) float64 {
 	if raw <= 0 {
 		return 0
 	}
-	max := 2.0 / float64(rrfK+1)
-	if max <= 0 {
+	maxScore := 2.0 / float64(rrfK+1)
+	if maxScore <= 0 {
 		return 0
 	}
-	return math.Min(1.0, raw/max)
+	return math.Min(1.0, raw/maxScore)
 }

@@ -7,6 +7,7 @@ import (
 
 // ToolExecutor defines the runtime contract for executable tools.
 // Task 3.3: foundation contract used by the tool registry.
+//nolint:revive // contrato público del módulo tool
 type ToolExecutor interface {
 	Execute(ctx context.Context, params json.RawMessage) (json.RawMessage, error)
 }

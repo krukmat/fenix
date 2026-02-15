@@ -26,6 +26,7 @@ import (
 // NewRouter creates and configures a new chi router with all routes.
 // Task 1.3.8: Setup go-chi router with middleware + account endpoints
 // Task 1.6.13: Public routes (/health, /auth/*) vs protected routes (/api/v1/*)
+//nolint:funlen // router principal mantiene registro centralizado de rutas por diseño
 func NewRouter(db *sql.DB) *chi.Mux {
 	r := chi.NewRouter()
 	auditService := domainaudit.NewAuditService(db)
@@ -39,7 +40,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 	// ===== PUBLIC ROUTES (no auth required) =====
 
 	// Health check — unauthenticated, used by load balancers and health probes
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`)) //nolint:errcheck

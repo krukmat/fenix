@@ -8,6 +8,7 @@ import "context"
 // LLMProvider is the model-agnostic interface for LLM operations (Task 2.3).
 // MVP methods: ChatCompletion, Embed, ModelInfo, HealthCheck.
 // ChatCompletionStream is excluded from MVP (adds goroutine complexity not needed yet).
+//nolint:revive // nombre explícito para contrato de provider en capa infra
 type LLMProvider interface {
 	// ChatCompletion performs a non-streaming chat completion.
 	ChatCompletion(ctx context.Context, req ChatRequest) (*ChatResponse, error)

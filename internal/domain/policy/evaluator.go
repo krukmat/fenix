@@ -38,6 +38,7 @@ type AuditLogEvent struct {
 }
 
 // PolicyEngine implements the Week 7, Task 3.1 enforcement points.
+//nolint:revive // nombre mantenido por compatibilidad interna del módulo
 type PolicyEngine struct {
 	db    *sql.DB
 	cache Cache

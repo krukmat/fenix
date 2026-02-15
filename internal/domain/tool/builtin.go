@@ -133,10 +133,7 @@ func RegisterBuiltInExecutors(registry *ToolRegistry, services BuiltinServices) 
 }
 
 func isUniqueConstraintError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if err == sql.ErrNoRows {
+	if err == nil || err == sql.ErrNoRows {
 		return false
 	}
 	return strings.Contains(err.Error(), "UNIQUE constraint failed")

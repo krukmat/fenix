@@ -55,6 +55,7 @@ const (
 //
 // DB table: knowledge_item (migration 011)
 // FTS5 sync: automatic via triggers knowledge_item_ai/au/ad (migration 012)
+//nolint:revive // término de dominio principal de Knowledge Layer
 type KnowledgeItem struct {
 	ID                string
 	WorkspaceID       string

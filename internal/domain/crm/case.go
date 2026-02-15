@@ -25,8 +25,8 @@ type CaseTicket struct {
 	Priority    string     `json:"priority"`
 	Status      string     `json:"status"`
 	Channel     *string    `json:"channel,omitempty"`
-	SlaConfig   *string    `json:"slaConfig,omitempty"`
-	SlaDeadline *string    `json:"slaDeadline,omitempty"`
+	SLAConfig   *string    `json:"slaConfig,omitempty"`
+	SLADeadline *string    `json:"slaDeadline,omitempty"`
 	Metadata    *string    `json:"metadata,omitempty"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	UpdatedAt   time.Time  `json:"updatedAt"`
@@ -45,8 +45,8 @@ type CreateCaseInput struct {
 	Priority    string
 	Status      string
 	Channel     string
-	SlaConfig   string
-	SlaDeadline string
+	SLAConfig   string
+	SLADeadline string
 	Metadata    string
 }
 
@@ -61,8 +61,8 @@ type UpdateCaseInput struct {
 	Priority    string
 	Status      string
 	Channel     string
-	SlaConfig   string
-	SlaDeadline string
+	SLAConfig   string
+	SLADeadline string
 	Metadata    string
 }
 
@@ -110,8 +110,8 @@ func (s *CaseService) Create(ctx context.Context, input CreateCaseInput) (*CaseT
 		Priority:    priority,
 		Status:      status,
 		Channel:     nullString(input.Channel),
-		SlaConfig:   nullString(input.SlaConfig),
-		SlaDeadline: nullString(input.SlaDeadline),
+		SlaConfig:   nullString(input.SLAConfig),
+		SlaDeadline: nullString(input.SLADeadline),
 		Metadata:    nullString(input.Metadata),
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -170,8 +170,8 @@ func (s *CaseService) Update(ctx context.Context, workspaceID, caseID string, in
 		Priority:    input.Priority,
 		Status:      input.Status,
 		Channel:     nullString(input.Channel),
-		SlaConfig:   nullString(input.SlaConfig),
-		SlaDeadline: nullString(input.SlaDeadline),
+		SlaConfig:   nullString(input.SLAConfig),
+		SlaDeadline: nullString(input.SLADeadline),
 		Metadata:    nullString(input.Metadata),
 		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
 		ID:          caseID,
@@ -242,8 +242,8 @@ func rowToCaseTicket(row sqlcgen.CaseTicket) *CaseTicket {
 		Priority:    row.Priority,
 		Status:      row.Status,
 		Channel:     row.Channel,
-		SlaConfig:   row.SlaConfig,
-		SlaDeadline: row.SlaDeadline,
+		SLAConfig:   row.SlaConfig,
+		SLADeadline: row.SlaDeadline,
 		Metadata:    row.Metadata,
 		CreatedAt:   createdAt,
 		UpdatedAt:   updatedAt,

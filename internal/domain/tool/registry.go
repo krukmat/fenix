@@ -19,6 +19,7 @@ var (
 	ErrToolValidationFailed          = errors.New("tool params validation failed")
 )
 
+//nolint:revive // tipo público persistido/serializado y usado transversalmente
 type ToolDefinition struct {
 	ID                  string
 	WorkspaceID         string
@@ -32,6 +33,7 @@ type ToolDefinition struct {
 	UpdatedAt           time.Time
 }
 
+//nolint:revive // tipos públicos consolidados en módulo tool
 type CreateToolDefinitionInput struct {
 	WorkspaceID         string
 	Name                string
@@ -41,6 +43,7 @@ type CreateToolDefinitionInput struct {
 	CreatedBy           *string
 }
 
+//nolint:revive // registro principal usado transversalmente en app/api/tests
 type ToolRegistry struct {
 	db        *sql.DB
 	executors map[string]ToolExecutor

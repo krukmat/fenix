@@ -39,6 +39,7 @@ type LoginInput struct {
 
 // AuthResult is returned after successful Register or Login.
 // Token is a signed JWT containing UserID and WorkspaceID claims.
+//nolint:revive // API de dominio estable; renombrar rompe referencias amplias
 type AuthResult struct {
 	Token       string
 	UserID      string
@@ -46,6 +47,7 @@ type AuthResult struct {
 }
 
 // AuthService defines the authentication business operations.
+//nolint:revive // interfaz pública estable en el módulo auth
 type AuthService interface {
 	Register(ctx context.Context, input RegisterInput) (*AuthResult, error)
 	Login(ctx context.Context, input LoginInput) (*AuthResult, error)
