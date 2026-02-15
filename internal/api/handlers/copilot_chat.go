@@ -29,53 +29,77 @@ type copilotChatRequest struct {
 	EntityID   *string `json:"entityId,omitempty"`
 }
 
+type chatRequestError struct {
+	status  int
+	message string
+}
+
+func (e chatRequestError) Error() string { return e.message }
+
 func (h *CopilotChatHandler) Chat(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	wsID, err := getWorkspaceID(ctx)
+	input, err := buildCopilotChatInput(r)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "missing workspace context")
+		writeCopilotChatError(w, err)
 		return
 	}
 
-	userID, _ := ctx.Value(ctxkeys.UserID).(string)
-	if userID == "" {
-		writeError(w, http.StatusUnauthorized, "missing user context")
-		return
-	}
-
-	var req copilotChatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.Query == "" {
-		writeError(w, http.StatusBadRequest, "query is required")
-		return
-	}
-
-	stream, err := h.chatService.Chat(ctx, copilot.ChatInput{
-		WorkspaceID: wsID,
-		UserID:      userID,
-		Query:       req.Query,
-		EntityType:  req.EntityType,
-		EntityID:    req.EntityID,
-	})
+	stream, err := h.chatService.Chat(r.Context(), input)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "chat failed")
 		return
 	}
 
+	bw, flusher, err := prepareCopilotChatStream(w)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "streaming not supported")
+		return
+	}
+	streamCopilotChunks(bw, flusher, stream)
+}
+
+func buildCopilotChatInput(r *http.Request) (copilot.ChatInput, error) {
+	ctx := r.Context()
+	wsID, err := getWorkspaceID(ctx)
+	if err != nil {
+		return copilot.ChatInput{}, chatRequestError{status: http.StatusUnauthorized, message: "missing workspace context"}
+	}
+
+	userID, _ := ctx.Value(ctxkeys.UserID).(string)
+	if userID == "" {
+		return copilot.ChatInput{}, chatRequestError{status: http.StatusUnauthorized, message: "missing user context"}
+	}
+
+	var req copilotChatRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return copilot.ChatInput{}, chatRequestError{status: http.StatusBadRequest, message: "invalid request body"}
+	}
+	if req.Query == "" {
+		return copilot.ChatInput{}, chatRequestError{status: http.StatusBadRequest, message: "query is required"}
+	}
+
+	return copilot.ChatInput{
+		WorkspaceID: wsID,
+		UserID:      userID,
+		Query:       req.Query,
+		EntityType:  req.EntityType,
+		EntityID:    req.EntityID,
+	}, nil
+}
+
+func prepareCopilotChatStream(w http.ResponseWriter) (*bufio.Writer, http.Flusher, error) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeError(w, http.StatusInternalServerError, "streaming not supported")
-		return
+		return nil, nil, fmt.Errorf("response writer does not implement http.Flusher")
 	}
 
-	bw := bufio.NewWriter(w)
+	return bufio.NewWriter(w), flusher, nil
+}
+
+func streamCopilotChunks(bw *bufio.Writer, flusher http.Flusher, stream <-chan copilot.StreamChunk) {
 	for chunk := range stream {
 		b, _ := json.Marshal(chunk)
 		if _, err := fmt.Fprintf(bw, "data: %s\n\n", string(b)); err != nil {
@@ -84,4 +108,22 @@ func (h *CopilotChatHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		_ = bw.Flush()
 		flusher.Flush()
 	}
+}
+
+func writeCopilotChatError(w http.ResponseWriter, err error) {
+	var reqErr chatRequestError
+	if ok := errorAs(err, &reqErr); ok {
+		writeError(w, reqErr.status, reqErr.message)
+		return
+	}
+	writeError(w, http.StatusInternalServerError, "chat failed")
+}
+
+func errorAs(err error, target *chatRequestError) bool {
+	reqErr, ok := err.(chatRequestError)
+	if !ok {
+		return false
+	}
+	*target = reqErr
+	return true
 }
