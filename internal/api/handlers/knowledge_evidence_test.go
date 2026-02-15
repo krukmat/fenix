@@ -1,5 +1,6 @@
 // Task 2.6: Integration tests for KnowledgeEvidenceHandler.
 // Uses real in-memory SQLite DB with migrations applied.
+// Traces: FR-092
 package handlers
 
 import (

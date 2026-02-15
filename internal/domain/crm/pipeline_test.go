@@ -1,3 +1,4 @@
+// Traces: FR-001, FR-002
 package crm_test
 
 import (

@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_202: nFGnMmATxFZ5xBTA3M0Hql3TA8DE5tDBFX6oZX-JaMg=
+normative: true
+ref: internal/domain/tool/registry_test.go
+reviewed: zX3GwYwVRarjsE8gABnA4pgcjC9zgERG8ALoLwfTyWA=
+text: |
+  TST_045 mapped test file.

@@ -1,5 +1,6 @@
 // Task 2.3: Compile-time interface satisfaction check.
 // Ensures *OllamaProvider satisfies LLMProvider without running any HTTP calls.
+// Traces: FR-092
 package llm
 
 import "testing"

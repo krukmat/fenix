@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: 2OeRRf7QwT7gqY7i9B59wed3ZdNTXzjwZP0e3Orc9p4=
+text: |
+  FR-061: Approval Workflows
+  Human-in-the-loop approval requests for sensitive agent actions with
+  expiration, decision tracking, and audit logging.

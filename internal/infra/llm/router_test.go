@@ -1,5 +1,6 @@
 // Task 2.3: Unit tests for Router.
 // Uses stub LLMProvider implementations (function struct) — no HTTP needed.
+// Traces: FR-092
 package llm
 
 import (

@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_001: _FMhHcb-tf9Y2j3DYetX6eV4JqH7cXmC3DyLLxnoaA4=
+normative: true
+ref: internal/domain/crm/high_impact_services_test.go
+reviewed: OWjHszTH4TyW2UW3510qrhAk4C1A5bxbSnRUA52gP5U=
+text: |
+  TST_010 mapped test file.

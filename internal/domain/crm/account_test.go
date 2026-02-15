@@ -1,4 +1,5 @@
 // Task 1.3.4: TDD tests for AccountService (written before implementation)
+// Traces: FR-001, FR-070
 package crm_test
 
 import (

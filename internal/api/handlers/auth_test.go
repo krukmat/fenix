@@ -1,6 +1,7 @@
 // Task 1.6.11: TDD tests for Auth HTTP handlers (register + login)
 // Tests run against a real in-memory SQLite DB — no mocking.
 // Covers: success paths, error paths, response shape, status codes.
+// Traces: FR-060
 package handlers
 
 import (

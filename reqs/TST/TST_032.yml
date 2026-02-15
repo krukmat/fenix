@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_092: 4AlL939onTbDSRm5iIwU1uOE73w4uCUoG-m7bgOWilk=
+normative: true
+ref: internal/infra/llm/provider_test.go
+reviewed: nLLGV0SiVwKVz8hfsMBjyQCQLbs-ZOW3J5quiJEhxbw=
+text: |
+  TST_032 mapped test file.

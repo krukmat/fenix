@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_091: XVzB-eUZBMfa9V28ce4B-Y_w0iQwNSUixM3g6fZLQ2I=
+normative: true
+ref: internal/domain/knowledge/reindex_test.go
+reviewed: 6ONKBVUjY3Lrl8doDcBmv1FhSrX4nmSijdmWNYDyuBM=
+text: |
+  TST_040 mapped test file.

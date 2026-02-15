@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: aH1MlLH8Hz8neWeq7QMZVEHC8CJnpy8UWc2W5JfCavo=
+text: |
+  NFR-031: Traceability and Audit
+  Automated traceability from functional requirements to test files.
+  CI-blocking validation gates. Immutable audit events for all mutations.

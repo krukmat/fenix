@@ -53,10 +53,41 @@ jobs:
             echo "PASSED: all production functions at or below threshold 7"
           fi
 
+  traceability:
+    name: Traceability Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Create venv and install Doorstop
+        run: |
+          python -m venv .venv
+          ./.venv/bin/pip install --upgrade pip
+          ./.venv/bin/pip install doorstop
+
+      - name: Doorstop integrity check
+        run: make doorstop-check
+
+      - name: FR-to-test traceability check
+        run: make trace-check
+
   # Job 2: Lint, Test, Build — only runs if complexity gate passes
   test:
     name: Lint and Test
-    needs: complexity
+    needs: [complexity, traceability]
     runs-on: ubuntu-latest
 
     steps:
@@ -105,7 +136,7 @@ jobs:
   # Job 3: E2E Tests (requires build)
   e2e:
     name: E2E Tests
-    needs: test
+    needs: [test, contract]
     runs-on: ubuntu-latest
 
     steps:
@@ -160,3 +191,32 @@ jobs:
         with:
           name: e2e-results
           path: tests/e2e/test-results/
+
+  contract:
+    name: API Contract Tests
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Create venv and install Schemathesis + Doorstop
+        run: |
+          python -m venv .venv
+          ./.venv/bin/pip install --upgrade pip
+          ./.venv/bin/pip install schemathesis doorstop
+
+      - name: Run contract tests
+        run: make contract-test

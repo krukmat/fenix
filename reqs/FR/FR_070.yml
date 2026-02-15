@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: 0EI2DzGEbbuJwCbFNpiyooEbIct4y4-ntxVudS_uW5o=
+text: |
+  FR-070: Audit Trail
+  Immutable append-only audit log capturing all mutations, authentication
+  events, and system actions with actor, resource, and timestamp.

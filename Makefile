@@ -2,7 +2,7 @@
 # Task 1.1: Project Setup
 # Following implementation plan exactly
 
-.PHONY: all test build run lint fmt complexity race-stability coverage-gate coverage-app coverage-app-gate coverage-tdd check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell
+.PHONY: all test build run lint fmt complexity race-stability coverage-gate coverage-app coverage-app-gate coverage-tdd check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check contract-test trace-report
 
 # Variables
 BINARY_NAME=fenix
@@ -222,7 +222,22 @@ install-tools:
 	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
 
 # CI target - runs all checks (complexity/race/coverage gates before build)
-ci: fmt complexity lint test race-stability coverage-gate coverage-app-gate coverage-tdd build
+doorstop-check:
+	@echo "Checking Doorstop requirement integrity..."
+	@./.venv/bin/doorstop -j ./reqs -L -R -W
+
+trace-check:
+	@echo "Checking FR-to-test traceability..."
+	@go run ./cmd/frtrace -reqs ./reqs -root .
+
+contract-test: build
+	@echo "Running API contract tests..."
+	@bash tests/contract/run.sh
+
+trace-report:
+	@./.venv/bin/doorstop publish all ./docs/trace-report
+
+ci: fmt complexity doorstop-check trace-check lint test race-stability coverage-gate coverage-app-gate coverage-tdd build contract-test
 	@echo "All CI checks passed!"
 
 # Version info
@@ -249,6 +264,10 @@ help:
 	@echo "  make coverage-gate     - Enforce global coverage threshold"
 	@echo "  make coverage-app-gate - Enforce app-only coverage threshold"
 	@echo "  make coverage-tdd      - Enforce TDD package coverage threshold"
+	@echo "  make doorstop-check    - Validate Doorstop requirement integrity"
+	@echo "  make trace-check       - Check FR-to-test traceability (Go scanner)"
+	@echo "  make contract-test     - Run API contract tests (Schemathesis)"
+	@echo "  make trace-report      - Publish traceability HTML report"
 	@echo "  make check             - Run all quality gates (complexity + lint + tests)"
 	@echo "  make fmt               - Format code"
 	@echo "  make migrate-up        - Apply migrations"

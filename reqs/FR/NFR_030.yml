@@ -1,0 +1,11 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  NFR-030: Performance Targets
+  Copilot Q&A p95 under 2.5s, summaries p95 under 5s, search p95 under 500ms.

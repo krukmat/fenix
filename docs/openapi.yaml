@@ -1,0 +1,869 @@
+openapi: 3.0.3
+info:
+  title: FenixCRM API
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      summary: Health check
+      x-fr-traces:
+      - NFR-031
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+  /auth/register:
+    post:
+      summary: Register
+      x-fr-traces:
+      - FR-060
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+  /auth/login:
+    post:
+      summary: Login
+      x-fr-traces:
+      - FR-060
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+  /api/v1/accounts:
+    post:
+      summary: Create accounts
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    get:
+      summary: List accounts
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/accounts/{id}:
+    get:
+      summary: Get accounts
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    put:
+      summary: Update accounts
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    delete:
+      summary: Delete accounts
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/contacts:
+    post:
+      summary: Create contacts
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    get:
+      summary: List contacts
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/contacts/{id}:
+    get:
+      summary: Get contacts
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    put:
+      summary: Update contacts
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    delete:
+      summary: Delete contacts
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/leads:
+    post:
+      summary: Create leads
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    get:
+      summary: List leads
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/leads/{id}:
+    get:
+      summary: Get leads
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    put:
+      summary: Update leads
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    delete:
+      summary: Delete leads
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/deals:
+    post:
+      summary: Create deals
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    get:
+      summary: List deals
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/deals/{id}:
+    get:
+      summary: Get deals
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    put:
+      summary: Update deals
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    delete:
+      summary: Delete deals
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/cases:
+    post:
+      summary: Create cases
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    get:
+      summary: List cases
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/cases/{id}:
+    get:
+      summary: Get cases
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    put:
+      summary: Update cases
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    delete:
+      summary: Delete cases
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/activities:
+    post:
+      summary: Create activities
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    get:
+      summary: List activities
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/activities/{id}:
+    get:
+      summary: Get activities
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    put:
+      summary: Update activities
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    delete:
+      summary: Delete activities
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/notes:
+    post:
+      summary: Create notes
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    get:
+      summary: List notes
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/notes/{id}:
+    get:
+      summary: Get notes
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    put:
+      summary: Update notes
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    delete:
+      summary: Delete notes
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/accounts/{account_id}/contacts:
+    get:
+      summary: List contacts by account
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/pipelines:
+    post:
+      summary: Create pipeline
+      x-fr-traces:
+      - FR-002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    get:
+      summary: List pipelines
+      x-fr-traces:
+      - FR-002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/pipelines/{id}:
+    get:
+      summary: Get pipeline
+      x-fr-traces:
+      - FR-002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    put:
+      summary: Update pipeline
+      x-fr-traces:
+      - FR-002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    delete:
+      summary: Delete pipeline
+      x-fr-traces:
+      - FR-002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/pipelines/{id}/stages:
+    post:
+      summary: Create stage
+      x-fr-traces:
+      - FR-002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    get:
+      summary: List stages
+      x-fr-traces:
+      - FR-002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/pipelines/stages/{stage_id}:
+    put:
+      summary: Update stage
+      x-fr-traces:
+      - FR-002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    delete:
+      summary: Delete stage
+      x-fr-traces:
+      - FR-002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/attachments:
+    post:
+      summary: Create attachment
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    get:
+      summary: List attachments
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/attachments/{id}:
+    get:
+      summary: Get attachment
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    delete:
+      summary: Delete attachment
+      x-fr-traces:
+      - FR-001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/timeline:
+    get:
+      summary: List timeline
+      x-fr-traces:
+      - FR-051
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/timeline/{entity_type}/{entity_id}:
+    get:
+      summary: List timeline by entity
+      x-fr-traces:
+      - FR-051
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/knowledge/ingest:
+    post:
+      summary: Ingest knowledge
+      x-fr-traces:
+      - FR-090
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/knowledge/search:
+    post:
+      summary: Search knowledge
+      x-fr-traces:
+      - FR-092
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/knowledge/evidence:
+    post:
+      summary: Build evidence
+      x-fr-traces:
+      - FR-092
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/knowledge/reindex:
+    post:
+      summary: Reindex knowledge
+      x-fr-traces:
+      - FR-091
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/approvals:
+    get:
+      summary: List approvals
+      x-fr-traces:
+      - FR-061
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/approvals/{id}:
+    put:
+      summary: Decide approval
+      x-fr-traces:
+      - FR-061
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/admin/tools:
+    get:
+      summary: List tools
+      x-fr-traces:
+      - FR-202
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    post:
+      summary: Create tool
+      x-fr-traces:
+      - FR-202
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AnyResponse:
+      type: object
+      additionalProperties: true
+    Meta:
+      type: object
+    ErrorResponse:
+      type: object
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+    ID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string

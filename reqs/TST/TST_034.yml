@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_092: 4AlL939onTbDSRm5iIwU1uOE73w4uCUoG-m7bgOWilk=
+normative: true
+ref: internal/infra/llm/ollama_test.go
+reviewed: UBlBpfBeYH4Pp6KcCRIXyaWLim53BU_GzQMC881eiCk=
+text: |
+  TST_034 mapped test file.

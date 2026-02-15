@@ -1,0 +1,12 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-231: Support Agent UC-C1
+  End-to-end support agent that resolves cases using evidence retrieval,
+  tool execution, and human handoff when confidence is low.

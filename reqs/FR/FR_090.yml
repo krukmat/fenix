@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: 135pXTueGXw8p-vrL_Z3FAvnsZyynecauBQ1w8eHq2c=
+text: |
+  FR-090: Hybrid Indexing
+  FTS5 full-text search + sqlite-vec vector embeddings with knowledge item
+  ingestion, chunking (512 tokens, 50 overlap), and BM25+vector hybrid ranking.

@@ -1,6 +1,7 @@
 // Task 2.4: Integration tests for EmbedderService.
 // Uses real in-memory SQLite DB with all migrations applied.
 // LLMProvider is a stub (no real Ollama needed).
+// Traces: FR-092
 package knowledge
 
 import (

@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_090: 135pXTueGXw8p-vrL_Z3FAvnsZyynecauBQ1w8eHq2c=
+normative: true
+ref: internal/domain/knowledge/ingest_test.go
+reviewed: bYV7OJGwKCT2X2JnMDD_toQhRUNHKs1cYo_d2n9Txxw=
+text: |
+  TST_030 mapped test file.

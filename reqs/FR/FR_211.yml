@@ -1,0 +1,12 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-211: Built-in Tools
+  Operational tools (create_task, update_case, send_reply) registered in
+  ToolRegistry with schema validation and permission checks.

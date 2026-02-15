@@ -1,6 +1,7 @@
 // Task 2.2: Unit tests for the text chunker.
 // Tests are written BEFORE the implementation (TDD) — they will fail until chunker.go exists.
 // No database required — pure unit tests.
+// Traces: FR-090
 package knowledge
 
 import (

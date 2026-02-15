@@ -1,0 +1,12 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-232: Human Handoff
+  Escalation from agent to human with full evidence pack, reasoning trace,
+  and conversation context preserved.

@@ -1,4 +1,5 @@
 // Task 1.3.6: TDD tests for Account HTTP handlers
+// Traces: FR-001, FR-070
 package handlers
 
 import (

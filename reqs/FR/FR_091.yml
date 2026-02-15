@@ -1,0 +1,13 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: XVzB-eUZBMfa9V28ce4B-Y_w0iQwNSUixM3g6fZLQ2I=
+text: |
+  FR-091: CDC and Auto-Reindex
+  Change Data Capture via event bus subscriptions. Automatic reindexing of
+  FTS5 and vector embeddings when CRM records change. SLA: visible in search
+  within 60 seconds.

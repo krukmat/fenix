@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_092: 4AlL939onTbDSRm5iIwU1uOE73w4uCUoG-m7bgOWilk=
+normative: true
+ref: internal/infra/llm/router_test.go
+reviewed: 2J6WaQCK9emXQpgQ4HLNH72m0jtsUjB8ITtYas-WsME=
+text: |
+  TST_033 mapped test file.

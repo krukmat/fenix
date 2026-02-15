@@ -1,3 +1,4 @@
+// Traces: FR-070, NFR-031
 package audit
 
 import (

@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_001: _FMhHcb-tf9Y2j3DYetX6eV4JqH7cXmC3DyLLxnoaA4=
+normative: true
+ref: internal/api/handlers/case_test.go
+reviewed: 8L4Qaof-pf6IAAyYTLLJ_60N3biD3ZS_aq2_Vwwz_oU=
+text: |
+  TST_005 mapped test file.

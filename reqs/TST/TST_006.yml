@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_001: _FMhHcb-tf9Y2j3DYetX6eV4JqH7cXmC3DyLLxnoaA4=
+- FR_002: oulRHB91DgQ1NgVf_91v8DTeEtGU7CnnUdhHTnsxpYw=
+normative: true
+ref: internal/domain/crm/pipeline_test.go
+reviewed: cmFWPL6aGFwyvAxaMJvIcmbzW770OeV_1oPXOrfdRHw=
+text: |
+  TST_006 mapped test file.
