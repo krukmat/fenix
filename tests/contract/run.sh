@@ -16,7 +16,7 @@ trap cleanup EXIT
 cd "$PROJECT_ROOT"
 make build
 
-JWT_SECRET="test-secret-32-chars-minimum!!!" DATABASE_URL="$DB_FILE" "$PROJECT_ROOT/fenix" &
+JWT_SECRET="test-secret-32-chars-minimum!!!" DATABASE_URL="$DB_FILE" "$PROJECT_ROOT/fenix" serve --port "$PORT" &
 SERVER_PID=$!
 
 for i in $(seq 1 30); do
