@@ -30,40 +30,53 @@ type createTaskParams struct {
 }
 
 func (e *CreateTaskExecutor) Execute(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
-	if e.db == nil {
-		return nil, fmt.Errorf("%w: db not configured", ErrBuiltinExecutionFailed)
+	in, err := parseCreateTaskParams(params)
+	if err != nil {
+		return nil, err
 	}
-
-	var in createTaskParams
-	if err := json.Unmarshal(params, &in); err != nil {
-		return nil, fmt.Errorf("%w: invalid params", ErrBuiltinExecutionFailed)
-	}
-	if in.OwnerID == "" || in.Title == "" || in.EntityType == "" || in.EntityID == "" {
-		return nil, fmt.Errorf("%w: owner_id, title, entity_type and entity_id are required", ErrBuiltinExecutionFailed)
-	}
-
 	workspaceID, err := workspaceIDFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
+	taskID, createdAt, err := e.insertTaskActivity(ctx, workspaceID, in)
+	if err != nil {
+		return nil, err
+	}
+	return marshalTaskCreated(taskID, createdAt), nil
+}
 
+func parseCreateTaskParams(params json.RawMessage) (createTaskParams, error) {
+	var in createTaskParams
+	if err := json.Unmarshal(params, &in); err != nil {
+		return createTaskParams{}, fmt.Errorf("%w: invalid params", ErrBuiltinExecutionFailed)
+	}
+	if in.OwnerID == "" || in.Title == "" || in.EntityType == "" || in.EntityID == "" {
+		return createTaskParams{}, fmt.Errorf("%w: owner_id, title, entity_type and entity_id are required", ErrBuiltinExecutionFailed)
+	}
+	return in, nil
+}
+
+func (e *CreateTaskExecutor) insertTaskActivity(ctx context.Context, workspaceID string, in createTaskParams) (string, string, error) {
+	if e.db == nil {
+		return "", "", fmt.Errorf("%w: db not configured", ErrBuiltinExecutionFailed)
+	}
 	taskID := uuid.NewV7().String()
 	now := time.Now().UTC().Format(time.RFC3339)
-	_, err = e.db.ExecContext(ctx, `
+	_, err := e.db.ExecContext(ctx, `
 		INSERT INTO activity (
 			id, workspace_id, activity_type, entity_type, entity_id,
 			owner_id, subject, status, due_at, created_at, updated_at
 		) VALUES (?, ?, 'task', ?, ?, ?, ?, 'pending', ?, ?, ?)
 	`, taskID, workspaceID, in.EntityType, in.EntityID, in.OwnerID, in.Title, nullableString(in.DueDate), now, now)
 	if err != nil {
-		return nil, fmt.Errorf("%w: create activity: %v", ErrBuiltinExecutionFailed, err)
+		return "", "", fmt.Errorf("%w: create activity: %v", ErrBuiltinExecutionFailed, err)
 	}
+	return taskID, now, nil
+}
 
-	out, _ := json.Marshal(map[string]any{
-		"task_id":    taskID,
-		"created_at": now,
-	})
-	return out, nil
+func marshalTaskCreated(taskID, createdAt string) json.RawMessage {
+	out, _ := json.Marshal(map[string]any{"task_id": taskID, "created_at": createdAt})
+	return out
 }
 
 type UpdateCaseExecutor struct{ cases *crm.CaseService }
@@ -80,35 +93,49 @@ type updateCaseParams struct {
 }
 
 func (e *UpdateCaseExecutor) Execute(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
-	if e.cases == nil {
-		return nil, fmt.Errorf("%w: case service not configured", ErrBuiltinExecutionFailed)
+	in, err := parseUpdateCaseParams(params)
+	if err != nil {
+		return nil, err
 	}
-
-	var in updateCaseParams
-	if err := json.Unmarshal(params, &in); err != nil {
-		return nil, fmt.Errorf("%w: invalid params", ErrBuiltinExecutionFailed)
-	}
-	if in.CaseID == "" {
-		return nil, fmt.Errorf("%w: case_id is required", ErrBuiltinExecutionFailed)
-	}
-
 	workspaceID, err := workspaceIDFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
+	updated, err := e.updateCase(ctx, workspaceID, in)
+	if err != nil {
+		return nil, err
+	}
+	return marshalCaseUpdated(updated), nil
+}
 
+func parseUpdateCaseParams(params json.RawMessage) (updateCaseParams, error) {
+	var in updateCaseParams
+	if err := json.Unmarshal(params, &in); err != nil {
+		return updateCaseParams{}, fmt.Errorf("%w: invalid params", ErrBuiltinExecutionFailed)
+	}
+	if in.CaseID == "" {
+		return updateCaseParams{}, fmt.Errorf("%w: case_id is required", ErrBuiltinExecutionFailed)
+	}
+	return in, nil
+}
+
+func (e *UpdateCaseExecutor) updateCase(ctx context.Context, workspaceID string, in updateCaseParams) (*crm.CaseTicket, error) {
+	if e.cases == nil {
+		return nil, fmt.Errorf("%w: case service not configured", ErrBuiltinExecutionFailed)
+	}
 	existing, err := e.cases.Get(ctx, workspaceID, in.CaseID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: case not found", ErrBuiltinExecutionFailed)
 	}
-
-	metadata := ""
-	if len(in.Tags) > 0 {
-		raw, _ := json.Marshal(map[string]any{"tags": in.Tags})
-		metadata = string(raw)
+	updated, err := e.cases.Update(ctx, workspaceID, in.CaseID, buildUpdateCaseInput(existing, in))
+	if err != nil {
+		return nil, fmt.Errorf("%w: update case: %v", ErrBuiltinExecutionFailed, err)
 	}
+	return updated, nil
+}
 
-	updated, err := e.cases.Update(ctx, workspaceID, in.CaseID, crm.UpdateCaseInput{
+func buildUpdateCaseInput(existing *crm.CaseTicket, in updateCaseParams) crm.UpdateCaseInput {
+	return crm.UpdateCaseInput{
 		AccountID:   derefString(existing.AccountID),
 		ContactID:   derefString(existing.ContactID),
 		PipelineID:  derefString(existing.PipelineID),
@@ -121,17 +148,21 @@ func (e *UpdateCaseExecutor) Execute(ctx context.Context, params json.RawMessage
 		Channel:     derefString(existing.Channel),
 		SlaConfig:   derefString(existing.SlaConfig),
 		SlaDeadline: derefString(existing.SlaDeadline),
-		Metadata:    firstNonEmpty(metadata, derefString(existing.Metadata)),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("%w: update case: %v", ErrBuiltinExecutionFailed, err)
+		Metadata:    firstNonEmpty(metadataFromTags(in.Tags), derefString(existing.Metadata)),
 	}
+}
 
-	out, _ := json.Marshal(map[string]any{
-		"case_id":    updated.ID,
-		"updated_at": updated.UpdatedAt.Format(time.RFC3339),
-	})
-	return out, nil
+func metadataFromTags(tags []string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+	raw, _ := json.Marshal(map[string]any{"tags": tags})
+	return string(raw)
+}
+
+func marshalCaseUpdated(updated *crm.CaseTicket) json.RawMessage {
+	out, _ := json.Marshal(map[string]any{"case_id": updated.ID, "updated_at": updated.UpdatedAt.Format(time.RFC3339)})
+	return out
 }
 
 type SendReplyExecutor struct {
@@ -150,30 +181,41 @@ type sendReplyParams struct {
 }
 
 func (e *SendReplyExecutor) Execute(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
-	if e.cases == nil || e.db == nil {
-		return nil, fmt.Errorf("%w: case service or db not configured", ErrBuiltinExecutionFailed)
+	in, err := parseSendReplyParams(params)
+	if err != nil {
+		return nil, err
 	}
-
-	var in sendReplyParams
-	if err := json.Unmarshal(params, &in); err != nil {
-		return nil, fmt.Errorf("%w: invalid params", ErrBuiltinExecutionFailed)
-	}
-	if in.CaseID == "" || in.Body == "" {
-		return nil, fmt.Errorf("%w: case_id and body are required", ErrBuiltinExecutionFailed)
-	}
-
 	workspaceID, err := workspaceIDFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
+	noteID, createdAt, err := e.insertReplyNote(ctx, workspaceID, in)
+	if err != nil {
+		return nil, err
+	}
+	return marshalReplyCreated(noteID, createdAt), nil
+}
 
+func parseSendReplyParams(params json.RawMessage) (sendReplyParams, error) {
+	var in sendReplyParams
+	if err := json.Unmarshal(params, &in); err != nil {
+		return sendReplyParams{}, fmt.Errorf("%w: invalid params", ErrBuiltinExecutionFailed)
+	}
+	if in.CaseID == "" || in.Body == "" {
+		return sendReplyParams{}, fmt.Errorf("%w: case_id and body are required", ErrBuiltinExecutionFailed)
+	}
+	return in, nil
+}
+
+func (e *SendReplyExecutor) insertReplyNote(ctx context.Context, workspaceID string, in sendReplyParams) (string, string, error) {
+	if e.cases == nil || e.db == nil {
+		return "", "", fmt.Errorf("%w: case service or db not configured", ErrBuiltinExecutionFailed)
+	}
 	caseTicket, err := e.cases.Get(ctx, workspaceID, in.CaseID)
 	if err != nil {
-		return nil, fmt.Errorf("%w: case not found", ErrBuiltinExecutionFailed)
+		return "", "", fmt.Errorf("%w: case not found", ErrBuiltinExecutionFailed)
 	}
-
 	authorID := firstNonEmpty(userIDFromContext(ctx), caseTicket.OwnerID)
-
 	noteID := uuid.NewV7().String()
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err = e.db.ExecContext(ctx, `
@@ -183,14 +225,14 @@ func (e *SendReplyExecutor) Execute(ctx context.Context, params json.RawMessage)
 		) VALUES (?, ?, 'case', ?, ?, ?, ?, ?, ?)
 	`, noteID, workspaceID, in.CaseID, authorID, in.Body, in.IsInternal, now, now)
 	if err != nil {
-		return nil, fmt.Errorf("%w: create note: %v", ErrBuiltinExecutionFailed, err)
+		return "", "", fmt.Errorf("%w: create note: %v", ErrBuiltinExecutionFailed, err)
 	}
+	return noteID, now, nil
+}
 
-	out, _ := json.Marshal(map[string]any{
-		"note_id":    noteID,
-		"created_at": now,
-	})
-	return out, nil
+func marshalReplyCreated(noteID, createdAt string) json.RawMessage {
+	out, _ := json.Marshal(map[string]any{"note_id": noteID, "created_at": createdAt})
+	return out
 }
 
 func workspaceIDFromContext(ctx context.Context) (string, error) {

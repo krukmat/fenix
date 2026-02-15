@@ -76,9 +76,17 @@ func (r *ToolRegistry) EnsureBuiltInToolDefinitions(ctx context.Context, workspa
 }
 
 func (r *ToolRegistry) EnsureBuiltInToolDefinitionsForAllWorkspaces(ctx context.Context) error {
-	rows, err := r.db.QueryContext(ctx, `SELECT id FROM workspace`)
+	workspaceIDs, err := r.listWorkspaceIDs(ctx)
 	if err != nil {
 		return err
+	}
+	return r.ensureBuiltInsForWorkspaces(ctx, workspaceIDs)
+}
+
+func (r *ToolRegistry) listWorkspaceIDs(ctx context.Context) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id FROM workspace`)
+	if err != nil {
+		return nil, err
 	}
 
 	workspaceIDs := make([]string, 0, 8)
@@ -87,25 +95,27 @@ func (r *ToolRegistry) EnsureBuiltInToolDefinitionsForAllWorkspaces(ctx context.
 		var workspaceID string
 		if err := rows.Scan(&workspaceID); err != nil {
 			_ = rows.Close()
-			return err
+			return nil, err
 		}
 		workspaceIDs = append(workspaceIDs, workspaceID)
 	}
 
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()
-		return err
+		return nil, err
 	}
 	if err := rows.Close(); err != nil {
-		return err
+		return nil, err
 	}
+	return workspaceIDs, nil
+}
 
+func (r *ToolRegistry) ensureBuiltInsForWorkspaces(ctx context.Context, workspaceIDs []string) error {
 	for _, workspaceID := range workspaceIDs {
 		if err := r.EnsureBuiltInToolDefinitions(ctx, workspaceID); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
