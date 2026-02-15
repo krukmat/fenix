@@ -199,33 +199,52 @@ func (r *ToolRegistry) getToolDefinitionByName(ctx context.Context, workspaceID,
 }
 
 func validateAgainstMinimalSchema(input, schema map[string]any) error {
-	requiredKeys := extractStringSlice(schema["required"])
+	if err := validateRequiredFields(input, extractStringSlice(schema["required"])); err != nil {
+		return err
+	}
+
+	if resolveAdditionalProperties(schema) {
+		return nil
+	}
+
+	return validateUnknownFields(input, buildAllowedPropsSet(schema))
+}
+
+func validateRequiredFields(input map[string]any, requiredKeys []string) error {
 	for _, key := range requiredKeys {
 		if _, ok := input[key]; !ok {
 			return fmt.Errorf("%w: missing required field %q", ErrToolValidationFailed, key)
 		}
 	}
+	return nil
+}
 
+func resolveAdditionalProperties(schema map[string]any) bool {
 	allowAdditional := true
 	if v, ok := schema["additionalProperties"].(bool); ok {
 		allowAdditional = v
 	}
+	return allowAdditional
+}
 
+func buildAllowedPropsSet(schema map[string]any) map[string]struct{} {
 	allowedProps := map[string]struct{}{}
-	if props, ok := schema["properties"].(map[string]any); ok {
-		for key := range props {
-			allowedProps[key] = struct{}{}
+	props, ok := schema["properties"].(map[string]any)
+	if !ok {
+		return allowedProps
+	}
+	for key := range props {
+		allowedProps[key] = struct{}{}
+	}
+	return allowedProps
+}
+
+func validateUnknownFields(input map[string]any, allowedProps map[string]struct{}) error {
+	for key := range input {
+		if _, ok := allowedProps[key]; !ok {
+			return fmt.Errorf("%w: unknown field %q", ErrToolValidationFailed, key)
 		}
 	}
-
-	if !allowAdditional {
-		for key := range input {
-			if _, ok := allowedProps[key]; !ok {
-				return fmt.Errorf("%w: unknown field %q", ErrToolValidationFailed, key)
-			}
-		}
-	}
-
 	return nil
 }
 
