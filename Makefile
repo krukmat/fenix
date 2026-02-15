@@ -220,6 +220,7 @@ install-tools:
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+	@echo "Note: gocognit + maintidx are bundled with golangci-lint (no separate install needed)"
 
 # CI target - runs all checks (complexity/race/coverage gates before build)
 doorstop-check:

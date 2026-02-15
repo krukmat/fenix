@@ -1,0 +1,33 @@
+# .golangci.yml — Quality gates for FenixCRM
+# Task: Cognitive Complexity + Maintainability Index Gates
+# Complements gocyclo (threshold 7) with cognitive complexity + maintainability index
+
+linters:
+  enable:
+    - gocognit    # Cognitive complexity (nesting-aware, SonarSource algorithm)
+    - maintidx    # Maintainability index (cyclomatic + Halstead volume + LOC)
+
+linters-settings:
+  gocognit:
+    # Functions with cognitive complexity > 15 trigger error.
+    # Why 15: SonarSource default for S3776 rule. A switch with 10 cases = cognitive 1 (fine),
+    # but 3 nested ifs = cognitive 6. Functions hitting 15 are genuinely hard to understand.
+    # Conservative start — can lower to 10 after initial adoption.
+    min-complexity: 15
+
+  maintidx:
+    # Functions with maintainability index < 20 trigger error.
+    # Scale: 0-100, higher = more maintainable.
+    # Microsoft thresholds: 0-9 = red, 10-19 = yellow, 20+ = green.
+    # 20 = "green zone" minimum — catches God functions with too many variables/operations.
+    # Formula: 171 - 5.2*ln(HalsteadVolume) - 0.23*(CyclomaticComplexity) - 16.2*ln(LOC)
+    under: 20
+
+issues:
+  # Exclude generated code (aligned with Makefile coverage-gate exclusions, lines 104-107)
+  exclude-dirs:
+    - internal/infra/sqlite/sqlcgen  # sqlc generated code
+    - vendor
+  exclude-files:
+    - ".*\\.pb\\.go$"  # Future protobuf generated files
+    - ".*_test\\.go$"  # Test files (allowed to be complex, caught by gocyclo instead)

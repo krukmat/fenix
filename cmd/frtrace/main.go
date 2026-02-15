@@ -174,37 +174,91 @@ func frIDToAnnotation(id string) string { return strings.ReplaceAll(id, "_", "-"
 func validate(frs map[string]FRItem, tsts []TSTItem, fileTraces map[string][]string, rootDir string) []Violation {
 	var violations []Violation
 	coveredFRs := make(map[string]bool)
-	for _, tst := range tsts { for _, link := range tst.FRLinks { coveredFRs[link] = true } }
-	for id, fr := range frs {
-		if fr.Active && !coveredFRs[id] {
-			violations = append(violations, Violation{Code:"UNCOVERED", FRID:id, Message:fmt.Sprintf("FR %s is active but has no TST items linked to it", id)})
+	for _, tst := range tsts {
+		for _, link := range tst.FRLinks {
+			coveredFRs[link] = true
 		}
 	}
+
+	// Check uncovered FRs
+	for id, fr := range frs {
+		if fr.Active && !coveredFRs[id] {
+			violations = append(violations, Violation{
+				Code:    "UNCOVERED",
+				FRID:    id,
+				Message: fmt.Sprintf("FR %s is active but has no TST items linked to it", id),
+			})
+		}
+	}
+
+	// Check missing annotations and file existence
+	violations = append(violations, checkMissingAnnotations(tsts, fileTraces, rootDir)...)
+
+	// Check orphan annotations
+	violations = append(violations, checkOrphanAnnotations(frs, fileTraces)...)
+
+	return violations
+}
+
+// checkMissingAnnotations verifies that test files have required // Traces: annotations.
+func checkMissingAnnotations(tsts []TSTItem, fileTraces map[string][]string, rootDir string) []Violation {
+	var violations []Violation
 	for _, tst := range tsts {
 		fullPath := filepath.Join(rootDir, tst.Ref)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			violations = append(violations, Violation{Code:"FILE-NOT-FOUND", TSTID:tst.ID, File:tst.Ref, Message:fmt.Sprintf("TST %s ref file %s does not exist", tst.ID, tst.Ref)})
+			violations = append(violations, Violation{
+				Code:    "FILE-NOT-FOUND",
+				TSTID:   tst.ID,
+				File:    tst.Ref,
+				Message: fmt.Sprintf("TST %s ref file %s does not exist", tst.ID, tst.Ref),
+			})
 			continue
 		}
+
 		traces := fileTraces[tst.Ref]
 		for _, frLink := range tst.FRLinks {
 			expected := frIDToAnnotation(frLink)
-			found := false
-			for _, t := range traces { if t == expected { found = true; break } }
-			if !found {
-				violations = append(violations, Violation{Code:"MISSING-ANNOTATION", FRID:frLink, TSTID:tst.ID, File:tst.Ref, Message:fmt.Sprintf("TST %s ref file %s lacks annotation '// Traces: %s'", tst.ID, tst.Ref, expected)})
-			}
-		}
-	}
-	for file, traces := range fileTraces {
-		for _, t := range traces {
-			frID := frAnnotationToID(t)
-			if _, ok := frs[frID]; !ok {
-				violations = append(violations, Violation{Code:"ORPHAN", FRID:frID, File:file, Message:fmt.Sprintf("File %s has annotation '// Traces: %s' but %s is not in Doorstop", file, t, frID)})
+			if !containsTrace(traces, expected) {
+				violations = append(violations, Violation{
+					Code:    "MISSING-ANNOTATION",
+					FRID:    frLink,
+					TSTID:   tst.ID,
+					File:    tst.Ref,
+					Message: fmt.Sprintf("TST %s ref file %s lacks annotation '// Traces: %s'", tst.ID, tst.Ref, expected),
+				})
 			}
 		}
 	}
 	return violations
+}
+
+// checkOrphanAnnotations verifies that all // Traces: annotations refer to existing FRs.
+func checkOrphanAnnotations(frs map[string]FRItem, fileTraces map[string][]string) []Violation {
+	var violations []Violation
+	for file, traces := range fileTraces {
+		for _, t := range traces {
+			frID := frAnnotationToID(t)
+			if _, ok := frs[frID]; !ok {
+				violations = append(violations, Violation{
+					Code:    "ORPHAN",
+					FRID:    frID,
+					File:    file,
+					Message: fmt.Sprintf("File %s has annotation '// Traces: %s' but %s is not in Doorstop", file, t, frID),
+				})
+			}
+		}
+	}
+	return violations
+}
+
+// containsTrace checks if a trace annotation is present in the list.
+func containsTrace(traces []string, expected string) bool {
+	for _, t := range traces {
+		if t == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func countActive(frs map[string]FRItem) int {
