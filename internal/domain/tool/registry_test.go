@@ -107,6 +107,78 @@ func TestToolRegistry_ListToolDefinitions_DeserializesSchemaAndPerms(t *testing.
 	}
 }
 
+func TestValidateAgainstMinimalSchema(t *testing.T) {
+	t.Parallel()
+
+	t.Run("missing required field", func(t *testing.T) {
+		t.Parallel()
+		input := map[string]any{"name": "alice"}
+		schema := map[string]any{
+			"required": []any{"name", "email"},
+		}
+
+		err := validateAgainstMinimalSchema(input, schema)
+		if !errors.Is(err, ErrToolValidationFailed) {
+			t.Fatalf("expected ErrToolValidationFailed, got %v", err)
+		}
+	})
+
+	t.Run("unknown field rejected when additional properties false", func(t *testing.T) {
+		t.Parallel()
+		input := map[string]any{"name": "alice", "unexpected": true}
+		schema := map[string]any{
+			"additionalProperties": false,
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+		}
+
+		err := validateAgainstMinimalSchema(input, schema)
+		if !errors.Is(err, ErrToolValidationFailed) {
+			t.Fatalf("expected ErrToolValidationFailed, got %v", err)
+		}
+	})
+
+	t.Run("unknown field allowed when additional properties true", func(t *testing.T) {
+		t.Parallel()
+		input := map[string]any{"name": "alice", "unexpected": true}
+		schema := map[string]any{
+			"additionalProperties": true,
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+		}
+
+		if err := validateAgainstMinimalSchema(input, schema); err != nil {
+			t.Fatalf("validateAgainstMinimalSchema returned error: %v", err)
+		}
+	})
+
+	t.Run("default additional properties true", func(t *testing.T) {
+		t.Parallel()
+		input := map[string]any{"unknown": true}
+		schema := map[string]any{}
+
+		if err := validateAgainstMinimalSchema(input, schema); err != nil {
+			t.Fatalf("validateAgainstMinimalSchema returned error: %v", err)
+		}
+	})
+}
+
+func TestExtractStringSlice(t *testing.T) {
+	t.Parallel()
+
+	out := extractStringSlice([]any{"name", "", "  ", 123, "email"})
+	if len(out) != 2 || out[0] != "name" || out[1] != "email" {
+		t.Fatalf("unexpected slice: %#v", out)
+	}
+
+	out = extractStringSlice("not-array")
+	if out != nil {
+		t.Fatalf("expected nil for non-array input, got %#v", out)
+	}
+}
+
 var toolRandCounter int64
 
 func createWorkspace(t *testing.T, db *sql.DB) string {
