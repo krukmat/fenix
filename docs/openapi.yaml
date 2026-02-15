@@ -67,6 +67,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/accounts/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
     get:
       summary: Get accounts
       x-fr-traces:
@@ -134,6 +136,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/contacts/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
     get:
       summary: Get contacts
       x-fr-traces:
@@ -201,6 +205,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/leads/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
     get:
       summary: Get leads
       x-fr-traces:
@@ -268,6 +274,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/deals/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
     get:
       summary: Get deals
       x-fr-traces:
@@ -335,6 +343,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/cases/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
     get:
       summary: Get cases
       x-fr-traces:
@@ -402,6 +412,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/activities/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
     get:
       summary: Get activities
       x-fr-traces:
@@ -469,6 +481,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/notes/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
     get:
       summary: Get notes
       x-fr-traces:
@@ -509,6 +523,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/accounts/{account_id}/contacts:
+    parameters:
+    - $ref: '#/components/parameters/AccountID'
     get:
       summary: List contacts by account
       x-fr-traces:
@@ -550,6 +566,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/pipelines/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
     get:
       summary: Get pipeline
       x-fr-traces:
@@ -590,6 +608,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/pipelines/{id}/stages:
+    parameters:
+    - $ref: '#/components/parameters/ID'
     post:
       summary: Create stage
       x-fr-traces:
@@ -617,6 +637,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/pipelines/stages/{stage_id}:
+    parameters:
+    - $ref: '#/components/parameters/StageID'
     put:
       summary: Update stage
       x-fr-traces:
@@ -671,6 +693,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/attachments/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
     get:
       summary: Get attachment
       x-fr-traces:
@@ -712,6 +736,9 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/timeline/{entity_type}/{entity_id}:
+    parameters:
+    - $ref: '#/components/parameters/EntityType'
+    - $ref: '#/components/parameters/EntityID'
     get:
       summary: List timeline by entity
       x-fr-traces:
@@ -796,6 +823,8 @@ paths:
       security:
       - BearerAuth: []
   /api/v1/approvals/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
     put:
       summary: Decide approval
       x-fr-traces:
@@ -863,6 +892,30 @@ components:
         type: integer
     ID:
       name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    StageID:
+      name: stage_id
+      in: path
+      required: true
+      schema:
+        type: string
+    EntityType:
+      name: entity_type
+      in: path
+      required: true
+      schema:
+        type: string
+    EntityID:
+      name: entity_id
+      in: path
+      required: true
+      schema:
+        type: string
+    AccountID:
+      name: account_id
       in: path
       required: true
       schema:

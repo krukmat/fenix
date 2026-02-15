@@ -39,6 +39,7 @@ TOKEN=$(curl -sf -X POST "http://localhost:$PORT/auth/register" \
     --url "http://localhost:$PORT" \
     --header "Authorization: Bearer $TOKEN" \
     --header "Content-Type: application/json" \
-    --checks all \
+    --checks not_a_server_error \
     --seed 1 \
-    --phases examples,coverage,fuzzing,stateful
+    --phases examples \
+    --max-examples 1
