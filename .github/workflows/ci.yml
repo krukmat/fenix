@@ -106,6 +106,24 @@ jobs:
           # Keep linter version aligned with current Go toolchain used in CI.
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.8
 
+      - name: Show lint gates (gocognit + maintidx)
+        run: |
+          set -euo pipefail
+          echo "golangci-lint version:"
+          golangci-lint --version
+          echo ""
+          echo "Configured gates in .golangci.yml:"
+          grep -En "gocognit|maintidx" .golangci.yml
+          echo ""
+          echo "Installed linters (filtered):"
+          golangci-lint linters | grep -Ei "gocognit|maintidx"
+
+      - name: Gate gocognit (explicit)
+        run: golangci-lint run --disable-all --enable=gocognit ./...
+
+      - name: Gate maintidx (explicit)
+        run: golangci-lint run --disable-all --enable=maintidx ./...
+
       - name: Run linter
         run: make lint
 
