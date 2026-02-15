@@ -307,8 +307,8 @@ func extractFencedCandidates(input string) []string {
 	return out
 }
 
-func appendRangeCandidate(candidates []string, input, open, close string) []string {
-	start, end := strings.Index(input, open), strings.LastIndex(input, close)
+func appendRangeCandidate(candidates []string, input, open, closeToken string) []string {
+	start, end := strings.Index(input, open), strings.LastIndex(input, closeToken)
 	if start < 0 || end <= start {
 		return candidates
 	}
@@ -353,14 +353,14 @@ func sanitizeSuggestedActions(actions []SuggestedAction) []SuggestedAction {
 	return clean
 }
 
-func normalizeActions(actions []SuggestedAction, max int) []SuggestedAction {
-	if max <= 0 {
+func normalizeActions(actions []SuggestedAction, limit int) []SuggestedAction {
+	if limit <= 0 {
 		return []SuggestedAction{}
 	}
-	out := make([]SuggestedAction, 0, max)
+	out := make([]SuggestedAction, 0, limit)
 	seen := map[string]struct{}{}
 	for _, action := range actions {
-		if len(out) >= max {
+		if len(out) >= limit {
 			break
 		}
 		key := strings.ToLower(action.Title + "|" + action.Tool)
