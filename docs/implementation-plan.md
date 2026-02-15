@@ -1508,6 +1508,19 @@ jobs:
 - FR-233, NFR-040/041: Quotas (tokens/day, cost/day), degradation (cheaper model)
 - FR-243: Replay/simulation mode
 
+**Deferred from Task 3.5 (Copilot hardening backlog)**:
+- **P1-CH-01 — Copilot timeout policy**
+  - Enforce 10s timeout for chat generation (`context.WithTimeout`)
+  - Return explicit timeout error envelope to SSE clients
+  - Ensure cancellation propagates to provider call and stream goroutines
+- **P1-CH-02 — Cloud fallback for LLM outages**
+  - Add provider fallback path (Ollama -> OpenAI GPT family)
+  - Gate with feature flag + per-workspace config
+  - Emit audit + metrics tags indicating fallback activation
+- **P1-CH-03 — Resilience test suite**
+  - Integration tests for timeout behavior and fallback routing
+  - Add latency/error budget assertions for Copilot chat endpoint
+
 ---
 
 ### P2 (v2) — Weeks 27-39 (3 months)
