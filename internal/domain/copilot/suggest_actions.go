@@ -11,6 +11,7 @@ import (
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
+	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
 )
@@ -64,6 +65,27 @@ func (s *ActionService) SuggestActions(ctx context.Context, in SuggestActionsInp
 		return nil, err
 	}
 
+	prepared, err := s.prepareSuggestActionsContext(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+
+	actions, err := s.generateSuggestedActions(ctx, in.EntityType, in.EntityID, prepared.redactedSources)
+	if err != nil {
+		return nil, err
+	}
+	s.logSuggestActionsAudit(ctx, in, prepared, len(actions))
+
+	return actions, nil
+}
+
+type suggestActionsContext struct {
+	filter          policy.Filter
+	evidencePack    *knowledge.EvidencePack
+	redactedSources []knowledge.Evidence
+}
+
+func (s *ActionService) prepareSuggestActionsContext(ctx context.Context, in SuggestActionsInput) (*suggestActionsContext, error) {
 	filter, err := s.policy.BuildPermissionFilter(ctx, in.UserID)
 	if err != nil {
 		return nil, err
@@ -83,7 +105,15 @@ func (s *ActionService) SuggestActions(ctx context.Context, in SuggestActionsInp
 		return nil, err
 	}
 
-	prompt := buildSuggestActionsPrompt(in.EntityType, in.EntityID, redacted)
+	return &suggestActionsContext{filter: filter, evidencePack: pack, redactedSources: redacted}, nil
+}
+
+func (s *ActionService) generateSuggestedActions(
+	ctx context.Context,
+	entityType, entityID string,
+	sources []knowledge.Evidence,
+) ([]SuggestedAction, error) {
+	prompt := buildSuggestActionsPrompt(entityType, entityID, sources)
 	resp, err := s.llm.ChatCompletion(ctx, llm.ChatRequest{
 		Messages: []llm.Message{
 			{Role: "system", Content: "You are FenixCRM Copilot. Return only valid JSON."},
@@ -104,19 +134,21 @@ func (s *ActionService) SuggestActions(ctx context.Context, in SuggestActionsInp
 	if len(actions) == 0 {
 		return nil, errSuggestedActionsParseFail
 	}
+	return actions, nil
+}
 
+func (s *ActionService) logSuggestActionsAudit(ctx context.Context, in SuggestActionsInput, prepared *suggestActionsContext, actionCount int) {
 	entityType := in.EntityType
 	entityID := in.EntityID
+
 	_ = s.audit.LogWithDetails(ctx, in.WorkspaceID, in.UserID, audit.ActorTypeUser, "copilot.suggest_actions", &entityType, &entityID, &audit.EventDetails{
 		Metadata: map[string]any{
-			"permissionWhere":   filter.Where,
-			"filteredCount":     pack.FilteredCount,
-			"confidence":        string(pack.Confidence),
-			"generated_actions": len(actions),
+			"permissionWhere":   prepared.filter.Where,
+			"filteredCount":     prepared.evidencePack.FilteredCount,
+			"confidence":        string(prepared.evidencePack.Confidence),
+			"generated_actions": actionCount,
 		},
 	}, audit.OutcomeSuccess)
-
-	return actions, nil
 }
 
 func (s *ActionService) Summarize(ctx context.Context, in SummarizeInput) (string, error) {
@@ -244,25 +276,43 @@ func parseSuggestedActions(raw string) ([]SuggestedAction, error) {
 
 func extractJSONCandidates(raw string) []string {
 	trimmed := strings.TrimSpace(raw)
-	candidates := []string{}
-	if trimmed != "" {
-		candidates = append(candidates, trimmed)
-	}
-
-	for _, match := range jsonFenceRe.FindAllStringSubmatch(trimmed, -1) {
-		if len(match) > 1 {
-			candidates = append(candidates, strings.TrimSpace(match[1]))
-		}
-	}
-
-	if start, end := strings.Index(trimmed, "["), strings.LastIndex(trimmed, "]"); start >= 0 && end > start {
-		candidates = append(candidates, strings.TrimSpace(trimmed[start:end+1]))
-	}
-	if start, end := strings.Index(trimmed, "{"), strings.LastIndex(trimmed, "}"); start >= 0 && end > start {
-		candidates = append(candidates, strings.TrimSpace(trimmed[start:end+1]))
-	}
-
+	candidates := make([]string, 0, 4)
+	candidates = appendIfNonEmptyCandidate(candidates, trimmed)
+	candidates = append(candidates, extractFencedCandidates(trimmed)...)
+	candidates = appendRangeCandidate(candidates, trimmed, "[", "]")
+	candidates = appendRangeCandidate(candidates, trimmed, "{", "}")
 	return dedupeStrings(candidates)
+}
+
+func appendIfNonEmptyCandidate(candidates []string, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return candidates
+	}
+	return append(candidates, value)
+}
+
+func extractFencedCandidates(input string) []string {
+	matches := jsonFenceRe.FindAllStringSubmatch(input, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(matches))
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		out = appendIfNonEmptyCandidate(out, match[1])
+	}
+	return out
+}
+
+func appendRangeCandidate(candidates []string, input, open, close string) []string {
+	start, end := strings.Index(input, open), strings.LastIndex(input, close)
+	if start < 0 || end <= start {
+		return candidates
+	}
+	return appendIfNonEmptyCandidate(candidates, input[start:end+1])
 }
 
 func decodeSuggestedActions(candidate string) ([]SuggestedAction, error) {
