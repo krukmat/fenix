@@ -865,6 +865,48 @@ paths:
                 $ref: '#/components/schemas/AnyResponse'
       security:
       - BearerAuth: []
+  /api/v1/copilot/chat:
+    post:
+      summary: Copilot chat
+      x-fr-traces:
+      - FR-200
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/copilot/suggest-actions:
+    post:
+      summary: Suggest copilot actions
+      x-fr-traces:
+      - FR-201
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/copilot/summarize:
+    post:
+      summary: Summarize copilot entity context
+      x-fr-traces:
+      - FR-200
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
 components:
   securitySchemes:
     BearerAuth:
