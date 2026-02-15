@@ -157,15 +157,26 @@ func scanTraces(filePath string) ([]string, error) {
 	var traces []string
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		matches := tracesRegex.FindStringSubmatch(scanner.Text())
-		if len(matches) >= 2 {
-			for _, p := range strings.Split(matches[1], ",") {
-				p = strings.TrimSpace(p)
-				if p != "" { traces = append(traces, p) }
-			}
-		}
+		lineTraces := extractTraceAnnotation(scanner.Text())
+		traces = append(traces, lineTraces...)
 	}
 	return traces, scanner.Err()
+}
+
+// extractTraceAnnotation parses a single line and extracts FR trace annotations.
+func extractTraceAnnotation(line string) []string {
+	matches := tracesRegex.FindStringSubmatch(line)
+	if len(matches) < 2 {
+		return nil
+	}
+	var result []string
+	for _, p := range strings.Split(matches[1], ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }
 
 func frAnnotationToID(annotation string) string { return strings.ReplaceAll(annotation, "-", "_") }

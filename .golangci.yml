@@ -9,11 +9,10 @@ linters:
 
 linters-settings:
   gocognit:
-    # Functions with cognitive complexity > 15 trigger error.
-    # Why 15: SonarSource default for S3776 rule. A switch with 10 cases = cognitive 1 (fine),
-    # but 3 nested ifs = cognitive 6. Functions hitting 15 are genuinely hard to understand.
-    # Conservative start — can lower to 10 after initial adoption.
-    min-complexity: 15
+    # Functions with cognitive complexity > 10 trigger error.
+    # Why 10: Stricter than SonarSource default (15). A switch with 10 cases = cognitive 1 (fine),
+    # but 3 nested ifs = cognitive 6. Functions hitting 10+ are hard to understand and test.
+    min-complexity: 10
 
   maintidx:
     # Functions with maintainability index < 20 trigger error.
