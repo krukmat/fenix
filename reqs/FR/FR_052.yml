@@ -1,0 +1,11 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-052: Marketplace
+  Plugin SDK and store for third-party extensions (P2 future scope).

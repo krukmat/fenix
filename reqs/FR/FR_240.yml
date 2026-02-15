@@ -1,0 +1,12 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-240: Prompt Versioning
+  Version-controlled prompt templates with promote/rollback, A/B testing
+  support, and eval-gated releases.

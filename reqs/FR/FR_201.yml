@@ -1,0 +1,12 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-201: Suggested Actions
+  Context-aware action suggestions based on CRM entity state, with tool
+  invocation proposals and confidence scoring.

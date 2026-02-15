@@ -1,5 +1,6 @@
 // Task 1.6.7: TDD tests for AuthService (Register and Login business logic)
 // Tests run against in-memory SQLite with real migrations.
+// Traces: FR-060
 package auth_test
 
 import (

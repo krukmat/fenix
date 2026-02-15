@@ -757,6 +757,38 @@ fenixcrm/
 
 **Deliverable**: End-to-end UC-C1 flow working — user triggers support agent → agent retrieves evidence → generates response → executes tools → updates case.
 
+### Phase 3 Dependency Map (Execution Order)
+
+To avoid sequencing ambiguity, Phase 3 tasks have the following dependency constraints:
+
+- **Task 3.1 (Policy Engine)** is a foundational dependency for:
+  - **Task 3.5** (permission filter + PII redaction in Copilot Chat)
+  - **Task 3.7** (permission checks + audit hooks in Agent Runtime)
+- **Task 3.2 (Approval Workflow)** is required by:
+  - **Task 3.7** (approval-required tool calls)
+- **Task 3.3 (Tool Registry)** must be completed before:
+  - **Task 3.4** (built-in tools registration + validation)
+  - **Task 3.7** (tool resolution/validation at runtime)
+- **Task 3.4 (Built-in Tools)** is required by:
+  - **Task 3.7** (support agent executes `update_case`, `send_reply`, `create_task`)
+- **Task 3.9 (Prompt Versioning)** must be integrated before closing:
+  - **Task 3.7** (runtime loads active prompt version)
+
+**Recommended sequence with safe parallelism**:
+1. Start **3.1 + 3.2** (partial parallel)
+2. Execute **3.3 → 3.4**
+3. Execute **3.5 + 3.6** (once 3.1 minimum is available)
+4. Execute **3.9** before finalizing 3.7
+5. Execute **3.7 → 3.8**
+
+**Condensed DAG**:
+`3.1 ─┬─> 3.5`
+`     └─> 3.7`
+`3.2 ─────> 3.7`
+`3.3 ──> 3.4 ──> 3.7`
+`3.9 ─────> 3.7`
+`3.7 ─────> 3.8`
+
 ### Week 7: Policy Engine (4 Enforcement Points)
 
 #### Task 3.1: RBAC/ABAC Evaluator (3 days)
@@ -1315,7 +1347,18 @@ fenixcrm/
 
 - **Critical paths**: 100% (auth, policy, tool execution)
 - **Business logic**: ≥90%
-- **Overall**: ≥80%
+- **Overall (app-relevant gate scope)**: ≥80%
+
+**As-built update (Task 2.6 coverage hardening):**
+- CI enforces 3 coverage gates:
+  - `coverage-gate` (global app-relevant)
+  - `coverage-app-gate` (app-only filtered profile)
+  - `coverage-tdd` (focus gate for TDD-heavy packages)
+- Current enforced thresholds in CI/Makefile: **79 / 79 / 79**
+- Last green reference (run `21986153777`):
+  - Global coverage (gate scope): **80.5%**
+  - App coverage: **80.5%**
+  - TDD coverage: **79.1%**
 
 ### CI Pipeline
 
@@ -1323,24 +1366,38 @@ fenixcrm/
 # .github/workflows/ci.yml
 on: [push, pull_request]
 jobs:
-  test:
+  complexity:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.24'
+      - run: make complexity
+
+  test:
+    needs: complexity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
       - run: make lint
       - run: make test
+      - run: make race-stability
+      - run: COVERAGE_MIN=79 make coverage-gate
+      - run: COVERAGE_APP_MIN=79 make coverage-app-gate
+      - run: TDD_COVERAGE_MIN=79 make coverage-tdd
       - run: make build
+
   e2e:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm ci
-      - run: make e2e
+      - uses: actions/checkout@v4
+      # E2E runs only when tests/e2e project is present.
+      # Current implementation skips gracefully if absent.
 ```
 
 ---

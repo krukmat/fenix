@@ -1,6 +1,7 @@
 // Task 2.1: Knowledge Tables — Integration Tests
 // Tests verify: schema, FTS5 sync, sqlite-vec virtual tables, multi-tenant isolation
 // TDD: These tests are written BEFORE the migration exists — they will fail first.
+// Traces: FR-090
 package knowledge
 
 import (

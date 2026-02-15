@@ -1,6 +1,7 @@
 // Task 2.5: Integration tests for SearchService (Hybrid Search BM25 + Vector + RRF).
 // Uses real in-memory SQLite DB with all migrations applied.
 // LLMProvider is a stub — no real Ollama required.
+// Traces: FR-092
 package knowledge
 
 import (

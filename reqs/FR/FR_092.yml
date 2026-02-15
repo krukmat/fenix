@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: 4AlL939onTbDSRm5iIwU1uOE73w4uCUoG-m7bgOWilk=
+text: |
+  FR-092: Evidence Packs and Embeddings
+  Curated evidence packs with deduplication (cosine > 0.95), confidence scoring
+  (high/medium/low), warnings, and LLM embedding via Ollama adapter.

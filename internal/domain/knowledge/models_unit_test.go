@@ -1,5 +1,6 @@
 // Task 2.1: Unit tests for domain model methods in models.go.
 // These tests exercise Go business logic only — no database, no migrations.
+// Traces: FR-090
 package knowledge
 
 import (

@@ -1,5 +1,6 @@
 // Task 2.5: Integration tests for KnowledgeSearchHandler.
 // Uses real in-memory SQLite DB with all migrations applied — no mocks.
+// Traces: FR-092
 package handlers
 
 import (

@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_092: 4AlL939onTbDSRm5iIwU1uOE73w4uCUoG-m7bgOWilk=
+normative: true
+ref: internal/domain/knowledge/evidence_test.go
+reviewed: 2E9VVOV3ap2wl8vTRsuFDWr7UPHj_OWQ_elUHJawa64=
+text: |
+  TST_038 mapped test file.

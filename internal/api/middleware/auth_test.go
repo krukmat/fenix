@@ -1,5 +1,6 @@
 // Task 1.6.9: TDD tests for Bearer JWT AuthMiddleware
 // Covers: token absent, invalid, expired, valid — and context injection.
+// Traces: FR-060
 package middleware_test
 
 import (

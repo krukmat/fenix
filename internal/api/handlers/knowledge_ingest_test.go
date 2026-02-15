@@ -1,5 +1,6 @@
 // Task 2.2: Integration tests for KnowledgeIngestHandler.
 // Uses real in-memory SQLite DB with all migrations applied — no mocks.
+// Traces: FR-090
 package handlers
 
 import (

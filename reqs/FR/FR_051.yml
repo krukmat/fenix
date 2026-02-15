@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: w5pTv2MijRXNpzRKdCOn2Yg8lMsOyERPQ8G2zAeNb9s=
+text: |
+  FR-051: Timeline
+  Unified activity timeline across all CRM entities with chronological ordering
+  and entity-type filtering.

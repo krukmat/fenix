@@ -1,6 +1,7 @@
 // Task 2.6: Integration tests for EvidencePackService.
 // Uses real in-memory SQLite DB with all migrations applied.
 // HybridSearch is real; LLMProvider is a stub from embedder_test.go.
+// Traces: FR-092
 package knowledge
 
 import (

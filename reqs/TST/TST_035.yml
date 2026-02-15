@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_092: 4AlL939onTbDSRm5iIwU1uOE73w4uCUoG-m7bgOWilk=
+normative: true
+ref: internal/domain/knowledge/embedder_test.go
+reviewed: l6djP85evlhFVtE0IIadygPeqysaxqDeH6PcVJtQ6UA=
+text: |
+  TST_035 mapped test file.

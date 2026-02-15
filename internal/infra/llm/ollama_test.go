@@ -1,5 +1,6 @@
 // Task 2.3: Unit tests for OllamaProvider.
 // Uses httptest.NewServer to mock the Ollama HTTP API — no real Ollama needed.
+// Traces: FR-092
 package llm
 
 import (

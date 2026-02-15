@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_001: _FMhHcb-tf9Y2j3DYetX6eV4JqH7cXmC3DyLLxnoaA4=
+normative: true
+ref: internal/domain/crm/account_test.go
+reviewed: WlZPcpdis0dcv7tEHiWAwhPCH04DHkWoB2l68Bey6hI=
+text: |
+  TST_001 mapped test file.

@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_001: _FMhHcb-tf9Y2j3DYetX6eV4JqH7cXmC3DyLLxnoaA4=
+normative: true
+ref: internal/api/handlers/deal_test.go
+reviewed: Mx13X5hHP0UrgNKv-ocQvz8ly9Ew6aYvDsXMSEM-raY=
+text: |
+  TST_014 mapped test file.

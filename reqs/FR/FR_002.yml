@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: oulRHB91DgQ1NgVf_91v8DTeEtGU7CnnUdhHTnsxpYw=
+text: |
+  FR-002: Pipelines and Stages
+  Implement configurable pipelines with ordered stages, probability tracking,
+  SLA hours, and required fields per stage.

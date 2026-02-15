@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: R4y3vBDUYqp4bfIP5VF1xdSbmuYMJ-3oPNud6r4cfas=
+text: |
+  FR-060: Authentication RBAC/ABAC
+  JWT-based authentication with bcrypt password hashing, workspace isolation
+  via JWT claims, and policy engine for RBAC/ABAC evaluation.

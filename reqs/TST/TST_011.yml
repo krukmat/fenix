@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_001: _FMhHcb-tf9Y2j3DYetX6eV4JqH7cXmC3DyLLxnoaA4=
+- FR_070: 0EI2DzGEbbuJwCbFNpiyooEbIct4y4-ntxVudS_uW5o=
+normative: true
+ref: internal/api/handlers/account_test.go
+reviewed: H6INg7BKjhfGwHApu_4hKozx7_vi9DvbqEROXOcRGWo=
+text: |
+  TST_011 mapped test file.

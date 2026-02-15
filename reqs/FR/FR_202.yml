@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: nFGnMmATxFZ5xBTA3M0Hql3TA8DE5tDBFX6oZX-JaMg=
+text: |
+  FR-202: Tool Registry
+  Workspace-scoped tool definitions with JSON schema validation, required
+  permissions, activation status, and admin CRUD API.

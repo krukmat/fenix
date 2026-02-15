@@ -2,6 +2,7 @@
 // Tests verify: knowledge_item + embedding_document creation, idempotency,
 // workspace isolation, and event bus notification.
 // Uses real in-memory SQLite DB with all migrations applied.
+// Traces: FR-090
 package knowledge
 
 import (

@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_061: 2OeRRf7QwT7gqY7i9B59wed3ZdNTXzjwZP0e3Orc9p4=
+normative: true
+ref: internal/domain/policy/approval_test.go
+reviewed: E4xdUmXWPJtpxwkrqvoqcFHqulVtWbYET_xNRRQ9wYI=
+text: |
+  TST_043 mapped test file.

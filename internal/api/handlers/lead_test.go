@@ -1,4 +1,5 @@
 // Task 1.5: Lead handler tests - TDD approach
+// Traces: FR-001
 package handlers
 
 import (

@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: _FMhHcb-tf9Y2j3DYetX6eV4JqH7cXmC3DyLLxnoaA4=
+text: |
+  FR-001: Core CRM Entities
+  Implement Account, Contact, Lead, Deal, Case, Activity, Note, Attachment
+  with full CRUD operations and multi-tenant isolation via workspace_id.

@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: UnyxTSAPW2Nzv4sBcVeJBHoUnvjEZ8jufWMdRAT9n5Q=
+text: |
+  FR-071: Policy Engine
+  Rule-based policy evaluator supporting RBAC/ABAC with workspace-scoped
+  policy sets, effect (allow/deny), and resource/action matching.

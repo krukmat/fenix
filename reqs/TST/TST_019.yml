@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_001: _FMhHcb-tf9Y2j3DYetX6eV4JqH7cXmC3DyLLxnoaA4=
+normative: true
+ref: internal/api/handlers/attachment_test.go
+reviewed: unCh9rc7yKW7NJ7X2TPCZITpvfgRVa0far5D0SiWxzs=
+text: |
+  TST_019 mapped test file.

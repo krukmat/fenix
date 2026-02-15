@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_060: R4y3vBDUYqp4bfIP5VF1xdSbmuYMJ-3oPNud6r4cfas=
+normative: true
+ref: internal/domain/auth/service_test.go
+reviewed: _5E9CLisNtg2GWNFftwAqhMgFuKsPtOxWlTv9fXB3yk=
+text: |
+  TST_022 mapped test file.

@@ -1,0 +1,12 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-200: Copilot Q&A
+  SSE-streaming copilot chat with evidence-grounded responses, context
+  injection from CRM records, and abstention when evidence is insufficient.

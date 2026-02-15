@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_060: R4y3vBDUYqp4bfIP5VF1xdSbmuYMJ-3oPNud6r4cfas=
+- FR_071: UnyxTSAPW2Nzv4sBcVeJBHoUnvjEZ8jufWMdRAT9n5Q=
+normative: true
+ref: internal/domain/policy/evaluator_test.go
+reviewed: Wb-CFmvITLMxjXis2u182iRVzfou79pmo_A1FtohNC4=
+text: |
+  TST_042 mapped test file.

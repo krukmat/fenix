@@ -1,4 +1,5 @@
 // Task 1.6.1 + 1.6.3: Tests for bcrypt password hashing and JWT generation/parsing
+// Traces: FR-060
 package auth
 
 import (

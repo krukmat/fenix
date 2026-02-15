@@ -1,0 +1,12 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-230: Agent Runtime
+  Agent orchestrator executing multi-step workflows with tool calls, evidence
+  retrieval, reasoning traces, and cost tracking per run.
