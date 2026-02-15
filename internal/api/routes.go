@@ -68,6 +68,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		reindexSvc := knowledge.NewReindexService(db, knowledgeBus, ingestSvc, auditService)
 		go embedder.Start(context.Background(), knowledgeBus)
 		go reindexSvc.Start(context.Background())
+		toolRegistry := tooldomain.NewToolRegistry(db)
 
 		// Account endpoints (Task 1.3.8)
 		accountHandler := handlers.NewAccountHandler(crm.NewAccountServiceWithBus(db, knowledgeBus))
@@ -92,7 +93,8 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		// Lead endpoints (Task 1.5)
 		leadHandler := handlers.NewLeadHandler(crm.NewLeadService(db))
 		dealHandler := handlers.NewDealHandler(crm.NewDealService(db))
-		caseHandler := handlers.NewCaseHandler(crm.NewCaseServiceWithBus(db, knowledgeBus))
+		caseService := crm.NewCaseServiceWithBus(db, knowledgeBus)
+		caseHandler := handlers.NewCaseHandler(caseService)
 		pipelineHandler := handlers.NewPipelineHandler(crm.NewPipelineService(db))
 		activityHandler := handlers.NewActivityHandler(crm.NewActivityService(db))
 		noteHandler := handlers.NewNoteHandler(crm.NewNoteService(db))
@@ -172,7 +174,13 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		knowledgeEvidenceHandler := handlers.NewKnowledgeEvidenceHandler(evidenceSvc)
 		knowledgeReindexHandler := handlers.NewKnowledgeReindexHandler(reindexSvc)
 		approvalHandler := handlers.NewApprovalHandler(policy.NewApprovalService(db, auditService))
-		toolHandler := handlers.NewToolHandler(tooldomain.NewToolRegistry(db))
+		toolHandler := handlers.NewToolHandler(toolRegistry)
+
+		_ = tooldomain.RegisterBuiltInExecutors(toolRegistry, tooldomain.BuiltinServices{
+			DB:   db,
+			Case: caseService,
+		})
+		_ = toolRegistry.EnsureBuiltInToolDefinitionsForAllWorkspaces(context.Background())
 		r.Route("/knowledge", func(r chi.Router) {
 			r.Post("/ingest", knowledgeIngestHandler.Ingest)    // POST /api/v1/knowledge/ingest
 			r.Post("/search", knowledgeSearchHandler.Search)    // POST /api/v1/knowledge/search
