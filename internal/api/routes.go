@@ -26,6 +26,7 @@ import (
 // NewRouter creates and configures a new chi router with all routes.
 // Task 1.3.8: Setup go-chi router with middleware + account endpoints
 // Task 1.6.13: Public routes (/health, /auth/*) vs protected routes (/api/v1/*)
+//
 //nolint:funlen // router principal mantiene registro centralizado de rutas por diseño
 func NewRouter(db *sql.DB) *chi.Mux {
 	r := chi.NewRouter()
@@ -180,6 +181,8 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		policyEngine := policy.NewPolicyEngine(db, nil, auditService)
 		copilotChatSvc := copilotdomain.NewChatService(evidenceSvc, llmProvider, policyEngine, auditService)
 		copilotChatHandler := handlers.NewCopilotChatHandler(copilotChatSvc)
+		copilotActionsSvc := copilotdomain.NewActionService(evidenceSvc, llmProvider, policyEngine, auditService)
+		copilotActionsHandler := handlers.NewCopilotActionsHandler(copilotActionsSvc)
 
 		_ = tooldomain.RegisterBuiltInExecutors(toolRegistry, tooldomain.BuiltinServices{
 			DB:   db,
@@ -204,7 +207,9 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		})
 
 		r.Route("/copilot", func(r chi.Router) {
-			r.Post("/chat", copilotChatHandler.Chat) // POST /api/v1/copilot/chat
+			r.Post("/chat", copilotChatHandler.Chat)                         // POST /api/v1/copilot/chat
+			r.Post("/suggest-actions", copilotActionsHandler.SuggestActions) // POST /api/v1/copilot/suggest-actions
+			r.Post("/summarize", copilotActionsHandler.Summarize)            // POST /api/v1/copilot/summarize
 		})
 	})
 
