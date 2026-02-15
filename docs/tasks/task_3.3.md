@@ -71,6 +71,12 @@
   - Register + Get executor
   - ValidateParams con JSON inválido → error esperado
   - ListToolDefinitions recupera esquema/permisos desde DB
+  - Cobertura de validadores de schema extraídos del refactor:
+    - required faltante
+    - `additionalProperties=false` rechaza campos desconocidos
+    - `additionalProperties=true` permite campos desconocidos
+    - comportamiento default de `additionalProperties`
+    - `extractStringSlice` (filtrado de input inválido)
 
 ### API handlers
 
@@ -84,20 +90,36 @@
 Comandos ejecutados:
 
 ```bash
+make complexity
+golangci-lint run ./internal/domain/tool/... ./internal/api/...
 go test ./internal/domain/tool ./internal/api/handlers ./internal/api
 go test -race ./internal/domain/tool ./internal/api/handlers ./internal/api
+COVERAGE_MIN=79 make coverage-gate
+COVERAGE_APP_MIN=79 make coverage-app-gate
+TDD_COVERAGE_MIN=79 make coverage-tdd
 ```
 
 Resultado:
 
+- ✅ `make complexity` OK
+- ✅ `golangci-lint` OK
 - ✅ `internal/domain/tool` OK
 - ✅ `internal/api/handlers` OK
 - ✅ `internal/api` OK
 - ✅ `-race` OK en los 3 paquetes
+- ✅ coverage gate global/app/TDD en verde
 
-Nota:
+---
 
-- `golangci-lint` no disponible en el entorno actual (`command not found`), por lo que lint global queda para CI/local con tooling instalado.
+## Cierre final de CI
+
+- Run final en GitHub Actions: **`22033174931`**
+- Commit asociado: **`5a18aa54fc2a5e0bab73c1cefd9eb5ee733b35f4`**
+- Estado: **`success`**
+- Jobs:
+  - ✅ Complexity Gate
+  - ✅ Lint and Test (incluyendo race + coverage gates)
+  - ✅ E2E Tests (skip esperado por proyecto E2E no presente)
 
 ---
 
@@ -107,4 +129,4 @@ Nota:
 - [x] Dominio ToolRegistry implementado
 - [x] Endpoints admin tools implementados y ruteados
 - [x] Tests unitarios/integración focalizados en verde
-- [x] Validación con `go test` + `-race`
+- [x] Validación completa con gates locales y CI remoto en verde
