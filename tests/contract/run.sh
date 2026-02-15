@@ -40,6 +40,6 @@ TOKEN=$(curl -sf -X POST "http://localhost:$PORT/auth/register" \
     --header "Authorization: Bearer $TOKEN" \
     --header "Content-Type: application/json" \
     --checks all \
-    --hypothesis-seed 1 \
+    --seed 1 \
     --stateful=links \
     --validate-schema=true
