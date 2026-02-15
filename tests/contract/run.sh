@@ -41,5 +41,4 @@ TOKEN=$(curl -sf -X POST "http://localhost:$PORT/auth/register" \
     --header "Content-Type: application/json" \
     --checks all \
     --seed 1 \
-    --stateful=links \
-    --validate-schema=true
+    --phases examples,coverage,fuzzing,stateful
