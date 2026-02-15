@@ -1,28 +1,53 @@
-# .golangci.yml — Quality gates for FenixCRM
-# Task: Cognitive Complexity + Maintainability Index Gates
-# Complements gocyclo (threshold 7) with cognitive complexity + maintainability index
+run:
+  timeout: 5m
 
 linters:
   enable:
-    - gocognit    # Cognitive complexity (nesting-aware, SonarSource algorithm)
-    - maintidx    # Maintainability index (cyclomatic + Halstead volume + LOC)
+    - gocritic
+    - revive
+    - nestif
+    - ruleguard
+    - gocognit
+    - maintidx
+    - funlen
+  disable:
+    - gocyclo
 
 linters-settings:
+  # Alarmas (no refactor hints directos, pero útiles)
   gocognit:
-    # Functions with cognitive complexity > 10 trigger error.
-    # Why 10: Stricter than SonarSource default (15). A switch with 10 cases = cognitive 1 (fine),
-    # but 3 nested ifs = cognitive 6. Functions hitting 10+ are hard to understand and test.
     min-complexity: 10
 
   maintidx:
-    # Functions with maintainability index < 20 trigger error.
-    # Scale: 0-100, higher = more maintainable.
-    # Microsoft thresholds: 0-9 = red, 10-19 = yellow, 20+ = green.
-    # 20 = "green zone" minimum — catches God functions with too many variables/operations.
-    # Formula: 171 - 5.2*ln(HalsteadVolume) - 0.23*(CyclomaticComplexity) - 16.2*ln(LOC)
+    # Flaggea funciones con MI < under (más bajo = peor mantenibilidad)
     under: 20
 
+  # Smells concretos
+  nestif:
+    min-complexity: 4
+
+  funlen:
+    lines: 80
+    statements: 40
+
+  # go-critic settings (algunos ejemplos de thresholds configurables)
+  gocritic:
+    settings:
+      ifElseChain:
+        minThreshold: 4
+      nestingReduce:
+        bodyWidth: 4
+
+  # ruleguard como linter propio de golangci-lint
+  ruleguard:
+    rules: "${config-path}/ruleguard/rules-*.go"
+    failOn: "dsl,import"
+    enable: "smells"
+
 issues:
+  # Para que el gate sea más “PR-friendly”:
+  max-issues-per-linter: 0
+  max-same-issues: 0
   # Exclude generated code (aligned with Makefile coverage-gate exclusions, lines 104-107)
   exclude-dirs:
     - internal/infra/sqlite/sqlcgen  # sqlc generated code
