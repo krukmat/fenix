@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 	"github.com/matiasleandrokruk/fenix/pkg/auth"
@@ -315,6 +316,27 @@ func TestAuthService_Login_ErrorMessageGeneric(t *testing.T) {
 	if errWrongPw.Error() != errNoUser.Error() {
 		t.Errorf("Error messages should be identical for security: got %q vs %q",
 			errWrongPw.Error(), errNoUser.Error())
+	}
+}
+
+func TestAuthService_NewAuthServiceWithAudit_Works(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	auditSvc := audit.NewAuditService(db)
+	svc := domainauth.NewAuthServiceWithAudit(db, auditSvc)
+
+	result, err := svc.Register(context.Background(), domainauth.RegisterInput{
+		Email:         "audit-constructor@acme.com",
+		Password:      "SecurePass123!",
+		DisplayName:   "Audit Constructor",
+		WorkspaceName: "Audit Workspace",
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v; want nil", err)
+	}
+	if result.Token == "" || result.UserID == "" || result.WorkspaceID == "" {
+		t.Fatalf("expected auth result fields to be populated, got %#v", result)
 	}
 }
 

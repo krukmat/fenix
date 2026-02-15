@@ -13,6 +13,7 @@ import (
 	apmiddleware "github.com/matiasleandrokruk/fenix/internal/api/middleware"
 	domainaudit "github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
+	copilotdomain "github.com/matiasleandrokruk/fenix/internal/domain/copilot"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
@@ -175,6 +176,9 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		knowledgeReindexHandler := handlers.NewKnowledgeReindexHandler(reindexSvc)
 		approvalHandler := handlers.NewApprovalHandler(policy.NewApprovalService(db, auditService))
 		toolHandler := handlers.NewToolHandler(toolRegistry)
+		policyEngine := policy.NewPolicyEngine(db, nil, auditService)
+		copilotChatSvc := copilotdomain.NewChatService(evidenceSvc, llmProvider, policyEngine, auditService)
+		copilotChatHandler := handlers.NewCopilotChatHandler(copilotChatSvc)
 
 		_ = tooldomain.RegisterBuiltInExecutors(toolRegistry, tooldomain.BuiltinServices{
 			DB:   db,
@@ -196,6 +200,10 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Route("/admin/tools", func(r chi.Router) {
 			r.Get("/", toolHandler.ListTools)   // GET /api/v1/admin/tools
 			r.Post("/", toolHandler.CreateTool) // POST /api/v1/admin/tools
+		})
+
+		r.Route("/copilot", func(r chi.Router) {
+			r.Post("/chat", copilotChatHandler.Chat) // POST /api/v1/copilot/chat
 		})
 	})
 

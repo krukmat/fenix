@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
+	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 )
 
 func TestLeadService_CRUD(t *testing.T) {
@@ -114,6 +115,32 @@ func TestCaseService_CRUD(t *testing.T) {
 
 	if err := svc.Delete(context.Background(), wsID, created.ID); err != nil {
 		t.Fatalf("Delete() error = %v", err)
+	}
+}
+
+func TestCaseService_NewCaseServiceWithBus_PublishesCreatedEvent(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	bus := eventbus.New()
+	svc := crm.NewCaseServiceWithBus(db, bus)
+
+	createdCh := bus.Subscribe("record.created")
+
+	_, err := svc.Create(context.Background(), crm.CreateCaseInput{
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Case with bus",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	select {
+	case <-createdCh:
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected created event")
 	}
 }
 

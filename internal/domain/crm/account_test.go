@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
+	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 )
 
@@ -282,6 +283,55 @@ func TestAccountService_ListByOwner(t *testing.T) {
 	}
 	if len(accounts) != 2 {
 		t.Errorf("ListByOwner() returned %d accounts; want 2", len(accounts))
+	}
+}
+
+func TestAccountService_NewAccountServiceWithBus_PublishesEvents(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	bus := eventbus.New()
+	svc := crm.NewAccountServiceWithBus(db, bus)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+
+	createdCh := bus.Subscribe("record.created")
+	updatedCh := bus.Subscribe("record.updated")
+	deletedCh := bus.Subscribe("record.deleted")
+
+	created, err := svc.Create(context.Background(), crm.CreateAccountInput{
+		WorkspaceID: wsID,
+		Name:        "Bus Account",
+		OwnerID:     ownerID,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if _, err := svc.Update(context.Background(), wsID, created.ID, crm.UpdateAccountInput{
+		Name:    "Bus Account Updated",
+		OwnerID: ownerID,
+	}); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if err := svc.Delete(context.Background(), wsID, created.ID); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+
+	select {
+	case <-createdCh:
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected created event")
+	}
+	select {
+	case <-updatedCh:
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected updated event")
+	}
+	select {
+	case <-deletedCh:
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected deleted event")
 	}
 }
 
