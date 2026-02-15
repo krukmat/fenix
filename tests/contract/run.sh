@@ -36,7 +36,7 @@ TOKEN=$(curl -sf -X POST "http://localhost:$PORT/auth/register" \
     | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
 ./.venv/bin/schemathesis run "$PROJECT_ROOT/docs/openapi.yaml" \
-    --base-url "http://localhost:$PORT" \
+    --url "http://localhost:$PORT" \
     --header "Authorization: Bearer $TOKEN" \
     --header "Content-Type: application/json" \
     --checks all \
