@@ -1,6 +1,3 @@
-//go:build ignore
-// +build ignore
-
 package gorules
 
 import "github.com/quasilyte/go-ruleguard/dsl"

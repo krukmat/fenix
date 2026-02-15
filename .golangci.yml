@@ -6,7 +6,6 @@ linters:
     - gocritic
     - revive
     - nestif
-    - ruleguard
     - gocognit
     - maintidx
     - funlen
@@ -32,17 +31,18 @@ linters-settings:
 
   # go-critic settings (algunos ejemplos de thresholds configurables)
   gocritic:
+    enabled-checks:
+      - nestingReduce
+      - ruleguard
     settings:
       ifElseChain:
         minThreshold: 4
       nestingReduce:
         bodyWidth: 4
-
-  # ruleguard como linter propio de golangci-lint
-  ruleguard:
-    rules: "${config-path}/ruleguard/rules-*.go"
-    failOn: "dsl,import"
-    enable: "smells"
+      ruleguard:
+        rules: "ruleguard/rules-*.go"
+        enable: "smells"
+        failOn: "dsl,import"
 
 issues:
   # Para que el gate sea más “PR-friendly”:
@@ -51,6 +51,7 @@ issues:
   # Exclude generated code (aligned with Makefile coverage-gate exclusions, lines 104-107)
   exclude-dirs:
     - internal/infra/sqlite/sqlcgen  # sqlc generated code
+    - ruleguard
     - vendor
   exclude-files:
     - ".*\\.pb\\.go$"  # Future protobuf generated files
