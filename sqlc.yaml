@@ -26,6 +26,10 @@ sql:
       # 012_knowledge_fts.up.sql excluded: CREATE VIRTUAL TABLE fts5 not supported by sqlc parser
       # Applied at runtime via MigrateUp (embed.FS picks up all *.up.sql files)
       - "internal/infra/sqlite/migrations/013_vec_embedding.up.sql"
+      - "internal/infra/sqlite/migrations/014_policies.up.sql"
+      - "internal/infra/sqlite/migrations/015_approval_requests.up.sql"
+      - "internal/infra/sqlite/migrations/016_tools.up.sql"
+      - "internal/infra/sqlite/migrations/017_prompt_versions.up.sql"
     # SQL query files with sqlc annotations (-- name: QueryName :cmd)
     queries:
       - "internal/infra/sqlite/queries"

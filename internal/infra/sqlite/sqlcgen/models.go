@@ -42,6 +42,24 @@ type Activity struct {
 	UpdatedAt    string  `db:"updated_at" json:"updatedAt"`
 }
 
+type ApprovalRequest struct {
+	ID           string          `db:"id" json:"id"`
+	WorkspaceID  string          `db:"workspace_id" json:"workspaceId"`
+	RequestedBy  string          `db:"requested_by" json:"requestedBy"`
+	ApproverID   string          `db:"approver_id" json:"approverId"`
+	DecidedBy    *string         `db:"decided_by" json:"decidedBy"`
+	Action       string          `db:"action" json:"action"`
+	ResourceType *string         `db:"resource_type" json:"resourceType"`
+	ResourceID   *string         `db:"resource_id" json:"resourceId"`
+	Payload      json.RawMessage `db:"payload" json:"payload"`
+	Reason       *string         `db:"reason" json:"reason"`
+	Status       string          `db:"status" json:"status"`
+	ExpiresAt    time.Time       `db:"expires_at" json:"expiresAt"`
+	DecidedAt    *time.Time      `db:"decided_at" json:"decidedAt"`
+	CreatedAt    time.Time       `db:"created_at" json:"createdAt"`
+	UpdatedAt    time.Time       `db:"updated_at" json:"updatedAt"`
+}
+
 type Attachment struct {
 	ID          string  `db:"id" json:"id"`
 	WorkspaceID string  `db:"workspace_id" json:"workspaceId"`
@@ -220,6 +238,41 @@ type PipelineStage struct {
 	UpdatedAt      string   `db:"updated_at" json:"updatedAt"`
 }
 
+type PolicySet struct {
+	ID          string    `db:"id" json:"id"`
+	WorkspaceID string    `db:"workspace_id" json:"workspaceId"`
+	Name        string    `db:"name" json:"name"`
+	Description *string   `db:"description" json:"description"`
+	IsActive    int64     `db:"is_active" json:"isActive"`
+	CreatedBy   *string   `db:"created_by" json:"createdBy"`
+	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updatedAt"`
+}
+
+type PolicyVersion struct {
+	ID            string          `db:"id" json:"id"`
+	PolicySetID   string          `db:"policy_set_id" json:"policySetId"`
+	WorkspaceID   string          `db:"workspace_id" json:"workspaceId"`
+	VersionNumber int64           `db:"version_number" json:"versionNumber"`
+	PolicyJson    json.RawMessage `db:"policy_json" json:"policyJson"`
+	Status        string          `db:"status" json:"status"`
+	CreatedBy     *string         `db:"created_by" json:"createdBy"`
+	CreatedAt     time.Time       `db:"created_at" json:"createdAt"`
+}
+
+type PromptVersion struct {
+	ID                 string    `db:"id" json:"id"`
+	WorkspaceID        string    `db:"workspace_id" json:"workspaceId"`
+	AgentDefinitionID  string    `db:"agent_definition_id" json:"agentDefinitionId"`
+	VersionNumber      int64     `db:"version_number" json:"versionNumber"`
+	SystemPrompt       string    `db:"system_prompt" json:"systemPrompt"`
+	UserPromptTemplate *string   `db:"user_prompt_template" json:"userPromptTemplate"`
+	Config             string    `db:"config" json:"config"`
+	Status             string    `db:"status" json:"status"`
+	CreatedBy          *string   `db:"created_by" json:"createdBy"`
+	CreatedAt          time.Time `db:"created_at" json:"createdAt"`
+}
+
 type Role struct {
 	ID          string  `db:"id" json:"id"`
 	WorkspaceID string  `db:"workspace_id" json:"workspaceId"`
@@ -241,6 +294,19 @@ type TimelineEvent struct {
 	NewValue    *string `db:"new_value" json:"newValue"`
 	Context     *string `db:"context" json:"context"`
 	CreatedAt   string  `db:"created_at" json:"createdAt"`
+}
+
+type ToolDefinition struct {
+	ID                  string          `db:"id" json:"id"`
+	WorkspaceID         string          `db:"workspace_id" json:"workspaceId"`
+	Name                string          `db:"name" json:"name"`
+	Description         *string         `db:"description" json:"description"`
+	InputSchema         json.RawMessage `db:"input_schema" json:"inputSchema"`
+	RequiredPermissions json.RawMessage `db:"required_permissions" json:"requiredPermissions"`
+	IsActive            int64           `db:"is_active" json:"isActive"`
+	CreatedBy           *string         `db:"created_by" json:"createdBy"`
+	CreatedAt           time.Time       `db:"created_at" json:"createdAt"`
+	UpdatedAt           time.Time       `db:"updated_at" json:"updatedAt"`
 }
 
 type UserAccount struct {

@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/matiasleandrokruk/fenix/internal/api/handlers"
 	apmiddleware "github.com/matiasleandrokruk/fenix/internal/api/middleware"
+	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 	domainaudit "github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
 	copilotdomain "github.com/matiasleandrokruk/fenix/internal/domain/copilot"
@@ -178,6 +179,8 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		knowledgeReindexHandler := handlers.NewKnowledgeReindexHandler(reindexSvc)
 		approvalHandler := handlers.NewApprovalHandler(policy.NewApprovalService(db, auditService))
 		toolHandler := handlers.NewToolHandler(toolRegistry)
+		// Task 3.9: Prompt Versioning
+		promptHandler := handlers.NewPromptHandler(agent.NewPromptService(db, auditService))
 		policyEngine := policy.NewPolicyEngine(db, nil, auditService)
 		copilotChatSvc := copilotdomain.NewChatService(evidenceSvc, llmProvider, policyEngine, auditService)
 		copilotChatHandler := handlers.NewCopilotChatHandler(copilotChatSvc)
@@ -204,6 +207,14 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Route("/admin/tools", func(r chi.Router) {
 			r.Get("/", toolHandler.ListTools)   // GET /api/v1/admin/tools
 			r.Post("/", toolHandler.CreateTool) // POST /api/v1/admin/tools
+		})
+
+		// Task 3.9: Prompt Versioning routes
+		r.Route("/admin/prompts", func(r chi.Router) {
+			r.Get("/", promptHandler.List)                    // GET /api/v1/admin/prompts?agent_id={id}
+			r.Post("/", promptHandler.Create)                 // POST /api/v1/admin/prompts
+			r.Put("/{id}/promote", promptHandler.Promote)     // PUT /api/v1/admin/prompts/{id}/promote
+			r.Put("/{id}/rollback", promptHandler.Rollback)   // PUT /api/v1/admin/prompts/{id}/rollback
 		})
 
 		r.Route("/copilot", func(r chi.Router) {

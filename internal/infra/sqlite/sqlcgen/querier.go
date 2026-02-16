@@ -9,6 +9,7 @@ import (
 )
 
 type Querier interface {
+	ArchivePreviousActivePrompts(ctx context.Context, arg ArchivePreviousActivePromptsParams) error
 	// ========================
 	// USER ROLE (assignment) queries
 	// ========================
@@ -96,6 +97,8 @@ type Querier interface {
 	CreatePipeline(ctx context.Context, arg CreatePipelineParams) error
 	// === PIPELINE STAGE QUERIES ===
 	CreatePipelineStage(ctx context.Context, arg CreatePipelineStageParams) error
+	// Task 3.9: Prompt Versioning queries
+	CreatePromptVersion(ctx context.Context, arg CreatePromptVersionParams) (PromptVersion, error)
 	// SQL queries for role and user_role tables
 	// Task 1.2.7: sqlc-annotated queries
 	// IMPORTANT: All role queries filter by workspace_id for RBAC isolation.
@@ -129,6 +132,7 @@ type Querier interface {
 	DeleteVecEmbeddingsByKnowledgeItem(ctx context.Context, arg DeleteVecEmbeddingsByKnowledgeItemParams) error
 	DeleteWorkspace(ctx context.Context, id string) error
 	GetAccountByID(ctx context.Context, arg GetAccountByIDParams) (Account, error)
+	GetActivePrompt(ctx context.Context, arg GetActivePromptParams) (PromptVersion, error)
 	GetActivityByID(ctx context.Context, arg GetActivityByIDParams) (Activity, error)
 	// ============================================================================
 	// search queries (Task 2.5)
@@ -152,11 +156,14 @@ type Querier interface {
 	GetKnowledgeItemByEntity(ctx context.Context, arg GetKnowledgeItemByEntityParams) (KnowledgeItem, error)
 	// Task 2.1/2.2: Retrieve a single knowledge item (excludes soft-deleted)
 	GetKnowledgeItemByID(ctx context.Context, arg GetKnowledgeItemByIDParams) (KnowledgeItem, error)
+	GetLatestPromptVersionNumber(ctx context.Context, arg GetLatestPromptVersionNumberParams) (interface{}, error)
 	GetLatestTimelineEventByEntity(ctx context.Context, arg GetLatestTimelineEventByEntityParams) (TimelineEvent, error)
 	GetLeadByID(ctx context.Context, arg GetLeadByIDParams) (Lead, error)
 	GetNoteByID(ctx context.Context, arg GetNoteByIDParams) (Note, error)
 	GetPipelineByID(ctx context.Context, arg GetPipelineByIDParams) (Pipeline, error)
 	GetPipelineStageByID(ctx context.Context, id string) (PipelineStage, error)
+	GetPreviousArchivedPrompt(ctx context.Context, arg GetPreviousArchivedPromptParams) (PromptVersion, error)
+	GetPromptVersionByID(ctx context.Context, arg GetPromptVersionByIDParams) (PromptVersion, error)
 	GetRoleByID(ctx context.Context, arg GetRoleByIDParams) (Role, error)
 	GetRoleByName(ctx context.Context, arg GetRoleByNameParams) (Role, error)
 	GetTimelineEventByID(ctx context.Context, arg GetTimelineEventByIDParams) (TimelineEvent, error)
@@ -235,6 +242,7 @@ type Querier interface {
 	ListPipelineStagesByPipeline(ctx context.Context, pipelineID string) ([]PipelineStage, error)
 	ListPipelinesByEntityType(ctx context.Context, arg ListPipelinesByEntityTypeParams) ([]Pipeline, error)
 	ListPipelinesByWorkspace(ctx context.Context, arg ListPipelinesByWorkspaceParams) ([]Pipeline, error)
+	ListPromptVersionsByAgent(ctx context.Context, arg ListPromptVersionsByAgentParams) ([]PromptVersion, error)
 	ListRolesByUser(ctx context.Context, arg ListRolesByUserParams) ([]Role, error)
 	ListRolesByWorkspace(ctx context.Context, workspaceID string) ([]Role, error)
 	ListTimelineEventsByActor(ctx context.Context, arg ListTimelineEventsByActorParams) ([]TimelineEvent, error)
@@ -246,6 +254,7 @@ type Querier interface {
 	ListWorkspaces(ctx context.Context) ([]Workspace, error)
 	RevokeAllRoles(ctx context.Context, userID string) error
 	RevokeRole(ctx context.Context, arg RevokeRoleParams) error
+	SetPromptStatus(ctx context.Context, arg SetPromptStatusParams) error
 	SoftDeleteAccount(ctx context.Context, arg SoftDeleteAccountParams) error
 	SoftDeleteCase(ctx context.Context, arg SoftDeleteCaseParams) error
 	SoftDeleteContact(ctx context.Context, arg SoftDeleteContactParams) error

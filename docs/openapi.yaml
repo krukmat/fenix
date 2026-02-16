@@ -865,6 +865,65 @@ paths:
                 $ref: '#/components/schemas/AnyResponse'
       security:
       - BearerAuth: []
+  /api/v1/admin/prompts:
+    get:
+      summary: List prompt versions
+      parameters:
+      - name: agent_id
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+    post:
+      summary: Create prompt version
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/admin/prompts/{id}/promote:
+    put:
+      summary: Promote prompt version to active
+      parameters:
+      - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+      security:
+      - BearerAuth: []
+  /api/v1/admin/prompts/{id}/rollback:
+    put:
+      summary: Rollback to previous prompt version
+      parameters:
+      - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        '409':
+          description: Conflict - no archived version to rollback to
+      security:
+      - BearerAuth: []
   /api/v1/copilot/chat:
     post:
       summary: Copilot chat
