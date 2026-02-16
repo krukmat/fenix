@@ -36,12 +36,12 @@ type UpdateCaseRequest = CreateCaseRequest
 func (h *CaseHandler) CreateCase(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 	var req CreateCaseRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 	if req.OwnerID == "" || req.Subject == "" {
@@ -68,10 +68,10 @@ func (h *CaseHandler) CreateCase(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create case: %v", svcErr))
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -79,13 +79,13 @@ func (h *CaseHandler) CreateCase(w http.ResponseWriter, r *http.Request) {
 func (h *CaseHandler) GetCase(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	out, svcErr := h.service.Get(r.Context(), wsID, id)
 	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "case not found")
+		writeError(w, http.StatusNotFound, errCaseNotFound)
 		return
 	}
 	if svcErr != nil {
@@ -93,7 +93,7 @@ func (h *CaseHandler) GetCase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -101,7 +101,7 @@ func (h *CaseHandler) GetCase(w http.ResponseWriter, r *http.Request) {
 func (h *CaseHandler) ListCases(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 	page := parsePaginationParams(r)
@@ -111,7 +111,7 @@ func (h *CaseHandler) ListCases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -119,13 +119,13 @@ func (h *CaseHandler) ListCases(w http.ResponseWriter, r *http.Request) {
 func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	existing, svcErr := h.service.Get(r.Context(), wsID, id)
 	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "case not found")
+		writeError(w, http.StatusNotFound, errCaseNotFound)
 		return
 	}
 	if svcErr != nil {
@@ -134,7 +134,7 @@ func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {
 	}
 	var req UpdateCaseRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 	out, svcErr := h.service.Update(r.Context(), wsID, id, buildUpdateCaseInput(req, existing))
@@ -148,10 +148,10 @@ func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {
 func (h *CaseHandler) DeleteCase(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete case: %v", svcErr))
 		return

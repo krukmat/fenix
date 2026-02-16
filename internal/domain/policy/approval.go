@@ -20,6 +20,14 @@ const (
 	ApprovalStatusExpired  ApprovalStatus = "expired"
 )
 
+// Decision input aliases — callers may send "approve" or "approved", "deny" or "denied".
+const (
+	decisionApprove  = "approve"
+	decisionApproved = "approved"
+	decisionDeny     = "deny"
+	decisionDenied   = "denied"
+)
+
 var (
 	ErrApprovalNotFound      = errors.New("approval request not found")
 	ErrApprovalForbidden     = errors.New("approval request does not belong to approver")
@@ -375,9 +383,9 @@ func scanApprovalRequest(scan approvalScanner) (*ApprovalRequest, error) {
 
 func decisionToStatus(decision string) ApprovalStatus {
 	switch decision {
-	case "approve", "approved":
+	case decisionApprove, decisionApproved:
 		return ApprovalStatusApproved
-	case "deny", "denied":
+	case decisionDeny, decisionDenied:
 		return ApprovalStatusDenied
 	default:
 		return ""

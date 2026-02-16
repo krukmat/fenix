@@ -70,7 +70,7 @@ func buildCopilotChatInput(r *http.Request) (copilot.ChatInput, error) {
 	}
 
 	var req copilotChatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		return copilot.ChatInput{}, chatRequestError{status: http.StatusBadRequest, message: "invalid request body"}
 	}
 	if req.Query == "" {
@@ -87,7 +87,7 @@ func buildCopilotChatInput(r *http.Request) (copilot.ChatInput, error) {
 }
 
 func prepareCopilotChatStream(w http.ResponseWriter) (*bufio.Writer, http.Flusher, error) {
-	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set(headerContentType, "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 

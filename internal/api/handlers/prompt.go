@@ -36,22 +36,22 @@ func NewPromptHandler(service PromptVersionService) *PromptHandler {
 
 // CreatePromptVersionRequest es el body para crear versión
 type CreatePromptVersionRequest struct {
-	AgentDefinitionID  string `json:"agent_definition_id"`
-	SystemPrompt       string `json:"system_prompt"`
+	AgentDefinitionID  string  `json:"agent_definition_id"`
+	SystemPrompt       string  `json:"system_prompt"`
 	UserPromptTemplate *string `json:"user_prompt_template,omitempty"`
 	Config             *string `json:"config,omitempty"`
 }
 
 // PromptVersionResponse representa una versión en respuesta
 type PromptVersionResponse struct {
-	ID                 string            `json:"id"`
-	AgentDefinitionID  string            `json:"agent_definition_id"`
-	VersionNumber      int               `json:"version_number"`
-	SystemPrompt       string            `json:"system_prompt"`
-	UserPromptTemplate *string           `json:"user_prompt_template,omitempty"`
+	ID                 string                 `json:"id"`
+	AgentDefinitionID  string                 `json:"agent_definition_id"`
+	VersionNumber      int                    `json:"version_number"`
+	SystemPrompt       string                 `json:"system_prompt"`
+	UserPromptTemplate *string                `json:"user_prompt_template,omitempty"`
 	Config             map[string]interface{} `json:"config,omitempty"`
-	Status             string            `json:"status"`
-	CreatedAt          string            `json:"created_at"`
+	Status             string                 `json:"status"`
+	CreatedAt          string                 `json:"created_at"`
 }
 
 // List lista todas las versiones de un agente
@@ -59,7 +59,7 @@ type PromptVersionResponse struct {
 func (h *PromptHandler) List(w http.ResponseWriter, r *http.Request) {
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
-		http.Error(w, "missing workspace_id", http.StatusUnauthorized)
+		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
 		return
 	}
 
@@ -78,9 +78,9 @@ func (h *PromptHandler) List(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"data": toPromptVersionResponses(versions),
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, errFailedToEncode, http.StatusInternalServerError)
 	}
 }
 
@@ -89,7 +89,7 @@ func (h *PromptHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *PromptHandler) Create(w http.ResponseWriter, r *http.Request) {
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
-		http.Error(w, "missing workspace_id", http.StatusUnauthorized)
+		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
 		return
 	}
 
@@ -117,7 +117,7 @@ func (h *PromptHandler) Create(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"data": toPromptVersionResponse(pv),
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(resp) // header already sent, error unrecoverable
 }
@@ -137,7 +137,7 @@ func decodeCreatePromptRequest(r *http.Request) (CreatePromptVersionRequest, err
 // resolvePromptConfig retorna el config o '{}' si es nil
 func resolvePromptConfig(config *string) string {
 	if config == nil {
-		return "{}"
+		return errEmptyJSON
 	}
 	return *config
 }
@@ -147,11 +147,11 @@ func resolvePromptConfig(config *string) string {
 func (h *PromptHandler) Promote(w http.ResponseWriter, r *http.Request) {
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
-		http.Error(w, "missing workspace_id", http.StatusUnauthorized)
+		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
 		return
 	}
 
-	promptVersionID := chi.URLParam(r, "id")
+	promptVersionID := chi.URLParam(r, paramID)
 	if promptVersionID == "" {
 		http.Error(w, "missing id param", http.StatusBadRequest)
 		return
@@ -173,9 +173,9 @@ func (h *PromptHandler) Promote(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"data": toPromptVersionResponse(pv),
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, errFailedToEncode, http.StatusInternalServerError)
 	}
 }
 
@@ -184,11 +184,11 @@ func (h *PromptHandler) Promote(w http.ResponseWriter, r *http.Request) {
 func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
-		http.Error(w, "missing workspace_id", http.StatusUnauthorized)
+		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
 		return
 	}
 
-	agentID := chi.URLParam(r, "id")
+	agentID := chi.URLParam(r, paramID)
 	if agentID == "" {
 		http.Error(w, "missing id param", http.StatusBadRequest)
 		return
@@ -209,9 +209,9 @@ func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"data": toPromptVersionResponse(pv),
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, errFailedToEncode, http.StatusInternalServerError)
 	}
 }
 
@@ -247,7 +247,7 @@ func toPromptVersionResponse(pv *agent.PromptVersion) *PromptVersionResponse {
 		UserPromptTemplate: pv.UserPromptTemplate,
 		Config:             config,
 		Status:             string(pv.Status),
-		CreatedAt:          pv.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:          pv.CreatedAt.Format(timeFormatISO),
 	}
 }
 

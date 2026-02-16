@@ -38,7 +38,7 @@ func NewDB(path string) (*sql.DB, error) {
 		"&_pragma=busy_timeout(5000)" +
 		"&_pragma=synchronous(NORMAL)" +
 		"&_pragma=cache_size(-64000)" + // 64MB page cache (negative = KB)
-		"&_pragma=temp_store(MEMORY)"   // temp tables in RAM
+		"&_pragma=temp_store(MEMORY)" // temp tables in RAM
 
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {

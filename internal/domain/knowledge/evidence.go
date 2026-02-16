@@ -18,7 +18,7 @@ import (
 
 const (
 	defaultEvidenceCandidateLimit = 50
-	maxEvidenceTopK              = 50
+	maxEvidenceTopK               = 50
 )
 
 // EvidenceConfig configures EvidencePackService behavior.

@@ -38,12 +38,12 @@ type UpdatePipelineStageRequest = CreatePipelineStageRequest
 func (h *PipelineHandler) CreatePipeline(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 	var req CreatePipelineRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 	if req.Name == "" || req.EntityType == "" {
@@ -57,7 +57,7 @@ func (h *PipelineHandler) CreatePipeline(w http.ResponseWriter, r *http.Request)
 	}
 	w.WriteHeader(http.StatusCreated)
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -65,7 +65,7 @@ func (h *PipelineHandler) CreatePipeline(w http.ResponseWriter, r *http.Request)
 func (h *PipelineHandler) ListPipelines(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 	page := parsePaginationParams(r)
@@ -75,7 +75,7 @@ func (h *PipelineHandler) ListPipelines(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -83,10 +83,10 @@ func (h *PipelineHandler) ListPipelines(w http.ResponseWriter, r *http.Request) 
 func (h *PipelineHandler) GetPipeline(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	out, svcErr := h.service.Get(r.Context(), wsID, id)
 	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "pipeline not found")
@@ -97,7 +97,7 @@ func (h *PipelineHandler) GetPipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -105,10 +105,10 @@ func (h *PipelineHandler) GetPipeline(w http.ResponseWriter, r *http.Request) {
 func (h *PipelineHandler) UpdatePipeline(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	existing, svcErr := h.service.Get(r.Context(), wsID, id)
 	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "pipeline not found")
@@ -120,7 +120,7 @@ func (h *PipelineHandler) UpdatePipeline(w http.ResponseWriter, r *http.Request)
 	}
 	var req UpdatePipelineRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 	out, svcErr := h.service.Update(r.Context(), wsID, id, crm.UpdatePipelineInput{
@@ -138,10 +138,10 @@ func (h *PipelineHandler) UpdatePipeline(w http.ResponseWriter, r *http.Request)
 func (h *PipelineHandler) DeletePipeline(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete pipeline: %v", svcErr))
 		return
@@ -150,10 +150,10 @@ func (h *PipelineHandler) DeletePipeline(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *PipelineHandler) CreateStage(w http.ResponseWriter, r *http.Request) {
-	pipelineID := chi.URLParam(r, "id")
+	pipelineID := chi.URLParam(r, paramID)
 	var req CreatePipelineStageRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 	if req.Name == "" {
@@ -177,20 +177,20 @@ func (h *PipelineHandler) CreateStage(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusCreated)
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
 
 func (h *PipelineHandler) ListStages(w http.ResponseWriter, r *http.Request) {
-	pipelineID := chi.URLParam(r, "id")
+	pipelineID := chi.URLParam(r, paramID)
 	items, svcErr := h.service.ListStages(r.Context(), pipelineID)
 	if svcErr != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list stages: %v", svcErr))
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: len(items), Limit: len(items), Offset: 0}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -202,7 +202,7 @@ func (h *PipelineHandler) UpdateStage(w http.ResponseWriter, r *http.Request) {
 	}
 	var req UpdatePipelineStageRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 	req = fillStageDefaults(req, existing)
@@ -218,13 +218,13 @@ func (h *PipelineHandler) UpdateStage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
 
 func (h *PipelineHandler) getStageForUpdate(w http.ResponseWriter, r *http.Request) (string, *crm.PipelineStage, bool) {
-	stageID := chi.URLParam(r, "stage_id")
+	stageID := chi.URLParam(r, paramStageID)
 	existing, svcErr := h.service.GetStage(r.Context(), stageID)
 	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "stage not found")
@@ -248,9 +248,9 @@ func fillStageDefaults(req UpdatePipelineStageRequest, existing *crm.PipelineSta
 }
 
 func (h *PipelineHandler) DeleteStage(w http.ResponseWriter, r *http.Request) {
-	stageID := chi.URLParam(r, "stage_id")
+	stageID := chi.URLParam(r, paramStageID)
 	if stageID == "" {
-		stageID = chi.URLParam(r, "id")
+		stageID = chi.URLParam(r, paramID)
 	}
 	if svcErr := h.service.DeleteStage(r.Context(), stageID); svcErr != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete stage: %v", svcErr))

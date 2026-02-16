@@ -18,7 +18,7 @@ func NewTimelineHandler(service *crm.TimelineService) *TimelineHandler {
 func (h *TimelineHandler) ListTimeline(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 	page := parsePaginationParams(r)
@@ -28,7 +28,7 @@ func (h *TimelineHandler) ListTimeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -36,11 +36,11 @@ func (h *TimelineHandler) ListTimeline(w http.ResponseWriter, r *http.Request) {
 func (h *TimelineHandler) ListTimelineByEntity(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	entityType := chi.URLParam(r, "entity_type")
-	entityID := chi.URLParam(r, "entity_id")
+	entityType := chi.URLParam(r, paramEntityType)
+	entityID := chi.URLParam(r, paramEntityID)
 	page := parsePaginationParams(r)
 	items, listErr := h.service.ListByEntity(r.Context(), wsID, entityType, entityID, crm.ListTimelineInput{Limit: page.Limit, Offset: page.Offset})
 	if listErr != nil {
@@ -48,7 +48,7 @@ func (h *TimelineHandler) ListTimelineByEntity(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: len(items), Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }

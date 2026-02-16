@@ -30,6 +30,9 @@ const (
 	StatusEscalated = "escalated"
 )
 
+// emptyJSONArray is the default value for JSON array fields in a new agent run.
+const emptyJSONArray = `[]`
+
 // Trigger type constants
 const (
 	TriggerTypeEvent    = "event"
@@ -84,15 +87,15 @@ type Run struct {
 }
 
 type SkillDefinition struct {
-	ID                string
-	WorkspaceID       string
-	Name              string
-	Description       *string
-	Steps             json.RawMessage
+	ID           string
+	WorkspaceID  string
+	Name         string
+	Description  *string
+	Steps        json.RawMessage
 	DefinitionID *string
-	Status            string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	Status       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // Input/Output types
@@ -146,16 +149,16 @@ func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (
 	run := &Run{
 		ID:                   uuid.NewV7().String(),
 		WorkspaceID:          in.WorkspaceID,
-		DefinitionID:    in.AgentID,
+		DefinitionID:         in.AgentID,
 		TriggeredByUserID:    in.TriggeredBy,
 		TriggerType:          in.TriggerType,
 		TriggerContext:       in.TriggerContext,
 		Status:               StatusRunning,
 		Inputs:               in.Inputs,
-		RetrievalQueries:     json.RawMessage(`[]`),
-		RetrievedEvidenceIDs: json.RawMessage(`[]`),
-		ReasoningTrace:       json.RawMessage(`[]`),
-		ToolCalls:            json.RawMessage(`[]`),
+		RetrievalQueries:     json.RawMessage(emptyJSONArray),
+		RetrievedEvidenceIDs: json.RawMessage(emptyJSONArray),
+		ReasoningTrace:       json.RawMessage(emptyJSONArray),
+		ToolCalls:            json.RawMessage(emptyJSONArray),
 		Output:               json.RawMessage(`{}`),
 		TraceID:              stringPtr(uuid.NewV7().String()),
 		StartedAt:            time.Now().UTC(),
@@ -357,14 +360,14 @@ func (o *Orchestrator) ListAgentDefinitions(ctx context.Context, workspaceID str
 
 	definitions := make([]*Definition, 0)
 	for rows.Next() {
-		def, err := scanAgentDefinition(rows)
-		if err != nil {
-			return nil, err
+		def, scanErr := scanAgentDefinition(rows)
+		if scanErr != nil {
+			return nil, scanErr
 		}
 		definitions = append(definitions, def)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, rowsErr
 	}
 
 	return definitions, nil

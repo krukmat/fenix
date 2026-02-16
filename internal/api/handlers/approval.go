@@ -65,7 +65,7 @@ func (h *ApprovalHandler) ListPendingApprovals(w http.ResponseWriter, r *http.Re
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": out, "meta": map[string]int{"total": len(out)}})
 }
@@ -77,15 +77,15 @@ func (h *ApprovalHandler) DecideApproval(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "approval id is required")
 		return
 	}
 
 	var req decideApprovalRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 

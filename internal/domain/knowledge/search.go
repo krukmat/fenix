@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	rrfK         = 60   // RRF constant — industry standard
-	defaultLimit = 20   // default search result limit
-	maxLimit     = 50   // maximum search result limit
+	rrfK         = 60 // RRF constant — industry standard
+	defaultLimit = 20 // default search result limit
+	maxLimit     = 50 // maximum search result limit
 )
 
 // SearchInput carries parameters for a hybrid search query.
@@ -297,4 +297,3 @@ func resolveLimit(limit int) int {
 	}
 	return limit
 }
-

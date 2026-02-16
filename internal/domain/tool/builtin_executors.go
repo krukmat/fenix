@@ -15,6 +15,8 @@ import (
 
 var ErrBuiltinExecutionFailed = errors.New("builtin tool execution failed")
 
+const errInvalidParams = "%w: invalid params"
+
 type CreateTaskExecutor struct{ db *sql.DB }
 
 func NewCreateTaskExecutor(db *sql.DB) ToolExecutor {
@@ -48,7 +50,7 @@ func (e *CreateTaskExecutor) Execute(ctx context.Context, params json.RawMessage
 func parseCreateTaskParams(params json.RawMessage) (createTaskParams, error) {
 	var in createTaskParams
 	if err := json.Unmarshal(params, &in); err != nil {
-		return createTaskParams{}, fmt.Errorf("%w: invalid params", ErrBuiltinExecutionFailed)
+		return createTaskParams{}, fmt.Errorf(errInvalidParams, ErrBuiltinExecutionFailed)
 	}
 	if in.OwnerID == "" || in.Title == "" || in.EntityType == "" || in.EntityID == "" {
 		return createTaskParams{}, fmt.Errorf("%w: owner_id, title, entity_type and entity_id are required", ErrBuiltinExecutionFailed)
@@ -111,7 +113,7 @@ func (e *UpdateCaseExecutor) Execute(ctx context.Context, params json.RawMessage
 func parseUpdateCaseParams(params json.RawMessage) (updateCaseParams, error) {
 	var in updateCaseParams
 	if err := json.Unmarshal(params, &in); err != nil {
-		return updateCaseParams{}, fmt.Errorf("%w: invalid params", ErrBuiltinExecutionFailed)
+		return updateCaseParams{}, fmt.Errorf(errInvalidParams, ErrBuiltinExecutionFailed)
 	}
 	if in.CaseID == "" {
 		return updateCaseParams{}, fmt.Errorf("%w: case_id is required", ErrBuiltinExecutionFailed)
@@ -199,7 +201,7 @@ func (e *SendReplyExecutor) Execute(ctx context.Context, params json.RawMessage)
 func parseSendReplyParams(params json.RawMessage) (sendReplyParams, error) {
 	var in sendReplyParams
 	if err := json.Unmarshal(params, &in); err != nil {
-		return sendReplyParams{}, fmt.Errorf("%w: invalid params", ErrBuiltinExecutionFailed)
+		return sendReplyParams{}, fmt.Errorf(errInvalidParams, ErrBuiltinExecutionFailed)
 	}
 	if in.CaseID == "" || in.Body == "" {
 		return sendReplyParams{}, fmt.Errorf("%w: case_id and body are required", ErrBuiltinExecutionFailed)

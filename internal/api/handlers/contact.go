@@ -77,13 +77,13 @@ func (h *ContactHandler) CreateContact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
 	var req CreateContactRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 
@@ -109,10 +109,10 @@ func (h *ContactHandler) CreateContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	if encodeErr := json.NewEncoder(w).Encode(contactToResponse(contact)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -122,30 +122,30 @@ func (h *ContactHandler) GetContact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
-	contactID := chi.URLParam(r, "id")
+	contactID := chi.URLParam(r, paramID)
 	if contactID == "" {
-		writeError(w, http.StatusBadRequest, "contact id is required")
+		writeError(w, http.StatusBadRequest, errContactIDRequired)
 		return
 	}
 
 	contact, svcErr := h.contactService.Get(ctx, wsID, contactID)
 	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "contact not found")
+		writeError(w, http.StatusNotFound, errContactNotFound)
 		return
 	}
 	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get contact: %v", svcErr))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetContact, svcErr))
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(contactToResponse(contact)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -155,7 +155,7 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
@@ -180,10 +180,10 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 		Meta: Meta{Total: total, Limit: page.Limit, Offset: page.Offset},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -193,7 +193,7 @@ func (h *ContactHandler) ListContactsByAccount(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
@@ -219,10 +219,10 @@ func (h *ContactHandler) ListContactsByAccount(w http.ResponseWriter, r *http.Re
 		Meta: Meta{Total: len(responses), Limit: len(responses), Offset: 0},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -232,7 +232,7 @@ func (h *ContactHandler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
@@ -243,7 +243,7 @@ func (h *ContactHandler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 
 	var req UpdateContactRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 
@@ -253,29 +253,29 @@ func (h *ContactHandler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(contactToResponse(updated)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
 
 func (h *ContactHandler) getContactForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Contact, bool) {
 	ctx := r.Context()
-	contactID := chi.URLParam(r, "id")
+	contactID := chi.URLParam(r, paramID)
 	if contactID == "" {
-		writeError(w, http.StatusBadRequest, "contact id is required")
+		writeError(w, http.StatusBadRequest, errContactIDRequired)
 		return "", nil, false
 	}
 
 	existing, svcErr := h.contactService.Get(ctx, wsID, contactID)
 	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "contact not found")
+		writeError(w, http.StatusNotFound, errContactNotFound)
 		return "", nil, false
 	}
 	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get contact: %v", svcErr))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetContact, svcErr))
 		return "", nil, false
 	}
 
@@ -287,23 +287,23 @@ func (h *ContactHandler) DeleteContact(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
-	contactID := chi.URLParam(r, "id")
+	contactID := chi.URLParam(r, paramID)
 	if contactID == "" {
-		writeError(w, http.StatusBadRequest, "contact id is required")
+		writeError(w, http.StatusBadRequest, errContactIDRequired)
 		return
 	}
 
 	_, svcErr := h.contactService.Get(ctx, wsID, contactID)
 	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "contact not found")
+		writeError(w, http.StatusNotFound, errContactNotFound)
 		return
 	}
 	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get contact: %v", svcErr))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetContact, svcErr))
 		return
 	}
 
@@ -350,8 +350,8 @@ func contactToResponse(c *crm.Contact) ContactResponse {
 		Status:      c.Status,
 		OwnerID:     c.OwnerID,
 		Metadata:    c.Metadata,
-		CreatedAt:   c.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:   c.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:   c.CreatedAt.Format(timeFormatISO),
+		UpdatedAt:   c.UpdatedAt.Format(timeFormatISO),
 		DeletedAt:   formatDeletedAt(c.DeletedAt),
 	}
 }

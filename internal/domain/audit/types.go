@@ -25,6 +25,7 @@ const (
 
 // AuditEvent represents a single audit log entry
 // This is immutable - once created, it should never be modified
+//
 //nolint:revive // tipo de dominio persistido y usado en múltiples capas
 type AuditEvent struct {
 	ID                 string          `json:"id"`

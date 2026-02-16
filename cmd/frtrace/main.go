@@ -38,8 +38,15 @@ type Violation struct {
 	Message string
 }
 
+const (
+	flagReqs        = "reqs"
+	defaultReqsDir  = "./reqs"
+	extYAML         = ".yml"
+	doorstopYAML    = ".doorstop.yml"
+)
+
 func main() {
-	reqsDir := flag.String("reqs", "./reqs", "Path to Doorstop requirements directory")
+	reqsDir := flag.String(flagReqs, defaultReqsDir, "Path to Doorstop requirements directory")
 	rootDir := flag.String("root", ".", "Project root directory")
 	flag.Parse()
 
@@ -92,7 +99,7 @@ func loadDoorstopFRs(dir string) (map[string]FRItem, error) {
 		return nil, fmt.Errorf("reading FR directory %s: %w", dir, err)
 	}
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yml") || entry.Name() == ".doorstop.yml" {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), extYAML) || entry.Name() == doorstopYAML {
 			continue
 		}
 		data, readErr := os.ReadFile(filepath.Join(dir, entry.Name()))
@@ -103,7 +110,7 @@ func loadDoorstopFRs(dir string) (map[string]FRItem, error) {
 		if parseErr := yaml.Unmarshal(data, &fr); parseErr != nil {
 			return nil, fmt.Errorf("parsing %s: %w", entry.Name(), parseErr)
 		}
-		id := strings.TrimSuffix(entry.Name(), ".yml")
+		id := strings.TrimSuffix(entry.Name(), extYAML)
 		frs[id] = fr
 	}
 	return frs, nil
@@ -116,7 +123,7 @@ func loadDoorstopTSTs(dir string) ([]TSTItem, error) {
 		return nil, fmt.Errorf("reading TST directory %s: %w", dir, err)
 	}
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yml") || entry.Name() == ".doorstop.yml" {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), extYAML) || entry.Name() == doorstopYAML {
 			continue
 		}
 		data, readErr := os.ReadFile(filepath.Join(dir, entry.Name()))
@@ -127,7 +134,7 @@ func loadDoorstopTSTs(dir string) ([]TSTItem, error) {
 		if parseErr := yaml.Unmarshal(data, &raw); parseErr != nil {
 			return nil, fmt.Errorf("parsing %s: %w", entry.Name(), parseErr)
 		}
-		id := strings.TrimSuffix(entry.Name(), ".yml")
+		id := strings.TrimSuffix(entry.Name(), extYAML)
 		tsts = append(tsts, TSTItem{ID: id, Ref: raw.Ref, FRLinks: extractFRLinks(raw.Links)})
 	}
 	return tsts, nil
@@ -136,13 +143,17 @@ func loadDoorstopTSTs(dir string) ([]TSTItem, error) {
 func extractFRLinks(links interface{}) []string {
 	var result []string
 	linkSlice, ok := links.([]interface{})
-	if !ok { return result }
+	if !ok {
+		return result
+	}
 	for _, item := range linkSlice {
 		switch v := item.(type) {
 		case string:
 			result = append(result, v)
 		case map[string]interface{}:
-			for key := range v { result = append(result, key) }
+			for key := range v {
+				result = append(result, key)
+			}
 		}
 	}
 	return result
@@ -152,7 +163,9 @@ var tracesRegex = regexp.MustCompile(`//\s*Traces:\s*(.+)`)
 
 func scanTraces(filePath string) ([]string, error) {
 	f, err := os.Open(filePath)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer f.Close()
 	var traces []string
 	scanner := bufio.NewScanner(f)
@@ -180,7 +193,7 @@ func extractTraceAnnotation(line string) []string {
 }
 
 func frAnnotationToID(annotation string) string { return strings.ReplaceAll(annotation, "-", "_") }
-func frIDToAnnotation(id string) string { return strings.ReplaceAll(id, "_", "-") }
+func frIDToAnnotation(id string) string         { return strings.ReplaceAll(id, "_", "-") }
 
 func validate(frs map[string]FRItem, tsts []TSTItem, fileTraces map[string][]string, rootDir string) []Violation {
 	var violations []Violation
@@ -273,7 +286,11 @@ func containsTrace(traces []string, expected string) bool {
 }
 
 func countActive(frs map[string]FRItem) int {
-	c:=0
-	for _, fr := range frs { if fr.Active { c++ } }
+	c := 0
+	for _, fr := range frs {
+		if fr.Active {
+			c++
+		}
+	}
 	return c
 }

@@ -33,12 +33,12 @@ type UpdateNoteRequest struct {
 func (h *NoteHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 	var req CreateNoteRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 	if !isNoteRequestValid(req) {
@@ -60,7 +60,7 @@ func (h *NoteHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusCreated)
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -68,10 +68,10 @@ func (h *NoteHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 func (h *NoteHandler) GetNote(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	out, svcErr := h.service.Get(r.Context(), wsID, id)
 	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "note not found")
@@ -82,7 +82,7 @@ func (h *NoteHandler) GetNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -90,7 +90,7 @@ func (h *NoteHandler) GetNote(w http.ResponseWriter, r *http.Request) {
 func (h *NoteHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 	page := parsePaginationParams(r)
@@ -100,7 +100,7 @@ func (h *NoteHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -108,17 +108,17 @@ func (h *NoteHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
 func (h *NoteHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	if _, svcErr := h.service.Get(r.Context(), wsID, id); errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "note not found")
 		return
 	}
 	var req UpdateNoteRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 	out, svcErr := h.service.Update(r.Context(), wsID, id, crm.UpdateNoteInput{Content: req.Content, IsInternal: req.IsInternal, Metadata: req.Metadata})
@@ -127,7 +127,7 @@ func (h *NoteHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -135,10 +135,10 @@ func (h *NoteHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 func (h *NoteHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete note: %v", svcErr))
 		return

@@ -64,8 +64,8 @@ func (a *SupportAgent) AllowedTools() []string {
 // Objective returns the agent's objective in JSON
 func (a *SupportAgent) Objective() json.RawMessage {
 	objective := map[string]any{
-		"role":         "Customer Support Specialist",
-		"goal":         "Resolve customer support cases efficiently and accurately",
+		"role": "Customer Support Specialist",
+		"goal": "Resolve customer support cases efficiently and accurately",
 		"instructions": []string{
 			"1. Analyze the customer query and case history",
 			"2. Search knowledge base for relevant solutions",
@@ -109,8 +109,8 @@ func (a *SupportAgent) Run(ctx context.Context, config SupportAgentConfig) (*age
 	run, err := a.orchestrator.TriggerAgent(ctx, agent.TriggerAgentInput{
 		AgentID:        "support-agent",
 		WorkspaceID:    config.WorkspaceID,
-		TriggeredBy:   nil,
-		TriggerType:   agent.TriggerTypeManual,
+		TriggeredBy:    nil,
+		TriggerType:    agent.TriggerTypeManual,
 		TriggerContext: triggerContext,
 		Inputs:         inputs,
 	})
@@ -340,4 +340,3 @@ type SupportError struct {
 func (e *SupportError) Error() string {
 	return e.message
 }
-

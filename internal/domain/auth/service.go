@@ -22,6 +22,8 @@ var ErrInvalidCredentials = errors.New("invalid credentials")
 // ErrEmailAlreadyExists is returned by Register when the email is already taken.
 var ErrEmailAlreadyExists = errors.New("email already registered")
 
+const actionLogin = "login"
+
 // RegisterInput holds the data needed to create a new workspace and user.
 // Task 1.6: WorkspaceName creates the tenant; Email is the unique login identifier.
 type RegisterInput struct {
@@ -39,6 +41,7 @@ type LoginInput struct {
 
 // AuthResult is returned after successful Register or Login.
 // Token is a signed JWT containing UserID and WorkspaceID claims.
+//
 //nolint:revive // API de dominio estable; renombrar rompe referencias amplias
 type AuthResult struct {
 	Token       string
@@ -47,6 +50,7 @@ type AuthResult struct {
 }
 
 // AuthService defines the authentication business operations.
+//
 //nolint:revive // interfaz pública estable en el módulo auth
 type AuthService interface {
 	Register(ctx context.Context, input RegisterInput) (*AuthResult, error)
@@ -177,30 +181,30 @@ func (s *authService) Login(ctx context.Context, input LoginInput) (*AuthResult,
 
 	if err != nil {
 		// Whether the user doesn't exist or there's a DB error, return generic message
-		s.logAuthFailure(ctx, "unknown", "unknown", "login", "user_not_found_or_query_error")
+		s.logAuthFailure(ctx, "unknown", "unknown", actionLogin, "user_not_found_or_query_error")
 		return nil, ErrInvalidCredentials
 	}
 
 	// User found but has no password hash (OIDC-only account)
 	if !passwordHash.Valid || passwordHash.String == "" {
-		s.logAuthFailure(ctx, workspaceID, userID, "login", "missing_password_hash")
+		s.logAuthFailure(ctx, workspaceID, userID, actionLogin, "missing_password_hash")
 		return nil, ErrInvalidCredentials
 	}
 
 	// Verify password (constant-time comparison via bcrypt)
 	if !pkgauth.VerifyPassword(passwordHash.String, input.Password) {
-		s.logAuthFailure(ctx, workspaceID, userID, "login", "invalid_password")
+		s.logAuthFailure(ctx, workspaceID, userID, actionLogin, "invalid_password")
 		return nil, ErrInvalidCredentials
 	}
 
 	// Credentials valid — issue JWT
 	token, err := pkgauth.GenerateJWT(userID, workspaceID)
 	if err != nil {
-		s.logAuthFailure(ctx, workspaceID, userID, "login", "jwt_generation_failed")
+		s.logAuthFailure(ctx, workspaceID, userID, actionLogin, "jwt_generation_failed")
 		return nil, fmt.Errorf("failed to generate JWT: %w", err)
 	}
 
-	s.logAuthSuccess(ctx, workspaceID, userID, "login")
+	s.logAuthSuccess(ctx, workspaceID, userID, actionLogin)
 
 	return &AuthResult{
 		Token:       token,

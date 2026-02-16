@@ -46,13 +46,13 @@ func (h *KnowledgeIngestHandler) Ingest(w http.ResponseWriter, r *http.Request) 
 
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusUnauthorized, "missing workspace context")
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
 		return
 	}
 
 	var req ingestRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 
@@ -77,7 +77,7 @@ func (h *KnowledgeIngestHandler) Ingest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	if encodeErr := json.NewEncoder(w).Encode(ingestResponse{
 		ID:          item.ID,
@@ -88,7 +88,7 @@ func (h *KnowledgeIngestHandler) Ingest(w http.ResponseWriter, r *http.Request) 
 		EntityID:    item.EntityID,
 		CreatedAt:   item.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}); encodeErr != nil {
-		http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+		http.Error(w, errFailedToEncodeJSON, http.StatusInternalServerError)
 	}
 }
 

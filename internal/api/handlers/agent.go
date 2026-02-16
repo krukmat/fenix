@@ -32,36 +32,36 @@ type triggerAgentRequest struct {
 }
 
 type agentRunResponse struct {
-	ID                  string          `json:"id"`
-	WorkspaceID         string          `json:"workspaceId"`
-	AgentDefinitionID  string          `json:"agentDefinitionId"`
-	TriggeredByUserID  *string         `json:"triggeredByUserId,omitempty"`
-	TriggerType        string          `json:"triggerType"`
-	Status             string          `json:"status"`
-	Inputs             json.RawMessage `json:"inputs,omitempty"`
-	Output             json.RawMessage `json:"output,omitempty"`
-	ToolCalls          json.RawMessage `json:"toolCalls,omitempty"`
+	ID                string          `json:"id"`
+	WorkspaceID       string          `json:"workspaceId"`
+	AgentDefinitionID string          `json:"agentDefinitionId"`
+	TriggeredByUserID *string         `json:"triggeredByUserId,omitempty"`
+	TriggerType       string          `json:"triggerType"`
+	Status            string          `json:"status"`
+	Inputs            json.RawMessage `json:"inputs,omitempty"`
+	Output            json.RawMessage `json:"output,omitempty"`
+	ToolCalls         json.RawMessage `json:"toolCalls,omitempty"`
 	ReasoningTrace    json.RawMessage `json:"reasoningTrace,omitempty"`
-	TotalTokens        *int64          `json:"totalTokens,omitempty"`
-	TotalCost          *float64        `json:"totalCost,omitempty"`
-	LatencyMs          *int64          `json:"latencyMs,omitempty"`
-	TraceID            *string         `json:"traceId,omitempty"`
-	StartedAt          string          `json:"startedAt"`
-	CompletedAt        *string         `json:"completedAt,omitempty"`
-	CreatedAt          string          `json:"createdAt"`
+	TotalTokens       *int64          `json:"totalTokens,omitempty"`
+	TotalCost         *float64        `json:"totalCost,omitempty"`
+	LatencyMs         *int64          `json:"latencyMs,omitempty"`
+	TraceID           *string         `json:"traceId,omitempty"`
+	StartedAt         string          `json:"startedAt"`
+	CompletedAt       *string         `json:"completedAt,omitempty"`
+	CreatedAt         string          `json:"createdAt"`
 }
 
 type agentDefinitionResponse struct {
-	ID                    string          `json:"id"`
-	WorkspaceID           string          `json:"workspaceId"`
-	Name                 string          `json:"name"`
-	Description          *string         `json:"description,omitempty"`
-	AgentType            string          `json:"agentType"`
-	Objective            json.RawMessage `json:"objective,omitempty"`
-	AllowedTools        []string        `json:"allowedTools,omitempty"`
-	Status               string          `json:"status"`
-	CreatedAt            string          `json:"createdAt"`
-	UpdatedAt            string          `json:"updatedAt"`
+	ID           string          `json:"id"`
+	WorkspaceID  string          `json:"workspaceId"`
+	Name         string          `json:"name"`
+	Description  *string         `json:"description,omitempty"`
+	AgentType    string          `json:"agentType"`
+	Objective    json.RawMessage `json:"objective,omitempty"`
+	AllowedTools []string        `json:"allowedTools,omitempty"`
+	Status       string          `json:"status"`
+	CreatedAt    string          `json:"createdAt"`
+	UpdatedAt    string          `json:"updatedAt"`
 }
 
 // buildTriggerInput converts an HTTP request into a domain TriggerAgentInput.
@@ -90,7 +90,7 @@ func buildTriggerInput(req triggerAgentRequest, workspaceID, userID string) agen
 func (h *AgentHandler) TriggerAgent(w http.ResponseWriter, r *http.Request) {
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, "missing workspace context")
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
 		return
 	}
 
@@ -98,7 +98,7 @@ func (h *AgentHandler) TriggerAgent(w http.ResponseWriter, r *http.Request) {
 
 	var req triggerAgentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 
@@ -113,7 +113,7 @@ func (h *AgentHandler) TriggerAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": agentRunToResponse(run)})
 }
@@ -122,11 +122,11 @@ func (h *AgentHandler) TriggerAgent(w http.ResponseWriter, r *http.Request) {
 func (h *AgentHandler) GetAgentRun(w http.ResponseWriter, r *http.Request) {
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, "missing workspace context")
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
 		return
 	}
 
-	runID := chi.URLParam(r, "id")
+	runID := chi.URLParam(r, paramID)
 	if runID == "" {
 		writeError(w, http.StatusBadRequest, "run id is required")
 		return
@@ -135,14 +135,14 @@ func (h *AgentHandler) GetAgentRun(w http.ResponseWriter, r *http.Request) {
 	run, err := h.orchestrator.GetAgentRun(r.Context(), workspaceID, runID)
 	if err != nil {
 		if errors.Is(err, agent.ErrAgentRunNotFound) {
-			writeError(w, http.StatusNotFound, "agent run not found")
+			writeError(w, http.StatusNotFound, errAgentRunNotFound)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "failed to get agent run")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": agentRunToResponse(run)})
 }
@@ -163,7 +163,7 @@ func parsePageParams(r *http.Request) (limit, offset int64) {
 func (h *AgentHandler) ListAgentRuns(w http.ResponseWriter, r *http.Request) {
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, "missing workspace context")
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
 		return
 	}
 
@@ -180,7 +180,7 @@ func (h *AgentHandler) ListAgentRuns(w http.ResponseWriter, r *http.Request) {
 		out = append(out, agentRunToResponse(run))
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"data": out,
@@ -192,7 +192,7 @@ func (h *AgentHandler) ListAgentRuns(w http.ResponseWriter, r *http.Request) {
 func (h *AgentHandler) ListAgentDefinitions(w http.ResponseWriter, r *http.Request) {
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, "missing workspace context")
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
 		return
 	}
 
@@ -209,7 +209,7 @@ func (h *AgentHandler) ListAgentDefinitions(w http.ResponseWriter, r *http.Reque
 			WorkspaceID:  def.WorkspaceID,
 			Name:         def.Name,
 			Description:  def.Description,
-			AgentType:   def.AgentType,
+			AgentType:    def.AgentType,
 			Objective:    def.Objective,
 			AllowedTools: def.AllowedTools,
 			Status:       def.Status,
@@ -218,7 +218,7 @@ func (h *AgentHandler) ListAgentDefinitions(w http.ResponseWriter, r *http.Reque
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": out})
 }
@@ -227,11 +227,11 @@ func (h *AgentHandler) ListAgentDefinitions(w http.ResponseWriter, r *http.Reque
 func (h *AgentHandler) CancelAgentRun(w http.ResponseWriter, r *http.Request) {
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, "missing workspace context")
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
 		return
 	}
 
-	runID := chi.URLParam(r, "id")
+	runID := chi.URLParam(r, paramID)
 	if runID == "" {
 		writeError(w, http.StatusBadRequest, "run id is required")
 		return
@@ -240,14 +240,14 @@ func (h *AgentHandler) CancelAgentRun(w http.ResponseWriter, r *http.Request) {
 	run, err := h.orchestrator.UpdateAgentRunStatus(r.Context(), workspaceID, runID, agent.StatusFailed)
 	if err != nil {
 		if errors.Is(err, agent.ErrAgentRunNotFound) {
-			writeError(w, http.StatusNotFound, "agent run not found")
+			writeError(w, http.StatusNotFound, errAgentRunNotFound)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "failed to cancel agent run")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": agentRunToResponse(run)})
 }
@@ -256,15 +256,15 @@ func (h *AgentHandler) CancelAgentRun(w http.ResponseWriter, r *http.Request) {
 
 func agentRunToResponse(run *agent.Run) agentRunResponse {
 	resp := agentRunResponse{
-		ID:                 run.ID,
-		WorkspaceID:        run.WorkspaceID,
-		AgentDefinitionID:  run.DefinitionID,
-		TriggeredByUserID:  run.TriggeredByUserID,
-		TriggerType:        run.TriggerType,
-		Status:             run.Status,
-		Inputs:             run.Inputs,
-		Output:             run.Output,
-		ToolCalls:          run.ToolCalls,
+		ID:                run.ID,
+		WorkspaceID:       run.WorkspaceID,
+		AgentDefinitionID: run.DefinitionID,
+		TriggeredByUserID: run.TriggeredByUserID,
+		TriggerType:       run.TriggerType,
+		Status:            run.Status,
+		Inputs:            run.Inputs,
+		Output:            run.Output,
+		ToolCalls:         run.ToolCalls,
 		ReasoningTrace:    run.ReasoningTrace,
 		TotalTokens:       run.TotalTokens,
 		TotalCost:         run.TotalCost,
@@ -335,13 +335,13 @@ func buildSupportConfig(w http.ResponseWriter, req supportAgentRequest, workspac
 func (h *SupportAgentHandler) TriggerSupportAgent(w http.ResponseWriter, r *http.Request) {
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, "missing workspace context")
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
 		return
 	}
 
 	var req supportAgentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 
@@ -360,7 +360,7 @@ func (h *SupportAgentHandler) TriggerSupportAgent(w http.ResponseWriter, r *http
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": agentRunToResponse(run)})
 }

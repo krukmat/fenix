@@ -91,9 +91,9 @@ func TestDecodeEmbedding_Invalid(t *testing.T) {
 
 func TestResolveLimit(t *testing.T) {
 	tests := []struct {
-		name  string
-		in    int
-		want  int
+		name string
+		in   int
+		want int
 	}{
 		{name: "default when zero", in: 0, want: defaultLimit},
 		{name: "default when negative", in: -3, want: defaultLimit},

@@ -42,12 +42,12 @@ type ChatInput struct {
 }
 
 type StreamChunk struct {
-	Type    string                  `json:"type"`
-	Delta   string                  `json:"delta,omitempty"`
-	Sources []knowledge.Evidence    `json:"sources,omitempty"`
-	Meta    map[string]any          `json:"meta,omitempty"`
-	Done    bool                    `json:"done,omitempty"`
-	Error   string                  `json:"error,omitempty"`
+	Type    string               `json:"type"`
+	Delta   string               `json:"delta,omitempty"`
+	Sources []knowledge.Evidence `json:"sources,omitempty"`
+	Meta    map[string]any       `json:"meta,omitempty"`
+	Done    bool                 `json:"done,omitempty"`
+	Error   string               `json:"error,omitempty"`
 }
 
 func NewChatService(e EvidencePackBuilder, l llm.LLMProvider, p PolicyEnforcer, a AuditLogger) *ChatService {
@@ -92,10 +92,10 @@ func (s *ChatService) Chat(ctx context.Context, in ChatInput) (<-chan StreamChun
 
 	_ = s.audit.LogWithDetails(ctx, in.WorkspaceID, in.UserID, audit.ActorTypeUser, "copilot.chat", in.EntityType, in.EntityID, &audit.EventDetails{
 		Metadata: map[string]any{
-			"query":          in.Query,
+			"query":           in.Query,
 			"permissionWhere": filter.Where,
-			"filteredCount":  pack.FilteredCount,
-			"confidence":     string(pack.Confidence),
+			"filteredCount":   pack.FilteredCount,
+			"confidence":      string(pack.Confidence),
 		},
 	}, audit.OutcomeSuccess)
 

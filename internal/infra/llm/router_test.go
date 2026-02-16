@@ -17,7 +17,7 @@ func (s *stubProvider) ChatCompletion(_ context.Context, _ ChatRequest) (*ChatRe
 func (s *stubProvider) Embed(_ context.Context, _ EmbedRequest) (*EmbedResponse, error) {
 	return &EmbedResponse{Embeddings: [][]float32{}}, nil
 }
-func (s *stubProvider) ModelInfo() ModelMeta { return ModelMeta{ID: s.id, Provider: "stub"} }
+func (s *stubProvider) ModelInfo() ModelMeta                { return ModelMeta{ID: s.id, Provider: "stub"} }
 func (s *stubProvider) HealthCheck(_ context.Context) error { return nil }
 
 // ============================================================================

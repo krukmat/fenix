@@ -38,6 +38,7 @@ type AuditLogEvent struct {
 }
 
 // PolicyEngine implements the Week 7, Task 3.1 enforcement points.
+//
 //nolint:revive // nombre mantenido por compatibilidad interna del módulo
 type PolicyEngine struct {
 	db    *sql.DB
@@ -243,14 +244,14 @@ func (p *PolicyEngine) loadRolePermissionRows(ctx context.Context, userID, works
 	out := []string{}
 	for rows.Next() {
 		var raw string
-		if err := rows.Scan(&raw); err != nil {
-			return nil, err
+		if scanErr := rows.Scan(&raw); scanErr != nil {
+			return nil, scanErr
 		}
 		out = append(out, raw)
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, rowsErr
 	}
 
 	return out, nil

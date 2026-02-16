@@ -12,6 +12,7 @@ import (
 
 // AuditService provides audit logging capabilities
 // All operations are append-only; no updates or deletes are supported
+//
 //nolint:revive // servicio de dominio estable y ampliamente referenciado
 type AuditService struct {
 	db      *sql.DB

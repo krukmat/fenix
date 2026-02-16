@@ -272,8 +272,8 @@ func (s *PromptService) getNextVersionNumber(ctx context.Context, queries sqlcge
 	if maxRow != nil {
 		if v, ok := maxRow.(float64); ok {
 			nextVersionNum = int64(v)
-		} else if v, ok := maxRow.(int64); ok {
-			nextVersionNum = v
+		} else if v2, ok2 := maxRow.(int64); ok2 {
+			nextVersionNum = v2
 		}
 	}
 	return nextVersionNum + 1, nil

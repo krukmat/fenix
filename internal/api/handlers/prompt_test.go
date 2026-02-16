@@ -17,11 +17,11 @@ import (
 
 // MockPromptVersionService para testing
 type MockPromptVersionService struct {
-	createCalls    int
-	getCalls       int
-	promoteCalls   int
-	rollbackCalls  int
-	versions       map[string]*agent.PromptVersion
+	createCalls   int
+	getCalls      int
+	promoteCalls  int
+	rollbackCalls int
+	versions      map[string]*agent.PromptVersion
 }
 
 func NewMockPromptVersionService() *MockPromptVersionService {

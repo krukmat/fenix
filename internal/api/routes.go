@@ -25,6 +25,9 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
 )
 
+// routeByID is the chi route pattern for resource-by-ID endpoints (used 27 times).
+const routeByID = "/{id}"
+
 // NewRouter creates and configures a new chi router with all routes.
 // Task 1.3.8: Setup go-chi router with middleware + account endpoints
 // Task 1.6.13: Public routes (/health, /auth/*) vs protected routes (/api/v1/*)
@@ -81,18 +84,18 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Route("/accounts", func(r chi.Router) {
 			r.Post("/", accountHandler.CreateAccount)       // POST /api/v1/accounts
 			r.Get("/", accountHandler.ListAccounts)         // GET /api/v1/accounts
-			r.Get("/{id}", accountHandler.GetAccount)       // GET /api/v1/accounts/{id}
-			r.Put("/{id}", accountHandler.UpdateAccount)    // PUT /api/v1/accounts/{id}
-			r.Delete("/{id}", accountHandler.DeleteAccount) // DELETE /api/v1/accounts/{id}
+			r.Get(routeByID, accountHandler.GetAccount)       // GET /api/v1/accounts/{id}
+			r.Put(routeByID, accountHandler.UpdateAccount)    // PUT /api/v1/accounts/{id}
+			r.Delete(routeByID, accountHandler.DeleteAccount) // DELETE /api/v1/accounts/{id}
 			r.Get("/{account_id}/contacts", contactHandler.ListContactsByAccount)
 		})
 
 		r.Route("/contacts", func(r chi.Router) {
 			r.Post("/", contactHandler.CreateContact)       // POST /api/v1/contacts
 			r.Get("/", contactHandler.ListContacts)         // GET /api/v1/contacts
-			r.Get("/{id}", contactHandler.GetContact)       // GET /api/v1/contacts/{id}
-			r.Put("/{id}", contactHandler.UpdateContact)    // PUT /api/v1/contacts/{id}
-			r.Delete("/{id}", contactHandler.DeleteContact) // DELETE /api/v1/contacts/{id}
+			r.Get(routeByID, contactHandler.GetContact)       // GET /api/v1/contacts/{id}
+			r.Put(routeByID, contactHandler.UpdateContact)    // PUT /api/v1/contacts/{id}
+			r.Delete(routeByID, contactHandler.DeleteContact) // DELETE /api/v1/contacts/{id}
 		})
 
 		// Lead endpoints (Task 1.5)
@@ -108,33 +111,33 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Route("/leads", func(r chi.Router) {
 			r.Post("/", leadHandler.CreateLead)       // POST /api/v1/leads
 			r.Get("/", leadHandler.ListLeads)         // GET /api/v1/leads
-			r.Get("/{id}", leadHandler.GetLead)       // GET /api/v1/leads/{id}
-			r.Put("/{id}", leadHandler.UpdateLead)    // PUT /api/v1/leads/{id}
-			r.Delete("/{id}", leadHandler.DeleteLead) // DELETE /api/v1/leads/{id}
+			r.Get(routeByID, leadHandler.GetLead)       // GET /api/v1/leads/{id}
+			r.Put(routeByID, leadHandler.UpdateLead)    // PUT /api/v1/leads/{id}
+			r.Delete(routeByID, leadHandler.DeleteLead) // DELETE /api/v1/leads/{id}
 		})
 
 		r.Route("/deals", func(r chi.Router) {
 			r.Post("/", dealHandler.CreateDeal)
 			r.Get("/", dealHandler.ListDeals)
-			r.Get("/{id}", dealHandler.GetDeal)
-			r.Put("/{id}", dealHandler.UpdateDeal)
-			r.Delete("/{id}", dealHandler.DeleteDeal)
+			r.Get(routeByID, dealHandler.GetDeal)
+			r.Put(routeByID, dealHandler.UpdateDeal)
+			r.Delete(routeByID, dealHandler.DeleteDeal)
 		})
 
 		r.Route("/cases", func(r chi.Router) {
 			r.Post("/", caseHandler.CreateCase)
 			r.Get("/", caseHandler.ListCases)
-			r.Get("/{id}", caseHandler.GetCase)
-			r.Put("/{id}", caseHandler.UpdateCase)
-			r.Delete("/{id}", caseHandler.DeleteCase)
+			r.Get(routeByID, caseHandler.GetCase)
+			r.Put(routeByID, caseHandler.UpdateCase)
+			r.Delete(routeByID, caseHandler.DeleteCase)
 		})
 
 		r.Route("/pipelines", func(r chi.Router) {
 			r.Post("/", pipelineHandler.CreatePipeline)
 			r.Get("/", pipelineHandler.ListPipelines)
-			r.Get("/{id}", pipelineHandler.GetPipeline)
-			r.Put("/{id}", pipelineHandler.UpdatePipeline)
-			r.Delete("/{id}", pipelineHandler.DeletePipeline)
+			r.Get(routeByID, pipelineHandler.GetPipeline)
+			r.Put(routeByID, pipelineHandler.UpdatePipeline)
+			r.Delete(routeByID, pipelineHandler.DeletePipeline)
 			r.Post("/{id}/stages", pipelineHandler.CreateStage)
 			r.Get("/{id}/stages", pipelineHandler.ListStages)
 			r.Put("/stages/{stage_id}", pipelineHandler.UpdateStage)
@@ -144,24 +147,24 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Route("/activities", func(r chi.Router) {
 			r.Post("/", activityHandler.CreateActivity)
 			r.Get("/", activityHandler.ListActivities)
-			r.Get("/{id}", activityHandler.GetActivity)
-			r.Put("/{id}", activityHandler.UpdateActivity)
-			r.Delete("/{id}", activityHandler.DeleteActivity)
+			r.Get(routeByID, activityHandler.GetActivity)
+			r.Put(routeByID, activityHandler.UpdateActivity)
+			r.Delete(routeByID, activityHandler.DeleteActivity)
 		})
 
 		r.Route("/notes", func(r chi.Router) {
 			r.Post("/", noteHandler.CreateNote)
 			r.Get("/", noteHandler.ListNotes)
-			r.Get("/{id}", noteHandler.GetNote)
-			r.Put("/{id}", noteHandler.UpdateNote)
-			r.Delete("/{id}", noteHandler.DeleteNote)
+			r.Get(routeByID, noteHandler.GetNote)
+			r.Put(routeByID, noteHandler.UpdateNote)
+			r.Delete(routeByID, noteHandler.DeleteNote)
 		})
 
 		r.Route("/attachments", func(r chi.Router) {
 			r.Post("/", attachmentHandler.CreateAttachment)
 			r.Get("/", attachmentHandler.ListAttachments)
-			r.Get("/{id}", attachmentHandler.GetAttachment)
-			r.Delete("/{id}", attachmentHandler.DeleteAttachment)
+			r.Get(routeByID, attachmentHandler.GetAttachment)
+			r.Delete(routeByID, attachmentHandler.DeleteAttachment)
 		})
 
 		r.Route("/timeline", func(r chi.Router) {
@@ -202,7 +205,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 
 		r.Route("/approvals", func(r chi.Router) {
 			r.Get("/", approvalHandler.ListPendingApprovals) // GET /api/v1/approvals
-			r.Put("/{id}", approvalHandler.DecideApproval)   // PUT /api/v1/approvals/{id}
+			r.Put(routeByID, approvalHandler.DecideApproval)   // PUT /api/v1/approvals/{id}
 		})
 
 		r.Route("/admin/tools", func(r chi.Router) {
@@ -212,10 +215,10 @@ func NewRouter(db *sql.DB) *chi.Mux {
 
 		// Task 3.9: Prompt Versioning routes
 		r.Route("/admin/prompts", func(r chi.Router) {
-			r.Get("/", promptHandler.List)                    // GET /api/v1/admin/prompts?agent_id={id}
-			r.Post("/", promptHandler.Create)                 // POST /api/v1/admin/prompts
-			r.Put("/{id}/promote", promptHandler.Promote)     // PUT /api/v1/admin/prompts/{id}/promote
-			r.Put("/{id}/rollback", promptHandler.Rollback)   // PUT /api/v1/admin/prompts/{id}/rollback
+			r.Get("/", promptHandler.List)                  // GET /api/v1/admin/prompts?agent_id={id}
+			r.Post("/", promptHandler.Create)               // POST /api/v1/admin/prompts
+			r.Put("/{id}/promote", promptHandler.Promote)   // PUT /api/v1/admin/prompts/{id}/promote
+			r.Put("/{id}/rollback", promptHandler.Rollback) // PUT /api/v1/admin/prompts/{id}/rollback
 		})
 
 		r.Route("/copilot", func(r chi.Router) {
@@ -230,12 +233,18 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		supportAgent := agents.NewSupportAgent(agentOrchestrator, toolRegistry, searchSvc)
 		supportAgentHandler := handlers.NewSupportAgentHandler(supportAgent)
 
+		// Task 3.8: Handoff Manager (reuses caseService + knowledgeBus from above)
+		handoffService := agent.NewHandoffService(db, caseService, knowledgeBus)
+		handoffHandler := handlers.NewHandoffHandler(handoffService)
+
 		r.Route("/agents", func(r chi.Router) {
-			r.Post("/trigger", agentHandler.TriggerAgent)              // POST /api/v1/agents/trigger
-			r.Get("/runs", agentHandler.ListAgentRuns)                  // GET  /api/v1/agents/runs
-			r.Get("/runs/{id}", agentHandler.GetAgentRun)               // GET  /api/v1/agents/runs/{id}
-			r.Post("/runs/{id}/cancel", agentHandler.CancelAgentRun)    // POST /api/v1/agents/runs/{id}/cancel
-			r.Get("/definitions", agentHandler.ListAgentDefinitions)    // GET  /api/v1/agents/definitions
+			r.Post("/trigger", agentHandler.TriggerAgent)                       // POST /api/v1/agents/trigger
+			r.Get("/runs", agentHandler.ListAgentRuns)                          // GET  /api/v1/agents/runs
+			r.Get("/runs/{id}", agentHandler.GetAgentRun)                       // GET  /api/v1/agents/runs/{id}
+			r.Post("/runs/{id}/cancel", agentHandler.CancelAgentRun)            // POST /api/v1/agents/runs/{id}/cancel
+			r.Get("/runs/{id}/handoff", handoffHandler.GetHandoffPackage)       // GET  /api/v1/agents/runs/{id}/handoff
+			r.Post("/runs/{id}/handoff", handoffHandler.InitiateHandoff)        // POST /api/v1/agents/runs/{id}/handoff
+			r.Get("/definitions", agentHandler.ListAgentDefinitions)            // GET  /api/v1/agents/definitions
 			r.Post("/support/trigger", supportAgentHandler.TriggerSupportAgent) // POST /api/v1/agents/support/trigger
 		})
 	})

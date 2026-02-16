@@ -22,6 +22,53 @@ const (
 	maxPaginationLimit     = 100
 )
 
+// HTTP response string constants (extracted to satisfy goconst lint gate).
+const (
+	headerContentType = "Content-Type"
+	mimeJSON          = "application/json"
+	timeFormatISO     = "2006-01-02T15:04:05Z"
+
+	// Error messages — workspace / auth
+	errMissingWorkspaceID      = "missing workspace_id in context"
+	errMissingWorkspaceContext = "missing workspace context"
+	errMissingWorkspaceShort   = "missing workspace_id"
+
+	// Error messages — request
+	errInvalidBody = "invalid request body"
+
+	// Error messages — encode
+	errFailedToEncode     = "failed to encode response"
+	errFailedToEncodeJSON = `{"error":"failed to encode response"}`
+	errEmptyJSON          = "{}"
+
+	// Error messages — account
+	errAccountIDRequired  = "account id is required"
+	errAccountNotFound    = "account not found"
+	errFailedToGetAccount = "failed to get account: %v"
+
+	// Error messages — contact
+	errContactIDRequired  = "contact id is required"
+	errContactNotFound    = "contact not found"
+	errFailedToGetContact = "failed to get contact: %v"
+
+	// Error messages — lead
+	errLeadIDRequired  = "lead id is required"
+	errLeadNotFound    = "lead not found"
+	errFailedToGetLead = "failed to get lead: %v"
+
+	// Error messages — case
+	errCaseNotFound = "case not found"
+
+	// Error messages — agent
+	errAgentRunNotFound = "agent run not found"
+
+	// URL param names
+	paramID         = "id"
+	paramStageID    = "stage_id"
+	paramEntityID   = "entity_id"
+	paramEntityType = "entity_type"
+)
+
 // getWorkspaceID retrieves workspace_id from context.
 // Uses ctxkeys.WorkspaceID — same type+value as WorkspaceMiddleware injection.
 // This eliminates the silent type mismatch between different context key types (TD-1).

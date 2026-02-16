@@ -53,7 +53,7 @@ func (h *ToolHandler) ListTools(w http.ResponseWriter, r *http.Request) {
 		out = append(out, toToolResponse(item))
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": out, "meta": map[string]int{"total": len(out)}})
 }
@@ -61,13 +61,13 @@ func (h *ToolHandler) ListTools(w http.ResponseWriter, r *http.Request) {
 func (h *ToolHandler) CreateTool(w http.ResponseWriter, r *http.Request) {
 	workspaceID, err := getWorkspaceID(r.Context())
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
 	var req createToolRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 
@@ -94,7 +94,7 @@ func (h *ToolHandler) CreateTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(toToolResponse(item))
 }

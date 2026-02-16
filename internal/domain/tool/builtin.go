@@ -16,8 +16,8 @@ const (
 )
 
 type BuiltinServices struct {
-	DB       *sql.DB
-	Case     *crm.CaseService
+	DB   *sql.DB
+	Case *crm.CaseService
 }
 
 type builtinDefinition struct {

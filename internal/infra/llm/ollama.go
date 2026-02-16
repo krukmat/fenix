@@ -16,6 +16,11 @@ import (
 	"time"
 )
 
+const (
+	mimeJSON         = "application/json"
+	headerContentType = "Content-Type"
+)
+
 // OllamaProvider implements LLMProvider against a running Ollama instance (Task 2.3).
 type OllamaProvider struct {
 	baseURL    string
@@ -200,7 +205,7 @@ func (p *OllamaProvider) doPost(ctx context.Context, path string, body []byte) (
 	if err != nil {
 		return nil, fmt.Errorf("ollama post %s: build request: %w", path, err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(headerContentType, mimeJSON)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {

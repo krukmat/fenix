@@ -34,12 +34,12 @@ type UpdateDealRequest = CreateDealRequest
 func (h *DealHandler) CreateDeal(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 	var req CreateDealRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 	if !isDealRequestValid(req) {
@@ -64,7 +64,7 @@ func (h *DealHandler) CreateDeal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create deal: %v", svcErr))
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(out) //nolint:errcheck
 }
@@ -79,10 +79,10 @@ func isDealRequestValid(req CreateDealRequest) bool {
 func (h *DealHandler) GetDeal(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	out, svcErr := h.service.Get(r.Context(), wsID, id)
 	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "deal not found")
@@ -93,7 +93,7 @@ func (h *DealHandler) GetDeal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -101,7 +101,7 @@ func (h *DealHandler) GetDeal(w http.ResponseWriter, r *http.Request) {
 func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 	page := parsePaginationParams(r)
@@ -111,7 +111,7 @@ func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -119,10 +119,10 @@ func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
 func (h *DealHandler) UpdateDeal(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	existing, svcErr := h.service.Get(r.Context(), wsID, id)
 	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "deal not found")
@@ -134,7 +134,7 @@ func (h *DealHandler) UpdateDeal(w http.ResponseWriter, r *http.Request) {
 	}
 	var req UpdateDealRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 	out, upErr := h.service.Update(r.Context(), wsID, id, buildUpdateDealInput(req, existing))
@@ -166,10 +166,10 @@ func buildUpdateDealInput(req UpdateDealRequest, existing *crm.Deal) crm.UpdateD
 func (h *DealHandler) DeleteDeal(w http.ResponseWriter, r *http.Request) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, paramID)
 	if delErr := h.service.Delete(r.Context(), wsID, id); delErr != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete deal: %v", delErr))
 		return

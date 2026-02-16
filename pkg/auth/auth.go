@@ -20,14 +20,19 @@ const BCryptCost = 12
 // DefaultJWTExpiry is the default JWT expiration time in hours if not set via env.
 const DefaultJWTExpiry = 24
 
+const (
+	envJWTSecret = "JWT_SECRET"
+	envJWTExpiry = "JWT_EXPIRY"
+)
+
 // ===== ENVIRONMENT VARIABLES =====
 
 // getJWTSecret reads JWT_SECRET from environment. Panics if not set.
 // This ensures auth cannot be initialized without a secret configured.
 func getJWTSecret() []byte {
-	secret := os.Getenv("JWT_SECRET")
+	secret := os.Getenv(envJWTSecret)
 	if secret == "" {
-		panic("JWT_SECRET environment variable not set — cannot initialize auth")
+		panic(envJWTSecret + " environment variable not set — cannot initialize auth")
 	}
 	return []byte(secret)
 }
@@ -50,7 +55,7 @@ func parseJWTExpiry(expiryStr string) time.Duration {
 
 // getJWTExpiry reads JWT_EXPIRY from environment in hours. Defaults to DefaultJWTExpiry.
 func getJWTExpiry() time.Duration {
-	return parseJWTExpiry(os.Getenv("JWT_EXPIRY"))
+	return parseJWTExpiry(os.Getenv(envJWTExpiry))
 }
 
 // ===== BCRYPT FUNCTIONS =====

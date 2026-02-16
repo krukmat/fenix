@@ -9,7 +9,10 @@ import (
 
 // insertTestAgentDefinition inserts an agent definition for tests.
 func insertTestAgentDefinition(t *testing.T, ctx context.Context, db interface {
-	ExecContext(ctx context.Context, query string, args ...any) (interface{ LastInsertId() (int64, error); RowsAffected() (int64, error) }, error)
+	ExecContext(ctx context.Context, query string, args ...any) (interface {
+		LastInsertId() (int64, error)
+		RowsAffected() (int64, error)
+	}, error)
 }, id, workspaceID, name, status string) {
 	t.Helper()
 }

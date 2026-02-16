@@ -39,7 +39,7 @@ func (h *KnowledgeReindexHandler) Reindex(w http.ResponseWriter, r *http.Request
 
 	var req reindexRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 
@@ -51,7 +51,7 @@ func (h *KnowledgeReindexHandler) Reindex(w http.ResponseWriter, r *http.Request
 
 	estimated := time.Duration(queued) * 250 * time.Millisecond
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(reindexResponse{
 		ItemsQueued:   queued,

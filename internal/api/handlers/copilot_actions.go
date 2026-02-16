@@ -67,7 +67,7 @@ func (h *CopilotActionsHandler) SuggestActions(w http.ResponseWriter, r *http.Re
 	resp := copilotSuggestActionsResponse{}
 	resp.Data.Actions = actions
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(resp)
 }
@@ -93,7 +93,7 @@ func (h *CopilotActionsHandler) Summarize(w http.ResponseWriter, r *http.Request
 	resp := copilotSummarizeResponse{}
 	resp.Data.Summary = summary
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(resp)
 }
@@ -118,7 +118,7 @@ func buildCopilotEntityInput(r *http.Request) (copilotEntityInput, error) {
 	}
 
 	var req copilotEntityRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		return copilotEntityInput{}, actionRequestError{status: http.StatusBadRequest, message: "invalid request body"}
 	}
 	if req.EntityType == "" || req.EntityID == "" {

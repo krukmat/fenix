@@ -63,7 +63,7 @@ func (s *llmStub) ChatCompletion(_ context.Context, _ llm.ChatRequest) (*llm.Cha
 func (s *llmStub) Embed(_ context.Context, _ llm.EmbedRequest) (*llm.EmbedResponse, error) {
 	return &llm.EmbedResponse{}, nil
 }
-func (s *llmStub) ModelInfo() llm.ModelMeta { return llm.ModelMeta{ID: "stub", Provider: "stub"} }
+func (s *llmStub) ModelInfo() llm.ModelMeta            { return llm.ModelMeta{ID: "stub", Provider: "stub"} }
 func (s *llmStub) HealthCheck(_ context.Context) error { return nil }
 
 type auditStub struct{ called int }

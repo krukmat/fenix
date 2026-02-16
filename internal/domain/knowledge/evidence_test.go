@@ -502,11 +502,11 @@ func TestEvidencePackService_FreshnessWarning(t *testing.T) {
 
 	// Use a very short freshness threshold (1 nanosecond) to trigger warnings
 	cfg := EvidenceConfig{
-		DefaultTopK:           10,
-		FreshnessWarning:      1, // 1 nanosecond - anything is stale
-		DedupThreshold:        0.95,
-		HighConfidenceMin:     0.8,
-		MediumConfidenceMin:   0.5,
+		DefaultTopK:            10,
+		FreshnessWarning:       1, // 1 nanosecond - anything is stale
+		DedupThreshold:         0.95,
+		HighConfidenceMin:      0.8,
+		MediumConfidenceMin:    0.5,
 		PermissionCheckStubbed: true,
 	}
 	evidenceSvc := NewEvidencePackService(db, searchSvc, cfg)

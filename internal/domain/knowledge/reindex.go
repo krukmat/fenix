@@ -280,7 +280,7 @@ func (s *ReindexService) handleUpsert(ctx context.Context, evt RecordChangedEven
 		EntityType:  &evt.EntityType,
 		EntityID:    &evt.EntityID,
 	})
-	return err
+	return ingestErr // Task 3.8: fixed unused variable (was returning undefined err)
 }
 
 func (s *ReindexService) buildKnowledgePayloadFromEntity(ctx context.Context, evt RecordChangedEvent) (string, string, SourceType, error) {

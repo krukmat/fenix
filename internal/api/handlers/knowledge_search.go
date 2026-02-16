@@ -27,11 +27,11 @@ type searchRequest struct {
 
 // searchResultItem is a single item in the search response.
 type searchResultItem struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Snippet string `json:"snippet"`
+	ID      string  `json:"id"`
+	Title   string  `json:"title"`
+	Snippet string  `json:"snippet"`
 	Score   float64 `json:"score"`
-	Method  string `json:"method"`
+	Method  string  `json:"method"`
 }
 
 // searchResponse is the JSON response body for POST /api/v1/knowledge/search.
@@ -52,7 +52,7 @@ func (h *KnowledgeSearchHandler) Search(w http.ResponseWriter, r *http.Request) 
 
 	var req searchRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 
@@ -82,7 +82,7 @@ func (h *KnowledgeSearchHandler) Search(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(searchResponse{
 		Results: items,

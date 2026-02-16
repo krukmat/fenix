@@ -23,8 +23,8 @@ type Account struct {
 	Industry    *string    `json:"industry,omitempty"`
 	SizeSegment *string    `json:"sizeSegment,omitempty"` // smb|mid|enterprise
 	OwnerID     string     `json:"ownerId"`
-	Address     *string    `json:"address,omitempty"`     // JSON blob
-	Metadata    *string    `json:"metadata,omitempty"`    // JSON blob
+	Address     *string    `json:"address,omitempty"`  // JSON blob
+	Metadata    *string    `json:"metadata,omitempty"` // JSON blob
 	CreatedAt   time.Time  `json:"createdAt"`
 	UpdatedAt   time.Time  `json:"updatedAt"`
 	DeletedAt   *time.Time `json:"deletedAt,omitempty"`

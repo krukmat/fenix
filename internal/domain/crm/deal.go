@@ -100,7 +100,7 @@ func (s *DealService) Create(ctx context.Context, input CreateDealInput) (*Deal,
 	if err != nil {
 		return nil, fmt.Errorf("create deal: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, "deal", id, input.OwnerID, "created"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, timelineEntityDeal, id, input.OwnerID, timelineActionCreated); timelineErr != nil {
 		return nil, fmt.Errorf("create deal timeline: %w", timelineErr)
 	}
 
@@ -158,7 +158,7 @@ func (s *DealService) Update(ctx context.Context, workspaceID, dealID string, in
 	if err != nil {
 		return nil, fmt.Errorf("update deal: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, "deal", dealID, input.OwnerID, "updated"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityDeal, dealID, input.OwnerID, "updated"); timelineErr != nil {
 		return nil, fmt.Errorf("update deal timeline: %w", timelineErr)
 	}
 
@@ -176,7 +176,7 @@ func (s *DealService) Delete(ctx context.Context, workspaceID, dealID string) er
 	if err != nil {
 		return fmt.Errorf("soft delete deal: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, "deal", dealID, "", "deleted"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityDeal, dealID, "", "deleted"); timelineErr != nil {
 		return fmt.Errorf("delete deal timeline: %w", timelineErr)
 	}
 	return nil

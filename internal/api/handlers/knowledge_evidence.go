@@ -37,13 +37,13 @@ type evidenceData struct {
 }
 
 type evidenceSource struct {
-	KnowledgeItemID string   `json:"knowledge_item_id"`
-	Method          string   `json:"method"`
-	Score           float64  `json:"score"`
-	Snippet         *string  `json:"snippet,omitempty"`
-	PiiRedacted     bool     `json:"pii_redacted"`
-	Metadata        *string  `json:"metadata,omitempty"`
-	CreatedAt       string   `json:"created_at"`
+	KnowledgeItemID string  `json:"knowledge_item_id"`
+	Method          string  `json:"method"`
+	Score           float64 `json:"score"`
+	Snippet         *string `json:"snippet,omitempty"`
+	PiiRedacted     bool    `json:"pii_redacted"`
+	Metadata        *string `json:"metadata,omitempty"`
+	CreatedAt       string  `json:"created_at"`
 }
 
 // Build handles POST /api/v1/knowledge/evidence.
@@ -52,13 +52,13 @@ func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request)
 
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusUnauthorized, "missing workspace context")
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
 		return
 	}
 
 	var req evidenceRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 
@@ -90,7 +90,7 @@ func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(evidenceResponse{
 		Data: evidenceData{
@@ -101,6 +101,6 @@ func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request)
 			Warnings:        pack.Warnings,
 		},
 	}); encodeErr != nil {
-		http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
+		http.Error(w, errFailedToEncodeJSON, http.StatusInternalServerError)
 	}
 }

@@ -7,19 +7,26 @@ import "os"
 // Config holds runtime configuration for FenixCRM.
 type Config struct {
 	// LLM
-	LLMProvider   string // LLM_PROVIDER — default: "ollama"
-	OllamaBaseURL string // OLLAMA_BASE_URL — default: "http://localhost:11434"
-	OllamaModel   string // OLLAMA_MODEL — default: "nomic-embed-text" (embed model, 768 dims)
+	LLMProvider     string // LLM_PROVIDER — default: "ollama"
+	OllamaBaseURL   string // OLLAMA_BASE_URL — default: "http://localhost:11434"
+	OllamaModel     string // OLLAMA_MODEL — default: "nomic-embed-text" (embed model, 768 dims)
 	OllamaChatModel string // OLLAMA_CHAT_MODEL — default: "llama3.2:3b"
 }
+
+const (
+	envKeyLLMProvider     = "LLM_PROVIDER"
+	envKeyOllamaBaseURL   = "OLLAMA_BASE_URL"
+	envKeyOllamaModel     = "OLLAMA_MODEL"
+	envKeyOllamaChatModel = "OLLAMA_CHAT_MODEL"
+)
 
 // Load reads configuration from environment variables, applying defaults for missing values.
 func Load() Config {
 	return Config{
-		LLMProvider:     envOr("LLM_PROVIDER", "ollama"),
-		OllamaBaseURL:   envOr("OLLAMA_BASE_URL", "http://localhost:11434"),
-		OllamaModel:     envOr("OLLAMA_MODEL", "nomic-embed-text"),
-		OllamaChatModel: envOr("OLLAMA_CHAT_MODEL", "llama3.2:3b"),
+		LLMProvider:     envOr(envKeyLLMProvider, "ollama"),
+		OllamaBaseURL:   envOr(envKeyOllamaBaseURL, "http://localhost:11434"),
+		OllamaModel:     envOr(envKeyOllamaModel, "nomic-embed-text"),
+		OllamaChatModel: envOr(envKeyOllamaChatModel, "llama3.2:3b"),
 	}
 }
 

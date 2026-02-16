@@ -82,13 +82,13 @@ func (h *AccountHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
 	var req CreateAccountRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 
@@ -115,10 +115,10 @@ func (h *AccountHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write response
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	if encodeErr := json.NewEncoder(w).Encode(accountToResponse(account)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -129,32 +129,32 @@ func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
-	accountID := chi.URLParam(r, "id")
+	accountID := chi.URLParam(r, paramID)
 	if accountID == "" {
-		writeError(w, http.StatusBadRequest, "account id is required")
+		writeError(w, http.StatusBadRequest, errAccountIDRequired)
 		return
 	}
 
 	// Get account via service
 	account, svcErr := h.accountService.Get(ctx, wsID, accountID)
 	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "account not found")
+		writeError(w, http.StatusNotFound, errAccountNotFound)
 		return
 	}
 	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get account: %v", svcErr))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetAccount, svcErr))
 		return
 	}
 
 	// Write response
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(accountToResponse(account)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -165,7 +165,7 @@ func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
@@ -193,10 +193,10 @@ func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 		Meta: Meta{Total: total, Limit: page.Limit, Offset: page.Offset},
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
@@ -211,7 +211,7 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
@@ -222,7 +222,7 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 
 	var req UpdateAccountRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, errInvalidBody)
 		return
 	}
 
@@ -237,29 +237,29 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write response
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(accountToResponse(updated)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, "failed to encode response")
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
 	}
 }
 
 func (h *AccountHandler) getAccountForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Account, bool) {
 	ctx := r.Context()
-	accountID := chi.URLParam(r, "id")
+	accountID := chi.URLParam(r, paramID)
 	if accountID == "" {
-		writeError(w, http.StatusBadRequest, "account id is required")
+		writeError(w, http.StatusBadRequest, errAccountIDRequired)
 		return "", nil, false
 	}
 
 	existing, svcErr := h.accountService.Get(ctx, wsID, accountID)
 	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "account not found")
+		writeError(w, http.StatusNotFound, errAccountNotFound)
 		return "", nil, false
 	}
 	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get account: %v", svcErr))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetAccount, svcErr))
 		return "", nil, false
 	}
 
@@ -273,24 +273,24 @@ func (h *AccountHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	wsID, wsErr := getWorkspaceID(ctx)
 	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
 		return
 	}
 
-	accountID := chi.URLParam(r, "id")
+	accountID := chi.URLParam(r, paramID)
 	if accountID == "" {
-		writeError(w, http.StatusBadRequest, "account id is required")
+		writeError(w, http.StatusBadRequest, errAccountIDRequired)
 		return
 	}
 
 	// Verify account exists (and is not already soft-deleted) before deleting (TD-3)
 	_, getErr := h.accountService.Get(ctx, wsID, accountID)
 	if errors.Is(getErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "account not found")
+		writeError(w, http.StatusNotFound, errAccountNotFound)
 		return
 	}
 	if getErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get account: %v", getErr))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetAccount, getErr))
 		return
 	}
 
@@ -318,8 +318,8 @@ func accountToResponse(acc *crm.Account) AccountResponse {
 		OwnerID:     acc.OwnerID,
 		Address:     acc.Address,
 		Metadata:    acc.Metadata,
-		CreatedAt:   acc.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:   acc.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:   acc.CreatedAt.Format(timeFormatISO),
+		UpdatedAt:   acc.UpdatedAt.Format(timeFormatISO),
 		DeletedAt:   formatDeletedAt(acc.DeletedAt),
 	}
 }
@@ -329,13 +329,13 @@ func formatDeletedAt(t *time.Time) *string {
 	if t == nil {
 		return nil
 	}
-	s := t.Format("2006-01-02T15:04:05Z")
+	s := t.Format(timeFormatISO)
 	return &s
 }
 
 // writeError writes a JSON error response.
 func writeError(w http.ResponseWriter, statusCode int, message string) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
 		http.Error(w, `{"error":"failed to encode error response"}`, http.StatusInternalServerError)
