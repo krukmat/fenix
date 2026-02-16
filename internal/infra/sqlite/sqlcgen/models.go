@@ -42,6 +42,47 @@ type Activity struct {
 	UpdatedAt    string  `db:"updated_at" json:"updatedAt"`
 }
 
+type AgentDefinition struct {
+	ID                    string          `db:"id" json:"id"`
+	WorkspaceID           string          `db:"workspace_id" json:"workspaceId"`
+	Name                  string          `db:"name" json:"name"`
+	Description           *string         `db:"description" json:"description"`
+	AgentType             string          `db:"agent_type" json:"agentType"`
+	Objective             json.RawMessage `db:"objective" json:"objective"`
+	AllowedTools          json.RawMessage `db:"allowed_tools" json:"allowedTools"`
+	Limits                json.RawMessage `db:"limits" json:"limits"`
+	TriggerConfig         json.RawMessage `db:"trigger_config" json:"triggerConfig"`
+	PolicySetID           *string         `db:"policy_set_id" json:"policySetId"`
+	ActivePromptVersionID *string         `db:"active_prompt_version_id" json:"activePromptVersionId"`
+	Status                string          `db:"status" json:"status"`
+	CreatedAt             time.Time       `db:"created_at" json:"createdAt"`
+	UpdatedAt             time.Time       `db:"updated_at" json:"updatedAt"`
+}
+
+type AgentRun struct {
+	ID                   string          `db:"id" json:"id"`
+	WorkspaceID          string          `db:"workspace_id" json:"workspaceId"`
+	AgentDefinitionID    string          `db:"agent_definition_id" json:"agentDefinitionId"`
+	TriggeredByUserID    *string         `db:"triggered_by_user_id" json:"triggeredByUserId"`
+	TriggerType          string          `db:"trigger_type" json:"triggerType"`
+	TriggerContext       json.RawMessage `db:"trigger_context" json:"triggerContext"`
+	Status               string          `db:"status" json:"status"`
+	Inputs               json.RawMessage `db:"inputs" json:"inputs"`
+	RetrievalQueries     json.RawMessage `db:"retrieval_queries" json:"retrievalQueries"`
+	RetrievedEvidenceIds json.RawMessage `db:"retrieved_evidence_ids" json:"retrievedEvidenceIds"`
+	ReasoningTrace       json.RawMessage `db:"reasoning_trace" json:"reasoningTrace"`
+	ToolCalls            json.RawMessage `db:"tool_calls" json:"toolCalls"`
+	Output               json.RawMessage `db:"output" json:"output"`
+	AbstentionReason     *string         `db:"abstention_reason" json:"abstentionReason"`
+	TotalTokens          *int64          `db:"total_tokens" json:"totalTokens"`
+	TotalCost            *float64        `db:"total_cost" json:"totalCost"`
+	LatencyMs            *int64          `db:"latency_ms" json:"latencyMs"`
+	TraceID              *string         `db:"trace_id" json:"traceId"`
+	StartedAt            time.Time       `db:"started_at" json:"startedAt"`
+	CompletedAt          *time.Time      `db:"completed_at" json:"completedAt"`
+	CreatedAt            time.Time       `db:"created_at" json:"createdAt"`
+}
+
 type ApprovalRequest struct {
 	ID           string          `db:"id" json:"id"`
 	WorkspaceID  string          `db:"workspace_id" json:"workspaceId"`
@@ -281,6 +322,18 @@ type Role struct {
 	Permissions string  `db:"permissions" json:"permissions"`
 	CreatedAt   string  `db:"created_at" json:"createdAt"`
 	UpdatedAt   string  `db:"updated_at" json:"updatedAt"`
+}
+
+type SkillDefinition struct {
+	ID                string          `db:"id" json:"id"`
+	WorkspaceID       string          `db:"workspace_id" json:"workspaceId"`
+	Name              string          `db:"name" json:"name"`
+	Description       *string         `db:"description" json:"description"`
+	Steps             json.RawMessage `db:"steps" json:"steps"`
+	AgentDefinitionID *string         `db:"agent_definition_id" json:"agentDefinitionId"`
+	Status            string          `db:"status" json:"status"`
+	CreatedAt         time.Time       `db:"created_at" json:"createdAt"`
+	UpdatedAt         time.Time       `db:"updated_at" json:"updatedAt"`
 }
 
 type TimelineEvent struct {

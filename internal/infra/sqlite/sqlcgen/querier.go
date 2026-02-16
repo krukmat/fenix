@@ -17,6 +17,8 @@ type Querier interface {
 	CountAccountsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountActivitiesByEntity(ctx context.Context, arg CountActivitiesByEntityParams) (int64, error)
 	CountActivitiesByWorkspace(ctx context.Context, workspaceID string) (int64, error)
+	CountAgentRunsByAgent(ctx context.Context, arg CountAgentRunsByAgentParams) (int64, error)
+	CountAgentRunsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountAttachmentsByEntity(ctx context.Context, arg CountAttachmentsByEntityParams) (int64, error)
 	CountAttachmentsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	// Counts total audit events for a workspace
@@ -48,6 +50,9 @@ type Querier interface {
 	// SQL queries for activity table
 	// Task 1.5: Activity (tasks, events, calls, emails) management queries
 	CreateActivity(ctx context.Context, arg CreateActivityParams) error
+	// Task 3.7: Agent queries
+	CreateAgentDefinition(ctx context.Context, arg CreateAgentDefinitionParams) (AgentDefinition, error)
+	CreateAgentRun(ctx context.Context, arg CreateAgentRunParams) (AgentRun, error)
 	// SQL queries for attachment table
 	// Task 1.5: File attachment management queries
 	CreateAttachment(ctx context.Context, arg CreateAttachmentParams) error
@@ -106,6 +111,7 @@ type Querier interface {
 	// ROLE queries
 	// ========================
 	CreateRole(ctx context.Context, arg CreateRoleParams) error
+	CreateSkillDefinition(ctx context.Context, arg CreateSkillDefinitionParams) (SkillDefinition, error)
 	// SQL queries for timeline_event table
 	// Task 1.5: Timeline/audit trail queries
 	CreateTimelineEvent(ctx context.Context, arg CreateTimelineEventParams) error
@@ -119,6 +125,8 @@ type Querier interface {
 	// Note: RETURNING * not supported by sqlc SQLite parser — use :exec + GetByID pattern.
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) error
 	DeleteActivity(ctx context.Context, arg DeleteActivityParams) error
+	DeleteAgentDefinition(ctx context.Context, arg DeleteAgentDefinitionParams) error
+	DeleteAgentRun(ctx context.Context, arg DeleteAgentRunParams) error
 	DeleteAttachment(ctx context.Context, arg DeleteAttachmentParams) error
 	// Task 2.7: Remove all chunks when knowledge item is deleted/reindexed
 	DeleteEmbeddingDocumentsByKnowledgeItem(ctx context.Context, arg DeleteEmbeddingDocumentsByKnowledgeItemParams) error
@@ -127,6 +135,7 @@ type Querier interface {
 	DeletePipelineStage(ctx context.Context, id string) error
 	DeletePipelineStagesByPipeline(ctx context.Context, pipelineID string) error
 	DeleteRole(ctx context.Context, arg DeleteRoleParams) error
+	DeleteSkillDefinition(ctx context.Context, arg DeleteSkillDefinitionParams) error
 	DeleteUser(ctx context.Context, arg DeleteUserParams) error
 	// Task 2.4: Remove vectors for all chunks of a knowledge_item (on re-ingest).
 	DeleteVecEmbeddingsByKnowledgeItem(ctx context.Context, arg DeleteVecEmbeddingsByKnowledgeItemParams) error
@@ -134,6 +143,9 @@ type Querier interface {
 	GetAccountByID(ctx context.Context, arg GetAccountByIDParams) (Account, error)
 	GetActivePrompt(ctx context.Context, arg GetActivePromptParams) (PromptVersion, error)
 	GetActivityByID(ctx context.Context, arg GetActivityByIDParams) (Activity, error)
+	GetAgentDefinitionByID(ctx context.Context, arg GetAgentDefinitionByIDParams) (AgentDefinition, error)
+	GetAgentDefinitionByName(ctx context.Context, arg GetAgentDefinitionByNameParams) (AgentDefinition, error)
+	GetAgentRunByID(ctx context.Context, arg GetAgentRunByIDParams) (AgentRun, error)
 	// ============================================================================
 	// search queries (Task 2.5)
 	// ============================================================================
@@ -166,6 +178,7 @@ type Querier interface {
 	GetPromptVersionByID(ctx context.Context, arg GetPromptVersionByIDParams) (PromptVersion, error)
 	GetRoleByID(ctx context.Context, arg GetRoleByIDParams) (Role, error)
 	GetRoleByName(ctx context.Context, arg GetRoleByNameParams) (Role, error)
+	GetSkillDefinitionByID(ctx context.Context, arg GetSkillDefinitionByIDParams) (SkillDefinition, error)
 	GetTimelineEventByID(ctx context.Context, arg GetTimelineEventByIDParams) (TimelineEvent, error)
 	GetTotalAttachmentSizeByWorkspace(ctx context.Context, workspaceID string) (interface{}, error)
 	GetUserByEmail(ctx context.Context, email string) (UserAccount, error)
@@ -181,6 +194,7 @@ type Querier interface {
 	InsertVecEmbedding(ctx context.Context, arg InsertVecEmbeddingParams) error
 	ListAccountsByOwner(ctx context.Context, arg ListAccountsByOwnerParams) ([]Account, error)
 	ListAccountsByWorkspace(ctx context.Context, arg ListAccountsByWorkspaceParams) ([]Account, error)
+	ListActiveAgentDefinitionsByWorkspace(ctx context.Context, workspaceID string) ([]AgentDefinition, error)
 	ListActiveUsersByWorkspace(ctx context.Context, workspaceID string) ([]UserAccount, error)
 	ListActivitiesByAssignee(ctx context.Context, arg ListActivitiesByAssigneeParams) ([]Activity, error)
 	ListActivitiesByEntity(ctx context.Context, arg ListActivitiesByEntityParams) ([]Activity, error)
@@ -188,6 +202,12 @@ type Querier interface {
 	ListActivitiesByStatus(ctx context.Context, arg ListActivitiesByStatusParams) ([]Activity, error)
 	ListActivitiesByType(ctx context.Context, arg ListActivitiesByTypeParams) ([]Activity, error)
 	ListActivitiesByWorkspace(ctx context.Context, arg ListActivitiesByWorkspaceParams) ([]Activity, error)
+	ListAgentDefinitionsByType(ctx context.Context, arg ListAgentDefinitionsByTypeParams) ([]AgentDefinition, error)
+	ListAgentDefinitionsByWorkspace(ctx context.Context, workspaceID string) ([]AgentDefinition, error)
+	ListAgentRunsByAgent(ctx context.Context, arg ListAgentRunsByAgentParams) ([]AgentRun, error)
+	ListAgentRunsByStatus(ctx context.Context, arg ListAgentRunsByStatusParams) ([]AgentRun, error)
+	ListAgentRunsByUser(ctx context.Context, arg ListAgentRunsByUserParams) ([]AgentRun, error)
+	ListAgentRunsByWorkspace(ctx context.Context, arg ListAgentRunsByWorkspaceParams) ([]AgentRun, error)
 	ListAttachmentsByEntity(ctx context.Context, arg ListAttachmentsByEntityParams) ([]Attachment, error)
 	ListAttachmentsByUploader(ctx context.Context, arg ListAttachmentsByUploaderParams) ([]Attachment, error)
 	ListAttachmentsByWorkspace(ctx context.Context, arg ListAttachmentsByWorkspaceParams) ([]Attachment, error)
@@ -245,6 +265,8 @@ type Querier interface {
 	ListPromptVersionsByAgent(ctx context.Context, arg ListPromptVersionsByAgentParams) ([]PromptVersion, error)
 	ListRolesByUser(ctx context.Context, arg ListRolesByUserParams) ([]Role, error)
 	ListRolesByWorkspace(ctx context.Context, workspaceID string) ([]Role, error)
+	ListSkillDefinitionsByAgent(ctx context.Context, agentDefinitionID *string) ([]SkillDefinition, error)
+	ListSkillDefinitionsByWorkspace(ctx context.Context, workspaceID string) ([]SkillDefinition, error)
 	ListTimelineEventsByActor(ctx context.Context, arg ListTimelineEventsByActorParams) ([]TimelineEvent, error)
 	ListTimelineEventsByEntity(ctx context.Context, arg ListTimelineEventsByEntityParams) ([]TimelineEvent, error)
 	ListTimelineEventsByEventType(ctx context.Context, arg ListTimelineEventsByEventTypeParams) ([]TimelineEvent, error)
@@ -265,6 +287,9 @@ type Querier interface {
 	SumDealAmountByPipeline(ctx context.Context, arg SumDealAmountByPipelineParams) (interface{}, error)
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) error
 	UpdateActivity(ctx context.Context, arg UpdateActivityParams) error
+	UpdateAgentDefinition(ctx context.Context, arg UpdateAgentDefinitionParams) (AgentDefinition, error)
+	UpdateAgentRun(ctx context.Context, arg UpdateAgentRunParams) (AgentRun, error)
+	UpdateAgentRunStatus(ctx context.Context, arg UpdateAgentRunStatusParams) (AgentRun, error)
 	UpdateCase(ctx context.Context, arg UpdateCaseParams) error
 	UpdateContact(ctx context.Context, arg UpdateContactParams) error
 	UpdateDeal(ctx context.Context, arg UpdateDealParams) error
@@ -278,6 +303,7 @@ type Querier interface {
 	UpdatePipeline(ctx context.Context, arg UpdatePipelineParams) error
 	UpdatePipelineStage(ctx context.Context, arg UpdatePipelineStageParams) error
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) error
+	UpdateSkillDefinition(ctx context.Context, arg UpdateSkillDefinitionParams) (SkillDefinition, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) error
 	UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error

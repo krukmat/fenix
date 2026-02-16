@@ -30,6 +30,7 @@ sql:
       - "internal/infra/sqlite/migrations/015_approval_requests.up.sql"
       - "internal/infra/sqlite/migrations/016_tools.up.sql"
       - "internal/infra/sqlite/migrations/017_prompt_versions.up.sql"
+      - "internal/infra/sqlite/migrations/018_agents.up.sql"
     # SQL query files with sqlc annotations (-- name: QueryName :cmd)
     queries:
       - "internal/infra/sqlite/queries"

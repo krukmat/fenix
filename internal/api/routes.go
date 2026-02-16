@@ -12,6 +12,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/api/handlers"
 	apmiddleware "github.com/matiasleandrokruk/fenix/internal/api/middleware"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
+	"github.com/matiasleandrokruk/fenix/internal/domain/agent/agents"
 	domainaudit "github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
 	copilotdomain "github.com/matiasleandrokruk/fenix/internal/domain/copilot"
@@ -221,6 +222,21 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			r.Post("/chat", copilotChatHandler.Chat)                         // POST /api/v1/copilot/chat
 			r.Post("/suggest-actions", copilotActionsHandler.SuggestActions) // POST /api/v1/copilot/suggest-actions
 			r.Post("/summarize", copilotActionsHandler.Summarize)            // POST /api/v1/copilot/summarize
+		})
+
+		// Task 3.7: Agent Runtime routes
+		agentOrchestrator := agent.NewOrchestrator(db)
+		agentHandler := handlers.NewAgentHandler(agentOrchestrator)
+		supportAgent := agents.NewSupportAgent(agentOrchestrator, toolRegistry, searchSvc)
+		supportAgentHandler := handlers.NewSupportAgentHandler(supportAgent)
+
+		r.Route("/agents", func(r chi.Router) {
+			r.Post("/trigger", agentHandler.TriggerAgent)              // POST /api/v1/agents/trigger
+			r.Get("/runs", agentHandler.ListAgentRuns)                  // GET  /api/v1/agents/runs
+			r.Get("/runs/{id}", agentHandler.GetAgentRun)               // GET  /api/v1/agents/runs/{id}
+			r.Post("/runs/{id}/cancel", agentHandler.CancelAgentRun)    // POST /api/v1/agents/runs/{id}/cancel
+			r.Get("/definitions", agentHandler.ListAgentDefinitions)    // GET  /api/v1/agents/definitions
+			r.Post("/support/trigger", supportAgentHandler.TriggerSupportAgent) // POST /api/v1/agents/support/trigger
 		})
 	})
 
