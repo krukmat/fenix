@@ -59,9 +59,11 @@ dev:
 	air -c .air.toml
 
 # Run linter
+GOLANGCI_LINT=$(shell go env GOPATH)/bin/golangci-lint
 lint:
 	@echo "Running linter..."
-	golangci-lint run ./...
+	@test -f $(GOLANGCI_LINT) || go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	$(GOLANGCI_LINT) run ./...
 
 # Check cyclomatic complexity — fails if any function exceeds threshold 7
 # Threshold rationale: 7 is the industry-standard limit for maintainable code.
