@@ -95,15 +95,15 @@ func (s *authService) Register(ctx context.Context, input RegisterInput) (*AuthR
 	workspaceID := uuid.NewV7().String()
 	userID := uuid.NewV7().String()
 
-	if err := s.insertWorkspaceAndUser(ctx, insertParams{
+	if insErr := s.insertWorkspaceAndUser(ctx, insertParams{
 		workspaceID:   workspaceID,
 		userID:        userID,
 		workspaceName: input.WorkspaceName,
 		email:         input.Email,
 		passwordHash:  hash,
 		displayName:   input.DisplayName,
-	}); err != nil {
-		return nil, err
+	}); insErr != nil {
+		return nil, insErr
 	}
 
 	token, err := pkgauth.GenerateJWT(userID, workspaceID)

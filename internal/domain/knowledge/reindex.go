@@ -260,19 +260,19 @@ func (s *ReindexService) handleDelete(ctx context.Context, item sqlcgen.Knowledg
 }
 
 func (s *ReindexService) handleUpsert(ctx context.Context, evt RecordChangedEvent, item sqlcgen.KnowledgeItem) error {
-	title, rawContent, sourceType, err := s.buildKnowledgePayloadFromEntity(ctx, evt)
-	if err != nil {
-		return err
+	title, rawContent, sourceType, buildErr := s.buildKnowledgePayloadFromEntity(ctx, evt)
+	if buildErr != nil {
+		return buildErr
 	}
 
-	if err := s.q.DeleteVecEmbeddingsByKnowledgeItem(ctx, sqlcgen.DeleteVecEmbeddingsByKnowledgeItemParams{
+	if delErr := s.q.DeleteVecEmbeddingsByKnowledgeItem(ctx, sqlcgen.DeleteVecEmbeddingsByKnowledgeItemParams{
 		KnowledgeItemID: item.ID,
 		WorkspaceID:     item.WorkspaceID,
-	}); err != nil {
-		return err
+	}); delErr != nil {
+		return delErr
 	}
 
-	_, err = s.ingest.Ingest(ctx, CreateKnowledgeItemInput{
+	_, ingestErr := s.ingest.Ingest(ctx, CreateKnowledgeItemInput{
 		WorkspaceID: evt.WorkspaceID,
 		SourceType:  sourceType,
 		Title:       title,

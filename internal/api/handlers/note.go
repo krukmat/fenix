@@ -31,13 +31,13 @@ type UpdateNoteRequest struct {
 }
 
 func (h *NoteHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	var req CreateNoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -45,7 +45,7 @@ func (h *NoteHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "entityType, entityId, authorId and content are required")
 		return
 	}
-	out, err := h.service.Create(r.Context(), crm.CreateNoteInput{
+	out, svcErr := h.service.Create(r.Context(), crm.CreateNoteInput{
 		WorkspaceID: wsID,
 		EntityType:  req.EntityType,
 		EntityID:    req.EntityID,
@@ -54,93 +54,93 @@ func (h *NoteHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 		IsInternal:  req.IsInternal,
 		Metadata:    req.Metadata,
 	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create note: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create note: %v", svcErr))
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(out); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
 }
 
 func (h *NoteHandler) GetNote(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	id := chi.URLParam(r, "id")
-	out, err := h.service.Get(r.Context(), wsID, id)
-	if errors.Is(err, sql.ErrNoRows) {
+	out, svcErr := h.service.Get(r.Context(), wsID, id)
+	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "note not found")
 		return
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get note: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get note: %v", svcErr))
 		return
 	}
-	if err := json.NewEncoder(w).Encode(out); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
 }
 
 func (h *NoteHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	page := parsePaginationParams(r)
-	items, total, err := h.service.List(r.Context(), wsID, crm.ListNotesInput{Limit: page.Limit, Offset: page.Offset})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list notes: %v", err))
+	items, total, svcErr := h.service.List(r.Context(), wsID, crm.ListNotesInput{Limit: page.Limit, Offset: page.Offset})
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list notes: %v", svcErr))
 		return
 	}
-	if err := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
 }
 
 func (h *NoteHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	id := chi.URLParam(r, "id")
-	if _, err := h.service.Get(r.Context(), wsID, id); errors.Is(err, sql.ErrNoRows) {
+	if _, svcErr := h.service.Get(r.Context(), wsID, id); errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "note not found")
 		return
 	}
 	var req UpdateNoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	out, err := h.service.Update(r.Context(), wsID, id, crm.UpdateNoteInput{Content: req.Content, IsInternal: req.IsInternal, Metadata: req.Metadata})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update note: %v", err))
+	out, svcErr := h.service.Update(r.Context(), wsID, id, crm.UpdateNoteInput{Content: req.Content, IsInternal: req.IsInternal, Metadata: req.Metadata})
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update note: %v", svcErr))
 		return
 	}
-	if err := json.NewEncoder(w).Encode(out); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
 }
 
 func (h *NoteHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	id := chi.URLParam(r, "id")
-	if err := h.service.Delete(r.Context(), wsID, id); err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete note: %v", err))
+	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete note: %v", svcErr))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

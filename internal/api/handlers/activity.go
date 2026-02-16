@@ -40,7 +40,7 @@ func (h *ActivityHandler) CreateActivity(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var req CreateActivityRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -67,90 +67,90 @@ func (h *ActivityHandler) CreateActivity(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(out); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
 }
 
 func (h *ActivityHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	id := chi.URLParam(r, "id")
-	out, err := h.service.Get(r.Context(), wsID, id)
-	if errors.Is(err, sql.ErrNoRows) {
+	out, svcErr := h.service.Get(r.Context(), wsID, id)
+	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "activity not found")
 		return
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get activity: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get activity: %v", svcErr))
 		return
 	}
-	if err := json.NewEncoder(w).Encode(out); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
 }
 
 func (h *ActivityHandler) ListActivities(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	page := parsePaginationParams(r)
-	items, total, err := h.service.List(r.Context(), wsID, crm.ListActivitiesInput{Limit: page.Limit, Offset: page.Offset})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list activities: %v", err))
+	items, total, svcErr := h.service.List(r.Context(), wsID, crm.ListActivitiesInput{Limit: page.Limit, Offset: page.Offset})
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list activities: %v", svcErr))
 		return
 	}
-	if err := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
 }
 
 func (h *ActivityHandler) UpdateActivity(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	id := chi.URLParam(r, "id")
-	existing, err := h.service.Get(r.Context(), wsID, id)
-	if errors.Is(err, sql.ErrNoRows) {
+	existing, svcErr := h.service.Get(r.Context(), wsID, id)
+	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "activity not found")
 		return
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get activity: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get activity: %v", svcErr))
 		return
 	}
 	var req UpdateActivityRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	out, err := h.service.Update(r.Context(), wsID, id, buildUpdateActivityInput(req, existing))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update activity: %v", err))
+	out, svcErr := h.service.Update(r.Context(), wsID, id, buildUpdateActivityInput(req, existing))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update activity: %v", svcErr))
 		return
 	}
 	json.NewEncoder(w).Encode(out) //nolint:errcheck
 }
 
 func (h *ActivityHandler) DeleteActivity(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	id := chi.URLParam(r, "id")
-	if err := h.service.Delete(r.Context(), wsID, id); err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete activity: %v", err))
+	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete activity: %v", svcErr))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

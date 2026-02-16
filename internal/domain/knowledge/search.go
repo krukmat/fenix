@@ -150,8 +150,8 @@ func (s *SearchService) bm25Search(ctx context.Context, query, wsID string, limi
 	var results []bm25Row
 	for rows.Next() {
 		var r bm25Row
-		if err := rows.Scan(&r.id, &r.title, &r.snippet, &r.score); err != nil {
-			return nil, fmt.Errorf("bm25Search scan: %w", err)
+		if scanErr := rows.Scan(&r.id, &r.title, &r.snippet, &r.score); scanErr != nil {
+			return nil, fmt.Errorf("bm25Search scan: %w", scanErr)
 		}
 		results = append(results, r)
 	}
@@ -180,8 +180,8 @@ func (s *SearchService) vectorSearch(ctx context.Context, wsID string, queryVec 
 
 	scored := make([]scoredRow, 0, len(rows))
 	for _, row := range rows {
-		vec, err := decodeEmbedding(row.Embedding)
-		if err != nil {
+		vec, decodeErr := decodeEmbedding(row.Embedding)
+		if decodeErr != nil {
 			continue // skip malformed vectors
 		}
 		sim := cosineSimilarity(queryVec, vec)

@@ -44,20 +44,20 @@ type ingestResponse struct {
 func (h *KnowledgeIngestHandler) Ingest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusUnauthorized, "missing workspace context")
 		return
 	}
 
 	var req ingestRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	if err := validateIngestRequest(req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if valErr := validateIngestRequest(req); valErr != nil {
+		writeError(w, http.StatusBadRequest, valErr.Error())
 		return
 	}
 
@@ -71,15 +71,15 @@ func (h *KnowledgeIngestHandler) Ingest(w http.ResponseWriter, r *http.Request) 
 		Metadata:    req.Metadata,
 	}
 
-	item, err := h.ingestService.Ingest(ctx, input)
-	if err != nil {
+	item, ingestErr := h.ingestService.Ingest(ctx, input)
+	if ingestErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to ingest knowledge item")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(ingestResponse{
+	if encodeErr := json.NewEncoder(w).Encode(ingestResponse{
 		ID:          item.ID,
 		WorkspaceID: item.WorkspaceID,
 		SourceType:  string(item.SourceType),
@@ -87,7 +87,7 @@ func (h *KnowledgeIngestHandler) Ingest(w http.ResponseWriter, r *http.Request) 
 		EntityType:  item.EntityType,
 		EntityID:    item.EntityID,
 		CreatedAt:   item.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	}); err != nil {
+	}); encodeErr != nil {
 		http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
 	}
 }

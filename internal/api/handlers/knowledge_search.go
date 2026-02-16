@@ -44,14 +44,14 @@ type searchResponse struct {
 func (h *KnowledgeSearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusUnauthorized, "missing workspace context")
 		return
 	}
 
 	var req searchRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -61,12 +61,12 @@ func (h *KnowledgeSearchHandler) Search(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	results, err := h.searchService.HybridSearch(ctx, knowledge.SearchInput{
+	results, searchErr := h.searchService.HybridSearch(ctx, knowledge.SearchInput{
 		Query:       req.Query,
 		WorkspaceID: wsID,
 		Limit:       req.Limit,
 	})
-	if err != nil {
+	if searchErr != nil {
 		writeError(w, http.StatusInternalServerError, "search failed")
 		return
 	}
@@ -84,10 +84,10 @@ func (h *KnowledgeSearchHandler) Search(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(searchResponse{
+	if encodeErr := json.NewEncoder(w).Encode(searchResponse{
 		Results: items,
 		Query:   results.Query,
-	}); err != nil {
+	}); encodeErr != nil {
 		http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
 	}
 }

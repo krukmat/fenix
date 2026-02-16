@@ -32,13 +32,13 @@ type CreateDealRequest struct {
 type UpdateDealRequest = CreateDealRequest
 
 func (h *DealHandler) CreateDeal(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	var req CreateDealRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -46,7 +46,7 @@ func (h *DealHandler) CreateDeal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "accountId, pipelineId, stageId, ownerId and title are required")
 		return
 	}
-	out, err := h.service.Create(r.Context(), crm.CreateDealInput{
+	out, svcErr := h.service.Create(r.Context(), crm.CreateDealInput{
 		WorkspaceID:   wsID,
 		AccountID:     req.AccountID,
 		ContactID:     req.ContactID,
@@ -60,8 +60,8 @@ func (h *DealHandler) CreateDeal(w http.ResponseWriter, r *http.Request) {
 		Status:        req.Status,
 		Metadata:      req.Metadata,
 	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create deal: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create deal: %v", svcErr))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -77,69 +77,69 @@ func isDealRequestValid(req CreateDealRequest) bool {
 }
 
 func (h *DealHandler) GetDeal(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	id := chi.URLParam(r, "id")
-	out, err := h.service.Get(r.Context(), wsID, id)
-	if errors.Is(err, sql.ErrNoRows) {
+	out, svcErr := h.service.Get(r.Context(), wsID, id)
+	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "deal not found")
 		return
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get deal: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get deal: %v", svcErr))
 		return
 	}
-	if err := json.NewEncoder(w).Encode(out); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
 }
 
 func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	page := parsePaginationParams(r)
-	items, total, err := h.service.List(r.Context(), wsID, crm.ListDealsInput{Limit: page.Limit, Offset: page.Offset})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list deals: %v", err))
+	items, total, svcErr := h.service.List(r.Context(), wsID, crm.ListDealsInput{Limit: page.Limit, Offset: page.Offset})
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list deals: %v", svcErr))
 		return
 	}
-	if err := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
 }
 
 func (h *DealHandler) UpdateDeal(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	id := chi.URLParam(r, "id")
-	existing, err := h.service.Get(r.Context(), wsID, id)
-	if errors.Is(err, sql.ErrNoRows) {
+	existing, svcErr := h.service.Get(r.Context(), wsID, id)
+	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "deal not found")
 		return
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get deal: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get deal: %v", svcErr))
 		return
 	}
 	var req UpdateDealRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	out, err := h.service.Update(r.Context(), wsID, id, buildUpdateDealInput(req, existing))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update deal: %v", err))
+	out, upErr := h.service.Update(r.Context(), wsID, id, buildUpdateDealInput(req, existing))
+	if upErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update deal: %v", upErr))
 		return
 	}
 	json.NewEncoder(w).Encode(out) //nolint:errcheck
@@ -164,14 +164,14 @@ func buildUpdateDealInput(req UpdateDealRequest, existing *crm.Deal) crm.UpdateD
 }
 
 func (h *DealHandler) DeleteDeal(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	id := chi.URLParam(r, "id")
-	if err := h.service.Delete(r.Context(), wsID, id); err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete deal: %v", err))
+	if delErr := h.service.Delete(r.Context(), wsID, id); delErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete deal: %v", delErr))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

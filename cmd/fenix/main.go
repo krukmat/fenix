@@ -77,8 +77,8 @@ func runServe(args []string, out io.Writer) int {
 		fmt.Fprintf(out, "db init failed: %v\n", err) //nolint:errcheck
 		return 1
 	}
-	if err := sqlite.MigrateUp(db); err != nil {
-		fmt.Fprintf(out, "migrations failed: %v\n", err) //nolint:errcheck
+	if migrateErr := sqlite.MigrateUp(db); migrateErr != nil {
+		fmt.Fprintf(out, "migrations failed: %v\n", migrateErr) //nolint:errcheck
 		_ = db.Close()
 		return 1
 	}
@@ -87,8 +87,8 @@ func runServe(args []string, out io.Writer) int {
 	cfg.Port = *port
 	srv := server.NewServer(db, cfg)
 
-	if err := srv.Start(context.Background()); err != nil {
-		fmt.Fprintf(out, "server failed: %v\n", err) //nolint:errcheck
+	if startErr := srv.Start(context.Background()); startErr != nil {
+		fmt.Fprintf(out, "server failed: %v\n", startErr) //nolint:errcheck
 		_ = srv.Shutdown(context.Background())
 		return 1
 	}

@@ -52,9 +52,9 @@ func NewDB(path string) (*sql.DB, error) {
 	db.SetMaxIdleConns(5)
 
 	// Verify the connection is alive and PRAGMAs were applied.
-	if err := db.Ping(); err != nil {
+	if pingErr := db.Ping(); pingErr != nil {
 		db.Close()
-		return nil, fmt.Errorf("sqlite.NewDB: ping %q: %w", path, err)
+		return nil, fmt.Errorf("sqlite.NewDB: ping %q: %w", path, pingErr)
 	}
 
 	return db, nil

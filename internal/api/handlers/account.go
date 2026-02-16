@@ -80,14 +80,14 @@ type Meta struct {
 // Task 1.3.7: Create a new account (CRUD + Multi-tenancy)
 func (h *AccountHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 
 	var req CreateAccountRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -99,7 +99,7 @@ func (h *AccountHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create account via service
-	account, err := h.accountService.Create(ctx, crm.CreateAccountInput{
+	account, svcErr := h.accountService.Create(ctx, crm.CreateAccountInput{
 		WorkspaceID: wsID,
 		Name:        req.Name,
 		Domain:      req.Domain,
@@ -109,15 +109,15 @@ func (h *AccountHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 		Address:     req.Address,
 		Metadata:    req.Metadata,
 	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create account: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create account: %v", svcErr))
 		return
 	}
 
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(accountToResponse(account)); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(accountToResponse(account)); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
@@ -127,8 +127,8 @@ func (h *AccountHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 // Task 1.3.7: Retrieve a single account by ID (with multi-tenancy isolation)
 func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
@@ -140,20 +140,20 @@ func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get account via service
-	account, err := h.accountService.Get(ctx, wsID, accountID)
-	if errors.Is(err, sql.ErrNoRows) {
+	account, svcErr := h.accountService.Get(ctx, wsID, accountID)
+	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "account not found")
 		return
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get account: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get account: %v", svcErr))
 		return
 	}
 
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(accountToResponse(account)); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(accountToResponse(account)); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
@@ -163,8 +163,8 @@ func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 // Task 1.3.7: List accounts with pagination filters
 func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
@@ -173,12 +173,12 @@ func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 	page := parsePaginationParams(r)
 
 	// List accounts via service
-	accounts, total, err := h.accountService.List(ctx, wsID, crm.ListAccountsInput{
+	accounts, total, listErr := h.accountService.List(ctx, wsID, crm.ListAccountsInput{
 		Limit:  page.Limit,
 		Offset: page.Offset,
 	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list accounts: %v", err))
+	if listErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list accounts: %v", listErr))
 		return
 	}
 
@@ -195,7 +195,7 @@ func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
@@ -209,8 +209,8 @@ func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 // Fix: use a DB transaction with SELECT FOR UPDATE when migrating to Postgres.
 func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
@@ -221,7 +221,7 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req UpdateAccountRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -230,16 +230,16 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	updateInput := buildUpdateInput(req, existing)
 
 	// Update account via service
-	updated, err := h.accountService.Update(ctx, wsID, accountID, updateInput)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update account: %v", err))
+	updated, upErr := h.accountService.Update(ctx, wsID, accountID, updateInput)
+	if upErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update account: %v", upErr))
 		return
 	}
 
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(accountToResponse(updated)); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(accountToResponse(updated)); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
@@ -253,13 +253,13 @@ func (h *AccountHandler) getAccountForUpdate(w http.ResponseWriter, r *http.Requ
 		return "", nil, false
 	}
 
-	existing, err := h.accountService.Get(ctx, wsID, accountID)
-	if errors.Is(err, sql.ErrNoRows) {
+	existing, svcErr := h.accountService.Get(ctx, wsID, accountID)
+	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "account not found")
 		return "", nil, false
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get account: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get account: %v", svcErr))
 		return "", nil, false
 	}
 
@@ -271,8 +271,8 @@ func (h *AccountHandler) getAccountForUpdate(w http.ResponseWriter, r *http.Requ
 // TD-3 fix: returns 404 if account does not exist or is already deleted
 func (h *AccountHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
@@ -284,19 +284,19 @@ func (h *AccountHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify account exists (and is not already soft-deleted) before deleting (TD-3)
-	_, err = h.accountService.Get(ctx, wsID, accountID)
-	if errors.Is(err, sql.ErrNoRows) {
+	_, getErr := h.accountService.Get(ctx, wsID, accountID)
+	if errors.Is(getErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "account not found")
 		return
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get account: %v", err))
+	if getErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get account: %v", getErr))
 		return
 	}
 
 	// Delete account via service (soft delete)
-	if err := h.accountService.Delete(ctx, wsID, accountID); err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete account: %v", err))
+	if delErr := h.accountService.Delete(ctx, wsID, accountID); delErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete account: %v", delErr))
 		return
 	}
 

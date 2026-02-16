@@ -149,16 +149,16 @@ func (r *ToolRegistry) ListToolDefinitions(ctx context.Context, workspaceID stri
 		}
 		out = append(out, item)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, rowsErr
 	}
 	return out, nil
 }
 
 func (r *ToolRegistry) ValidateParams(ctx context.Context, workspaceID, toolName string, params json.RawMessage) error {
-	def, err := r.getToolDefinitionByName(ctx, workspaceID, toolName)
-	if err != nil {
-		return err
+	def, defErr := r.getToolDefinitionByName(ctx, workspaceID, toolName)
+	if defErr != nil {
+		return defErr
 	}
 
 	if len(params) == 0 {
@@ -166,17 +166,17 @@ func (r *ToolRegistry) ValidateParams(ctx context.Context, workspaceID, toolName
 	}
 
 	var input map[string]any
-	if err := json.Unmarshal(params, &input); err != nil {
+	if unmarshalErr := json.Unmarshal(params, &input); unmarshalErr != nil {
 		return fmt.Errorf("%w: params must be a json object", ErrToolValidationFailed)
 	}
 
 	var schema map[string]any
-	if err := json.Unmarshal(def.InputSchema, &schema); err != nil {
+	if unmarshalErr := json.Unmarshal(def.InputSchema, &schema); unmarshalErr != nil {
 		return fmt.Errorf("%w: invalid persisted schema", ErrToolValidationFailed)
 	}
 
-	if err := validateAgainstMinimalSchema(input, schema); err != nil {
-		return err
+	if valErr := validateAgainstMinimalSchema(input, schema); valErr != nil {
+		return valErr
 	}
 
 	return nil
@@ -191,19 +191,19 @@ func (r *ToolRegistry) getToolDefinitionByName(ctx context.Context, workspaceID,
 		LIMIT 1
 	`, workspaceID, toolName)
 
-	item, err := scanToolDefinition(row)
-	if errors.Is(err, sql.ErrNoRows) {
+	item, scanErr := scanToolDefinition(row)
+	if errors.Is(scanErr, sql.ErrNoRows) {
 		return nil, ErrToolDefinitionNotFound
 	}
-	if err != nil {
-		return nil, err
+	if scanErr != nil {
+		return nil, scanErr
 	}
 	return item, nil
 }
 
 func validateAgainstMinimalSchema(input, schema map[string]any) error {
-	if err := validateRequiredFields(input, extractStringSlice(schema["required"])); err != nil {
-		return err
+	if valErr := validateRequiredFields(input, extractStringSlice(schema["required"])); valErr != nil {
+		return valErr
 	}
 
 	if resolveAdditionalProperties(schema) {
@@ -215,7 +215,7 @@ func validateAgainstMinimalSchema(input, schema map[string]any) error {
 
 func validateRequiredFields(input map[string]any, requiredKeys []string) error {
 	for _, key := range requiredKeys {
-		if _, ok := input[key]; !ok {
+		if _, keyExists := input[key]; !keyExists {
 			return fmt.Errorf("%w: missing required field %q", ErrToolValidationFailed, key)
 		}
 	}
@@ -224,27 +224,25 @@ func validateRequiredFields(input map[string]any, requiredKeys []string) error {
 
 func resolveAdditionalProperties(schema map[string]any) bool {
 	allowAdditional := true
-	if v, ok := schema["additionalProperties"].(bool); ok {
-		allowAdditional = v
+	if addProp, hasProp := schema["additionalProperties"].(bool); hasProp {
+		allowAdditional = addProp
 	}
 	return allowAdditional
 }
 
 func buildAllowedPropsSet(schema map[string]any) map[string]struct{} {
 	allowedProps := map[string]struct{}{}
-	props, ok := schema["properties"].(map[string]any)
-	if !ok {
-		return allowedProps
-	}
-	for key := range props {
-		allowedProps[key] = struct{}{}
+	if props, hasProps := schema["properties"].(map[string]any); hasProps {
+		for key := range props {
+			allowedProps[key] = struct{}{}
+		}
 	}
 	return allowedProps
 }
 
 func validateUnknownFields(input map[string]any, allowedProps map[string]struct{}) error {
 	for key := range input {
-		if _, ok := allowedProps[key]; !ok {
+		if _, allowed := allowedProps[key]; !allowed {
 			return fmt.Errorf("%w: unknown field %q", ErrToolValidationFailed, key)
 		}
 	}
@@ -252,18 +250,16 @@ func validateUnknownFields(input map[string]any, allowedProps map[string]struct{
 }
 
 func extractStringSlice(v any) []string {
-	arr, ok := v.([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]string, 0, len(arr))
-	for _, item := range arr {
-		s, ok := item.(string)
-		if ok && strings.TrimSpace(s) != "" {
-			out = append(out, s)
+	if arr, isArr := v.([]any); isArr {
+		out := make([]string, 0, len(arr))
+		for _, item := range arr {
+			if s, isStr := item.(string); isStr && strings.TrimSpace(s) != "" {
+				out = append(out, s)
+			}
 		}
+		return out
 	}
-	return out
+	return nil
 }
 
 type toolScanner interface {

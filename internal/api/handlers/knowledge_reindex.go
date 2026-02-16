@@ -31,20 +31,20 @@ type reindexResponse struct {
 func (h *KnowledgeReindexHandler) Reindex(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusUnauthorized, "missing workspace context")
 		return
 	}
 
 	var req reindexRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	queued, err := h.reindexService.QueueWorkspaceReindex(ctx, wsID, req.EntityType)
-	if err != nil {
+	queued, queueErr := h.reindexService.QueueWorkspaceReindex(ctx, wsID, req.EntityType)
+	if queueErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to queue reindex")
 		return
 	}
@@ -53,10 +53,10 @@ func (h *KnowledgeReindexHandler) Reindex(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(reindexResponse{
+	if encodeErr := json.NewEncoder(w).Encode(reindexResponse{
 		ItemsQueued:   queued,
 		EstimatedTime: fmt.Sprintf("%ds", int(estimated.Seconds()+0.5)),
-	}); err != nil {
+	}); encodeErr != nil {
 		http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
 	}
 }

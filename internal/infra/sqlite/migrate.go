@@ -37,17 +37,17 @@ func MigrateUp(db *sql.DB) error {
 		version := versionFromFilename(f.name)
 
 		// Skip already-applied migrations
-		applied, err := isMigrationApplied(db, version)
-		if err != nil {
-			return fmt.Errorf("migrate: check applied %d: %w", version, err)
+		applied, checkErr := isMigrationApplied(db, version)
+		if checkErr != nil {
+			return fmt.Errorf("migrate: check applied %d: %w", version, checkErr)
 		}
 		if applied {
 			continue
 		}
 
 		// Apply migration in a transaction
-		if err := applyMigration(db, version, f.name, f.sql); err != nil {
-			return fmt.Errorf("migrate: apply %s: %w", f.name, err)
+		if applyErr := applyMigration(db, version, f.name, f.sql); applyErr != nil {
+			return fmt.Errorf("migrate: apply %s: %w", f.name, applyErr)
 		}
 	}
 
@@ -157,16 +157,16 @@ func applyMigration(db *sql.DB, version int, name, sqlContent string) error {
 	}()
 
 	// Execute the migration SQL (may contain multiple statements)
-	if _, err := tx.Exec(sqlContent); err != nil {
-		return fmt.Errorf("exec SQL: %w", err)
+	if _, execErr := tx.Exec(sqlContent); execErr != nil {
+		return fmt.Errorf("exec SQL: %w", execErr)
 	}
 
 	// Record as applied
-	if _, err := tx.Exec(
+	if _, execErr := tx.Exec(
 		"INSERT INTO schema_migrations (version, name) VALUES (?, ?)",
 		version, name,
-	); err != nil {
-		return fmt.Errorf("record migration: %w", err)
+	); execErr != nil {
+		return fmt.Errorf("record migration: %w", execErr)
 	}
 
 	return tx.Commit()

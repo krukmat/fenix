@@ -72,8 +72,8 @@ func (s *AttachmentService) Create(ctx context.Context, input CreateAttachmentIn
 	if err != nil {
 		return nil, fmt.Errorf("create attachment: %w", err)
 	}
-	if err := createTimelineEvent(ctx, s.querier, input.WorkspaceID, input.EntityType, input.EntityID, input.UploaderID, "attachment_created"); err != nil {
-		return nil, fmt.Errorf("create attachment timeline: %w", err)
+	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, input.EntityType, input.EntityID, input.UploaderID, "attachment_created"); timelineErr != nil {
+		return nil, fmt.Errorf("create attachment timeline: %w", timelineErr)
 	}
 	return s.Get(ctx, input.WorkspaceID, id)
 }
@@ -113,8 +113,8 @@ func (s *AttachmentService) Delete(ctx context.Context, workspaceID, attachmentI
 		return fmt.Errorf("delete attachment: %w", err)
 	}
 	if existing != nil {
-		if err := createTimelineEvent(ctx, s.querier, workspaceID, existing.EntityType, existing.EntityID, existing.UploaderID, "attachment_deleted"); err != nil {
-			return fmt.Errorf("delete attachment timeline: %w", err)
+		if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, existing.EntityType, existing.EntityID, existing.UploaderID, "attachment_deleted"); timelineErr != nil {
+			return fmt.Errorf("delete attachment timeline: %w", timelineErr)
 		}
 	}
 	return nil

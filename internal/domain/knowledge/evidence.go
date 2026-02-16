@@ -270,9 +270,9 @@ func (s *EvidencePackService) isStale(ctx context.Context, itemID, wsID string) 
 }
 
 func (s *EvidencePackService) getRepresentativeVectors(ctx context.Context, wsID string) (map[string][]float32, error) {
-	rows, err := s.q.GetAllEmbeddedVectorsByWorkspace(ctx, wsID)
-	if err != nil {
-		return nil, err
+	rows, rowsErr := s.q.GetAllEmbeddedVectorsByWorkspace(ctx, wsID)
+	if rowsErr != nil {
+		return nil, rowsErr
 	}
 
 	out := make(map[string][]float32, len(rows))
@@ -280,8 +280,8 @@ func (s *EvidencePackService) getRepresentativeVectors(ctx context.Context, wsID
 		if _, exists := out[row.KnowledgeItemID]; exists {
 			continue
 		}
-		vec, err := decodeEmbedding(row.Embedding)
-		if err != nil {
+		vec, decodeErr := decodeEmbedding(row.Embedding)
+		if decodeErr != nil {
 			continue
 		}
 		out[row.KnowledgeItemID] = vec

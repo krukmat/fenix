@@ -119,8 +119,8 @@ func (s *CaseService) Create(ctx context.Context, input CreateCaseInput) (*CaseT
 	if err != nil {
 		return nil, fmt.Errorf("create case: %w", err)
 	}
-	if err := createTimelineEvent(ctx, s.querier, input.WorkspaceID, "case_ticket", id, input.OwnerID, "created"); err != nil {
-		return nil, fmt.Errorf("create case timeline: %w", err)
+	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, "case_ticket", id, input.OwnerID, "created"); timelineErr != nil {
+		return nil, fmt.Errorf("create case timeline: %w", timelineErr)
 	}
 	s.publishRecordChanged(knowledge.ChangeTypeCreated, input.WorkspaceID, id)
 
@@ -180,8 +180,8 @@ func (s *CaseService) Update(ctx context.Context, workspaceID, caseID string, in
 	if err != nil {
 		return nil, fmt.Errorf("update case: %w", err)
 	}
-	if err := createTimelineEvent(ctx, s.querier, workspaceID, "case_ticket", caseID, input.OwnerID, "updated"); err != nil {
-		return nil, fmt.Errorf("update case timeline: %w", err)
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, "case_ticket", caseID, input.OwnerID, "updated"); timelineErr != nil {
+		return nil, fmt.Errorf("update case timeline: %w", timelineErr)
 	}
 	s.publishRecordChanged(knowledge.ChangeTypeUpdated, workspaceID, caseID)
 
@@ -199,8 +199,8 @@ func (s *CaseService) Delete(ctx context.Context, workspaceID, caseID string) er
 	if err != nil {
 		return fmt.Errorf("soft delete case: %w", err)
 	}
-	if err := createTimelineEvent(ctx, s.querier, workspaceID, "case_ticket", caseID, "", "deleted"); err != nil {
-		return fmt.Errorf("delete case timeline: %w", err)
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, "case_ticket", caseID, "", "deleted"); timelineErr != nil {
+		return fmt.Errorf("delete case timeline: %w", timelineErr)
 	}
 	s.publishRecordChanged(knowledge.ChangeTypeDeleted, workspaceID, caseID)
 	return nil

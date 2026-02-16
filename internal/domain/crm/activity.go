@@ -99,8 +99,8 @@ func (s *ActivityService) Create(ctx context.Context, input CreateActivityInput)
 	if err != nil {
 		return nil, fmt.Errorf("create activity: %w", err)
 	}
-	if err := createTimelineEvent(ctx, s.querier, input.WorkspaceID, input.EntityType, input.EntityID, input.OwnerID, "activity_created"); err != nil {
-		return nil, fmt.Errorf("create activity timeline: %w", err)
+	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, input.EntityType, input.EntityID, input.OwnerID, "activity_created"); timelineErr != nil {
+		return nil, fmt.Errorf("create activity timeline: %w", timelineErr)
 	}
 
 	return s.Get(ctx, input.WorkspaceID, id)
@@ -154,8 +154,8 @@ func (s *ActivityService) Update(ctx context.Context, workspaceID, activityID st
 	if err != nil {
 		return nil, fmt.Errorf("update activity: %w", err)
 	}
-	if err := createTimelineEvent(ctx, s.querier, workspaceID, input.EntityType, input.EntityID, input.OwnerID, "activity_updated"); err != nil {
-		return nil, fmt.Errorf("update activity timeline: %w", err)
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, input.EntityType, input.EntityID, input.OwnerID, "activity_updated"); timelineErr != nil {
+		return nil, fmt.Errorf("update activity timeline: %w", timelineErr)
 	}
 
 	return s.Get(ctx, workspaceID, activityID)
@@ -166,8 +166,8 @@ func (s *ActivityService) Delete(ctx context.Context, workspaceID, activityID st
 	if err != nil {
 		return fmt.Errorf("delete activity: %w", err)
 	}
-	if err := createTimelineEvent(ctx, s.querier, workspaceID, "activity", activityID, "", "activity_deleted"); err != nil {
-		return fmt.Errorf("delete activity timeline: %w", err)
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, "activity", activityID, "", "activity_deleted"); timelineErr != nil {
+		return fmt.Errorf("delete activity timeline: %w", timelineErr)
 	}
 	return nil
 }

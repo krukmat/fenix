@@ -50,14 +50,14 @@ type evidenceSource struct {
 func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusUnauthorized, "missing workspace context")
 		return
 	}
 
 	var req evidenceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -67,12 +67,12 @@ func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	pack, err := h.evidenceService.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
+	pack, buildErr := h.evidenceService.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
 		Query:       req.Query,
 		WorkspaceID: wsID,
 		Limit:       req.Limit,
 	})
-	if err != nil {
+	if buildErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to build evidence pack")
 		return
 	}
@@ -92,7 +92,7 @@ func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(evidenceResponse{
+	if encodeErr := json.NewEncoder(w).Encode(evidenceResponse{
 		Data: evidenceData{
 			Sources:         sources,
 			Confidence:      string(pack.Confidence),
@@ -100,7 +100,7 @@ func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request)
 			FilteredCount:   pack.FilteredCount,
 			Warnings:        pack.Warnings,
 		},
-	}); err != nil {
+	}); encodeErr != nil {
 		http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
 	}
 }

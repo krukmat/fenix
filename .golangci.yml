@@ -1,5 +1,5 @@
 run:
-  timeout: 5m
+  timeout: 10m
 
 linters:
   enable:
@@ -9,11 +9,25 @@ linters:
     - gocognit
     - maintidx
     - funlen
+    - govet
+    - ineffassign
+    - reassign
+    - goconst
   disable:
     - gocyclo
 
 linters-settings:
   # Alarmas (no refactor hints directos, pero útiles)
+  goconst:
+    min-len: 2           # detecta strings cortas también
+    min-occurrences: 3   # con 2 repeticiones ya obliga a extraer
+    match-constant: true # si ya existe const igual, lo usa como match
+    ignore-calls: false  # no lo limites solo a args de funciones
+    find-duplicates: true
+    eval-const-expressions: true
+    # opcional: excluir patrones (tokens, IDs, etc.)
+    ignore-string-values:
+      - '^[0-9a-f]{8,}$'
   gocognit:
     min-complexity: 10
 
@@ -28,6 +42,12 @@ linters-settings:
   funlen:
     lines: 80
     statements: 40
+  govet:
+    enable:
+      - shadow
+    settings:
+      shadow:
+        strict: true
 
   # go-critic settings (algunos ejemplos de thresholds configurables)
   gocritic:

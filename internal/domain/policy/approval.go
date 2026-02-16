@@ -143,13 +143,13 @@ func (s *ApprovalService) DecideApprovalRequest(ctx context.Context, id, decisio
 		return err
 	}
 
-	if err := validateApprovalDecision(req, decidedBy); err != nil {
-		return err
+	if validateErr := validateApprovalDecision(req, decidedBy); validateErr != nil {
+		return validateErr
 	}
 
 	now := time.Now().UTC()
-	if err := s.expireIfNeeded(ctx, req, id, decidedBy, now); err != nil {
-		return err
+	if expireErr := s.expireIfNeeded(ctx, req, id, decidedBy, now); expireErr != nil {
+		return expireErr
 	}
 
 	return s.applyDecision(ctx, req, id, decidedBy, status, now)
@@ -175,8 +175,8 @@ func (s *ApprovalService) GetPendingApprovals(ctx context.Context, userID string
 		return nil, err
 	}
 
-	if err := s.markApprovalsExpired(ctx, expiredIDs, now); err != nil {
-		return nil, err
+	if expireErr := s.markApprovalsExpired(ctx, expiredIDs, now); expireErr != nil {
+		return nil, expireErr
 	}
 
 	return items, nil

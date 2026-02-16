@@ -69,9 +69,9 @@ func (h *PromptHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	versions, err := h.service.ListPromptVersions(r.Context(), workspaceID, agentID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	versions, listErr := h.service.ListPromptVersions(r.Context(), workspaceID, agentID)
+	if listErr != nil {
+		http.Error(w, listErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -79,7 +79,7 @@ func (h *PromptHandler) List(w http.ResponseWriter, r *http.Request) {
 		"data": toPromptVersionResponses(versions),
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 	}
 }
@@ -157,16 +157,16 @@ func (h *PromptHandler) Promote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.service.PromotePrompt(r.Context(), workspaceID, promptVersionID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	promErr := h.service.PromotePrompt(r.Context(), workspaceID, promptVersionID)
+	if promErr != nil {
+		http.Error(w, promErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Obtén la versión actualizada
-	pv, err := h.service.GetPromptVersionByID(r.Context(), workspaceID, promptVersionID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	pv, getErr := h.service.GetPromptVersionByID(r.Context(), workspaceID, promptVersionID)
+	if getErr != nil {
+		http.Error(w, getErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -174,7 +174,7 @@ func (h *PromptHandler) Promote(w http.ResponseWriter, r *http.Request) {
 		"data": toPromptVersionResponse(pv),
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 	}
 }
@@ -194,15 +194,15 @@ func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.RollbackPrompt(r.Context(), workspaceID, agentID); err != nil {
-		writeRollbackError(w, err)
+	if rollErr := h.service.RollbackPrompt(r.Context(), workspaceID, agentID); rollErr != nil {
+		writeRollbackError(w, rollErr)
 		return
 	}
 
 	// Obtén la versión reactivada
-	pv, err := h.service.GetActivePrompt(r.Context(), workspaceID, agentID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	pv, getErr := h.service.GetActivePrompt(r.Context(), workspaceID, agentID)
+	if getErr != nil {
+		http.Error(w, getErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -210,7 +210,7 @@ func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 		"data": toPromptVersionResponse(pv),
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 	}
 }

@@ -81,9 +81,9 @@ func (s *EmbedderService) EmbedChunks(ctx context.Context, knowledgeItemID, work
 		return fmt.Errorf("embedder: LLM.Embed: %w", err)
 	}
 
-	if err := s.storeVectors(ctx, chunks, vecs, workspaceID); err != nil {
+	if storeErr := s.storeVectors(ctx, chunks, vecs, workspaceID); storeErr != nil {
 		s.markAllFailed(ctx, chunks)
-		return fmt.Errorf("embedder: store vectors: %w", err)
+		return fmt.Errorf("embedder: store vectors: %w", storeErr)
 	}
 	return nil
 }
@@ -124,35 +124,35 @@ func (s *EmbedderService) callEmbedWithRetry(ctx context.Context, texts []string
 // embedding_document as 'embedded'. Runs in a single transaction.
 func (s *EmbedderService) storeVectors(ctx context.Context, chunks []sqlcgen.EmbeddingDocument, vecs [][]float32, workspaceID string) error {
 	now := time.Now()
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
+	tx, txErr := s.db.BeginTx(ctx, nil)
+	if txErr != nil {
+		return txErr
 	}
 	defer tx.Rollback() //nolint:errcheck
 
 	qtx := sqlcgen.New(tx)
 	for i, chunk := range chunks {
-		embJSON, err := encodeEmbedding(vecs[i])
-		if err != nil {
-			return fmt.Errorf("encode embedding[%d]: %w", i, err)
+		embJSON, encErr := encodeEmbedding(vecs[i])
+		if encErr != nil {
+			return fmt.Errorf("encode embedding[%d]: %w", i, encErr)
 		}
 
-		if err := qtx.InsertVecEmbedding(ctx, sqlcgen.InsertVecEmbeddingParams{
+		if insErr := qtx.InsertVecEmbedding(ctx, sqlcgen.InsertVecEmbeddingParams{
 			ID:          chunk.ID,
 			WorkspaceID: workspaceID,
 			Embedding:   embJSON,
 			CreatedAt:   now,
-		}); err != nil {
-			return fmt.Errorf("insert vec_embedding[%d]: %w", i, err)
+		}); insErr != nil {
+			return fmt.Errorf("insert vec_embedding[%d]: %w", i, insErr)
 		}
 
-		if err := qtx.UpdateEmbeddingDocumentStatus(ctx, sqlcgen.UpdateEmbeddingDocumentStatusParams{
+		if updErr := qtx.UpdateEmbeddingDocumentStatus(ctx, sqlcgen.UpdateEmbeddingDocumentStatusParams{
 			EmbeddingStatus: string(EmbeddingStatusEmbedded),
 			EmbeddedAt:      &now,
 			ID:              chunk.ID,
 			WorkspaceID:     workspaceID,
-		}); err != nil {
-			return fmt.Errorf("update embedding_document[%d]: %w", i, err)
+		}); updErr != nil {
+			return fmt.Errorf("update embedding_document[%d]: %w", i, updErr)
 		}
 	}
 	return tx.Commit()

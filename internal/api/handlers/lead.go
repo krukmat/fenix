@@ -72,14 +72,14 @@ type PaginatedResponse struct {
 // Task 1.5: Create a new lead (CRUD + Multi-tenancy)
 func (h *LeadHandler) CreateLead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 
 	var req CreateLeadRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -91,7 +91,7 @@ func (h *LeadHandler) CreateLead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create lead via service
-	lead, err := h.leadService.Create(ctx, crm.CreateLeadInput{
+	lead, svcErr := h.leadService.Create(ctx, crm.CreateLeadInput{
 		WorkspaceID: wsID,
 		ContactID:   req.ContactID,
 		AccountID:   req.AccountID,
@@ -101,15 +101,15 @@ func (h *LeadHandler) CreateLead(w http.ResponseWriter, r *http.Request) {
 		Score:       req.Score,
 		Metadata:    req.Metadata,
 	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create lead: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create lead: %v", svcErr))
 		return
 	}
 
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(leadToResponse(lead)); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(leadToResponse(lead)); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
@@ -119,8 +119,8 @@ func (h *LeadHandler) CreateLead(w http.ResponseWriter, r *http.Request) {
 // Task 1.5: Retrieve a single lead by ID (with multi-tenancy isolation)
 func (h *LeadHandler) GetLead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
@@ -132,20 +132,20 @@ func (h *LeadHandler) GetLead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get lead via service
-	lead, err := h.leadService.Get(ctx, wsID, leadID)
-	if errors.Is(err, sql.ErrNoRows) {
+	lead, svcErr := h.leadService.Get(ctx, wsID, leadID)
+	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "lead not found")
 		return
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get lead: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get lead: %v", svcErr))
 		return
 	}
 
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(leadToResponse(lead)); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(leadToResponse(lead)); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
@@ -155,8 +155,8 @@ func (h *LeadHandler) GetLead(w http.ResponseWriter, r *http.Request) {
 // Task 1.5: List leads with pagination filters
 func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
@@ -172,9 +172,10 @@ func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 
 	if ownerID != "" {
 		// List by owner
-		leads, err = h.leadService.ListByOwner(ctx, wsID, ownerID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list leads: %v", err))
+		var listErr error
+		leads, listErr = h.leadService.ListByOwner(ctx, wsID, ownerID)
+		if listErr != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list leads: %v", listErr))
 			return
 		}
 		total = len(leads)
@@ -182,12 +183,13 @@ func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 		leads = applyPagination(leads, page.Limit, page.Offset)
 	} else {
 		// List all with pagination
-		leads, total, err = h.leadService.List(ctx, wsID, crm.ListLeadsInput{
+		var listErr error
+		leads, total, listErr = h.leadService.List(ctx, wsID, crm.ListLeadsInput{
 			Limit:  page.Limit,
 			Offset: page.Offset,
 		})
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list leads: %v", err))
+		if listErr != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list leads: %v", listErr))
 			return
 		}
 	}
@@ -205,7 +207,7 @@ func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
@@ -215,8 +217,8 @@ func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 // Task 1.5: Update a lead (partial update allowed)
 func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
@@ -227,7 +229,7 @@ func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req UpdateLeadRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -236,16 +238,16 @@ func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 	updateInput := buildLeadUpdateInput(req, existing)
 
 	// Update lead via service
-	updated, err := h.leadService.Update(ctx, wsID, leadID, updateInput)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update lead: %v", err))
+	updated, upErr := h.leadService.Update(ctx, wsID, leadID, updateInput)
+	if upErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update lead: %v", upErr))
 		return
 	}
 
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(leadToResponse(updated)); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(leadToResponse(updated)); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
@@ -259,13 +261,13 @@ func (h *LeadHandler) getLeadForUpdate(w http.ResponseWriter, r *http.Request, w
 		return "", nil, false
 	}
 
-	existing, err := h.leadService.Get(ctx, wsID, leadID)
-	if errors.Is(err, sql.ErrNoRows) {
+	existing, svcErr := h.leadService.Get(ctx, wsID, leadID)
+	if errors.Is(svcErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "lead not found")
 		return "", nil, false
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get lead: %v", err))
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get lead: %v", svcErr))
 		return "", nil, false
 	}
 
@@ -276,8 +278,8 @@ func (h *LeadHandler) getLeadForUpdate(w http.ResponseWriter, r *http.Request, w
 // Task 1.5: Soft delete a lead (sets deleted_at timestamp)
 func (h *LeadHandler) DeleteLead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, err := getWorkspaceID(ctx)
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(ctx)
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
@@ -289,19 +291,19 @@ func (h *LeadHandler) DeleteLead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify lead exists (and is not already soft-deleted) before deleting
-	_, err = h.leadService.Get(ctx, wsID, leadID)
-	if errors.Is(err, sql.ErrNoRows) {
+	_, getErr := h.leadService.Get(ctx, wsID, leadID)
+	if errors.Is(getErr, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "lead not found")
 		return
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get lead: %v", err))
+	if getErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get lead: %v", getErr))
 		return
 	}
 
 	// Delete lead via service (soft delete)
-	if err := h.leadService.Delete(ctx, wsID, leadID); err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete lead: %v", err))
+	if delErr := h.leadService.Delete(ctx, wsID, leadID); delErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete lead: %v", delErr))
 		return
 	}
 

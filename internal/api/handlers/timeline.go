@@ -16,38 +16,38 @@ func NewTimelineHandler(service *crm.TimelineService) *TimelineHandler {
 }
 
 func (h *TimelineHandler) ListTimeline(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	page := parsePaginationParams(r)
-	items, total, err := h.service.List(r.Context(), wsID, crm.ListTimelineInput{Limit: page.Limit, Offset: page.Offset})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list timeline: %v", err))
+	items, total, listErr := h.service.List(r.Context(), wsID, crm.ListTimelineInput{Limit: page.Limit, Offset: page.Offset})
+	if listErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list timeline: %v", listErr))
 		return
 	}
-	if err := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}
 }
 
 func (h *TimelineHandler) ListTimelineByEntity(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, "missing workspace_id in context")
 		return
 	}
 	entityType := chi.URLParam(r, "entity_type")
 	entityID := chi.URLParam(r, "entity_id")
 	page := parsePaginationParams(r)
-	items, err := h.service.ListByEntity(r.Context(), wsID, entityType, entityID, crm.ListTimelineInput{Limit: page.Limit, Offset: page.Offset})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list timeline by entity: %v", err))
+	items, listErr := h.service.ListByEntity(r.Context(), wsID, entityType, entityID, crm.ListTimelineInput{Limit: page.Limit, Offset: page.Offset})
+	if listErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list timeline by entity: %v", listErr))
 		return
 	}
-	if err := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: len(items), Limit: page.Limit, Offset: page.Offset}}); err != nil {
+	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: len(items), Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to encode response")
 		return
 	}

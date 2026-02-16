@@ -84,8 +84,8 @@ func (s *LeadService) Create(ctx context.Context, input CreateLeadInput) (*Lead,
 	if err != nil {
 		return nil, fmt.Errorf("create lead: %w", err)
 	}
-	if err := createTimelineEvent(ctx, s.querier, input.WorkspaceID, "lead", id, input.OwnerID, "created"); err != nil {
-		return nil, fmt.Errorf("create lead timeline: %w", err)
+	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, "lead", id, input.OwnerID, "created"); timelineErr != nil {
+		return nil, fmt.Errorf("create lead timeline: %w", timelineErr)
 	}
 
 	return s.Get(ctx, input.WorkspaceID, id)
@@ -150,8 +150,8 @@ func (s *LeadService) Update(ctx context.Context, workspaceID, leadID string, in
 	if err != nil {
 		return nil, fmt.Errorf("update lead: %w", err)
 	}
-	if err := createTimelineEvent(ctx, s.querier, workspaceID, "lead", leadID, input.OwnerID, "updated"); err != nil {
-		return nil, fmt.Errorf("update lead timeline: %w", err)
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, "lead", leadID, input.OwnerID, "updated"); timelineErr != nil {
+		return nil, fmt.Errorf("update lead timeline: %w", timelineErr)
 	}
 
 	return s.Get(ctx, workspaceID, leadID)
@@ -168,8 +168,8 @@ func (s *LeadService) Delete(ctx context.Context, workspaceID, leadID string) er
 	if err != nil {
 		return fmt.Errorf("soft delete lead: %w", err)
 	}
-	if err := createTimelineEvent(ctx, s.querier, workspaceID, "lead", leadID, "", "deleted"); err != nil {
-		return fmt.Errorf("delete lead timeline: %w", err)
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, "lead", leadID, "", "deleted"); timelineErr != nil {
+		return fmt.Errorf("delete lead timeline: %w", timelineErr)
 	}
 	return nil
 }

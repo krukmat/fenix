@@ -93,19 +93,19 @@ func (r *ToolRegistry) listWorkspaceIDs(ctx context.Context) ([]string, error) {
 
 	for rows.Next() {
 		var workspaceID string
-		if err := rows.Scan(&workspaceID); err != nil {
+		if scanErr := rows.Scan(&workspaceID); scanErr != nil {
 			_ = rows.Close()
-			return nil, err
+			return nil, scanErr
 		}
 		workspaceIDs = append(workspaceIDs, workspaceID)
 	}
 
-	if err := rows.Err(); err != nil {
+	if rowsErr := rows.Err(); rowsErr != nil {
 		_ = rows.Close()
-		return nil, err
+		return nil, rowsErr
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, closeErr
 	}
 	return workspaceIDs, nil
 }

@@ -248,14 +248,14 @@ func (o *Orchestrator) ListAgentRuns(ctx context.Context, workspaceID string, li
 
 	runs := make([]*Run, 0)
 	for rows.Next() {
-		run, err := scanAgentRun(rows)
-		if err != nil {
-			return nil, 0, err
+		run, scanErr := scanAgentRun(rows)
+		if scanErr != nil {
+			return nil, 0, scanErr
 		}
 		runs = append(runs, run)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, 0, err
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, 0, rowsErr
 	}
 
 	// Get total count
@@ -263,8 +263,8 @@ func (o *Orchestrator) ListAgentRuns(ctx context.Context, workspaceID string, li
 	countRow := o.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM agent_run WHERE workspace_id = ?
 	`, workspaceID)
-	if err := countRow.Scan(&total); err != nil {
-		return nil, 0, err
+	if scanErr := countRow.Scan(&total); scanErr != nil {
+		return nil, 0, scanErr
 	}
 
 	return runs, total, nil

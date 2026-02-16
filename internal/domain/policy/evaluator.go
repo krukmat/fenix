@@ -284,17 +284,17 @@ func (p *PolicyEngine) tableExists(ctx context.Context, name string) (bool, erro
 
 func (p *PolicyEngine) fetchToolRequiredPermissions(ctx context.Context, toolID string) (string, bool, error) {
 	var raw sql.NullString
-	err := p.db.QueryRowContext(ctx, `
+	dbErr := p.db.QueryRowContext(ctx, `
 		SELECT required_permissions
 		FROM tool_definition
 		WHERE id = ?
 		LIMIT 1
 	`, toolID).Scan(&raw)
-	if err == sql.ErrNoRows {
+	if dbErr == sql.ErrNoRows {
 		return "", false, nil
 	}
-	if err != nil {
-		return "", false, err
+	if dbErr != nil {
+		return "", false, dbErr
 	}
 	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
 		return "", false, nil

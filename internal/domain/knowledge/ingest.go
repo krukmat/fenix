@@ -58,25 +58,25 @@ func (s *IngestService) Ingest(ctx context.Context, input CreateKnowledgeItemInp
 	normalized := normalizeContent(input.RawContent)
 	existingID := s.findExistingItemID(ctx, input)
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
+	tx, txErr := s.db.BeginTx(ctx, nil)
+	if txErr != nil {
+		return nil, txErr
 	}
 	defer tx.Rollback() //nolint:errcheck
 
 	qtx := sqlcgen.New(tx)
-	itemID, err := s.upsertKnowledgeItem(ctx, tx, qtx, existingID, input, normalized, now)
-	if err != nil {
-		return nil, err
+	itemID, upErr := s.upsertKnowledgeItem(ctx, tx, qtx, existingID, input, normalized, now)
+	if upErr != nil {
+		return nil, upErr
 	}
 
 	chunks := Chunk(input.RawContent, DefaultChunkSize, DefaultChunkOverlap)
-	if err := insertChunks(ctx, qtx, itemID, input.WorkspaceID, chunks, now); err != nil {
-		return nil, err
+	if chunkErr := insertChunks(ctx, qtx, itemID, input.WorkspaceID, chunks, now); chunkErr != nil {
+		return nil, chunkErr
 	}
 
-	if err := tx.Commit(); err != nil {
-		return nil, err
+	if commitErr := tx.Commit(); commitErr != nil {
+		return nil, commitErr
 	}
 
 	s.bus.Publish(TopicKnowledgeIngested, IngestedEventPayload{

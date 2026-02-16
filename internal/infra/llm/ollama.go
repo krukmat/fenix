@@ -95,15 +95,15 @@ func (p *OllamaProvider) embedOne(ctx context.Context, model, text string) ([]fl
 		return nil, err
 	}
 
-	respBody, err := p.doPost(ctx, "/api/embeddings", body)
-	if err != nil {
-		return nil, err
+	respBody, postErr := p.doPost(ctx, "/api/embeddings", body)
+	if postErr != nil {
+		return nil, postErr
 	}
 	defer respBody.Close()
 
 	var ollamaResp ollamaEmbedResponse
-	if err := json.NewDecoder(respBody).Decode(&ollamaResp); err != nil {
-		return nil, fmt.Errorf("decode embed response: %w", err)
+	if decodeErr := json.NewDecoder(respBody).Decode(&ollamaResp); decodeErr != nil {
+		return nil, fmt.Errorf("decode embed response: %w", decodeErr)
 	}
 	return ollamaResp.Embedding, nil
 }
@@ -131,15 +131,15 @@ func (p *OllamaProvider) ChatCompletion(ctx context.Context, req ChatRequest) (*
 		return nil, err
 	}
 
-	respBody, err := p.doPost(ctx, "/api/chat", body)
-	if err != nil {
-		return nil, err
+	respBody, postErr := p.doPost(ctx, "/api/chat", body)
+	if postErr != nil {
+		return nil, postErr
 	}
 	defer respBody.Close()
 
 	var ollamaResp ollamaChatResponse
-	if err := json.NewDecoder(respBody).Decode(&ollamaResp); err != nil {
-		return nil, fmt.Errorf("decode chat response: %w", err)
+	if decodeErr := json.NewDecoder(respBody).Decode(&ollamaResp); decodeErr != nil {
+		return nil, fmt.Errorf("decode chat response: %w", decodeErr)
 	}
 	return &ChatResponse{
 		Content:    ollamaResp.Message.Content,
