@@ -30,18 +30,22 @@
 |-------|-----------|---------------|
 | **Backend** | Go 1.22+ / go-chi (REST) | Excellent concurrency for LLM streaming. Single binary simplifies self-hosting. |
 | **ORM/Queries** | sqlc + modernc.org/sqlite (pure Go) | Type-safe generated code. No CGO dependency, cross-compilation works. |
-| **Frontend** | React 19 + TypeScript + shadcn/ui + Tailwind CSS 4 | Mature ecosystem. TanStack Query for server state. Zustand for client state. |
+| **BFF (Gateway)** | Express.js 5 + TypeScript | Thin proxy between mobile and Go API. Request aggregation, auth relay, SSE proxy. No business logic. |
+| **Mobile App** | React Native + Expo (managed workflow) + React Native Paper | Android-first, iOS later. Material Design 3 via RN Paper. Expo simplifies builds/OTA updates. |
+| **Mobile Navigation** | React Navigation 7 (Stack + Drawer) | Standard navigation library for React Native. Deep linking support. |
+| **Mobile State** | TanStack Query (React Query) + Zustand | Server state cache + client-only state. Same pattern as original plan, adapted for RN. |
+| **Mobile SSE** | react-native-sse or EventSource polyfill | SSE streaming for Copilot chat. Proxied through BFF. |
 | **Database** | SQLite 3 (embedded, WAL mode) | Zero infrastructure. Single file. Perfect for single-node self-hosted MVP. |
 | **Vector Search** | sqlite-vec extension | Native SQLite vector similarity. Same DB file. |
 | **Full-Text Search** | SQLite FTS5 | Built-in BM25 ranking. No external dependency. |
 | **Event Bus** | In-process Go channels | MVP: in-process pub/sub. NATS JetStream for future multi-process. |
 | **Job Queue** | Goroutine pool + SQLite-backed persistence | Jobs in SQLite table. Retries + backoff + DLQ built in. |
 | **Cache** | In-process LRU (ristretto) | No Redis for MVP. Sessions, rate limits, idempotency keys in-memory. |
-| **Auth** | Built-in JWT (MVP) + OIDC hook (future) | Keycloak optional. MVP starts with bcrypt + JWT. |
+| **Auth** | Built-in JWT (MVP) + OIDC hook (future) | Keycloak optional. MVP starts with bcrypt + JWT. BFF relays tokens. |
 | **LLM** | Custom Go interface (OpenAI-compatible) | Ollama/vLLM (local) + OpenAI/Anthropic (cloud). |
-| **Streaming** | Server-Sent Events (SSE) | Unidirectional LLM streaming. Native browser support. |
-| **Observability** | Structured JSON logs + OpenTelemetry (optional) | Logs to stdout. OTel + Grafana as optional upgrade. |
-| **Deployment** | Single binary + SQLite file | `./fenixcrm serve` — that's it. Docker for convenience. |
+| **Streaming** | Server-Sent Events (SSE) | Unidirectional LLM streaming. Go → BFF proxy → Mobile client. |
+| **Observability** | Structured JSON logs + OpenTelemetry (optional) + Sentry (mobile) | Logs to stdout. OTel + Grafana as optional upgrade. Sentry for mobile crash reporting. |
+| **Deployment** | Go single binary + SQLite file + BFF Node process | `./fenixcrm serve` + `node bff/dist/index.js`. Docker Compose for convenience. |
 
 ---
 
@@ -535,11 +539,18 @@ erDiagram
 
 ```mermaid
 flowchart TB
-    subgraph Presentation["Presentation Layer"]
-        SPA["React SPA<br/>CRM UI + Copilot Panel"]
+    subgraph Mobile["Mobile Layer (React Native + Expo)"]
+        RN["React Native App<br/>CRM Screens + Copilot Panel<br/>React Native Paper (MD3)"]
     end
 
-    subgraph Gateway["API Gateway Layer"]
+    subgraph BFF["BFF Layer (Express.js + TypeScript)"]
+        BFFGW["Express.js BFF Gateway"]
+        AUTH_RELAY["Auth Relay Middleware<br/>(JWT forward + refresh)"]
+        AGGREGATOR["Request Aggregator<br/>(Combine Go API calls)"]
+        SSE_PROXY["SSE Proxy<br/>(Copilot streaming relay)"]
+    end
+
+    subgraph Gateway["Go API Gateway Layer"]
         GW["go-chi REST API"]
         AUTHMW["JWT Auth Middleware"]
         RATE["Rate Limiter<br/>(in-memory)"]
@@ -575,9 +586,18 @@ flowchart TB
         LLM_LOCAL["Ollama / vLLM<br/>(Local LLM)"]
         LLM_CLOUD["OpenAI / Anthropic<br/>(Cloud LLM)"]
         OIDC["Keycloak / OIDC<br/>(Optional)"]
+        FCM["Firebase Cloud Messaging<br/>(P1)"]
     end
 
-    SPA -->|"HTTPS + SSE"| GW
+    RN -->|"HTTPS"| BFFGW
+    BFFGW --> AUTH_RELAY
+    BFFGW --> AGGREGATOR
+    BFFGW --> SSE_PROXY
+
+    AUTH_RELAY -->|"HTTPS"| GW
+    AGGREGATOR -->|"HTTPS (multiple calls)"| GW
+    SSE_PROXY -->|"SSE"| GW
+
     GW --> AUTHMW --> RATE
 
     RATE --> CRM_SVC
@@ -626,7 +646,45 @@ flowchart TB
     LLM_ADAPTER --> LLM_CLOUD
 
     AUTHMW -.->|"validate JWT"| OIDC
+    BFFGW -.->|"P1"| FCM
 ```
+
+### 3.1 — BFF (Backend-for-Frontend) Responsibilities
+
+The Express.js BFF is a **thin, stateless proxy** between mobile clients and the Go backend. It contains **zero business logic** and **never accesses SQLite directly**.
+
+#### BFF Responsibilities
+
+| Responsibility | Description | Example |
+|---------------|-------------|---------|
+| **Auth Relay** | Forward JWT tokens from mobile to Go API. Handle token refresh logic (detect 401, re-auth, retry). | Mobile sends `Authorization: Bearer <token>` → BFF forwards to Go. |
+| **Request Aggregation** | Combine multiple Go API calls into a single mobile-optimized response. Reduces mobile round-trips. | Account detail screen: GET account + GET contacts + GET deals + GET timeline = 1 BFF call. |
+| **Response Shaping** | Transform Go API responses for mobile consumption. Strip unnecessary fields, add mobile-specific metadata. | Pagination meta adapted to infinite scroll. |
+| **SSE Proxy** | Relay Server-Sent Events from Go Copilot endpoint to mobile client. Handle connection management. | Mobile opens SSE to BFF `/bff/copilot/chat`. BFF opens SSE to Go `/api/v1/copilot/chat`. Chunks relayed. |
+| **Mobile Headers** | Add mobile-specific headers to Go API requests: device info, app version, push token. | `X-Device-Id`, `X-App-Version`, `X-Push-Token` headers injected by BFF. |
+| **Push Dispatch (P1)** | Listen for Go backend events and dispatch push notifications via FCM. | Agent run completed → BFF sends FCM push to user device. |
+| **Health Check** | Independent health endpoint for BFF process monitoring. | `GET /bff/health` returns BFF status + Go backend reachability. |
+
+#### BFF Architecture Constraints
+
+1. **No direct DB access**: BFF never connects to SQLite. All data flows through Go REST API.
+2. **No business logic**: Validation, authorization, policy enforcement all happen in Go.
+3. **Stateless**: No session state in BFF. All state in JWT tokens or Go backend.
+4. **Idempotent**: BFF relay preserves Go API idempotency keys (`X-Idempotency-Key` header pass-through).
+5. **Transparent errors**: BFF forwards Go API error envelopes to mobile without transformation.
+
+#### BFF API Routes
+
+| Route | Method | Target | Type |
+|-------|--------|--------|------|
+| `/bff/auth/login` | POST | Go `/auth/login` | Relay |
+| `/bff/auth/register` | POST | Go `/auth/register` | Relay |
+| `/bff/accounts/:id/full` | GET | Go accounts + contacts + deals + timeline | Aggregated |
+| `/bff/deals/:id/full` | GET | Go deals + account + contact + activities | Aggregated |
+| `/bff/cases/:id/full` | GET | Go cases + account + contact + activities + handoff | Aggregated |
+| `/bff/copilot/chat` | POST | Go `/api/v1/copilot/chat` | SSE Proxy |
+| `/bff/api/v1/*` | * | Go `/api/v1/*` | Pass-through |
+| `/bff/health` | GET | BFF status + Go ping | BFF-only |
 
 ---
 
@@ -1261,30 +1319,66 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    subgraph MVP["MVP Deployment (single binary)"]
-        BIN["./fenixcrm serve --port 8080"]
+    subgraph MVP["MVP Deployment (two processes)"]
+        BIN["./fenixcrm serve --port 8080<br/>(Go backend)"]
+        BFF_PROC["node bff/dist/index.js --port 3000<br/>(Express.js BFF)"]
         BIN --> SQLITE_F[("fenixcrm.db<br/>SQLite + sqlite-vec + FTS5")]
         BIN --> FS_F["./data/attachments/"]
-        BIN --> STDOUT["stdout (JSON logs)"]
+        BFF_PROC -->|"HTTPS proxy"| BIN
     end
 
-    subgraph Docker["Docker Compose (dev)"]
-        APP["fenix-app:8080<br/>Go backend + React"]
+    subgraph Docker["Docker Compose (dev/prod)"]
+        APP_GO["fenix-backend:8080<br/>Go backend"]
+        APP_BFF["fenix-bff:3000<br/>Express.js BFF"]
         OLLAMA_D["ollama:11434<br/>Local LLM"]
         KC_D["keycloak:8180<br/>OIDC (optional)"]
-        APP --> OLLAMA_D
-        APP -.-> KC_D
+        APP_BFF -->|"proxy"| APP_GO
+        APP_GO --> OLLAMA_D
+        APP_GO -.-> KC_D
+    end
+
+    subgraph MobileDist["Mobile Distribution"]
+        APK["Android APK<br/>(Expo EAS Build)"]
+        PLAY["Google Play Store<br/>(internal track)"]
+        IOS["iOS (P1)<br/>(TestFlight → App Store)"]
+        APK --> PLAY
     end
 
     subgraph Future["Future: Kubernetes (P1/P2)"]
         direction TB
-        NOTE["Migrate SQLite → PostgreSQL<br/>Add Redis for distributed cache<br/>Add NATS for multi-instance events<br/>Helm charts for deployment"]
+        NOTE["Migrate SQLite → PostgreSQL<br/>Add Redis for distributed cache<br/>Add NATS for multi-instance events<br/>Helm charts: Go + BFF + Ollama"]
     end
 ```
 
-**MVP command**: `./fenixcrm serve --port 8080 --data ./data/fenixcrm.db`
+**MVP commands**:
+```bash
+# Go backend
+./fenixcrm serve --port 8080 --data ./data/fenixcrm.db
 
-**Docker**: `docker run -v ./data:/data -p 8080:8080 fenixcrm:latest`
+# BFF (separate terminal)
+cd bff && node dist/index.js --port 3000 --backend http://localhost:8080
+
+# Mobile (development)
+cd mobile && npx expo start
+```
+
+**Docker Compose**:
+```yaml
+services:
+  backend:
+    build: .
+    ports: ["8080:8080"]
+    volumes: ["./data:/data"]
+  bff:
+    build: ./bff
+    ports: ["3000:3000"]
+    environment:
+      BACKEND_URL: http://backend:8080
+    depends_on: [backend]
+  ollama:
+    image: ollama/ollama
+    ports: ["11434:11434"]
+```
 
 ---
 
@@ -1294,70 +1388,114 @@ flowchart TB
 > **Decision**: Option B (with `internal/`) for application encapsulation
 
 ```
-fenixcrm/
-├── cmd/fenixcrm/
-│   └── main.go                    # Single binary entry point
-├── internal/                      # Private application code (Go-enforced encapsulation)
-│   ├── config/                    # Configuration loading
-│   ├── server/                    # HTTP server setup
-│   ├── api/
-│   │   ├── handlers/              # HTTP handlers by domain
-│   │   │   ├── crm.go            # Account, Contact, Lead, Deal, Case, Activity CRUD
-│   │   │   ├── copilot.go        # Chat, Summarize, Suggest, Draft
-│   │   │   ├── agent.go          # Trigger, Runs, Definitions
-│   │   │   ├── knowledge.go      # Search, Ingest, Items
-│   │   │   ├── governance.go     # Audit, Policies, Approvals
-│   │   │   └── admin.go          # Users, Roles, Tools, Prompts
-│   │   ├── middleware/           # Auth, rate limit, tracing, CORS
-│   │   └── routes.go             # Route registration
-│   ├── domain/                    # Business logic
-│   │   ├── crm/                  # CRM business logic (account.go, contact.go, ...)
-│   │   ├── copilot/              # chat.go, summarize.go, session.go
-│   │   ├── agent/                # orchestrator.go, state_machine.go, handoff.go
-│   │   │   └── agents/support.go # UC-C1 Support Agent implementation
-│   │   ├── knowledge/            # ingestion.go, chunker.go, search.go, evidence.go
-│   │   ├── policy/               # evaluator.go, rbac.go, pii.go, approval.go
-│   │   ├── tool/                 # registry.go, executor.go, validator.go
-│   │   │   └── builtin/         # create_task.go, update_case.go, send_reply.go
-│   │   ├── audit/                # service.go
-│   │   └── eval/                 # suite.go, runner.go
-│   └── infra/                     # Infrastructure adapters
-│       ├── sqlite/               # queries/, migrations/, gen/ (sqlc)
-│       ├── cache/                # In-process LRU (ristretto)
-│       ├── eventbus/             # In-process Go channels
-│       ├── llm/                  # provider.go, router.go, ollama.go, openai.go, anthropic.go
-│       └── otel/                 # OpenTelemetry setup (optional)
-├── pkg/                           # Public shared libraries (exportable)
-│   ├── uuid/                     # UUID v7 generation
-│   ├── validator/                # Input validation helpers
-│   └── errors/                   # Error types and handling
-├── web/                           # React frontend
-│   ├── src/                      # React components, pages, hooks
+fenixcrm/                          # Monorepo root
+├── mobile/                        # React Native app (Expo managed)
+│   ├── app/                      # Expo Router pages
+│   │   ├── (auth)/               # Auth screens (login, register)
+│   │   ├── (tabs)/               # Main tab navigation
+│   │   │   ├── accounts/         # Account list + detail
+│   │   │   ├── contacts/         # Contact list + detail
+│   │   │   ├── deals/            # Deal list + detail + pipeline board
+│   │   │   ├── cases/            # Case list + detail
+│   │   │   ├── copilot/          # Copilot chat screen
+│   │   │   └── agents/           # Agent runs list + detail
+│   │   └── _layout.tsx           # Root layout (drawer + stack)
+│   ├── components/               # Shared UI components
+│   │   ├── CopilotPanel.tsx      # SSE chat + evidence cards
+│   │   ├── EvidenceCard.tsx      # Expandable source card
+│   │   ├── EntityTimeline.tsx    # Timeline component
+│   │   ├── CRMListScreen.tsx     # Reusable list with search/filter/pagination
+│   │   └── ActionButton.tsx      # Tool execution confirmation
+│   ├── hooks/                    # Custom React hooks
+│   │   ├── useSSE.ts             # SSE streaming hook
+│   │   ├── useAuth.ts            # JWT auth management
+│   │   └── useCRM.ts             # TanStack Query hooks for CRM entities
+│   ├── services/                 # API client layer
+│   │   ├── api.ts                # Axios client pointing to BFF
+│   │   └── sse.ts                # SSE client for Copilot
+│   ├── stores/                   # Zustand stores
+│   │   ├── authStore.ts          # JWT token, user info
+│   │   └── uiStore.ts            # UI state (theme, drawer, etc.)
+│   ├── theme/                    # React Native Paper theme config
+│   ├── app.json                  # Expo config
 │   ├── package.json
-│   └── vite.config.ts
-├── deploy/                        # Deployment configs
-│   ├── Dockerfile
-│   └── docker-compose.yml
-├── tests/                         # Test suites
-│   ├── integration/              # Integration tests
-│   ├── e2e/                      # End-to-end tests (Playwright)
-│   └── fixtures/                 # Test data
+│   └── tsconfig.json
+├── bff/                           # Express.js BFF Gateway
+│   ├── src/
+│   │   ├── index.ts              # Express server entry point
+│   │   ├── middleware/
+│   │   │   ├── authRelay.ts      # JWT forwarding + refresh
+│   │   │   ├── mobileHeaders.ts  # Inject device info headers
+│   │   │   └── errorHandler.ts   # Unified error handling
+│   │   ├── routes/
+│   │   │   ├── auth.ts           # /bff/auth/* → Go /auth/*
+│   │   │   ├── proxy.ts          # /bff/api/v1/* → Go /api/v1/* (pass-through)
+│   │   │   ├── aggregated.ts     # /bff/accounts/:id/full (multi-call aggregation)
+│   │   │   └── copilot.ts        # /bff/copilot/chat (SSE proxy)
+│   │   ├── services/
+│   │   │   ├── goClient.ts       # HTTP client to Go backend
+│   │   │   └── sseProxy.ts       # SSE relay service
+│   │   └── config.ts             # BFF configuration
+│   ├── tests/
+│   │   ├── auth.test.ts          # Auth relay tests (Supertest)
+│   │   ├── proxy.test.ts         # Proxy pass-through tests
+│   │   ├── aggregated.test.ts    # Aggregation tests
+│   │   └── sse.test.ts           # SSE proxy tests
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── Dockerfile
+├── cmd/fenixcrm/                  # Go backend (UNCHANGED)
+│   └── main.go
+├── internal/                      # Go private application code (UNCHANGED)
+│   ├── config/
+│   ├── server/
+│   ├── api/
+│   │   ├── handlers/
+│   │   ├── middleware/
+│   │   └── routes.go
+│   ├── domain/
+│   │   ├── crm/
+│   │   ├── copilot/
+│   │   ├── agent/
+│   │   ├── knowledge/
+│   │   ├── policy/
+│   │   ├── tool/
+│   │   ├── audit/
+│   │   └── eval/
+│   └── infra/
+│       ├── sqlite/
+│       ├── cache/
+│       ├── eventbus/
+│       ├── llm/
+│       └── otel/
+├── pkg/                           # Go shared libraries (UNCHANGED)
+├── deploy/
+│   ├── Dockerfile                # Go backend Docker
+│   ├── Dockerfile.bff            # BFF Docker
+│   └── docker-compose.yml        # Go + BFF + Ollama
+├── tests/
+│   ├── integration/              # Go integration tests
+│   ├── e2e/                      # Detox E2E tests (mobile)
+│   │   ├── accounts.e2e.ts
+│   │   ├── copilot.e2e.ts
+│   │   └── agent-runs.e2e.ts
+│   └── fixtures/
 ├── data/                          # Runtime data (gitignored)
-│   ├── fenixcrm.db              # SQLite database file
-│   └── attachments/             # Uploaded files
-├── docs/                          # Documentation
+│   ├── fenixcrm.db
+│   └── attachments/
+├── docs/
 │   ├── architecture.md          # THIS DOCUMENT
-│   ├── implementation-plan.md   # 13-week implementation plan
-│   └── CORRECTIONS-APPLIED.md   # Audit corrections
+│   ├── implementation-plan.md
+│   └── CORRECTIONS-APPLIED.md
 ├── .github/
-│   └── workflows/ci.yml         # CI pipeline (test + lint + build)
-├── sqlc.yaml                      # sqlc configuration
-├── .golangci.yml                  # Linter configuration
-├── Makefile                       # Build automation
+│   └── workflows/ci.yml         # CI pipeline (Go + BFF + Mobile)
+├── sqlc.yaml
+├── .golangci.yml
+├── Makefile                       # Go targets (UNCHANGED)
 ├── go.mod
 ├── go.sum
-├── CLAUDE.md                      # Claude Code project guidance
-└── README.md                      # Setup and quick start
+├── CLAUDE.md
+└── README.md
 ```
 
 **Import Path Convention**:

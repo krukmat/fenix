@@ -62,11 +62,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > Full diagrams: `docs/architecture.md` (Section 3 — System Architecture)
 
-**Stack**: Go 1.22+ / go-chi | SQLite (WAL) + sqlite-vec + FTS5 | React 19 + TypeScript + shadcn/ui | Single binary
+**Stack**: Go 1.22+ / go-chi | SQLite (WAL) + sqlite-vec + FTS5 | Express.js BFF | React Native + Expo + React Native Paper | Docker Compose
+
+**Mobile App (React Native)** → **BFF Gateway (Express.js)** → **Go Backend (go-chi REST)** → **SQLite**
+
+**BFF responsibilities**: Auth relay, request aggregation, SSE proxy, mobile headers. Zero business logic, zero DB access.
 
 **CRM Store (SQLite OLTP)** → **Event Bus (Go channels)** → **Connectors (Email/Docs/Calls) + Indexer** → **Hybrid Index (FTS5 BM25 + sqlite-vec ANN)**
 
-**API + UI** → **Policy Engine (RBAC/PII/no-cloud/approvals)** + **Copilot Service (SSE)** + **Agent Orchestrator** + **Tool Registry**
+**Go API** → **Policy Engine (RBAC/PII/no-cloud/approvals)** + **Copilot Service (SSE)** + **Agent Orchestrator** + **Tool Registry**
 
 **Audit + Telemetry + Eval Service** (cross-cutting, immutable)
 
@@ -220,8 +224,9 @@ If any step fails, respond with error + reason to agent (may retry or abstain).
 
 > Full details: `docs/architecture.md` (Section 10 — Deployment Architecture)
 
-- **MVP**: Single binary `./fenixcrm serve --port 8080` + SQLite file. Zero infrastructure.
-- **Docker**: `docker run -v ./data:/data -p 8080:8080 fenixcrm:latest`
+- **MVP**: Two processes — `./fenixcrm serve --port 8080` (Go) + `node bff/dist/index.js --port 3000` (BFF) + SQLite file.
+- **Docker Compose**: `docker-compose up` starts Go backend + BFF + Ollama.
+- **Mobile**: React Native + Expo (Android APK via EAS Build). iOS in P1.
 - **BYO-LLM**: Local (Ollama, vLLM) or bring your own API key (OpenAI, Anthropic)
 - **Multi-tenant**: Workspace isolation per tenant
 - **Future**: PostgreSQL + Redis + NATS + Kubernetes for scale (P1/P2)

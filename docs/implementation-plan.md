@@ -14,7 +14,7 @@
 3. [Phase 1: Foundation (Weeks 1-3)](#3--phase-1-foundation-weeks-1-3)
 4. [Phase 2: Knowledge & Retrieval (Weeks 4-6)](#4--phase-2-knowledge--retrieval-weeks-4-6)
 5. [Phase 3: AI Layer (Weeks 7-10)](#5--phase-3-ai-layer-weeks-7-10)
-6. [Phase 4: Integration & Polish (Weeks 11-13)](#6--phase-4-integration--polish-weeks-11-13)
+6. [Phase 4: Mobile App + BFF + Polish (Weeks 11-13)](#5--phase-4-mobile-app--bff--polish-weeks-11-13)
 7. [Testing Strategy](#7--testing-strategy)
 8. [Risk Mitigation](#8--risk-mitigation)
 9. [Success Criteria](#9--success-criteria)
@@ -149,8 +149,14 @@ fenixcrm/
 | **Prompt & Eval** |
 | Prompt Version | `prompt_version` | ❌ Pending | 3 | 3.9 (new) | **CORRECTED: added explicit task** |
 | Policy Version | `policy_version` | ❌ Pending | 3 | 3.1 | With policy engine |
-| Eval Suite | `eval_suite` | ❌ Pending | 4 | 4.6 | Basic only |
-| Eval Run | `eval_run` | ❌ Pending | 4 | 4.6 | Basic only |
+| Eval Suite | `eval_suite` | ❌ Pending | 4 | 4.7 | Basic only |
+| Eval Run | `eval_run` | ❌ Pending | 4 | 4.7 | Basic only |
+| **Mobile & BFF** |
+| BFF Gateway | (no DB entity) | ❌ Pending | 4 | 4.1 | Express.js proxy |
+| Mobile App | (no DB entity) | ❌ Pending | 4 | 4.2 | React Native + Expo |
+| CRM Mobile Screens | (uses CRM entities) | ❌ Pending | 4 | 4.3 | List + Detail screens |
+| Copilot Mobile Panel | (uses copilot session) | ❌ Pending | 4 | 4.4 | SSE chat screen |
+| Agent Runs Mobile | (uses agent_run) | ❌ Pending | 4 | 4.5 | Execution visibility |
 
 ### Critical Corrections Applied
 
@@ -1079,245 +1085,326 @@ To avoid sequencing ambiguity, Phase 3 tasks have the following dependency const
 
 ---
 
-## 5 — Phase 4: Integration & Polish (Weeks 11-13)
+## 5 — Phase 4: Mobile App + BFF + Polish (Weeks 11-13)
 
-**Goal**: React frontend, observability, audit service, eval service, E2E tests.
+**Goal**: React Native mobile app (Android-first), Express.js BFF gateway, audit/eval backend services, E2E tests, observability.
 
-**Deliverable**: Full MVP ready for demo — UI + backend fully integrated.
+**Deliverable**: Full MVP ready for demo — mobile app communicating through BFF to Go backend, with Copilot integration, agent runs visibility, and complete audit trail.
 
-### Week 11: React Frontend MVP
+### Phase 4 Dependency Map
 
-#### Task 4.1: Frontend Setup (2 days)
+```
+4.1 (BFF Setup) ─┬─> 4.3 (CRM Screens)
+                  └─> 4.4 (Copilot Panel)
+4.2 (Mobile Setup) ─┬─> 4.3
+                     └─> 4.4
+4.3 ──> 4.5 (Agent Runs)
+4.4 ──> 4.5
+4.6 (Audit Advanced) ──> 4.8 (E2E)
+4.7 (Eval Service) ──> 4.8
+4.5 ──> 4.8
+4.8 ──> 4.9 (Observability)
+```
+
+### Week 11: BFF + Mobile Foundation
+
+#### Task 4.1: BFF Setup — Express.js Gateway (2.5 days)
+
+**Status**: ❌ Not started
 
 **Actions**:
-- Initialize React project:
-  - `npm create vite@latest web -- --template react-ts`
-- Install dependencies:
-  - `@tanstack/react-query`, `zustand`, `react-router-dom`
-  - `shadcn/ui` components, `tailwindcss`
-- Setup dev server: `vite` proxies `/api/*` to Go backend
-- Create layout: Sidebar + Header + Content
-- Implement auth: Login page → store JWT in localStorage
-- Implement router:
-  - `/login`
-  - `/accounts`, `/contacts`, `/deals`, `/cases`
-  - `/copilot`
-  - `/agents/runs`
+- Initialize BFF project:
+  - `mkdir bff && cd bff && npm init -y`
+  - Install: `express`, `typescript`, `axios`, `http-proxy-middleware`, `helmet`, `cors`, `dotenv`
+  - Install dev: `@types/express`, `ts-node`, `nodemon`, `supertest`, `jest`, `@types/jest`, `ts-jest`
+  - Configure `tsconfig.json` (strict mode, ES2022 target)
+- Implement core middleware:
+  - `src/middleware/authRelay.ts`: Extract `Authorization` header from mobile request, forward to Go backend. Handle 401 response (trigger token refresh flow).
+  - `src/middleware/mobileHeaders.ts`: Extract `X-Device-Id`, `X-App-Version` from mobile request, forward to Go.
+  - `src/middleware/errorHandler.ts`: Catch Go backend errors, return mobile-friendly error envelope `{error: {code, message, details}}`.
+- Implement proxy routes:
+  - `src/routes/proxy.ts`: `app.use('/bff/api/v1', createProxyMiddleware({ target: BACKEND_URL }))` — transparent pass-through for all Go API endpoints.
+  - `src/routes/auth.ts`: `POST /bff/auth/login`, `POST /bff/auth/register` — relay to Go auth endpoints.
+- Implement aggregated routes:
+  - `src/routes/aggregated.ts`:
+    - `GET /bff/accounts/:id/full` — parallel calls to Go: GET account + GET contacts (by account) + GET deals (by account) + GET timeline. Merge into single response.
+    - `GET /bff/deals/:id/full` — GET deal + GET account + GET contact + GET activities.
+    - `GET /bff/cases/:id/full` — GET case + GET account + GET contact + GET activities + GET handoff (if escalated).
+- Implement SSE proxy:
+  - `src/routes/copilot.ts`: `POST /bff/copilot/chat` — Open SSE connection to Go `/api/v1/copilot/chat`, relay chunks to mobile client. Handle connection drops and reconnection.
+- Implement health check:
+  - `GET /bff/health` — Returns BFF status + Go backend reachability (ping Go `/health`).
+- Create `Dockerfile.bff`: Multi-stage (build TypeScript → run with Node Alpine).
 
-**Tests**:
-- E2E test (Playwright): Login → redirects to `/accounts`
+**Tests** (Supertest):
+- Test: Auth relay forwards JWT correctly to Go backend
+- Test: Proxy pass-through returns same response as direct Go call
+- Test: Aggregated endpoint combines multiple Go responses
+- Test: SSE proxy relays streaming chunks (mock Go SSE)
+- Test: 401 from Go backend → proper error envelope to mobile
+- Test: Go backend down → 503 from BFF health endpoint
 
-**Resolves**: Frontend foundation
+**Resolves**: FR-301 (BFF Gateway)
 
 ---
 
-#### Task 4.2: CRM Pages (3 days)
+#### Task 4.2: Mobile Setup — React Native + Expo (2.5 days)
+
+**Status**: ❌ Not started
 
 **Actions**:
-- Implement pages:
-  - `/accounts` — Table with search, pagination, create button
-  - `/accounts/:id` — Detail view + timeline + copilot panel
-  - Same for `/contacts`, `/deals`, `/cases`
-- Implement forms:
-  - Create/Edit account modal
-  - Form validation (required fields)
-- Implement timeline component:
-  - Fetch `/api/v1/accounts/:id/timeline`
-  - Display events: created, updated, note added, agent action
+- Initialize React Native project:
+  - `npx create-expo-app mobile --template expo-template-blank-typescript`
+  - Install: `react-native-paper`, `react-native-safe-area-context`, `@react-navigation/native`, `@react-navigation/stack`, `@react-navigation/drawer`
+  - Install: `@tanstack/react-query`, `zustand`, `axios`, `react-native-sse` (or EventSource polyfill)
+  - Install: `expo-secure-store` (for JWT storage), `expo-splash-screen`
+- Configure React Native Paper theme:
+  - `theme/index.ts`: Custom theme extending MD3 defaults (FenixCRM brand colors)
+  - Wrap app in `<PaperProvider theme={fenixTheme}>`
+- Implement navigation structure:
+  - Root: Drawer navigator (sidebar menu)
+    - Accounts (stack), Contacts (stack), Deals (stack), Cases (stack)
+    - Copilot (stack), Agent Runs (stack), Settings
+  - Auth: Separate stack (Login, Register)
+  - Auth guard: if no JWT → redirect to Auth stack
+- Implement auth flow:
+  - `stores/authStore.ts` (Zustand): `{token, user, login(), logout(), refreshToken()}`
+  - `services/api.ts` (Axios): Base URL = BFF, auto-attach `Authorization` header, interceptor for 401 → refresh → retry
+  - `screens/auth/LoginScreen.tsx`: Email + password form (RN Paper TextInput + Button), calls BFF `/bff/auth/login`
+  - `screens/auth/RegisterScreen.tsx`: Name + email + password, calls BFF `/bff/auth/register`
+  - Store JWT in `expo-secure-store` (encrypted device storage, NOT AsyncStorage)
+- Implement API client with TanStack Query:
+  - `hooks/useCRM.ts`: `useAccounts()`, `useAccount(id)`, `useContacts()`, etc. — all calling BFF endpoints
+  - Query keys follow pattern: `['accounts', workspaceId]`, `['account', id]`
+  - Stale time: 30s for lists, 60s for details
 
 **Tests**:
-- E2E test: Create account → appears in list
-- E2E test: Edit account → changes saved
-- E2E test: Timeline shows events
+- Unit test: Auth store login/logout state transitions
+- Unit test: API client attaches Authorization header
+- Unit test: Navigation renders correct initial screen based on auth state
+- Integration test: Login flow → JWT stored → redirect to main screen
 
-**Resolves**: CRM UI
+**Resolves**: FR-300 (Mobile App foundation)
 
 ---
 
-### Week 12: Copilot Panel + Agent Runs UI
+### Week 12: CRM Screens + Copilot Panel
 
-#### Task 4.3: Copilot Panel (2 days)
+#### Task 4.3: CRM Screens — List + Detail (3 days)
+
+**Status**: ❌ Not started
 
 **Actions**:
-- Implement `CopilotPanel` component:
-  - Chat interface (input + message list)
-  - SSE connection to `/api/v1/copilot/chat`
-  - Display streaming response with citation markers
-  - Expandable evidence cards (click `[1]` → show source snippet)
-- Implement suggested actions:
-  - Display action cards below chat
-  - Click action → execute tool (with confirmation)
+- Implement reusable list component:
+  - `components/CRMListScreen.tsx`: FlatList with search bar (RN Paper Searchbar), pull-to-refresh, infinite scroll pagination, empty state.
+  - `components/CRMDetailHeader.tsx`: Entity title + status chip + owner avatar.
+  - `components/EntityTimeline.tsx`: Timeline rendering (FlatList with timeline_event items).
+- Implement Account screens:
+  - `screens/accounts/AccountListScreen.tsx`: Uses CRMListScreen, calls `GET /bff/api/v1/accounts`.
+  - `screens/accounts/AccountDetailScreen.tsx`: Calls `GET /bff/accounts/:id/full` (aggregated). Tabs: Overview, Contacts, Deals, Timeline. FAB for quick actions.
+  - `screens/accounts/AccountFormScreen.tsx`: Create/Edit form (RN Paper TextInput fields, validation).
+- Implement Contact screens (same pattern): List, Detail (with linked account), Form.
+- Implement Deal screens:
+  - List with status chips (open/won/lost).
+  - Detail: pipeline stage indicator, amount, expected close date, timeline.
+  - Pipeline board view (horizontal scroll with stage columns — simplified Kanban).
+- Implement Case screens:
+  - List with priority badges (RN Paper Badge).
+  - Detail: description, status, SLA deadline, timeline, handoff status.
+  - Detail includes Copilot integration (embedded chat panel at bottom).
+- Implement search/filter: Global search bar in drawer header. Per-entity filters: status, owner, date range.
 
 **Tests**:
-- E2E test: Ask question → response streams in
-- E2E test: Click citation → evidence card expands
-- E2E test: Click suggested action → tool executes
+- Unit test: CRMListScreen renders items from TanStack Query
+- Unit test: AccountDetailScreen shows aggregated data (account + contacts + deals)
+- Unit test: Pull-to-refresh triggers query invalidation
+- Unit test: Infinite scroll loads next page
+- Snapshot tests: Key screens render without crashes (RN Paper)
 
-**Resolves**: FR-200, FR-201 (Copilot UI)
+**Resolves**: FR-300 (CRM mobile screens), FR-001 (mobile UI for CRM entities)
 
 ---
 
-#### Task 4.4: Agent Runs Dashboard (3 days)
+#### Task 4.4: Copilot Panel — SSE Chat (2 days)
+
+**Status**: ❌ Not started
 
 **Actions**:
-- Implement `/agents/runs` page:
-  - Table: agent name, status, started_at, latency, cost
-  - Filters: status, agent_type, date range
-- Implement `/agents/runs/:id` detail page:
-  - Show: inputs, retrieval queries, evidence retrieved
-  - Reasoning trace (expandable)
-  - Tool calls (params + results)
-  - Output
-  - Audit events
-- Implement trigger button: "Run Agent"
-  - Select agent, select entity → trigger
-  - Show progress (status updates)
+- Implement SSE hook:
+  - `hooks/useSSE.ts`: Opens EventSource connection to BFF `/bff/copilot/chat`. Handles `token`, `evidence`, `done` event types. Auto-reconnect on disconnect. Returns `{messages, isStreaming, error, sendQuery}`.
+- Implement Copilot chat screen:
+  - `screens/copilot/CopilotChatScreen.tsx`: Message list (FlatList, auto-scroll to bottom), input bar (RN Paper TextInput + send button), context selector (pick entity to ask about), streaming tokens appear incrementally.
+  - `components/CopilotPanel.tsx`: Embeddable panel for detail screens (Case detail, Deal detail). Collapsed: "Ask Copilot" button. Expanded: Chat interface within bottom sheet.
+- Implement evidence cards:
+  - `components/EvidenceCard.tsx`: Expandable card showing source snippet + relevance score + timestamp.
+  - Citations rendered as tappable `[1]` markers in chat response text.
+  - Tap citation → scroll to corresponding EvidenceCard.
+- Implement action buttons:
+  - `components/ActionButton.tsx`: Renders suggested actions from Copilot.
+  - Tap action → confirmation dialog (RN Paper Dialog) → execute tool via BFF → show result.
+  - Actions: "Update case status", "Create follow-up task", "Draft reply".
 
 **Tests**:
-- E2E test: Trigger agent → run appears in dashboard
-- E2E test: View run detail → all sections visible
+- Unit test: useSSE hook processes streaming events correctly
+- Unit test: CopilotChatScreen renders streaming tokens incrementally
+- Unit test: Evidence cards expand/collapse on tap
+- Unit test: Action button shows confirmation dialog before execution
+- Integration test: Send query → receive streamed response via mock SSE
 
-**Resolves**: Agent observability UI
+**Resolves**: FR-200 (Copilot mobile), FR-092 (evidence display on mobile)
 
 ---
 
-### Week 13: Audit, Eval, Final Polish
+### Week 13: Agent Runs + Backend Services + E2E + Observability
 
-#### Task 4.5: Audit Service — Advanced Features (1.5 days — **UPDATED**)
+#### Task 4.5: Agent Runs Screen (1.5 days)
+
+**Status**: ❌ Not started
 
 **Actions**:
-- **NOTE**: `audit_event` table and basic logging already exist from Task 1.7 (Phase 1)
+- Implement Agent Runs list screen:
+  - `screens/agents/AgentRunListScreen.tsx`: FlatList with agent_run records.
+  - Card layout: Agent name, status (chip color), started_at, latency, cost.
+  - Filters: status (running/success/failed/abstained/escalated), date range.
+  - Pull-to-refresh.
+- Implement Agent Run detail screen:
+  - `screens/agents/AgentRunDetailScreen.tsx`: Calls `GET /bff/api/v1/agents/runs/:id`.
+  - Sections (collapsible): Summary, Inputs (JSON viewer), Evidence Retrieved (EvidenceCards), Reasoning Trace, Tool Calls (params + result + latency), Output, Audit Events.
+  - If status=escalated: Show handoff package with "View Handoff" button.
+- Implement trigger button:
+  - `components/TriggerAgentButton.tsx`: Select agent definition + entity → trigger via `POST /bff/api/v1/agents/trigger`. Show progress (poll status until complete).
+
+**Tests**:
+- Unit test: Agent run list renders status chips correctly
+- Unit test: Detail screen displays all sections
+- Unit test: Trigger button creates agent run and shows progress
+
+**Resolves**: FR-230 (agent run visibility on mobile), NFR-030 (observability UI)
+
+---
+
+#### Task 4.6: Audit Service — Advanced Features (1.5 days)
+
+**Status**: ❌ Not started
+
+**NOTE**: Backend-only. No mobile UI changes. `audit_event` table and basic logging already exist from Task 1.7.
+
+**Actions**:
 - Extend `domain/audit/service.go` with advanced features:
-  - `Query(ctx, QueryInput) ([]*AuditEvent, error)` (complex filters, pagination)
-    - Filters: date range, actor_id, entity_type, action, outcome
-    - Full-text search in `details` JSON field
-  - `Export(ctx, ExportInput) (io.Reader, error)` (CSV/JSON export)
-    - Format options: CSV (flat), JSON (full), NDJSON (streaming)
-    - Filters applied before export
+  - `Query(ctx, QueryInput) ([]*AuditEvent, error)` — complex filters, pagination.
+    - Filters: date range, actor_id, entity_type, action, outcome.
+    - Full-text search in `details` JSON field.
+  - `Export(ctx, ExportInput) (io.Reader, error)` — CSV/JSON/NDJSON export.
 - Complete event bus integration:
-  - Subscribe to ALL event types (not just CRM + auth)
-  - Agent events: `agent.started`, `agent.completed`, `agent.abstained`, `agent.escalated`
-  - Tool events: `tool.executed`, `tool.failed`
-  - Policy events: `policy.violated`, `approval.requested`, `approval.decided`
+  - Subscribe to ALL event types (agent.*, tool.*, policy.*, approval.*).
 - Implement handlers:
   - `GET /api/v1/audit/events` (query + complex filters)
-  - `GET /api/v1/audit/events/{id}` (get single event with full context)
+  - `GET /api/v1/audit/events/{id}` (get single event)
   - `POST /api/v1/audit/export` (download CSV/JSON)
 
 **Tests**:
-- Integration test: CRM action → audit event logged (already covered in Phase 1)
-- Integration test: Query with filters → returns correct subset
-- Integration test: Full-text search in details field → finds events
+- Integration test: Query with filters returns correct subset
 - Integration test: Export 1000 events → CSV generated correctly
-- Integration test: Agent run → all sub-events logged (retrieval, tool calls, outcome)
+- Integration test: Agent run → all sub-events logged
 
 **Resolves**: FR-070 (audit trail — advanced), FR-071 (audit query + export)
 
-**Rationale**: **UPDATED** — Base audit logging moved to Phase 1 (Task 1.7). Phase 4 focuses on query UI, export, and complete event bus coverage.
-
 ---
 
-#### Task 4.6: Eval Service (Basic) (2 days)
+#### Task 4.7: Eval Service — Basic (1 day)
+
+**Status**: ❌ Not started
+
+**NOTE**: Backend-only. No mobile UI.
 
 **Actions**:
-- Create migration `015_eval.up.sql`:
-  - `eval_suite` table
-  - `eval_run` table
-- Implement `domain/eval/suite.go`:
-  - `CreateSuite(ctx, input) (*EvalSuite, error)`
-  - Suite contains: test cases (input + expected output)
-- Implement `domain/eval/runner.go`:
-  - `RunEval(ctx, suiteID, promptVersionID) (*EvalRun, error)`
-  - For each test case:
-    - Call agent with input
-    - Compare output vs expected
-    - Score: groundedness (has evidence?), exactitude (correct?)
-  - Calculate aggregate scores
-  - Pass/fail based on thresholds
+- Create migration `020_eval.up.sql`: `eval_suite`, `eval_run` tables.
+- Implement `domain/eval/suite.go` + `domain/eval/runner.go`:
+  - Suite CRUD, run eval against prompt version, score groundedness + exactitude.
 - Implement handlers:
-  - `POST /api/v1/admin/eval/suites` (create suite)
-  - `POST /api/v1/admin/eval/run` (run eval)
-  - `GET /api/v1/admin/eval/runs` (list results)
+  - `POST /api/v1/admin/eval/suites`
+  - `POST /api/v1/admin/eval/run`
+  - `GET /api/v1/admin/eval/runs`
 
 **Tests**:
 - Integration test: Create eval suite → stored in DB
 - Integration test: Run eval → scores calculated
 
-**Resolves**: FR-240 (eval basics — full in P1)
+**Resolves**: FR-242 (eval basics)
 
 ---
 
-#### Task 4.7: E2E Tests + Documentation (1 day)
+#### Task 4.8: E2E Tests — Detox (Mobile) + Supertest (BFF) (1.5 days)
+
+**Status**: ❌ Not started
 
 **Actions**:
-- Write E2E test for UC-C1:
-  - Login as support agent
-  - Navigate to case detail
-  - Trigger support agent
-  - Verify: evidence retrieved, response generated, case updated
-- Write E2E test for Copilot:
-  - Open account detail
-  - Ask question in copilot panel
-  - Verify: response streams, citations clickable
-- Update `docs/architecture.md`:
-  - Mark all completed FRs with ✅
-  - Add "as-built" notes (any deviations from plan)
-- Update `README.md`:
-  - Installation instructions
-  - Quick start guide
-  - Screenshot of UI
+- Setup Detox for mobile E2E:
+  - Install `detox`, configure for Android emulator.
+  - Create test helpers: login, navigate, wait for data.
+- Implement Detox E2E tests:
+  - `tests/e2e/auth.e2e.ts`: Register → Login → See accounts list.
+  - `tests/e2e/accounts.e2e.ts`: Create account → appears in list → open detail → see timeline.
+  - `tests/e2e/copilot.e2e.ts`: Open case detail → open Copilot panel → ask question → see streaming response + evidence cards.
+  - `tests/e2e/agent-runs.e2e.ts`: Navigate to agent runs → trigger support agent on case → see run in list → open detail.
+- Implement BFF integration tests (Supertest):
+  - `bff/tests/e2e/fullstack.test.ts`: BFF → Go backend round-trip tests.
+  - Test: Login via BFF → receive JWT → call protected endpoint → success.
+  - Test: Aggregated endpoint returns merged data from Go.
+  - Test: SSE proxy relays Copilot stream end-to-end.
+- Update documentation:
+  - `README.md`: Add mobile setup instructions, BFF setup, Docker Compose.
+  - `docs/architecture.md`: Mark all completed FRs.
 
 **Tests**:
-- E2E test suite: 100% pass rate
+- E2E test suite: 100% pass rate on critical flows (4 scenarios above).
+- BFF integration: All Supertest specs pass.
 
-**Resolves**: Documentation + final validation
+**Resolves**: E2E validation + documentation
 
 ---
 
-#### Task 4.8: Observability Endpoints (1 day — **NEW**)
+#### Task 4.9: Observability (1 day)
+
+**Status**: ❌ Not started
 
 **Actions**:
-- Implement metrics endpoint:
+- Go backend:
   - `GET /api/v1/metrics` (Prometheus-compatible format)
-  - Metrics exposed:
-    - `fenixcrm_http_requests_total{method, path, status}` (counter)
-    - `fenixcrm_http_request_duration_seconds{method, path}` (histogram)
-    - `fenixcrm_agent_runs_total{agent_type, status}` (counter)
-    - `fenixcrm_agent_run_duration_seconds{agent_type}` (histogram)
-    - `fenixcrm_agent_run_cost_euros{agent_type}` (histogram)
-    - `fenixcrm_agent_run_tokens_total{agent_type}` (counter)
-    - `fenixcrm_tool_calls_total{tool_name, outcome}` (counter)
-    - `fenixcrm_evidence_retrieval_duration_seconds` (histogram)
-- Implement health endpoint:
   - `GET /api/v1/health` (200 if healthy, 503 if degraded)
-  - Checks: DB connection, LLM provider health, event bus
-- Implement basic dashboard (optional UI or JSON endpoint):
-  - `GET /api/v1/admin/dashboard`
-  - Returns: last 24h stats (agent runs, costs, latencies)
-- Add structured logging:
-  - JSON format: `{"level":"info", "timestamp":"...", "message":"...", "trace_id":"...", "actor_id":"...", "workspace_id":"..."}`
-  - Log to stdout (12-factor app)
+  - Structured JSON logs to stdout
+- BFF observability:
+  - `GET /bff/metrics` — Request count, latency, Go backend latency, SSE connection count.
+  - `GET /bff/health` — BFF process health + Go backend reachability.
+  - Structured JSON logs (pino).
+- Mobile crash reporting:
+  - Integrate Sentry React Native SDK.
+  - Capture: JS crashes, native crashes, unhandled promise rejections.
+  - Breadcrumbs: navigation events, API calls, SSE events.
+  - Performance monitoring: screen load times, API call durations.
 
 **Tests**:
-- Integration test: Call `/metrics` → Prometheus format returned
-- Integration test: Trigger agent run → metrics incremented
-- Integration test: Call `/health` → 200 if all checks pass
-- Integration test: DB down → `/health` returns 503
+- Integration test: Call `/api/v1/metrics` → Prometheus format
+- Integration test: Call `/bff/health` → returns BFF + Go status
+- Unit test: Sentry initialization does not crash app
 
 **Resolves**: NFR-030 (observability), NFR-031 (metrics per agent)
-
-**Rationale**: **CRITICAL ADDITION** — Architecture requires "metrics endpoint, agent run dashboard" but plan had no explicit task. This provides minimal observability for MVP. Full Grafana dashboards are P1.
 
 ---
 
 ### Phase 4 Exit Criteria
 
-✅ React frontend functional (CRM pages + Copilot + Agent runs)
-✅ Audit service logging all events + query + export working
-✅ Eval service basic functionality
-✅ **Observability endpoints functional** (/metrics, /health, dashboard)
-✅ E2E tests passing (100% critical flows)
-✅ Documentation updated (architecture.md + README.md)
+- [ ] BFF gateway functional — auth relay, proxy, aggregation, SSE proxy all working
+- [ ] React Native app running on Android — login, CRM screens, Copilot chat, agent runs
+- [ ] SSE streaming Copilot functional end-to-end (Mobile → BFF → Go → LLM → Go → BFF → Mobile)
+- [ ] Audit service advanced features (query + export) working
+- [ ] Eval service basic functionality working
+- [ ] Detox E2E tests passing (4 critical flows)
+- [ ] BFF Supertest integration tests passing
+- [ ] Observability endpoints functional (/metrics, /health on both Go and BFF)
+- [ ] Sentry crash reporting active in mobile app
+- [ ] Documentation updated (architecture.md + README.md)
+- [ ] Docker Compose with Go + BFF + Ollama working
 
 ---
 
@@ -1327,21 +1414,24 @@ To avoid sequencing ambiguity, Phase 3 tasks have the following dependency const
 
 ```
        /\
-      /E2E\         ~10 tests (critical flows)
+      /E2E\         ~10 tests (4 Detox mobile + 6 BFF Supertest)
      /------\
-    /  Integ \      ~50 tests (API + DB interactions)
+    /  Integ \      ~60 tests (Go API + DB + BFF → Go round-trips)
    /----------\
-  /    Unit    \    ~200 tests (business logic, pure functions)
+  /    Unit    \    ~250 tests (Go business logic + RN component tests + BFF unit)
  /--------------\
 ```
 
 ### Testing Tools
 
-- **Unit tests**: `go test` with table-driven tests
-- **Integration tests**: `go test` with real SQLite DB (`:memory:` or temp file)
-- **API tests**: `httptest.NewServer()` + real handlers
-- **E2E tests**: Playwright (TypeScript) — headless browser automation
-- **Mocking**: Minimal (only for external LLM in unit tests)
+- **Go unit tests**: `go test` with table-driven tests
+- **Go integration tests**: `go test` with real SQLite DB (`:memory:` or temp file)
+- **Go API tests**: `httptest.NewServer()` + real handlers
+- **BFF unit tests**: Jest + Supertest (mock Go backend with nock or msw)
+- **BFF integration tests**: Supertest against real BFF + Go backend
+- **Mobile unit tests**: Jest + React Native Testing Library
+- **Mobile E2E tests**: Detox (Android emulator)
+- **Mocking**: Minimal (only for external LLM in unit tests, Go backend in BFF unit tests)
 
 ### Coverage Targets
 

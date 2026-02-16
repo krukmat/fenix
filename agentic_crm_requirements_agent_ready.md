@@ -325,12 +325,13 @@ flowchart TD
 
 ### Copilot (in-flow)
 
-**FR-200 — Copilot embebido (P0)**  
-**Descripción:** UI contextual dentro del CRM (record pages/pipeline) + chat/command palette.  
-**AC:**  
-- En account/deal/case: “Resumen”, “Siguiente acción”, “Draft email”, “Actualizar campo”.  
-- “Explain why” muestra evidencias.  
-**Dep:** FR-092, FR-060.
+**FR-200 — Copilot embebido (P0)**
+**Descripción:** UI contextual dentro del CRM mobile (pantallas de record/pipeline) + chat panel. Streaming via SSE proxied a través del BFF (Express.js) al cliente React Native.
+**AC:**
+- En account/deal/case (mobile screens): "Resumen", "Siguiente acción", "Draft email", "Actualizar campo".
+- "Explain why" muestra evidencias en cards expandibles (React Native Paper).
+- SSE streaming funcional en mobile (react-native-sse o EventSource polyfill).
+**Dep:** FR-092, FR-060, FR-300.
 
 **FR-201 — Resúmenes operativos (P0)**  
 **Descripción:** resúmenes de account/deal/case/meeting prep con riesgos y next steps.  
@@ -500,6 +501,48 @@ flowchart TD
 
 ---
 
+### Mobile App & BFF Gateway
+
+**FR-300 — Mobile App (React Native) (P0)**
+**Descripción:** Aplicación móvil nativa usando React Native (Expo managed workflow) + React Native Paper (Material Design 3). Android-first, iOS posterior.
+**AC:**
+- Navegación principal: Stack + Drawer (React Navigation).
+- Pantallas CRM: listados y detalle de Account, Contact, Deal, Case con búsqueda, filtros, paginación.
+- Panel Copilot integrado en pantallas de detalle.
+- Autenticación: login/registro via BFF → Go backend.
+- Soporte offline básico: cache local de últimos records consultados.
+**Dep:** FR-301, FR-200.
+
+**FR-301 — BFF Gateway (Express.js) (P0)**
+**Descripción:** Backend-for-Frontend en Express.js/TypeScript que actúa como API gateway entre la mobile app y el Go backend. No contiene lógica de negocio ni accede a SQLite directamente.
+**AC:**
+- Proxy transparente de todas las llamadas al Go backend REST API.
+- Relay de autenticación: JWT token management, refresh logic.
+- Agregación de requests: combinar múltiples llamadas Go API en una sola respuesta mobile-optimizada (ej: pantalla de detalle = account + contacts + deals + timeline).
+- Proxy SSE: retransmitir streaming de Copilot chat desde Go backend al cliente mobile.
+- Headers mobile-specific: device info, app version, push token.
+- Health check propio (`/bff/health`).
+**Dep:** FR-051.
+
+**FR-302 — Push Notifications (P1)**
+**Descripción:** Notificaciones push para eventos críticos: approval requests, handoff asignado, agent run completado.
+**AC:**
+- Integración con Firebase Cloud Messaging (FCM) para Android.
+- BFF despacha notificaciones al recibir eventos del Go backend (via polling o webhook).
+- Usuario puede configurar preferencias de notificación por tipo de evento.
+**Dep:** FR-301, FR-232, FR-071.
+
+**FR-303 — Offline Cache (P1)**
+**Descripción:** Cache local en dispositivo para permitir consulta de datos CRM sin conexión.
+**AC:**
+- Cache de últimos N records consultados (configurable, default 50).
+- Indicador visual de datos offline/stale.
+- Sincronización automática al recuperar conectividad.
+- No se permiten mutaciones offline (solo lectura).
+**Dep:** FR-300.
+
+---
+
 ## Requerimientos no funcionales (NFR)
 
 ### Performance & Latency
@@ -532,9 +575,16 @@ flowchart TD
 - **NFR-051 (P1)** Multi-tenant con aislamiento (keys por tenant, namespaces).
 
 ### UX & Operabilidad
-- **NFR-060 (P0)** IA “in-flow” (record pages) y acciones contextuales.
+- **NFR-060 (P0)** IA "in-flow" en mobile app (pantallas de record) y acciones contextuales. Diseño mobile-first con React Native Paper (Material Design 3).
 - **NFR-061 (P0)** “Explain why” siempre disponible con evidencia.
 - **NFR-062 (P0)** Handoff y reversión/undo para acciones críticas.
+
+### Mobile Performance
+- **NFR-070 (P0)** Tiempo de carga inicial de mobile app ≤ **3s** en dispositivos Android mid-range (cold start).
+- **NFR-071 (P0)** Navegación entre pantallas CRM ≤ **300ms** (perceived transition).
+- **NFR-072 (P0)** Copilot SSE streaming: primer token visible ≤ **500ms** después de envío de query (excluye latencia LLM).
+- **NFR-073 (P1)** Tamaño del APK ≤ **50MB** (sin assets de onboarding).
+- **NFR-074 (P1)** Consumo de memoria ≤ **200MB** en uso típico (lista + detalle + copilot activo).
 
 ---
 
@@ -555,7 +605,8 @@ flowchart TD
 ### Diagrama
 ```mermaid
 flowchart LR
-  UI[CRM UI\n(in-flow Copilot)] --> API[CRM API Gateway]
+  MOBILE[Mobile App\n(React Native + Expo)] --> BFF[BFF Gateway\n(Express.js)]
+  BFF --> API[Go CRM API]
   API --> OLTP[(CRM Store)]
   OLTP --> BUS[(Event Bus)]
   API --> POL[Policy Engine\nRBAC/ABAC + PII + Approvals]
@@ -565,6 +616,7 @@ flowchart LR
     ING --> IDX[Hybrid Index\nBM25 + Vector]
   end
 
+  BFF -->|"SSE proxy"| COP
   API --> COP[Copilot Service\nEvidence Builder]
   COP --> IDX
   COP --> LLM[LLM Adapter\nLocal/Cloud]
@@ -652,12 +704,17 @@ flowchart LR
 - FR-001/002/090/092/200/202/060/070/071
 - Un agente end-to-end (UC-C1) con handoff (FR-232)
 - Telemetría mínima (NFR-030/031)
+- Mobile app + BFF gateway (FR-300/301) con Copilot integrado
+- Mobile performance (NFR-070/071/072)
 
 ### P1 (v1)
 - FR-091/093/241/242/243/233/234
 - Catálogo completo de agentes (FR-231)
 - Cost control completo (NFR-040/041)
 - Simulación/replay (FR-243)
+- Push notifications (FR-302), offline cache (FR-303)
+- iOS support (FR-300 extendido)
+- Mobile performance optimization (NFR-073/074)
 
 ### P2 (v2)
 - Plugins/Marketplace (FR-052)
