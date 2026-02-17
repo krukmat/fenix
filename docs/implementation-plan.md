@@ -1110,7 +1110,7 @@ To avoid sequencing ambiguity, Phase 3 tasks have the following dependency const
 
 #### Task 4.1: BFF Setup — Express.js Gateway (2.5 days)
 
-**Status**: ❌ Not started
+**Status**: ✅ Done
 
 **Actions**:
 - Initialize BFF project:

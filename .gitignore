@@ -8,3 +8,6 @@ internal/.DS_Store
 Modelfile.qwen_review
 docs/trace-report/
 .venv/
+bff/node_modules/
+bff/coverage/
+bff/dist/
