@@ -15,10 +15,12 @@ import {
 } from '../../src/hooks/useCRM';
 
 const mockUseQuery = jest.fn();
+const mockUseInfiniteQuery = jest.fn();
 const mockUseAuthStore = jest.fn();
 
 jest.mock('@tanstack/react-query', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args),
+  useInfiniteQuery: (...args: unknown[]) => mockUseInfiniteQuery(...args),
 }));
 
 jest.mock('../../src/stores/authStore', () => ({
@@ -46,6 +48,7 @@ describe('useCRM hooks', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseQuery.mockReturnValue({ data: [] });
+    mockUseInfiniteQuery.mockReturnValue({ data: { pages: [] } });
     mockUseAuthStore.mockImplementation((selector: unknown) =>
       (selector as (state: { workspaceId: string | null }) => unknown)({ workspaceId: 'ws-1' })
     );
@@ -68,7 +71,7 @@ describe('useCRM hooks', () => {
 
   it('useAccounts should configure list query', () => {
     useAccounts();
-    expect(mockUseQuery).toHaveBeenCalledWith(
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       expect.objectContaining({
         queryKey: ['accounts', 'ws-1'],
         staleTime: 30000,
@@ -93,12 +96,11 @@ describe('useCRM hooks', () => {
     useContacts();
     useContact('c-1');
 
-    expect(mockUseQuery).toHaveBeenNthCalledWith(
-      1,
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['contacts', 'ws-1'], enabled: true })
     );
     expect(mockUseQuery).toHaveBeenNthCalledWith(
-      2,
+      1,
       expect.objectContaining({ queryKey: ['contact', 'ws-1', 'c-1'], enabled: true })
     );
   });
@@ -107,12 +109,11 @@ describe('useCRM hooks', () => {
     useDeals();
     useDeal('d-1');
 
-    expect(mockUseQuery).toHaveBeenNthCalledWith(
-      1,
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['deals', 'ws-1'], enabled: true })
     );
     expect(mockUseQuery).toHaveBeenNthCalledWith(
-      2,
+      1,
       expect.objectContaining({ queryKey: ['deal', 'ws-1', 'd-1'], enabled: true })
     );
   });
@@ -121,12 +122,11 @@ describe('useCRM hooks', () => {
     useCases();
     useCase('k-1');
 
-    expect(mockUseQuery).toHaveBeenNthCalledWith(
-      1,
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['cases', 'ws-1'], enabled: true })
     );
     expect(mockUseQuery).toHaveBeenNthCalledWith(
-      2,
+      1,
       expect.objectContaining({ queryKey: ['case', 'ws-1', 'k-1'], enabled: true })
     );
   });
@@ -153,12 +153,10 @@ describe('useCRM hooks', () => {
     useAccounts();
     useAccount('a-1');
 
-    expect(mockUseQuery).toHaveBeenNthCalledWith(
-      1,
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['accounts', ''], enabled: false })
     );
-    expect(mockUseQuery).toHaveBeenNthCalledWith(
-      2,
+    expect(mockUseQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['account', '', 'a-1'], enabled: false })
     );
   });

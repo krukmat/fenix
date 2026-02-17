@@ -71,23 +71,31 @@ export const authApi = {
 // CRM API - Generic fetch helpers
 export const crmApi = {
   // Lists
-  getAccounts: async (workspaceId: string) => {
-    const response = await apiClient.get(`/bff/api/v1/accounts?workspace_id=${workspaceId}`);
+  getAccounts: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
+    const response = await apiClient.get('/bff/api/v1/accounts', {
+      params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
+    });
     return response.data;
   },
-  
-  getContacts: async (workspaceId: string) => {
-    const response = await apiClient.get(`/bff/api/v1/contacts?workspace_id=${workspaceId}`);
+
+  getContacts: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
+    const response = await apiClient.get('/bff/api/v1/contacts', {
+      params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
+    });
     return response.data;
   },
-  
-  getDeals: async (workspaceId: string) => {
-    const response = await apiClient.get(`/bff/api/v1/deals?workspace_id=${workspaceId}`);
+
+  getDeals: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
+    const response = await apiClient.get('/bff/api/v1/deals', {
+      params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
+    });
     return response.data;
   },
-  
-  getCases: async (workspaceId: string) => {
-    const response = await apiClient.get(`/bff/api/v1/cases?workspace_id=${workspaceId}`);
+
+  getCases: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
+    const response = await apiClient.get('/bff/api/v1/cases', {
+      params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
+    });
     return response.data;
   },
   

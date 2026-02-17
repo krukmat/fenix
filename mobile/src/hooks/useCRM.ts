@@ -1,8 +1,11 @@
 // Task 4.2 — FR-300: TanStack Query hooks para entidades CRM
+// Task 4.3.td — STEP 8: list hooks migrated to useInfiniteQuery
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { crmApi, agentApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+
+const PAGE_SIZE = 50;
 
 // Query keys pattern (workspace isolation)
 export const queryKeys = {
@@ -26,12 +29,19 @@ function useWorkspaceId(): string | null {
 // Accounts
 export function useAccounts() {
   const workspaceId = useWorkspaceId();
-  
-  return useQuery({
+
+  return useInfiniteQuery({
     queryKey: queryKeys.accounts(workspaceId ?? ''),
-    queryFn: () => crmApi.getAccounts(workspaceId!),
-    staleTime: 30_000, // 30s for lists
-    gcTime: 5 * 60_000, // 5min garbage collection
+    queryFn: ({ pageParam }: { pageParam: number }) =>
+      crmApi.getAccounts(workspaceId!, { page: pageParam, limit: PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage: { total?: number; data?: unknown[] }, allPages) => {
+      const total = lastPage.total ?? 0;
+      const loaded = allPages.flatMap((p) => p.data ?? []).length;
+      return loaded < total ? allPages.length + 1 : undefined;
+    },
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
     retry: 1,
     refetchOnWindowFocus: false,
     enabled: !!workspaceId,
@@ -40,7 +50,7 @@ export function useAccounts() {
 
 export function useAccount(id: string) {
   const workspaceId = useWorkspaceId();
-  
+
   return useQuery({
     queryKey: queryKeys.account(workspaceId ?? '', id),
     queryFn: () => crmApi.getAccountFull(id),
@@ -54,10 +64,17 @@ export function useAccount(id: string) {
 // Contacts
 export function useContacts() {
   const workspaceId = useWorkspaceId();
-  
-  return useQuery({
+
+  return useInfiniteQuery({
     queryKey: queryKeys.contacts(workspaceId ?? ''),
-    queryFn: () => crmApi.getContacts(workspaceId!),
+    queryFn: ({ pageParam }: { pageParam: number }) =>
+      crmApi.getContacts(workspaceId!, { page: pageParam, limit: PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage: { total?: number; data?: unknown[] }, allPages) => {
+      const total = lastPage.total ?? 0;
+      const loaded = allPages.flatMap((p) => p.data ?? []).length;
+      return loaded < total ? allPages.length + 1 : undefined;
+    },
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -68,7 +85,7 @@ export function useContacts() {
 
 export function useContact(id: string) {
   const workspaceId = useWorkspaceId();
-  
+
   return useQuery({
     queryKey: queryKeys.contact(workspaceId ?? '', id),
     queryFn: () => crmApi.getContact(id),
@@ -82,10 +99,17 @@ export function useContact(id: string) {
 // Deals
 export function useDeals() {
   const workspaceId = useWorkspaceId();
-  
-  return useQuery({
+
+  return useInfiniteQuery({
     queryKey: queryKeys.deals(workspaceId ?? ''),
-    queryFn: () => crmApi.getDeals(workspaceId!),
+    queryFn: ({ pageParam }: { pageParam: number }) =>
+      crmApi.getDeals(workspaceId!, { page: pageParam, limit: PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage: { total?: number; data?: unknown[] }, allPages) => {
+      const total = lastPage.total ?? 0;
+      const loaded = allPages.flatMap((p) => p.data ?? []).length;
+      return loaded < total ? allPages.length + 1 : undefined;
+    },
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -96,7 +120,7 @@ export function useDeals() {
 
 export function useDeal(id: string) {
   const workspaceId = useWorkspaceId();
-  
+
   return useQuery({
     queryKey: queryKeys.deal(workspaceId ?? '', id),
     queryFn: () => crmApi.getDealFull(id),
@@ -110,10 +134,17 @@ export function useDeal(id: string) {
 // Cases
 export function useCases() {
   const workspaceId = useWorkspaceId();
-  
-  return useQuery({
+
+  return useInfiniteQuery({
     queryKey: queryKeys.cases(workspaceId ?? ''),
-    queryFn: () => crmApi.getCases(workspaceId!),
+    queryFn: ({ pageParam }: { pageParam: number }) =>
+      crmApi.getCases(workspaceId!, { page: pageParam, limit: PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage: { total?: number; data?: unknown[] }, allPages) => {
+      const total = lastPage.total ?? 0;
+      const loaded = allPages.flatMap((p) => p.data ?? []).length;
+      return loaded < total ? allPages.length + 1 : undefined;
+    },
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -124,7 +155,7 @@ export function useCases() {
 
 export function useCase(id: string) {
   const workspaceId = useWorkspaceId();
-  
+
   return useQuery({
     queryKey: queryKeys.case(workspaceId ?? '', id),
     queryFn: () => crmApi.getCaseFull(id),
@@ -138,7 +169,7 @@ export function useCase(id: string) {
 // Agent Runs
 export function useAgentRuns() {
   const workspaceId = useWorkspaceId();
-  
+
   return useQuery({
     queryKey: queryKeys.agentRuns(workspaceId ?? ''),
     queryFn: () => agentApi.getRuns(workspaceId!),
@@ -152,7 +183,7 @@ export function useAgentRuns() {
 
 export function useAgentRun(id: string) {
   const workspaceId = useWorkspaceId();
-  
+
   return useQuery({
     queryKey: queryKeys.agentRun(workspaceId ?? '', id),
     queryFn: () => agentApi.getRun(id),

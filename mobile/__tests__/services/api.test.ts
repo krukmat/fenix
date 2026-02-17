@@ -133,10 +133,11 @@ describe('api.ts', () => {
       await crmApi.getCaseFull('c1');
       await crmApi.getContact('ct1');
 
-      expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/accounts?workspace_id=ws-1');
-      expect(getSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/contacts?workspace_id=ws-1');
-      expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/api/v1/deals?workspace_id=ws-1');
-      expect(getSpy).toHaveBeenNthCalledWith(4, '/bff/api/v1/cases?workspace_id=ws-1');
+      // STEP 8: list endpoints now use params object + pagination (page, limit)
+      expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/accounts', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
+      expect(getSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/contacts', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
+      expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/api/v1/deals', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
+      expect(getSpy).toHaveBeenNthCalledWith(4, '/bff/api/v1/cases', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
       expect(getSpy).toHaveBeenNthCalledWith(5, '/bff/accounts/a1/full');
       expect(getSpy).toHaveBeenNthCalledWith(6, '/bff/deals/d1/full');
       expect(getSpy).toHaveBeenNthCalledWith(7, '/bff/cases/c1/full');
