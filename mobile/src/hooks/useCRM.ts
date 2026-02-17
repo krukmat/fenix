@@ -1,6 +1,6 @@
 // Task 4.2 — FR-300: TanStack Query hooks para entidades CRM
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { crmApi, agentApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 

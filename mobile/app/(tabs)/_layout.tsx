@@ -2,10 +2,9 @@
 
 import React from 'react';
 import { Drawer } from 'expo-router/drawer';
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { DrawerContentScrollView, DrawerItemList, DrawerContentComponentProps } from '@react-navigation/drawer';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useTheme } from 'react-native-paper';
 import { useAuthStore } from '../../src/stores/authStore';
 

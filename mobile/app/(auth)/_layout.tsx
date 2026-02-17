@@ -1,8 +1,7 @@
 // Task 4.2 — FR-300: Auth Layout con redirect cuando ya autenticado
 
 import React from 'react';
-import { Stack } from 'expo-router';
-import { Redirect } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
 import { useAuthStore } from '../../src/stores/authStore';
 
 export default function AuthLayout() {

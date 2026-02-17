@@ -22,7 +22,7 @@ interface AuthState {
   loadStoredToken: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   userId: null,
   workspaceId: null,

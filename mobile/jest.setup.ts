@@ -22,7 +22,8 @@ jest.mock('expo-splash-screen', () => ({
 
 // Mock react-native-gesture-handler
 jest.mock('react-native-gesture-handler', () => {
-  const View = require('react-native/Libraries/Components/View/View');
+  const React = require('react');
+  const View = ({ children }: { children?: React.ReactNode }) => children ?? null;
   return {
     Swipeable: View,
     DrawerLayout: View,
@@ -54,18 +55,21 @@ jest.mock('react-native-gesture-handler', () => {
 });
 
 // Mock react-native-screens
-jest.mock('react-native-screens', () => ({
-  enableScreens: jest.fn(),
-  Screen: View,
-  ScreenContainer: View,
-  NativeScreen: View,
-  NativeScreenContainer: View,
-  ScreenStack: View,
-}));
+jest.mock('react-native-screens', () => {
+  const React = require('react');
+  const mockView = ({ children }: { children?: React.ReactNode }) => children ?? null;
+  return {
+    enableScreens: jest.fn(),
+    Screen: mockView,
+    ScreenContainer: mockView,
+    NativeScreen: mockView,
+    NativeScreenContainer: mockView,
+    ScreenStack: mockView,
+  };
+});
 
 // Mock @react-navigation/native
 jest.mock('@react-navigation/native', () => ({
-  ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => ({
     navigate: jest.fn(),
     goBack: jest.fn(),

@@ -1,50 +1,72 @@
-# Welcome to your Expo app 👋
+# Mobile (FenixCRM)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicación mobile basada en Expo/React Native para consumir el BFF de FenixCRM.
 
-## Get started
+## Requisitos
 
-1. Install dependencies
+- Node.js 18+
+- npm 9+
 
-   ```bash
-   npm install
-   ```
+## Desarrollo local
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Instalar dependencias:
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Arrancar app:
 
-## Learn more
+```bash
+npm run start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+## Quality Gates (local)
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Comandos principales:
 
-## Join the community
+```bash
+npm run typecheck
+npm run lint
+npm run quality:arch
+npm run test:coverage
+```
 
-Join our community of developers creating universal apps.
+Pipeline agregado:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm run quality
+```
+
+## Definición de Done para PR (DoD)
+
+Todo PR en `mobile/` debe cumplir:
+
+1. `npm run quality` en verde.
+2. No introducir regresiones de calidad:
+   - nuevas violaciones de lint/arquitectura,
+   - nuevas URLs hardcodeadas fuera de config/env,
+   - nuevos anti-patrones de listas o aislamiento de query keys.
+3. Agregar/ajustar tests para código nuevo o modificado en hooks/stores/services/componentes críticos.
+
+## Política de subida de thresholds
+
+Los thresholds de cobertura se elevan gradualmente por sprint cuando el pipeline se mantiene estable.
+
+Estado actual de referencia (logic coverage global):
+
+- statements: **35**
+- branches: **25**
+- lines: **35**
+- functions: **20**
+
+Subida sugerida:
+
+1. subir 10–15 puntos por sprint en statements/lines si no hay flakiness;
+2. subir branches/functions de forma más conservadora;
+3. nunca bajar thresholds salvo incidente documentado.
+
+## Notas
+
+- `quality:arch` ejecuta `mobile/scripts/quality-check.mjs`.
+- Los checks arquitectónicos están orientados a prevenir regresiones tempranas en PRs.

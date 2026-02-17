@@ -11,6 +11,46 @@ on:
     branches: [main, develop]
 
 jobs:
+  mobile-quality:
+    name: Mobile Quality Gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        run: |
+          cd mobile
+          npm ci
+
+      - name: Typecheck (mobile)
+        run: |
+          cd mobile
+          npm run typecheck
+
+      - name: Lint (mobile)
+        run: |
+          cd mobile
+          npm run lint
+
+      - name: Architecture checks (mobile)
+        run: |
+          cd mobile
+          npm run quality:arch
+
+      - name: Coverage gate (mobile)
+        run: |
+          cd mobile
+          npm run test:coverage
+
   # Job 1: Cyclomatic Complexity Gate — blocks merge if any function exceeds threshold 7
   # This job must pass before lint and tests can run.
   complexity:
@@ -89,7 +129,7 @@ jobs:
   # Job 2: Lint, Test, Build — only runs if complexity gate passes
   test:
     name: Lint and Test
-    needs: [complexity, traceability]
+    needs: [mobile-quality, complexity, traceability]
     runs-on: ubuntu-latest
 
     steps:

@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { InternalAxiosRequestConfig } from 'axios';
-import { apiClient } from '../../src/services/api';
+import { apiClient, authApi, crmApi, agentApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
 
 const mockLogout = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
@@ -91,6 +91,66 @@ describe('api.ts', () => {
       await expect(handler!.rejected(error500)).rejects.toBeDefined();
 
       expect(mockLogout).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('API wrappers', () => {
+    it('authApi.login should call POST /bff/auth/login', async () => {
+      const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValueOnce({ data: { ok: true } } as never);
+
+      const result = await authApi.login('a@b.com', 'secret');
+
+      expect(postSpy).toHaveBeenCalledWith('/bff/auth/login', {
+        email: 'a@b.com',
+        password: 'secret',
+      });
+      expect(result).toEqual({ ok: true });
+    });
+
+    it('authApi.register should call POST /bff/auth/register', async () => {
+      const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValueOnce({ data: { created: true } } as never);
+
+      const result = await authApi.register('User', 'u@b.com', 'pass', 'WS');
+
+      expect(postSpy).toHaveBeenCalledWith('/bff/auth/register', {
+        displayName: 'User',
+        email: 'u@b.com',
+        password: 'pass',
+        workspaceName: 'WS',
+      });
+      expect(result).toEqual({ created: true });
+    });
+
+    it('crmApi methods should call expected GET endpoints', async () => {
+      const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValue({ data: { ok: true } } as never);
+
+      await crmApi.getAccounts('ws-1');
+      await crmApi.getContacts('ws-1');
+      await crmApi.getDeals('ws-1');
+      await crmApi.getCases('ws-1');
+      await crmApi.getAccountFull('a1');
+      await crmApi.getDealFull('d1');
+      await crmApi.getCaseFull('c1');
+      await crmApi.getContact('ct1');
+
+      expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/accounts?workspace_id=ws-1');
+      expect(getSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/contacts?workspace_id=ws-1');
+      expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/api/v1/deals?workspace_id=ws-1');
+      expect(getSpy).toHaveBeenNthCalledWith(4, '/bff/api/v1/cases?workspace_id=ws-1');
+      expect(getSpy).toHaveBeenNthCalledWith(5, '/bff/accounts/a1/full');
+      expect(getSpy).toHaveBeenNthCalledWith(6, '/bff/deals/d1/full');
+      expect(getSpy).toHaveBeenNthCalledWith(7, '/bff/cases/c1/full');
+      expect(getSpy).toHaveBeenNthCalledWith(8, '/bff/api/v1/contacts/ct1');
+    });
+
+    it('agentApi methods should call expected GET endpoints', async () => {
+      const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValue({ data: { ok: true } } as never);
+
+      await agentApi.getRuns('ws-1');
+      await agentApi.getRun('run-1');
+
+      expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/agents/runs?workspace_id=ws-1');
+      expect(getSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/agents/runs/run-1');
     });
   });
 });

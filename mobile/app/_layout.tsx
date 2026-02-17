@@ -47,7 +47,7 @@ export default function RootLayout() {
     }
 
     prepare();
-  }, []);
+  }, [loadStoredToken]);
 
   if (!isReady || isLoading) {
     return (

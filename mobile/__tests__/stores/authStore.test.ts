@@ -10,6 +10,7 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 
 // Import the store after mocking
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -98,7 +99,7 @@ describe('authStore', () => {
       };
 
       // Mock SecureStore to return stored data
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(
+      (SecureStore.getItemAsync as jest.MockedFunction<typeof SecureStore.getItemAsync>).mockResolvedValueOnce(
         JSON.stringify(testData)
       );
 
@@ -113,7 +114,7 @@ describe('authStore', () => {
 
     it('should stay unauthenticated when no token exists', async () => {
       // Mock SecureStore to return null (no token)
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(null);
+      (SecureStore.getItemAsync as jest.MockedFunction<typeof SecureStore.getItemAsync>).mockResolvedValueOnce(null);
 
       await useAuthStore.getState().loadStoredToken();
 
