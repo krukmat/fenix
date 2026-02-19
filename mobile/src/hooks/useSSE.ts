@@ -22,6 +22,20 @@ function makeId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function buildRequestBody(query: string, context?: SendContext): Record<string, unknown> {
+  const body: Record<string, unknown> = { query };
+  if (context?.entityType) body.entityType = context.entityType;
+  if (context?.entityId) body.entityId = context.entityId;
+  return body;
+}
+
+function makeInitialMessages(trimmed: string): [CopilotMessage, CopilotMessage] {
+  return [
+    { id: makeId('u'), role: 'user', content: trimmed },
+    { id: makeId('a'), role: 'assistant', content: '', isStreaming: true },
+  ];
+}
+
 export function useSSE() {
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -87,15 +101,10 @@ export function useSSE() {
       setError(null);
       setIsStreaming(true);
 
-      const userMsg: CopilotMessage = { id: makeId('u'), role: 'user', content: trimmed };
-      const assistantMsg: CopilotMessage = { id: makeId('a'), role: 'assistant', content: '', isStreaming: true };
+      const [userMsg, assistantMsg] = makeInitialMessages(trimmed);
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
-      const body: Record<string, unknown> = { query: trimmed };
-      if (context?.entityType) body.entityType = context.entityType;
-      if (context?.entityId) body.entityId = context.entityId;
-
-      clientRef.current = createSSEClient(copilotApi.buildChatUrl(), token, body, onStreamMessage, (err) => {
+      clientRef.current = createSSEClient(copilotApi.buildChatUrl(), token, buildRequestBody(trimmed, context), onStreamMessage, (err) => {
         setError(err.message);
         setIsStreaming(false);
       });
