@@ -134,3 +134,16 @@ export const agentApi = {
     return response.data;
   },
 };
+
+// Copilot API
+export const copilotApi = {
+  buildChatUrl: (): string => `${BFF_URL}/bff/copilot/chat`,
+};
+
+// Tool API
+export const toolApi = {
+  execute: async (tool: string, params: Record<string, unknown>) => {
+    const response = await apiClient.post(`/bff/api/v1/tools/${tool}`, params);
+    return response.data;
+  },
+};
