@@ -3,7 +3,6 @@ package handlers
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -72,15 +71,13 @@ type PaginatedResponse struct {
 // Task 1.5: Create a new lead (CRUD + Multi-tenancy)
 func (h *LeadHandler) CreateLead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, wsErr := getWorkspaceID(ctx)
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 
 	var req CreateLeadRequest
-	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
+	if !decodeBodyJSON(w, r, &req) {
 		return
 	}
 
@@ -107,10 +104,8 @@ func (h *LeadHandler) CreateLead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write response
-	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
-	if encodeErr := json.NewEncoder(w).Encode(leadToResponse(lead)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writeJSONOr500(w, leadToResponse(lead)) {
 		return
 	}
 }
@@ -119,9 +114,8 @@ func (h *LeadHandler) CreateLead(w http.ResponseWriter, r *http.Request) {
 // Task 1.5: Retrieve a single lead by ID (with multi-tenancy isolation)
 func (h *LeadHandler) GetLead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, wsErr := getWorkspaceID(ctx)
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 
@@ -133,20 +127,12 @@ func (h *LeadHandler) GetLead(w http.ResponseWriter, r *http.Request) {
 
 	// Get lead via service
 	lead, svcErr := h.leadService.Get(ctx, wsID, leadID)
-	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, errLeadNotFound)
-		return
-	}
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetLead, svcErr))
+	if handleGetError(w, svcErr, errLeadNotFound, errFailedToGetLead) {
 		return
 	}
 
 	// Write response
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusOK)
-	if encodeErr := json.NewEncoder(w).Encode(leadToResponse(lead)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writeJSONOr500(w, leadToResponse(lead)) {
 		return
 	}
 }
@@ -155,9 +141,8 @@ func (h *LeadHandler) GetLead(w http.ResponseWriter, r *http.Request) {
 // Task 1.5: List leads with pagination filters
 func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, wsErr := getWorkspaceID(ctx)
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 
@@ -200,15 +185,7 @@ func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 		responses[i] = leadToResponse(lead)
 	}
 
-	resp := PaginatedResponse{
-		Data: responses,
-		Meta: Meta{Total: total, Limit: page.Limit, Offset: page.Offset},
-	}
-
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusOK)
-	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writePaginatedOr500(w, responses, total, page) {
 		return
 	}
 }
@@ -217,9 +194,8 @@ func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 // Task 1.5: Update a lead (partial update allowed)
 func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, wsErr := getWorkspaceID(ctx)
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 
@@ -229,8 +205,7 @@ func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req UpdateLeadRequest
-	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
+	if !decodeBodyJSON(w, r, &req) {
 		return
 	}
 
@@ -245,10 +220,7 @@ func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write response
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusOK)
-	if encodeErr := json.NewEncoder(w).Encode(leadToResponse(updated)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writeJSONOr500(w, leadToResponse(updated)) {
 		return
 	}
 }
@@ -278,9 +250,8 @@ func (h *LeadHandler) getLeadForUpdate(w http.ResponseWriter, r *http.Request, w
 // Task 1.5: Soft delete a lead (sets deleted_at timestamp)
 func (h *LeadHandler) DeleteLead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, wsErr := getWorkspaceID(ctx)
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 

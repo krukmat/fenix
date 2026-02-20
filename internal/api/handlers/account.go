@@ -80,15 +80,13 @@ type Meta struct {
 // Task 1.3.7: Create a new account (CRUD + Multi-tenancy)
 func (h *AccountHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, wsErr := getWorkspaceID(ctx)
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 
 	var req CreateAccountRequest
-	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
+	if !decodeBodyJSON(w, r, &req) {
 		return
 	}
 
@@ -115,10 +113,8 @@ func (h *AccountHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write response
-	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
-	if encodeErr := json.NewEncoder(w).Encode(accountToResponse(account)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writeJSONOr500(w, accountToResponse(account)) {
 		return
 	}
 }
@@ -127,9 +123,8 @@ func (h *AccountHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 // Task 1.3.7: Retrieve a single account by ID (with multi-tenancy isolation)
 func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, wsErr := getWorkspaceID(ctx)
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 
@@ -141,20 +136,12 @@ func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 
 	// Get account via service
 	account, svcErr := h.accountService.Get(ctx, wsID, accountID)
-	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, errAccountNotFound)
-		return
-	}
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetAccount, svcErr))
+	if handleGetError(w, svcErr, errAccountNotFound, errFailedToGetAccount) {
 		return
 	}
 
 	// Write response
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusOK)
-	if encodeErr := json.NewEncoder(w).Encode(accountToResponse(account)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writeJSONOr500(w, accountToResponse(account)) {
 		return
 	}
 }
@@ -163,9 +150,8 @@ func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 // Task 1.3.7: List accounts with pagination filters
 func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, wsErr := getWorkspaceID(ctx)
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 
@@ -188,15 +174,7 @@ func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 		responses[i] = accountToResponse(acc)
 	}
 
-	resp := ListAccountsResponse{
-		Data: responses,
-		Meta: Meta{Total: total, Limit: page.Limit, Offset: page.Offset},
-	}
-
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusOK)
-	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writePaginatedOr500(w, responses, total, page) {
 		return
 	}
 }
@@ -209,9 +187,8 @@ func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 // Fix: use a DB transaction with SELECT FOR UPDATE when migrating to Postgres.
 func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, wsErr := getWorkspaceID(ctx)
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 
@@ -221,8 +198,7 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req UpdateAccountRequest
-	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
+	if !decodeBodyJSON(w, r, &req) {
 		return
 	}
 
@@ -237,10 +213,7 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write response
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusOK)
-	if encodeErr := json.NewEncoder(w).Encode(accountToResponse(updated)); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writeJSONOr500(w, accountToResponse(updated)) {
 		return
 	}
 }
@@ -271,9 +244,8 @@ func (h *AccountHandler) getAccountForUpdate(w http.ResponseWriter, r *http.Requ
 // TD-3 fix: returns 404 if account does not exist or is already deleted
 func (h *AccountHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wsID, wsErr := getWorkspaceID(ctx)
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 
