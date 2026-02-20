@@ -1342,7 +1342,7 @@ To avoid sequencing ambiguity, Phase 3 tasks have the following dependency const
 
 #### Task 4.5c: FR-231 — KB Agent (1 day)
 
-**Status**: ❌ Not started
+**Status**: ✅ Completed
 
 **NOTE**: Requiere Task 4.5a completo. Extrae soluciones de casos resueltos y las convierte en artículos KB.
 

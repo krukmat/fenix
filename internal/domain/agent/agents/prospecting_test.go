@@ -186,8 +186,8 @@ func TestProspectingAgent_Run_HighConfidence_DraftsOutreach(t *testing.T) {
 		t.Fatalf("status=%s want=%s", stored.Status, agent.StatusSuccess)
 	}
 	var output struct {
-		Action     string `json:"action"`
-		LeadID     string `json:"lead_id"`
+		Action     string  `json:"action"`
+		LeadID     string  `json:"lead_id"`
 		Confidence float64 `json:"confidence"`
 		Details    struct {
 			Draft  string `json:"draft"`

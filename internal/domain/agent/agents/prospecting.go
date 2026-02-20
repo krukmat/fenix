@@ -21,10 +21,10 @@ import (
 
 // Task 4.5b — prospecting configuration.
 type ProspectingAgentConfig struct {
-	WorkspaceID        string  `json:"workspace_id"`
-	LeadID             string  `json:"lead_id"`
-	Language           string  `json:"language,omitempty"`
-	TriggeredByUserID  *string `json:"-"`
+	WorkspaceID       string  `json:"workspace_id"`
+	LeadID            string  `json:"lead_id"`
+	Language          string  `json:"language,omitempty"`
+	TriggeredByUserID *string `json:"-"`
 }
 
 const baseRunCostEuros = 0.05
@@ -197,7 +197,7 @@ func (a *ProspectingAgent) executeProspectingFlow(ctx context.Context, config Pr
 
 	toolCtx = context.WithValue(toolCtx, ctxkeys.UserID, lead.OwnerID)
 
- 	accountName := a.resolveAccountName(toolCtx, lead)
+	accountName := a.resolveAccountName(toolCtx, lead)
 
 	query := fmt.Sprintf("lead source=%s account=%s status=%s", safePtr(lead.Source), accountName, lead.Status)
 	evidence := a.searchSignals(toolCtx, config.WorkspaceID, query)
@@ -207,7 +207,7 @@ func (a *ProspectingAgent) executeProspectingFlow(ctx context.Context, config Pr
 		confidence = evidence.Items[0].Score
 	}
 
- 	toolCalls := baseProspectingToolCalls(config.LeadID, lead.AccountID, query)
+	toolCalls := baseProspectingToolCalls(config.LeadID, lead.AccountID, query)
 	out, nextToolCalls, tokens, cost, flowErr := a.resolveAction(ctx, toolCtx, config, lead, accountName, confidence)
 	if flowErr != nil {
 		return nil, flowErr

@@ -315,6 +315,11 @@ type prospectingAgentRequest struct {
 	Language string `json:"language,omitempty"`
 }
 
+type kbAgentRequest struct {
+	CaseID   string `json:"case_id"`
+	Language string `json:"language,omitempty"`
+}
+
 // buildSupportConfig validates and converts an HTTP request into a SupportAgentConfig.
 // Returns ("", nil) on validation error after writing the HTTP error response.
 func buildSupportConfig(w http.ResponseWriter, req supportAgentRequest, workspaceID string) (agents.SupportAgentConfig, bool) {
@@ -455,6 +460,101 @@ func handleProspectingRunError(w http.ResponseWriter, err error) bool {
 		return true
 	}
 	if errors.Is(err, agents.ErrProspectingDailyLeadLimitExceeded) || errors.Is(err, agents.ErrProspectingDailyCostLimitExceeded) {
+		writeError(w, http.StatusTooManyRequests, err.Error())
+		return true
+	}
+	return false
+}
+
+// KBAgentHandler handles KB Agent specific endpoints.
+// Task 4.5c — FR-231: KB Agent trigger endpoint.
+type KBAgentHandler struct {
+	kbAgent *agents.KBAgent
+}
+
+// NewKBAgentHandler creates a new KBAgentHandler.
+func NewKBAgentHandler(kbAgent *agents.KBAgent) *KBAgentHandler {
+	return &KBAgentHandler{kbAgent: kbAgent}
+}
+
+func buildKBConfig(w http.ResponseWriter, req kbAgentRequest, workspaceID string) (agents.KBAgentConfig, bool) {
+	if req.CaseID == "" {
+		writeError(w, http.StatusBadRequest, "case_id is required")
+		return agents.KBAgentConfig{}, false
+	}
+	language := req.Language
+	if language == "" {
+		language = "es"
+	}
+	return agents.KBAgentConfig{
+		WorkspaceID: workspaceID,
+		CaseID:      req.CaseID,
+		Language:    language,
+	}, true
+}
+
+// Task 4.5c — withKBTriggeredBy propagates user for audit trail.
+func withKBTriggeredBy(config agents.KBAgentConfig, userID string) agents.KBAgentConfig {
+	if userID == "" {
+		return config
+	}
+	config.TriggeredByUserID = &userID
+	return config
+}
+
+// TriggerKBAgent handles POST /api/v1/agents/kb/trigger.
+func (h *KBAgentHandler) TriggerKBAgent(w http.ResponseWriter, r *http.Request) {
+	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
+	if !ok || workspaceID == "" {
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+		return
+	}
+	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
+
+	var req kbAgentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, errInvalidBody)
+		return
+	}
+
+	config, valid := buildKBConfig(w, req, workspaceID)
+	if !valid {
+		return
+	}
+	config = withKBTriggeredBy(config, userID)
+
+	run, err := h.kbAgent.Run(r.Context(), config)
+	if err != nil {
+		if handled := handleKBRunError(w, err); handled {
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to run kb agent")
+		return
+	}
+
+	w.Header().Set(headerContentType, mimeJSON)
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"run_id": run.ID,
+		"status": "queued",
+		"agent":  "kb",
+	})
+}
+
+func handleKBRunError(w http.ResponseWriter, err error) bool {
+	if errors.Is(err, agents.ErrKBCaseIDRequired) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return true
+	}
+	if errors.Is(err, agents.ErrCaseNotFound) {
+		writeError(w, http.StatusNotFound, err.Error())
+		return true
+	}
+	if errors.Is(err, agents.ErrCaseNotResolved) {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return true
+	}
+	if errors.Is(err, agents.ErrKBDailyLimitExceeded) {
 		writeError(w, http.StatusTooManyRequests, err.Error())
 		return true
 	}

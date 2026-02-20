@@ -43,6 +43,18 @@ func (m *mockLLMProviderHandler) ModelInfo() llm.ModelMeta {
 
 func (m *mockLLMProviderHandler) HealthCheck(_ context.Context) error { return nil }
 
+type mockKBToolExecutorHandler struct {
+	out json.RawMessage
+	err error
+}
+
+func (m *mockKBToolExecutorHandler) Execute(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.out, nil
+}
+
 // newTestSupportAgentHandler builds a SupportAgentHandler backed by an in-memory DB.
 func newTestSupportAgentHandler(t *testing.T) *SupportAgentHandler {
 	t.Helper()
@@ -88,6 +100,41 @@ func newTestProspectingAgentHandler(t *testing.T, db *sql.DB, wsID, ownerID stri
 
 	pa := agents.NewProspectingAgent(orch, reg, &mockKnowledgeSearchHandler{}, &mockLLMProviderHandler{}, leadSvc, accountSvc, db)
 	return NewProspectingAgentHandler(pa), lead.ID
+}
+
+// newTestKBAgentHandler builds a KBAgentHandler backed by an in-memory DB.
+func newTestKBAgentHandler(t *testing.T, db *sql.DB, wsID, ownerID string) (*KBAgentHandler, string) {
+	t.Helper()
+	orch := agent.NewOrchestrator(db)
+	reg := tool.NewToolRegistry(db)
+
+	_, err := db.ExecContext(context.Background(),
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('kb-agent', ?, 'KB Agent', 'kb', 'active')`, wsID)
+	if err != nil {
+		t.Fatalf("insert kb agent_definition: %v", err)
+	}
+
+	if regErr := reg.Register(tool.BuiltinCreateKnowledgeItem, &mockKBToolExecutorHandler{out: json.RawMessage(`{"knowledge_item_id":"kb-created"}`)}); regErr != nil {
+		t.Fatalf("register create_knowledge_item executor: %v", regErr)
+	}
+	if regErr := reg.Register(tool.BuiltinUpdateKnowledgeItem, &mockKBToolExecutorHandler{out: json.RawMessage(`{"knowledge_item_id":"kb-updated"}`)}); regErr != nil {
+		t.Fatalf("register update_knowledge_item executor: %v", regErr)
+	}
+
+	caseSvc := crm.NewCaseService(db)
+	caseTicket, caseErr := caseSvc.Create(context.Background(), crm.CreateCaseInput{
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Caso resuelto",
+		Status:      "resolved",
+	})
+	if caseErr != nil {
+		t.Fatalf("create case: %v", caseErr)
+	}
+
+	kbAgent := agents.NewKBAgent(orch, reg, &mockKnowledgeSearchHandler{}, &mockLLMProviderHandler{}, caseSvc, db)
+	return NewKBAgentHandler(kbAgent), caseTicket.ID
 }
 
 // insertTestAgentDef inserts an agent_definition for handler tests.
@@ -667,5 +714,80 @@ func TestProspectingAgentHandler_TriggerProspecting_PropagatesTriggeredByUser(t 
 	}
 	if !triggeredBy.Valid || triggeredBy.String != ownerID {
 		t.Fatalf("expected triggered_by_user_id=%s, got valid=%v value=%q", ownerID, triggeredBy.Valid, triggeredBy.String)
+	}
+}
+
+func TestKBAgentHandler_TriggerKB_200(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	ownerID := createUser(t, db, wsID)
+	h, caseID := newTestKBAgentHandler(t, db, wsID, ownerID)
+
+	body, _ := json.Marshal(map[string]any{"case_id": caseID})
+	req := httptest.NewRequest(http.MethodPost, "/agents/kb/trigger", bytes.NewReader(body))
+	ctx := contextWithWorkspaceID(req.Context(), wsID)
+	ctx = context.WithValue(ctx, ctxkeys.UserID, ownerID)
+	req = req.WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerKBAgent(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if _, ok := resp["run_id"]; !ok {
+		t.Fatalf("expected run_id field, got: %v", resp)
+	}
+	if got, _ := resp["status"].(string); got != "queued" {
+		t.Fatalf("expected status=queued, got=%q", got)
+	}
+	if got, _ := resp["agent"].(string); got != "kb" {
+		t.Fatalf("expected agent=kb, got=%q", got)
+	}
+
+	runID, _ := resp["run_id"].(string)
+	if runID == "" {
+		t.Fatal("expected run_id in response")
+	}
+	var triggeredBy sql.NullString
+	err := db.QueryRowContext(context.Background(), `
+		SELECT triggered_by_user_id
+		FROM agent_run
+		WHERE id = ?
+	`, runID).Scan(&triggeredBy)
+	if err != nil {
+		t.Fatalf("query triggered_by_user_id: %v", err)
+	}
+	if !triggeredBy.Valid || triggeredBy.String != ownerID {
+		t.Fatalf("expected triggered_by_user_id=%s, got valid=%v value=%q", ownerID, triggeredBy.Valid, triggeredBy.String)
+	}
+}
+
+func TestKBAgentHandler_TriggerKB_MissingCaseID(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	ownerID := createUser(t, db, wsID)
+	h, _ := newTestKBAgentHandler(t, db, wsID, ownerID)
+
+	body, _ := json.Marshal(map[string]any{})
+	req := httptest.NewRequest(http.MethodPost, "/agents/kb/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerKBAgent(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
 	}
 }

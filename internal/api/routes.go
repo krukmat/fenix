@@ -246,6 +246,16 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			db,
 		)
 		prospectingAgentHandler := handlers.NewProspectingAgentHandler(prospectingAgent)
+		// Task 4.5c — FR-231: KB Agent wiring.
+		kbAgent := agents.NewKBAgent(
+			agentOrchestrator,
+			toolRegistry,
+			searchSvc,
+			llmProvider,
+			caseService,
+			db,
+		)
+		kbAgentHandler := handlers.NewKBAgentHandler(kbAgent)
 
 		// Task 3.8: Handoff Manager (reuses caseService + knowledgeBus from above)
 		handoffService := agent.NewHandoffService(db, caseService, knowledgeBus)
@@ -261,6 +271,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			r.Get("/definitions", agentHandler.ListAgentDefinitions)            // GET  /api/v1/agents/definitions
 			r.Post("/support/trigger", supportAgentHandler.TriggerSupportAgent) // POST /api/v1/agents/support/trigger
 			r.Post("/prospecting/trigger", prospectingAgentHandler.TriggerProspectingAgent)
+			r.Post("/kb/trigger", kbAgentHandler.TriggerKBAgent)
 		})
 	})
 
