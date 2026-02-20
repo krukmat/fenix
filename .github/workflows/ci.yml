@@ -150,6 +150,14 @@ jobs:
           # Keep linter version aligned with current Go toolchain used in CI.
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.8
 
+      - name: Setup Node.js (for jscpd in pattern gate)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Pattern opportunities gate (warn mode)
+        run: make pattern-opportunities-gate PATTERN_GATE_MODE=warn PATTERN_GATE_TS_DUP_THRESHOLD=2
+
       - name: Show lint gates (gocognit + maintidx)
         run: |
           set -euo pipefail

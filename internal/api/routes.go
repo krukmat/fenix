@@ -82,8 +82,8 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		accountHandler := handlers.NewAccountHandler(crm.NewAccountServiceWithBus(db, knowledgeBus))
 		contactHandler := handlers.NewContactHandler(crm.NewContactService(db))
 		r.Route("/accounts", func(r chi.Router) {
-			r.Post("/", accountHandler.CreateAccount)       // POST /api/v1/accounts
-			r.Get("/", accountHandler.ListAccounts)         // GET /api/v1/accounts
+			r.Post("/", accountHandler.CreateAccount)         // POST /api/v1/accounts
+			r.Get("/", accountHandler.ListAccounts)           // GET /api/v1/accounts
 			r.Get(routeByID, accountHandler.GetAccount)       // GET /api/v1/accounts/{id}
 			r.Put(routeByID, accountHandler.UpdateAccount)    // PUT /api/v1/accounts/{id}
 			r.Delete(routeByID, accountHandler.DeleteAccount) // DELETE /api/v1/accounts/{id}
@@ -91,8 +91,8 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		})
 
 		r.Route("/contacts", func(r chi.Router) {
-			r.Post("/", contactHandler.CreateContact)       // POST /api/v1/contacts
-			r.Get("/", contactHandler.ListContacts)         // GET /api/v1/contacts
+			r.Post("/", contactHandler.CreateContact)         // POST /api/v1/contacts
+			r.Get("/", contactHandler.ListContacts)           // GET /api/v1/contacts
 			r.Get(routeByID, contactHandler.GetContact)       // GET /api/v1/contacts/{id}
 			r.Put(routeByID, contactHandler.UpdateContact)    // PUT /api/v1/contacts/{id}
 			r.Delete(routeByID, contactHandler.DeleteContact) // DELETE /api/v1/contacts/{id}
@@ -109,8 +109,8 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		attachmentHandler := handlers.NewAttachmentHandler(crm.NewAttachmentService(db))
 		timelineHandler := handlers.NewTimelineHandler(crm.NewTimelineService(db))
 		r.Route("/leads", func(r chi.Router) {
-			r.Post("/", leadHandler.CreateLead)       // POST /api/v1/leads
-			r.Get("/", leadHandler.ListLeads)         // GET /api/v1/leads
+			r.Post("/", leadHandler.CreateLead)         // POST /api/v1/leads
+			r.Get("/", leadHandler.ListLeads)           // GET /api/v1/leads
 			r.Get(routeByID, leadHandler.GetLead)       // GET /api/v1/leads/{id}
 			r.Put(routeByID, leadHandler.UpdateLead)    // PUT /api/v1/leads/{id}
 			r.Delete(routeByID, leadHandler.DeleteLead) // DELETE /api/v1/leads/{id}
@@ -205,7 +205,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 
 		r.Route("/approvals", func(r chi.Router) {
 			r.Get("/", approvalHandler.ListPendingApprovals) // GET /api/v1/approvals
-			r.Put(routeByID, approvalHandler.DecideApproval)   // PUT /api/v1/approvals/{id}
+			r.Put(routeByID, approvalHandler.DecideApproval) // PUT /api/v1/approvals/{id}
 		})
 
 		r.Route("/admin/tools", func(r chi.Router) {

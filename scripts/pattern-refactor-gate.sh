@@ -4,6 +4,7 @@ set -euo pipefail
 
 MODE="warn"
 ROOT="."
+TS_DUP_THRESHOLD="2"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -15,9 +16,13 @@ while [[ $# -gt 0 ]]; do
       ROOT="${2:-}"
       shift 2
       ;;
+    --ts-dup-threshold)
+      TS_DUP_THRESHOLD="${2:-}"
+      shift 2
+      ;;
     *)
       echo "Unknown argument: $1"
-      echo "Usage: $0 [--mode warn|strict] [--root <path>]"
+      echo "Usage: $0 [--mode warn|strict] [--root <path>] [--ts-dup-threshold <pct>]"
       exit 2
       ;;
   esac
@@ -30,32 +35,17 @@ fi
 
 cd "$ROOT"
 
-# ─── helpers ──────────────────────────────────────────────────────────────────
-
-count_go_matches() {
-  local pattern="$1"
-  local raw
-  raw=$(grep -R -nE --include='*.go' --exclude='*_test.go' "$pattern" ./internal ./cmd ./pkg 2>/dev/null || true)
-  if [[ -z "$raw" ]]; then echo "0"; else printf '%s\n' "$raw" | wc -l | tr -d ' '; fi
-}
-
-# Count occurrences of a pattern in mobile TypeScript source.
-# Excludes __tests__, node_modules, and .expo (generated code).
-count_mobile_matches() {
-  local pattern="$1"
-  local raw
-  raw=$(grep -R -nE --include='*.ts' --include='*.tsx' \
-    --exclude-dir='__tests__' --exclude-dir='node_modules' --exclude-dir='.expo' \
-    "$pattern" ./mobile/src ./mobile/app 2>/dev/null || true)
-  if [[ -z "$raw" ]]; then echo "0"; else printf '%s\n' "$raw" | wc -l | tr -d ' '; fi
-}
-
 issue_count=0
 issue_log=""
 
 add_issue() {
   issue_count=$((issue_count + 1))
   issue_log+="- $1"$'\n'
+}
+
+extract_first_number() {
+  local input="$1"
+  printf '%s\n' "$input" | grep -Eo '[0-9]+([.][0-9]+)?' | head -n1 || true
 }
 
 # ─── evidence docs ────────────────────────────────────────────────────────────
@@ -101,77 +91,94 @@ if [[ -d "$EVIDENCE_DIR" ]]; then
   done < <(find "$EVIDENCE_DIR" -type f -name '*.md' ! -name 'template.md' ! -name 'README.md' | sort)
 fi
 
-# ─── Go: pattern signals ──────────────────────────────────────────────────────
+# ─── Go: structural duplication opportunities (dupl) ─────────────────────────
 
-strategy_interfaces=$(count_go_matches 'type[[:space:]]+[A-Za-z0-9_]+Strategy[[:space:]]+interface')
-factory_signals=$(count_go_matches 'type[[:space:]]+[A-Za-z0-9_]+Factory[[:space:]]+interface|func[[:space:]]+New[A-Za-z0-9_]+Factory\(')
-decorator_signals=$(count_go_matches 'type[[:space:]]+[A-Za-z0-9_]+Decorator[[:space:]]+struct|func[[:space:]]+New[A-Za-z0-9_]+Decorator\(')
-type_switches=$(count_go_matches 'switch[[:space:]]+.*\.\(type\)')
+go_dupl_issues=0
+go_dupl_available="yes"
+go_dupl_sample=""
 
-pattern_signals=$((strategy_interfaces + factory_signals + decorator_signals))
-
-if [[ "$pattern_signals" -eq 0 ]]; then
-  add_issue "Go: no se detectaron señales de Strategy/Factory/Decorator en el código Go (MVP)."
+if command -v golangci-lint >/dev/null 2>&1; then
+  go_dupl_out=$(golangci-lint run --enable-only=dupl --out-format line-number ./... 2>&1 || true)
+  go_dupl_issues=$(printf '%s\n' "$go_dupl_out" | grep -Ec '^[^[:space:]].*\.go:[0-9]+' || true)
+  go_dupl_sample=$(printf '%s\n' "$go_dupl_out" | grep -E '^[^[:space:]].*\.go:[0-9]+' | head -n 5 || true)
+else
+  go_dupl_available="no"
+  add_issue "Go: golangci-lint no está disponible; no se pudo ejecutar dupl."
 fi
 
-if [[ "$type_switches" -gt 0 && "$strategy_interfaces" -eq 0 ]]; then
-  add_issue "Go: hay type-switches ($type_switches) sin señales de Strategy; posible oportunidad de refactor."
+if [[ "$go_dupl_available" == "yes" && "$go_dupl_issues" -gt 0 ]]; then
+  add_issue "Go: dupl detectó $go_dupl_issues coincidencias estructurales (oportunidades de Extract/Template/Factory)."
 fi
 
-# ─── Mobile TypeScript: duplication signals ───────────────────────────────────
+# ─── TypeScript: structural duplication opportunities (jscpd) ────────────────
 
-# 1. useThemeColors / useColors — inline definition per file.
-#    A single shared hook in src/hooks/useThemeColors.ts should replace all copies.
-#    Threshold: >= 3 local definitions means the extract has not happened yet.
-mobile_theme_hook_defs=$(count_mobile_matches 'function use(ThemeColors|Colors)\(\)')
-mobile_theme_hook_threshold=3
-if [[ "$mobile_theme_hook_defs" -ge "$mobile_theme_hook_threshold" ]]; then
-  add_issue "Mobile: useThemeColors/useColors definida $mobile_theme_hook_defs veces inline; extraer a src/hooks/useThemeColors.ts (Extract Custom Hook)."
+ts_dup_available="yes"
+ts_dup_percent=""
+ts_dup_clones=""
+ts_jscpd_report_dir=".tmp/pattern-gate/jscpd"
+mkdir -p "$ts_jscpd_report_dir"
+
+if command -v npx >/dev/null 2>&1; then
+  ts_jscpd_out=$(npx --yes jscpd mobile/src bff/src \
+    --min-lines 5 \
+    --min-tokens 50 \
+    --threshold 100 \
+    --reporters console \
+    --output "$ts_jscpd_report_dir" \
+    --ignore "**/__tests__/**,**/*.test.ts,**/*.test.tsx,**/coverage/**,**/node_modules/**,**/dist/**,**/.expo/**" \
+    2>&1 || true)
+
+  ts_dup_percent=$(printf '%s\n' "$ts_jscpd_out" | sed -nE 's/.*\(([0-9]+([.][0-9]+)?)%\)[[:space:]]duplicated.*/\1/p' | tail -n1)
+  ts_dup_clones=$(printf '%s\n' "$ts_jscpd_out" | sed -nE 's/.*Found[[:space:]]+([0-9]+)[[:space:]]+clones?.*/\1/p' | tail -n1)
+
+  if [[ -z "$ts_dup_percent" ]]; then
+    fallback_pct_line=$(printf '%s\n' "$ts_jscpd_out" | grep -Ei 'duplicat' | tail -n1 || true)
+    ts_dup_percent=$(extract_first_number "$fallback_pct_line")
+  fi
+
+  if [[ -z "$ts_dup_clones" ]]; then
+    fallback_clone_line=$(printf '%s\n' "$ts_jscpd_out" | grep -Ei 'found[[:space:]]+[0-9]+[[:space:]]+clone' | tail -n1 || true)
+    ts_dup_clones=$(extract_first_number "$fallback_clone_line")
+  fi
+else
+  ts_dup_available="no"
+  add_issue "TypeScript: npx no está disponible; no se pudo ejecutar jscpd."
 fi
 
-# 2. formatLatency / formatCost / formatTokens — format helpers duplicated across files.
-#    A single src/utils/format.ts should own them.
-#    Threshold: >= 2 definitions.
-mobile_format_defs=$(count_mobile_matches 'function format(Latency|Cost|Tokens)\(')
-mobile_format_threshold=2
-if [[ "$mobile_format_defs" -ge "$mobile_format_threshold" ]]; then
-  add_issue "Mobile: helpers de formato (formatLatency/formatCost) definidos $mobile_format_defs veces; extraer a src/utils/format.ts (Utility Extract)."
-fi
-
-# 3. getStatusColor / getStatusLabel / getPriorityColor — color/label lookup duplicated.
-#    A centralized src/utils/statusColors.ts (Strategy Lookup Table) should replace all copies.
-#    Threshold: >= 3 definitions.
-mobile_color_defs=$(count_mobile_matches 'function get(Status|Priority)(Color|Label)\(')
-mobile_color_threshold=3
-if [[ "$mobile_color_defs" -ge "$mobile_color_threshold" ]]; then
-  add_issue "Mobile: helpers de color/label (getStatusColor/getPriorityColor/getStatusLabel) definidos $mobile_color_defs veces; centralizar en src/utils/statusColors.ts (Strategy Lookup)."
-fi
-
-# 4. useInfiniteQuery repeated in useCRM.ts without a factory hook.
-#    If there are >= 4 useInfiniteQuery calls and no createInfiniteListHook factory,
-#    the Factory Method pattern has not been applied.
-mobile_infinite_query_count=$(count_mobile_matches 'useInfiniteQuery\(')
-mobile_factory_hook=$(count_mobile_matches 'function create(InfiniteList|List)Hook')
-if [[ "$mobile_infinite_query_count" -ge 4 && "$mobile_factory_hook" -eq 0 ]]; then
-  add_issue "Mobile: useInfiniteQuery repetido $mobile_infinite_query_count veces sin factory hook; crear createInfiniteListHook() en useCRM.ts (Factory Method)."
+if [[ "$ts_dup_available" == "yes" ]]; then
+  if [[ -z "$ts_dup_percent" ]]; then
+    add_issue "TypeScript: jscpd no devolvió porcentaje de duplicación parseable (revisar salida de herramienta)."
+  else
+    over_threshold=$(awk -v d="$ts_dup_percent" -v t="$TS_DUP_THRESHOLD" 'BEGIN { if (d+0 > t+0) print 1; else print 0 }')
+    if [[ "$over_threshold" == "1" ]]; then
+      add_issue "TypeScript: jscpd reporta ${ts_dup_percent}% de duplicación (umbral: ${TS_DUP_THRESHOLD}%)."
+    fi
+  fi
 fi
 
 # ─── report ───────────────────────────────────────────────────────────────────
 
 echo "=== Pattern Refactor Gate (mode: $MODE) ==="
 echo ""
-echo "[Go]"
+echo "[Evidencia de refactor]"
 echo "  Evidence files : $evidence_count"
-echo "  strategy       : $strategy_interfaces"
-echo "  factory        : $factory_signals"
-echo "  decorator      : $decorator_signals"
-echo "  type switches  : $type_switches"
 echo ""
-echo "[Mobile TypeScript]"
-echo "  useThemeColors/useColors defs : $mobile_theme_hook_defs  (threshold >= $mobile_theme_hook_threshold)"
-echo "  format helper defs            : $mobile_format_defs  (threshold >= $mobile_format_threshold)"
-echo "  color/label helper defs       : $mobile_color_defs  (threshold >= $mobile_color_threshold)"
-echo "  useInfiniteQuery calls        : $mobile_infinite_query_count  (factory hooks: $mobile_factory_hook)"
+echo "[Go - dupl]"
+echo "  tool available : $go_dupl_available"
+echo "  issues         : $go_dupl_issues"
+echo "  token threshold: 120 (configurado en .golangci.yml)"
+
+if [[ -n "$go_dupl_sample" ]]; then
+  echo "  sample:"
+  printf '    %s\n' "$go_dupl_sample"
+fi
+
+echo ""
+echo "[TypeScript - jscpd]"
+echo "  tool available : $ts_dup_available"
+echo "  duplicate %    : ${ts_dup_percent:-n/a}"
+echo "  clone count    : ${ts_dup_clones:-n/a}"
+echo "  gate threshold : ${TS_DUP_THRESHOLD}%"
 
 if [[ "$issue_count" -eq 0 ]]; then
   echo ""

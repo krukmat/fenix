@@ -20,36 +20,30 @@ Dar trazabilidad a cambios de arquitectura/refactor que no siempre quedan claros
 
 ## Gate asociado
 
-El gate `make pattern-refactor-gate` valida en modo MVP:
+El gate `make pattern-opportunities-gate` (alias de `pattern-refactor-gate`) valida en modo MVP:
 
 - presencia de `docs/refactors/template.md`,
 - presencia de al menos una evidencia (`*.md` distinta de `template.md`),
 - secciones obligatorias por evidencia,
-- señales de patrones (Strategy/Factory/Decorator) en código Go,
-- señales de duplicación estructural en código Mobile TypeScript.
+- oportunidades estructurales de refactor por duplicación:
+  - **Go** con `dupl` (vía `golangci-lint --enable-only=dupl`)
+  - **TypeScript (mobile + bff)** con `jscpd`
 
-### Checks Go
+### Umbrales actuales
 
-| Check | Qué detecta |
-|-------|-------------|
-| `strategy` | `type XStrategy interface` |
-| `factory` | `type XFactory interface` o `func NewXFactory(` |
-| `decorator` | `type XDecorator struct` o `func NewXDecorator(` |
-| `type_switches` | `switch x.(type)` sin contraparte Strategy |
-
-### Checks Mobile TypeScript
-
-| Check | Umbral | Patrón a aplicar |
-|-------|--------|-----------------|
-| `useThemeColors/useColors` inline defs | ≥ 3 | Extract Custom Hook → `src/hooks/useThemeColors.ts` |
-| `formatLatency/formatCost/formatTokens` defs | ≥ 2 | Utility Extract → `src/utils/format.ts` |
-| `getStatusColor/getPriorityColor/getStatusLabel` defs | ≥ 3 | Strategy Lookup → `src/utils/statusColors.ts` |
-| `useInfiniteQuery` calls sin `createInfiniteListHook` | ≥ 4 | Factory Method → `useCRM.ts` |
+- **Go / dupl**: `threshold=120` (configurado en `.golangci.yml`)
+- **TS / jscpd**: `PATTERN_GATE_TS_DUP_THRESHOLD=2` (%)
 
 En fase inicial se ejecuta en modo `warn` en CI:
 
 ```bash
-make pattern-refactor-gate PATTERN_GATE_MODE=warn
+make pattern-opportunities-gate PATTERN_GATE_MODE=warn
 ```
 
 Cuando el equipo lo decida, puede endurecerse a `strict`.
+
+## Evolución recomendada (WARN → FAIL)
+
+1. **Semana 1-2 (warn):** levantar baseline y revisar falsos positivos.
+2. **Semana 3 (warn):** ajustar exclusiones/umbrales por módulo.
+3. **Semana 4 (strict):** activar bloqueo en CI para nuevos PRs.

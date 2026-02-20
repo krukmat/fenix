@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	mimeJSON         = "application/json"
+	mimeJSON          = "application/json"
 	headerContentType = "Content-Type"
 )
 

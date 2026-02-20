@@ -42,6 +42,10 @@ linters-settings:
   funlen:
     lines: 80
     statements: 40
+
+  dupl:
+    threshold: 120
+
   govet:
     enable:
       - shadow

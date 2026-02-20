@@ -39,10 +39,10 @@ type Violation struct {
 }
 
 const (
-	flagReqs        = "reqs"
-	defaultReqsDir  = "./reqs"
-	extYAML         = ".yml"
-	doorstopYAML    = ".doorstop.yml"
+	flagReqs       = "reqs"
+	defaultReqsDir = "./reqs"
+	extYAML        = ".yml"
+	doorstopYAML   = ".doorstop.yml"
 )
 
 func main() {

@@ -2,7 +2,7 @@
 # Task 1.1: Project Setup
 # Following implementation plan exactly
 
-.PHONY: all test build run lint fmt complexity race-stability coverage-gate coverage-app coverage-app-gate coverage-tdd check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check contract-test trace-report
+.PHONY: all test build run lint fmt complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-app-gate coverage-tdd check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check contract-test trace-report
 
 # Variables
 BINARY_NAME=fenix
@@ -86,9 +86,24 @@ complexity:
 		echo "PASSED: all production functions at or below $(COMPLEXITY_THRESHOLD)"; \
 	fi
 
-# Run all quality gates before merge (complexity + lint + tests)
-check: complexity lint test
+# Run all quality gates before merge (pattern gate in warn mode + complexity + lint + tests)
+check: pattern-refactor-gate complexity lint test
 	@echo "All quality gates passed — safe to merge."
+
+# Pattern refactor evidence gate (MVP):
+# - warn mode: reports findings without failing
+# - strict mode: fails when no/invalid evidence or strong smells are detected
+PATTERN_GATE_MODE?=warn
+PATTERN_GATE_TS_DUP_THRESHOLD?=2
+pattern-refactor-gate:
+	@echo "Running pattern refactor gate (mode: $(PATTERN_GATE_MODE))..."
+	@bash ./scripts/pattern-refactor-gate.sh \
+		--mode "$(PATTERN_GATE_MODE)" \
+		--root . \
+		--ts-dup-threshold "$(PATTERN_GATE_TS_DUP_THRESHOLD)"
+
+# Alias semántico para oportunidades de refactor con patrones (dupl + jscpd + evidencia)
+pattern-opportunities-gate: pattern-refactor-gate
 
 # Re-run race-sensitive test package multiple times to catch flaky data races
 RACE_STABILITY_COUNT?=3
@@ -244,7 +259,7 @@ contract-test: build
 trace-report:
 	@./.venv/bin/doorstop publish all ./docs/trace-report
 
-ci: fmt complexity doorstop-check trace-check lint test race-stability coverage-gate coverage-app-gate coverage-tdd build contract-test
+ci: fmt complexity pattern-refactor-gate doorstop-check trace-check lint test race-stability coverage-gate coverage-app-gate coverage-tdd build contract-test
 	@echo "All CI checks passed!"
 
 # Version info
@@ -267,6 +282,8 @@ help:
 	@echo "  make dev               - Run with hot reload"
 	@echo "  make lint              - Run linter"
 	@echo "  make complexity        - Check cyclomatic complexity (threshold: 7)"
+	@echo "  make pattern-refactor-gate - Check evidence/signals for design-pattern refactors"
+	@echo "  make pattern-opportunities-gate - Alias for pattern-refactor-gate"
 	@echo "  make race-stability    - Run race checks repeatedly on handler tests"
 	@echo "  make coverage-gate     - Enforce global coverage threshold"
 	@echo "  make coverage-app-gate - Enforce app-only coverage threshold"
