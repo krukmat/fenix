@@ -310,6 +310,11 @@ type supportAgentRequest struct {
 	Priority      string `json:"priority,omitempty"`
 }
 
+type prospectingAgentRequest struct {
+	LeadID   string `json:"lead_id"`
+	Language string `json:"language,omitempty"`
+}
+
 // buildSupportConfig validates and converts an HTTP request into a SupportAgentConfig.
 // Returns ("", nil) on validation error after writing the HTTP error response.
 func buildSupportConfig(w http.ResponseWriter, req supportAgentRequest, workspaceID string) (agents.SupportAgentConfig, bool) {
@@ -363,4 +368,95 @@ func (h *SupportAgentHandler) TriggerSupportAgent(w http.ResponseWriter, r *http
 	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": agentRunToResponse(run)})
+}
+
+// ProspectingAgentHandler handles Prospecting Agent specific endpoints.
+// Task 4.5b — FR-231: Prospecting Agent trigger endpoint.
+type ProspectingAgentHandler struct {
+	prospectingAgent *agents.ProspectingAgent
+}
+
+// NewProspectingAgentHandler creates a new ProspectingAgentHandler.
+func NewProspectingAgentHandler(prospectingAgent *agents.ProspectingAgent) *ProspectingAgentHandler {
+	return &ProspectingAgentHandler{prospectingAgent: prospectingAgent}
+}
+
+// buildProspectingConfig validates and converts an HTTP request into a ProspectingAgentConfig.
+func buildProspectingConfig(w http.ResponseWriter, req prospectingAgentRequest, workspaceID string) (agents.ProspectingAgentConfig, bool) {
+	if req.LeadID == "" {
+		writeError(w, http.StatusBadRequest, "lead_id is required")
+		return agents.ProspectingAgentConfig{}, false
+	}
+	language := req.Language
+	if language == "" {
+		language = "es"
+	}
+	return agents.ProspectingAgentConfig{
+		WorkspaceID: workspaceID,
+		LeadID:      req.LeadID,
+		Language:    language,
+	}, true
+}
+
+func withProspectingTriggeredBy(config agents.ProspectingAgentConfig, userID string) agents.ProspectingAgentConfig {
+	if userID == "" {
+		return config
+	}
+	config.TriggeredByUserID = &userID
+	return config
+}
+
+// TriggerProspectingAgent handles POST /api/v1/agents/prospecting/trigger.
+func (h *ProspectingAgentHandler) TriggerProspectingAgent(w http.ResponseWriter, r *http.Request) {
+	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
+	if !ok || workspaceID == "" {
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+		return
+	}
+	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
+
+	var req prospectingAgentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, errInvalidBody)
+		return
+	}
+
+	config, valid := buildProspectingConfig(w, req, workspaceID)
+	if !valid {
+		return
+	}
+	config = withProspectingTriggeredBy(config, userID)
+
+	run, err := h.prospectingAgent.Run(r.Context(), config)
+	if err != nil {
+		if handled := handleProspectingRunError(w, err); handled {
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to run prospecting agent")
+		return
+	}
+
+	w.Header().Set(headerContentType, mimeJSON)
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"run_id": run.ID,
+		"status": "queued",
+		"agent":  "prospecting",
+	})
+}
+
+func handleProspectingRunError(w http.ResponseWriter, err error) bool {
+	if errors.Is(err, agents.ErrLeadIDRequired) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return true
+	}
+	if errors.Is(err, agents.ErrLeadNotFound) {
+		writeError(w, http.StatusNotFound, err.Error())
+		return true
+	}
+	if errors.Is(err, agents.ErrProspectingDailyLeadLimitExceeded) || errors.Is(err, agents.ErrProspectingDailyCostLimitExceeded) {
+		writeError(w, http.StatusTooManyRequests, err.Error())
+		return true
+	}
+	return false
 }

@@ -7,17 +7,30 @@ import (
 	"strings"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
+	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 )
 
 const (
-	BuiltinCreateTask = "create_task"
-	BuiltinUpdateCase = "update_case"
-	BuiltinSendReply  = "send_reply"
+	BuiltinCreateTask          = "create_task"
+	BuiltinUpdateCase          = "update_case"
+	BuiltinSendReply           = "send_reply"
+	BuiltinGetLead             = "get_lead"
+	BuiltinGetAccount          = "get_account"
+	BuiltinCreateKnowledgeItem = "create_knowledge_item"
+	BuiltinUpdateKnowledgeItem = "update_knowledge_item"
+	BuiltinQueryMetrics        = "query_metrics"
 )
 
 type BuiltinServices struct {
-	DB   *sql.DB
-	Case *crm.CaseService
+	DB      *sql.DB
+	Case    *crm.CaseService
+	Lead    *crm.LeadService
+	Account *crm.AccountService
+	Ingest  knowledgeIngestor
+}
+
+type knowledgeIngestor interface {
+	Ingest(ctx context.Context, input knowledge.CreateKnowledgeItemInput) (*knowledge.KnowledgeItem, error)
 }
 
 type builtinDefinition struct {
@@ -46,6 +59,36 @@ func builtinDefinitions() []builtinDefinition {
 			Description:         "Create a case reply note",
 			InputSchema:         json.RawMessage(`{"type":"object","required":["case_id","body"],"properties":{"case_id":{"type":"string"},"body":{"type":"string"},"is_internal":{"type":"boolean"}},"additionalProperties":false}`),
 			RequiredPermissions: []string{"tools:send_reply"},
+		},
+		{
+			Name:                BuiltinGetLead,
+			Description:         "Fetch a lead by id in current workspace",
+			InputSchema:         json.RawMessage(`{"type":"object","required":["lead_id"],"properties":{"lead_id":{"type":"string"}},"additionalProperties":false}`),
+			RequiredPermissions: []string{"tools:get_lead"},
+		},
+		{
+			Name:                BuiltinGetAccount,
+			Description:         "Fetch an account by id in current workspace",
+			InputSchema:         json.RawMessage(`{"type":"object","required":["account_id"],"properties":{"account_id":{"type":"string"}},"additionalProperties":false}`),
+			RequiredPermissions: []string{"tools:get_account"},
+		},
+		{
+			Name:                BuiltinCreateKnowledgeItem,
+			Description:         "Create knowledge item from title/content/source",
+			InputSchema:         json.RawMessage(`{"type":"object","required":["title","content","source_type","workspace_id"],"properties":{"title":{"type":"string"},"content":{"type":"string"},"source_type":{"type":"string"},"workspace_id":{"type":"string"}},"additionalProperties":false}`),
+			RequiredPermissions: []string{"tools:create_knowledge_item"},
+		},
+		{
+			Name:                BuiltinUpdateKnowledgeItem,
+			Description:         "Update an existing knowledge item title/content",
+			InputSchema:         json.RawMessage(`{"type":"object","required":["id"],"properties":{"id":{"type":"string"},"title":{"type":"string"},"content":{"type":"string"}},"additionalProperties":false}`),
+			RequiredPermissions: []string{"tools:update_knowledge_item"},
+		},
+		{
+			Name:                BuiltinQueryMetrics,
+			Description:         "Query aggregated CRM metrics",
+			InputSchema:         json.RawMessage(`{"type":"object","required":["metric","workspace_id"],"properties":{"metric":{"type":"string","enum":["sales_funnel","deal_aging","case_volume","case_backlog","mttr"]},"workspace_id":{"type":"string"},"from":{"type":"string"},"to":{"type":"string"}},"additionalProperties":false}`),
+			RequiredPermissions: []string{"tools:query_metrics"},
 		},
 	}
 }
@@ -120,13 +163,31 @@ func (r *ToolRegistry) ensureBuiltInsForWorkspaces(ctx context.Context, workspac
 }
 
 func RegisterBuiltInExecutors(registry *ToolRegistry, services BuiltinServices) error {
-	if err := registry.Register(BuiltinCreateTask, NewCreateTaskExecutor(services.DB)); err != nil && err != ErrToolExecutorAlreadyRegistered {
-		return err
+	registrations := []struct {
+		name     string
+		executor ToolExecutor
+	}{
+		{name: BuiltinCreateTask, executor: NewCreateTaskExecutor(services.DB)},
+		{name: BuiltinUpdateCase, executor: NewUpdateCaseExecutor(services.Case)},
+		{name: BuiltinSendReply, executor: NewSendReplyExecutor(services.DB, services.Case)},
+		{name: BuiltinGetLead, executor: NewGetLeadExecutor(services.Lead)},
+		{name: BuiltinGetAccount, executor: NewGetAccountExecutor(services.Account)},
+		{name: BuiltinCreateKnowledgeItem, executor: NewCreateKnowledgeItemExecutor(services.Ingest)},
+		{name: BuiltinUpdateKnowledgeItem, executor: NewUpdateKnowledgeItemExecutor(services.DB)},
+		{name: BuiltinQueryMetrics, executor: NewQueryMetricsExecutor(services.DB)},
 	}
-	if err := registry.Register(BuiltinUpdateCase, NewUpdateCaseExecutor(services.Case)); err != nil && err != ErrToolExecutorAlreadyRegistered {
-		return err
+
+	for _, registration := range registrations {
+		if err := registerBuiltinExecutor(registry, registration.name, registration.executor); err != nil {
+			return err
+		}
 	}
-	if err := registry.Register(BuiltinSendReply, NewSendReplyExecutor(services.DB, services.Case)); err != nil && err != ErrToolExecutorAlreadyRegistered {
+
+	return nil
+}
+
+func registerBuiltinExecutor(registry *ToolRegistry, name string, executor ToolExecutor) error {
+	if err := registry.Register(name, executor); err != nil && err != ErrToolExecutorAlreadyRegistered {
 		return err
 	}
 	return nil

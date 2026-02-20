@@ -1283,6 +1283,144 @@ To avoid sequencing ambiguity, Phase 3 tasks have the following dependency const
 
 ---
 
+#### Task 4.5a: FR-231 — Agentes faltantes: Nuevas Tools (1.5 days)
+
+**Status**: ✅ Completed
+
+**NOTE**: Backend-only. El Support Agent ya existe como referencia en `internal/domain/agent/agents/support.go`. Las nuevas tools son prerequisito para los 3 agentes siguientes.
+
+**Actions**:
+- Extender `internal/domain/tool/builtin.go` con 5 nuevas tool definitions:
+  - `get_lead` — schema: `{lead_id: string}`, perms: `read:lead`
+  - `get_account` — schema: `{account_id: string}`, perms: `read:account`
+  - `create_knowledge_item` — schema: `{title, content, source_type, workspace_id}`, perms: `write:knowledge`
+  - `update_knowledge_item` — schema: `{id, title?, content?}`, perms: `write:knowledge`
+  - `query_metrics` — schema: `{metric: "sales_funnel"|"case_volume"|"mttr"|"deal_aging", workspace_id, from?, to?}`, perms: `read:reports`
+- Extender `internal/domain/tool/builtin_executors.go` con 5 nuevos ejecutores:
+  - `GetLeadExecutor` — llama `domain/crm/lead.go` Get()
+  - `GetAccountExecutor` — llama `domain/crm/account.go` Get()
+  - `CreateKnowledgeItemExecutor` — llama `domain/knowledge/ingest.go` IngestDocument()
+  - `UpdateKnowledgeItemExecutor` — UPDATE sobre knowledge_item via sqlc
+  - `QueryMetricsExecutor` — usa queries SQL de agregación (ver Task 4.5e)
+- Registrar en `RegisterBuiltInExecutors()`
+
+**Tests** (TDD — tests primero):
+- `internal/domain/tool/builtin_executors_test.go` — extender con:
+  - TestGetLeadExecutor_Success
+  - TestGetLeadExecutor_NotFound
+  - TestGetAccountExecutor_Success
+  - TestCreateKnowledgeItemExecutor_Success
+  - TestQueryMetricsExecutor_SalesFunnel
+
+**Resolves**: Prerequisito para FR-231 (herramientas necesarias para Prospecting, KB e Insights agents)
+
+---
+
+#### Task 4.5b: FR-231 — Prospecting Agent (1 day)
+
+**Status**: ✅ Completed
+
+**NOTE**: Requiere Task 4.5a completo. Patrón: `internal/domain/agent/agents/support.go`.
+
+**Actions**:
+- Crear `internal/domain/agent/agents/prospecting.go`:
+  - `ProspectingAgentConfig{WorkspaceID, LeadID, Language}`
+  - `AllowedTools()`: `[search_knowledge, create_task, get_lead, get_account]`
+  - `Objective()`: role=sales_dev, goal=draft_outreach
+  - `Run()`: fetch lead → search knowledge → si confidence > 0.6 → draft outreach + create_task; else skip
+  - Output: `{action: "draft_outreach"|"skip", details, lead_id, confidence}`
+- Agregar `TriggerProspectingAgent()` en `internal/api/handlers/agent.go`
+- Agregar ruta `POST /api/v1/agents/prospecting/trigger` en `internal/api/routes.go`
+
+**Tests** (TDD):
+- `internal/domain/agent/agents/prospecting_test.go` — 5 tests
+- `internal/api/handlers/agent_test.go` — TestAgentHandler_TriggerProspecting_200
+
+**Resolves**: FR-231 (Prospecting Agent)
+
+---
+
+#### Task 4.5c: FR-231 — KB Agent (1 day)
+
+**Status**: ❌ Not started
+
+**NOTE**: Requiere Task 4.5a completo. Extrae soluciones de casos resueltos y las convierte en artículos KB.
+
+**Actions**:
+- Crear `internal/domain/agent/agents/kb.go`:
+  - `KBAgentConfig{WorkspaceID, CaseID, Language}`
+  - `AllowedTools()`: `[create_knowledge_item, update_knowledge_item, search_knowledge]`
+  - `Objective()`: role=knowledge_specialist, goal=convert_case_to_article
+  - `Run()`: fetch case notes → search KB → si duplicate: update; else: create; si sensitivity=high: approval
+  - Output: `{action: "created"|"updated"|"skipped", article_id, reason}`
+- Agregar `TriggerKBAgent()` en `internal/api/handlers/agent.go`
+- Agregar ruta `POST /api/v1/agents/kb/trigger` en `internal/api/routes.go`
+
+**Tests** (TDD):
+- `internal/domain/agent/agents/kb_test.go` — 4 tests
+- `internal/api/handlers/agent_test.go` — TestAgentHandler_TriggerKB_200
+
+**Resolves**: FR-231 (KB Agent)
+
+---
+
+#### Task 4.5d: FR-231 — Insights Agent (1 day)
+
+**Status**: ❌ Not started
+
+**NOTE**: Requiere Task 4.5a completo. Responde preguntas de negocio con métricas del CRM.
+
+**Actions**:
+- Crear `internal/domain/agent/agents/insights.go`:
+  - `InsightsAgentConfig{WorkspaceID, Query, DateFrom *time.Time, DateTo *time.Time, Language}`
+  - `AllowedTools()`: `[search_knowledge, query_metrics]`
+  - `Objective()`: role=data_analyst, goal=answer_with_evidence
+  - `Run()`: parse query intent → call query_metrics con date range → si datos vacíos → abstain; else → LLM call → respuesta con números
+  - Output: `{answer, metrics: {...}, confidence, evidence_ids: [...]}`
+- Agregar `TriggerInsightsAgent()` en `internal/api/handlers/agent.go`
+- Agregar ruta `POST /api/v1/agents/insights/trigger` en `internal/api/routes.go`
+
+**Tests** (TDD):
+- `internal/domain/agent/agents/insights_test.go` — 4 tests
+- `internal/api/handlers/agent_test.go` — TestAgentHandler_TriggerInsights_200
+
+**Resolves**: FR-231 (Insights Agent)
+
+---
+
+#### Task 4.5e: FR-003 — Reporting Base (2 days)
+
+**Status**: ❌ Not started
+
+**NOTE**: Backend-only. Todos los datos necesarios existen en las tablas `deal`, `case_ticket`, `pipeline_stage`, `activity`. No requiere nuevas migraciones salvo que `sla_deadline` no exista en `case_ticket` (verificar en STEP 0).
+
+**Actions**:
+- Verificar si `sla_deadline` existe en `case_ticket`; si no, crear migration `020_case_sla_deadline.up.sql`
+- Crear `internal/infra/sqlite/queries/reports.sql` con 5 queries de agregación:
+  - `SalesFunnelByWorkspace` — deals por etapa con count + total_value + probability
+  - `DealAgingByWorkspace` — días promedio por etapa (solo deals open)
+  - `CaseVolumeByWorkspace` — casos por priority + status
+  - `CaseBacklogByWorkspace` — casos open/pending con aging > N días
+  - `CaseMTTRByWorkspace` — tiempo promedio de resolución por priority (closed cases)
+- Regenerar sqlc: `make sqlc`
+- Crear `internal/domain/crm/report.go` — ReportService con 6 métodos
+- Crear `internal/api/handlers/report.go` — ReportHandler con 6 endpoints:
+  - `GET /api/v1/reports/sales/funnel?from=&to=`
+  - `GET /api/v1/reports/sales/aging`
+  - `GET /api/v1/reports/support/backlog?aging_days=30`
+  - `GET /api/v1/reports/support/volume?from=&to=`
+  - `GET /api/v1/reports/sales/funnel/export?format=csv`
+  - `GET /api/v1/reports/support/backlog/export?format=csv`
+- Registrar rutas en `internal/api/routes.go` dentro del bloque `/api/v1`
+
+**Tests** (TDD):
+- `internal/domain/crm/report_test.go` — 6 tests (service layer)
+- `internal/api/handlers/report_test.go` — 6 tests (HTTP layer)
+
+**Resolves**: FR-003 (Reporting base — dashboards Sales + Support, Export CSV)
+
+---
+
 #### Task 4.6: Audit Service — Advanced Features (1.5 days)
 
 **Status**: ❌ Not started

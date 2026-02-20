@@ -192,8 +192,11 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		copilotActionsHandler := handlers.NewCopilotActionsHandler(copilotActionsSvc)
 
 		_ = tooldomain.RegisterBuiltInExecutors(toolRegistry, tooldomain.BuiltinServices{
-			DB:   db,
-			Case: caseService,
+			DB:      db,
+			Case:    caseService,
+			Lead:    crm.NewLeadService(db),
+			Account: crm.NewAccountService(db),
+			Ingest:  ingestSvc,
 		})
 		_ = toolRegistry.EnsureBuiltInToolDefinitionsForAllWorkspaces(context.Background())
 		r.Route("/knowledge", func(r chi.Router) {
@@ -232,6 +235,17 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		agentHandler := handlers.NewAgentHandler(agentOrchestrator)
 		supportAgent := agents.NewSupportAgent(agentOrchestrator, toolRegistry, searchSvc)
 		supportAgentHandler := handlers.NewSupportAgentHandler(supportAgent)
+		// Task 4.5b — FR-231: Prospecting Agent wiring.
+		prospectingAgent := agents.NewProspectingAgent(
+			agentOrchestrator,
+			toolRegistry,
+			searchSvc,
+			llmProvider,
+			crm.NewLeadService(db),
+			crm.NewAccountService(db),
+			db,
+		)
+		prospectingAgentHandler := handlers.NewProspectingAgentHandler(prospectingAgent)
 
 		// Task 3.8: Handoff Manager (reuses caseService + knowledgeBus from above)
 		handoffService := agent.NewHandoffService(db, caseService, knowledgeBus)
@@ -246,6 +260,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			r.Post("/runs/{id}/handoff", handoffHandler.InitiateHandoff)        // POST /api/v1/agents/runs/{id}/handoff
 			r.Get("/definitions", agentHandler.ListAgentDefinitions)            // GET  /api/v1/agents/definitions
 			r.Post("/support/trigger", supportAgentHandler.TriggerSupportAgent) // POST /api/v1/agents/support/trigger
+			r.Post("/prospecting/trigger", prospectingAgentHandler.TriggerProspectingAgent)
 		})
 	})
 
