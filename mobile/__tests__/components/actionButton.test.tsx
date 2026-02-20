@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, jest } from '@jest/globals';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import { PaperProvider } from 'react-native-paper';
+import { Dialog, PaperProvider } from 'react-native-paper';
 
 import { ActionButton } from '../../src/components/copilot/ActionButton';
 
@@ -19,13 +19,15 @@ describe('ActionButton', () => {
 
   it('opens dialog on press and cancel closes without execute', async () => {
     const onExecute = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
-    const { getByTestId, queryByText } = wrap(<ActionButton action={action} onExecute={onExecute} testIDPrefix="ab" />);
+    const { getByTestId, UNSAFE_getByType } = wrap(
+      <ActionButton action={action} onExecute={onExecute} testIDPrefix="ab" />,
+    );
 
     fireEvent.press(getByTestId('ab-btn'));
-    expect(queryByText('Execute: Create task?')).toBeTruthy();
+    expect(UNSAFE_getByType(Dialog).props.visible).toBe(true);
 
     fireEvent.press(getByTestId('ab-cancel'));
-    await waitFor(() => expect(queryByText('Execute: Create task?')).toBeNull());
+    await waitFor(() => expect(UNSAFE_getByType(Dialog).props.visible).toBe(false));
     expect(onExecute).not.toHaveBeenCalled();
   });
 
