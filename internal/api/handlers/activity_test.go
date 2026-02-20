@@ -257,7 +257,7 @@ func TestActivityHandler_UpdateActivity_InvalidJSON_Returns400(t *testing.T) {
 	}
 }
 
-func TestActivityHandler_DeleteActivity_TimelineError_Returns500(t *testing.T) {
+func TestActivityHandler_DeleteActivity_Success_Returns204(t *testing.T) {
 	t.Parallel()
 
 	db := mustOpenDBWithMigrations(t)
@@ -280,8 +280,8 @@ func TestActivityHandler_DeleteActivity_TimelineError_Returns500(t *testing.T) {
 	rr := httptest.NewRecorder()
 	h.DeleteActivity(rr, req)
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d", rr.Code)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rr.Code)
 	}
 }
 
