@@ -163,7 +163,7 @@ func (s *ActivityService) Delete(ctx context.Context, workspaceID, activityID st
 	if err != nil {
 		return fmt.Errorf("delete activity: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, "activity", activityID, "", "activity_deleted"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, "activity", activityID, "", timelineActionDeleted); timelineErr != nil {
 		return fmt.Errorf("delete activity timeline: %w", timelineErr)
 	}
 	return nil

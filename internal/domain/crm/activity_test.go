@@ -116,7 +116,7 @@ func TestActivityService_Update_ReturnsTimelineConstraintErrorButPersistsUpdate(
 	}
 }
 
-func TestActivityService_Delete_ReturnsTimelineConstraintErrorButDeletesRow(t *testing.T) {
+func TestActivityService_Delete_DeletesRowAndWritesTimelineEvent(t *testing.T) {
 	t.Parallel()
 
 	db := mustOpenDBWithMigrations(t)
@@ -135,11 +135,8 @@ func TestActivityService_Delete_ReturnsTimelineConstraintErrorButDeletesRow(t *t
 	}
 
 	err = svc.Delete(context.Background(), wsID, "act-del-1")
-	if err == nil {
-		t.Fatalf("expected delete timeline error, got nil")
-	}
-	if !strings.Contains(err.Error(), "delete activity timeline") {
-		t.Fatalf("expected delete activity timeline error, got %v", err)
+	if err != nil {
+		t.Fatalf("Delete() error = %v", err)
 	}
 
 	_, getErr := svc.Get(context.Background(), wsID, "act-del-1")
