@@ -140,8 +140,10 @@ export const agentApi = {
     return response.data;
   },
 
-  getDefinitions: async () => {
-    const response = await apiClient.get('/bff/api/v1/agents/definitions');
+  getDefinitions: async (workspaceId: string) => {
+    const response = await apiClient.get('/bff/api/v1/agents/definitions', {
+      params: { workspace_id: workspaceId },
+    });
     return response.data;
   },
 

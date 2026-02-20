@@ -19,7 +19,7 @@ export const queryKeys = {
   case: (workspaceId: string, id: string) => ['case', workspaceId, id] as const,
   agentRuns: (workspaceId: string) => ['agent-runs', workspaceId] as const,
   agentRun: (workspaceId: string, id: string) => ['agent-run', workspaceId, id] as const,
-  agentDefinitions: () => ['agent-definitions'] as const,
+  agentDefinitions: (workspaceId: string) => ['agent-definitions', workspaceId] as const,
 };
 
 // Hook to get workspaceId from auth store - returns null if not available
@@ -204,12 +204,14 @@ export function useAgentRun(id: string) {
 
 // Agent Definitions
 export function useAgentDefinitions() {
+  const workspaceId = useWorkspaceId();
   return useQuery({
-    queryKey: queryKeys.agentDefinitions(),
-    queryFn: () => agentApi.getDefinitions(),
+    queryKey: queryKeys.agentDefinitions(workspaceId ?? ''),
+    queryFn: () => agentApi.getDefinitions(workspaceId!),
     staleTime: 5 * 60_000, // 5 minutes - definitions don't change often
     gcTime: 30 * 60_000,
     retry: 1,
     refetchOnWindowFocus: false,
+    enabled: !!workspaceId,
   });
 }

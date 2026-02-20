@@ -150,12 +150,12 @@ describe('api.ts', () => {
 
       await agentApi.getRuns('ws-1');
       await agentApi.getRun('run-1');
-      await agentApi.getDefinitions();
+      await agentApi.getDefinitions('ws-1');
       await agentApi.triggerRun('agent-1', { entity_type: 'case', entity_id: 'c1' });
 
       expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/agents/runs', { params: { workspace_id: 'ws-1', page: 1, limit: 25 } });
       expect(getSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/agents/runs/run-1');
-      expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/api/v1/agents/definitions');
+      expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/api/v1/agents/definitions', { params: { workspace_id: 'ws-1' } });
       expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/agents/trigger', {
         agent_id: 'agent-1',
         entity_type: 'case',

@@ -68,7 +68,7 @@ describe('useCRM hooks', () => {
       expect(queryKeys.case('ws', 'id-4')).toEqual(['case', 'ws', 'id-4']);
       expect(queryKeys.agentRuns('ws')).toEqual(['agent-runs', 'ws']);
       expect(queryKeys.agentRun('ws', 'id-5')).toEqual(['agent-run', 'ws', 'id-5']);
-      expect(queryKeys.agentDefinitions()).toEqual(['agent-definitions']);
+      expect(queryKeys.agentDefinitions('ws')).toEqual(['agent-definitions', 'ws']);
     });
   });
 
@@ -145,6 +145,17 @@ describe('useCRM hooks', () => {
     // useAgentRun uses useQuery (single record)
     expect(mockUseQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['agent-run', 'ws-1', 'r-1'], staleTime: 15000, enabled: true })
+    );
+  });
+
+  it('useAgentDefinitions should configure query with workspace isolation', () => {
+    useAgentDefinitions();
+    expect(mockUseQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ['agent-definitions', 'ws-1'],
+        staleTime: 300000,
+        enabled: true,
+      })
     );
   });
 
