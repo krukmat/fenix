@@ -283,3 +283,40 @@ func handleListWithPagination[T any](
 
 	_ = writePaginatedOr500(w, items, total, page)
 }
+
+// handleEntityUpdate centraliza el flujo común de UPDATE por entidad:
+// workspace + carga previa + decode + update + respuesta JSON.
+func handleEntityUpdate[Entity any, Req any, In any, Out any](
+	w http.ResponseWriter,
+	r *http.Request,
+	notFoundMsg string,
+	getErrFmt string,
+	updateErrFmt string,
+	getter func(context.Context, string, string) (*Entity, error),
+	buildInput func(Req, *Entity) In,
+	updater func(context.Context, string, string, In) (*Out, error),
+) {
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chiURLParamID(r)
+	existing, svcErr := getter(r.Context(), wsID, id)
+	if handleGetError(w, svcErr, notFoundMsg, getErrFmt) {
+		return
+	}
+
+	var req Req
+	if !decodeBodyJSON(w, r, &req) {
+		return
+	}
+
+	out, upErr := updater(r.Context(), wsID, id, buildInput(req, existing))
+	if upErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(updateErrFmt, upErr))
+		return
+	}
+
+	_ = writeJSONOr500(w, out)
+}

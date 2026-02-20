@@ -47,51 +47,62 @@ type actionRequestError struct {
 func (e actionRequestError) Error() string { return e.message }
 
 func (h *CopilotActionsHandler) SuggestActions(w http.ResponseWriter, r *http.Request) {
-	common, err := buildCopilotEntityInput(r)
-	if err != nil {
-		writeCopilotActionsError(w, err)
-		return
-	}
-
-	actions, err := h.service.SuggestActions(r.Context(), copilot.SuggestActionsInput{
-		WorkspaceID: common.WorkspaceID,
-		UserID:      common.UserID,
-		EntityType:  common.EntityType,
-		EntityID:    common.EntityID,
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "suggest-actions failed")
-		return
-	}
-
-	resp := copilotSuggestActionsResponse{}
-	resp.Data.Actions = actions
-
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(resp)
+	handleCopilotEntityAction(w, r,
+		func(ctx context.Context, in copilotEntityInput) (copilotSuggestActionsResponse, error) {
+			actions, err := h.service.SuggestActions(ctx, copilot.SuggestActionsInput{
+				WorkspaceID: in.WorkspaceID,
+				UserID:      in.UserID,
+				EntityType:  in.EntityType,
+				EntityID:    in.EntityID,
+			})
+			if err != nil {
+				return copilotSuggestActionsResponse{}, err
+			}
+			resp := copilotSuggestActionsResponse{}
+			resp.Data.Actions = actions
+			return resp, nil
+		},
+		"suggest-actions failed",
+	)
 }
 
 func (h *CopilotActionsHandler) Summarize(w http.ResponseWriter, r *http.Request) {
+	handleCopilotEntityAction(w, r,
+		func(ctx context.Context, in copilotEntityInput) (copilotSummarizeResponse, error) {
+			summary, err := h.service.Summarize(ctx, copilot.SummarizeInput{
+				WorkspaceID: in.WorkspaceID,
+				UserID:      in.UserID,
+				EntityType:  in.EntityType,
+				EntityID:    in.EntityID,
+			})
+			if err != nil {
+				return copilotSummarizeResponse{}, err
+			}
+			resp := copilotSummarizeResponse{}
+			resp.Data.Summary = summary
+			return resp, nil
+		},
+		"summarize failed",
+	)
+}
+
+func handleCopilotEntityAction[T any](
+	w http.ResponseWriter,
+	r *http.Request,
+	action func(context.Context, copilotEntityInput) (T, error),
+	errorMsg string,
+) {
 	common, err := buildCopilotEntityInput(r)
 	if err != nil {
 		writeCopilotActionsError(w, err)
 		return
 	}
 
-	summary, err := h.service.Summarize(r.Context(), copilot.SummarizeInput{
-		WorkspaceID: common.WorkspaceID,
-		UserID:      common.UserID,
-		EntityType:  common.EntityType,
-		EntityID:    common.EntityID,
-	})
+	resp, err := action(r.Context(), common)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "summarize failed")
+		writeError(w, http.StatusInternalServerError, errorMsg)
 		return
 	}
-
-	resp := copilotSummarizeResponse{}
-	resp.Data.Summary = summary
 
 	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)

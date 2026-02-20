@@ -99,25 +99,21 @@ func (h *ActivityHandler) ListActivities(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *ActivityHandler) UpdateActivity(w http.ResponseWriter, r *http.Request) {
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-	id := chi.URLParam(r, paramID)
-	existing, svcErr := h.service.Get(r.Context(), wsID, id)
-	if handleGetError(w, svcErr, "activity not found", "failed to get activity: %v") {
-		return
-	}
-	var req UpdateActivityRequest
-	if !decodeBodyJSON(w, r, &req) {
-		return
-	}
-	out, svcErr := h.service.Update(r.Context(), wsID, id, buildUpdateActivityInput(req, existing))
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update activity: %v", svcErr))
-		return
-	}
-	_ = writeJSONOr500(w, out)
+	handleEntityUpdate[
+		crm.Activity,
+		UpdateActivityRequest,
+		crm.UpdateActivityInput,
+		crm.Activity,
+	](
+		w,
+		r,
+		"activity not found",
+		"failed to get activity: %v",
+		"failed to update activity: %v",
+		h.service.Get,
+		buildUpdateActivityInput,
+		h.service.Update,
+	)
 }
 
 func (h *ActivityHandler) DeleteActivity(w http.ResponseWriter, r *http.Request) {

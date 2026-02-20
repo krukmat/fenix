@@ -103,25 +103,21 @@ func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DealHandler) UpdateDeal(w http.ResponseWriter, r *http.Request) {
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-	id := chi.URLParam(r, paramID)
-	existing, svcErr := h.service.Get(r.Context(), wsID, id)
-	if handleGetError(w, svcErr, "deal not found", "failed to get deal: %v") {
-		return
-	}
-	var req UpdateDealRequest
-	if !decodeBodyJSON(w, r, &req) {
-		return
-	}
-	out, upErr := h.service.Update(r.Context(), wsID, id, buildUpdateDealInput(req, existing))
-	if upErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update deal: %v", upErr))
-		return
-	}
-	_ = writeJSONOr500(w, out)
+	handleEntityUpdate[
+		crm.Deal,
+		UpdateDealRequest,
+		crm.UpdateDealInput,
+		crm.Deal,
+	](
+		w,
+		r,
+		"deal not found",
+		"failed to get deal: %v",
+		"failed to update deal: %v",
+		h.service.Get,
+		buildUpdateDealInput,
+		h.service.Update,
+	)
 }
 
 // buildUpdateDealInput merges update request with existing deal values.
