@@ -165,6 +165,7 @@ func decodeBodyJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 
 // writeJSONOr500 escribe payload JSON y responde 500 en caso de fallo.
 func writeJSONOr500(w http.ResponseWriter, payload any) bool {
+	w.Header().Set(headerContentType, mimeJSON)
 	if encodeErr := json.NewEncoder(w).Encode(payload); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return false

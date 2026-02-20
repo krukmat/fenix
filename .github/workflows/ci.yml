@@ -288,5 +288,5 @@ jobs:
           ./.venv/bin/pip install --upgrade pip
           ./.venv/bin/pip install schemathesis doorstop
 
-      - name: Run contract tests
-        run: make contract-test
+      - name: Run contract tests (strict)
+        run: make contract-test-strict

@@ -15,6 +15,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
   /auth/register:
     post:
       summary: Register
@@ -27,6 +29,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
   /auth/login:
     post:
       summary: Login
@@ -39,6 +43,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
   /api/v1/accounts:
     post:
       summary: Create accounts
@@ -51,6 +57,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     get:
@@ -64,6 +72,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/accounts/{id}:
@@ -80,6 +90,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     put:
@@ -93,6 +105,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     delete:
@@ -106,6 +120,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/contacts:
@@ -120,6 +136,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     get:
@@ -133,6 +151,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/contacts/{id}:
@@ -149,6 +169,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     put:
@@ -162,6 +184,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     delete:
@@ -175,6 +199,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/leads:
@@ -189,6 +215,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     get:
@@ -202,6 +230,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/leads/{id}:
@@ -218,6 +248,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     put:
@@ -231,6 +263,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     delete:
@@ -244,6 +278,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/deals:
@@ -258,6 +294,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     get:
@@ -271,6 +309,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/deals/{id}:
@@ -287,6 +327,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     put:
@@ -300,6 +342,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     delete:
@@ -313,6 +357,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/cases:
@@ -327,6 +373,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     get:
@@ -340,6 +388,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/cases/{id}:
@@ -356,6 +406,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     put:
@@ -369,6 +421,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     delete:
@@ -382,6 +436,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/activities:
@@ -396,6 +452,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     get:
@@ -409,6 +467,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/activities/{id}:
@@ -425,6 +485,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     put:
@@ -438,6 +500,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     delete:
@@ -451,6 +515,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/notes:
@@ -465,6 +531,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     get:
@@ -478,6 +546,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/notes/{id}:
@@ -494,6 +564,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     put:
@@ -507,6 +579,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     delete:
@@ -520,6 +594,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/accounts/{account_id}/contacts:
@@ -536,6 +612,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/pipelines:
@@ -550,6 +628,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     get:
@@ -563,6 +643,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/pipelines/{id}:
@@ -579,6 +661,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     put:
@@ -592,6 +676,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     delete:
@@ -605,6 +691,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/pipelines/{id}/stages:
@@ -621,6 +709,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     get:
@@ -634,6 +724,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/pipelines/stages/{stage_id}:
@@ -650,6 +742,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     delete:
@@ -663,6 +757,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/attachments:
@@ -677,6 +773,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     get:
@@ -690,6 +788,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/attachments/{id}:
@@ -706,6 +806,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     delete:
@@ -719,6 +821,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/timeline:
@@ -733,6 +837,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/timeline/{entity_type}/{entity_id}:
@@ -750,6 +856,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/knowledge/ingest:
@@ -764,6 +872,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/knowledge/search:
@@ -778,6 +888,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/knowledge/evidence:
@@ -792,6 +904,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/knowledge/reindex:
@@ -806,6 +920,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/approvals:
@@ -820,6 +936,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/approvals/{id}:
@@ -836,6 +954,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/admin/tools:
@@ -850,6 +970,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     post:
@@ -863,6 +985,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/admin/prompts:
@@ -881,6 +1005,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
     post:
@@ -892,6 +1018,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/admin/prompts/{id}/promote:
@@ -906,6 +1034,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/admin/prompts/{id}/rollback:
@@ -922,6 +1052,8 @@ paths:
                 $ref: '#/components/schemas/AnyResponse'
         '409':
           description: Conflict - no archived version to rollback to
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/copilot/chat:
@@ -936,6 +1068,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/copilot/suggest-actions:
@@ -950,6 +1084,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
   /api/v1/copilot/summarize:
@@ -964,6 +1100,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
       security:
       - BearerAuth: []
 components:

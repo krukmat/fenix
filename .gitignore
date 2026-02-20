@@ -12,3 +12,4 @@ docs/refactors/*
 bff/node_modules/
 bff/coverage/
 bff/dist/
+.hypothesis/*

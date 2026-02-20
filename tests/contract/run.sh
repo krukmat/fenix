@@ -6,6 +6,41 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PORT=8081
 DB_FILE=$(mktemp /tmp/fenix_contract_XXXXXX.db)
+CONTRACT_MODE=${CONTRACT_MODE:-smoke}
+
+run_schemathesis() {
+    case "$CONTRACT_MODE" in
+        strict)
+            # Strict contract mode: fail on API/OpenAPI drift.
+            ./.venv/bin/schemathesis run "$PROJECT_ROOT/docs/openapi.yaml" \
+                --url "http://localhost:$PORT" \
+                --header "Authorization: Bearer $TOKEN" \
+                --header "Content-Type: application/json" \
+                --seed 1 \
+                --checks not_a_server_error \
+                --checks status_code_conformance \
+                --checks response_schema_conformance \
+                --checks content_type_conformance \
+                --phases examples,fuzzing \
+                --max-examples "${CONTRACT_MAX_EXAMPLES:-10}"
+            ;;
+        smoke)
+            # Fast smoke mode: quick signal without full contract hardening.
+            ./.venv/bin/schemathesis run "$PROJECT_ROOT/docs/openapi.yaml" \
+                --url "http://localhost:$PORT" \
+                --header "Authorization: Bearer $TOKEN" \
+                --header "Content-Type: application/json" \
+                --seed 1 \
+                --checks not_a_server_error \
+                --phases examples \
+                --max-examples 1
+            ;;
+        *)
+            echo "ERROR: CONTRACT_MODE invalid: '$CONTRACT_MODE' (allowed: smoke|strict)"
+            exit 1
+            ;;
+    esac
+}
 
 cleanup() {
     kill "$SERVER_PID" 2>/dev/null || true
@@ -35,11 +70,5 @@ TOKEN=$(curl -sf -X POST "http://localhost:$PORT/auth/register" \
     -d '{"email":"contract@test.com","password":"ContractTest1234!","displayName":"Contract Tester","workspaceName":"ContractWS"}' \
     | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
-./.venv/bin/schemathesis run "$PROJECT_ROOT/docs/openapi.yaml" \
-    --url "http://localhost:$PORT" \
-    --header "Authorization: Bearer $TOKEN" \
-    --header "Content-Type: application/json" \
-    --checks not_a_server_error \
-    --seed 1 \
-    --phases examples \
-    --max-examples 1
+echo "Running contract tests in mode: $CONTRACT_MODE"
+run_schemathesis

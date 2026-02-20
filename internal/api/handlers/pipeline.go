@@ -178,6 +178,7 @@ func (h *PipelineHandler) ListStages(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list stages: %v", svcErr))
 		return
 	}
+	w.Header().Set(headerContentType, mimeJSON)
 	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: len(items), Limit: len(items), Offset: 0}}); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return

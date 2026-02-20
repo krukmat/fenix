@@ -224,9 +224,7 @@ func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHandler) getLeadForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Lead, bool) {
-	return getEntityForUpdate[
-		crm.Lead,
-	](w, r, wsID, errLeadIDRequired, errLeadNotFound, errFailedToGetLead, h.leadService.Get)
+	return getEntityForUpdate[crm.Lead](w, r, wsID, errLeadIDRequired, errLeadNotFound, errFailedToGetLead, h.leadService.Get)
 }
 
 // DeleteLead handles DELETE /api/v1/leads/{id}
@@ -238,9 +236,7 @@ func (h *LeadHandler) DeleteLead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	leadID, ok := ensureEntityExistsBeforeDelete[
-		crm.Lead,
-	](w, r, wsID, errLeadIDRequired, errLeadNotFound, errFailedToGetLead, h.leadService.Get)
+	leadID, ok := ensureEntityExistsBeforeDelete[crm.Lead](w, r, wsID, errLeadIDRequired, errLeadNotFound, errFailedToGetLead, h.leadService.Get)
 	if !ok {
 		return
 	}

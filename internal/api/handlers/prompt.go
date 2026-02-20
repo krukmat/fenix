@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -145,25 +146,67 @@ func resolvePromptConfig(config *string) string {
 // Promote activa una versión
 // PUT /api/v1/admin/prompts/{id}/promote
 func (h *PromptHandler) Promote(w http.ResponseWriter, r *http.Request) {
-	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
-	if !ok || workspaceID == "" {
+	workspaceID, ok := getWorkspaceIDFromContext(r)
+	if !ok {
 		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
 		return
 	}
 
+	promptVersionID, ok := getPromptVersionIDParam(w, r)
+	if !ok {
+		return
+	}
+
+	if !h.promotePromptVersion(w, r, workspaceID, promptVersionID) {
+		return
+	}
+
+	h.respondWithPromptVersion(w, r, workspaceID, promptVersionID)
+}
+
+func getWorkspaceIDFromContext(r *http.Request) (string, bool) {
+	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
+	if !ok || workspaceID == "" {
+		return "", false
+	}
+	return workspaceID, true
+}
+
+func getPromptVersionIDParam(w http.ResponseWriter, r *http.Request) (string, bool) {
 	promptVersionID := chi.URLParam(r, paramID)
 	if promptVersionID == "" {
 		http.Error(w, "missing id param", http.StatusBadRequest)
-		return
+		return "", false
 	}
+	return promptVersionID, true
+}
 
+func (h *PromptHandler) promotePromptVersion(w http.ResponseWriter, r *http.Request, workspaceID, promptVersionID string) bool {
 	promErr := h.service.PromotePrompt(r.Context(), workspaceID, promptVersionID)
-	if promErr != nil {
-		http.Error(w, promErr.Error(), http.StatusInternalServerError)
+	if promErr == nil {
+		return true
+	}
+	writePromoteError(w, promErr)
+	return false
+}
+
+func writePromoteError(w http.ResponseWriter, err error) {
+	if isPromptNotFoundError(err) {
+		http.Error(w, "prompt version not found", http.StatusNotFound)
 		return
 	}
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
 
-	// Obtén la versión actualizada
+func isPromptNotFoundError(err error) bool {
+	if err == sql.ErrNoRows {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "no rows") || strings.Contains(msg, "not found")
+}
+
+func (h *PromptHandler) respondWithPromptVersion(w http.ResponseWriter, r *http.Request, workspaceID, promptVersionID string) {
 	pv, getErr := h.service.GetPromptVersionByID(r.Context(), workspaceID, promptVersionID)
 	if getErr != nil {
 		http.Error(w, getErr.Error(), http.StatusInternalServerError)

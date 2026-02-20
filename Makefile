@@ -2,7 +2,7 @@
 # Task 1.1: Project Setup
 # Following implementation plan exactly
 
-.PHONY: all test build run lint fmt complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-app-gate coverage-tdd check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check contract-test trace-report
+.PHONY: all test build run lint fmt complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-app-gate coverage-tdd check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check contract-test contract-test-strict trace-report
 
 # Variables
 BINARY_NAME=fenix
@@ -254,7 +254,11 @@ trace-check:
 
 contract-test: build
 	@echo "Running API contract tests..."
-	@bash tests/contract/run.sh
+	@CONTRACT_MODE=smoke bash tests/contract/run.sh
+
+contract-test-strict: build
+	@echo "Running API contract tests (strict)..."
+	@CONTRACT_MODE=strict CONTRACT_MAX_EXAMPLES=10 bash tests/contract/run.sh
 
 trace-report:
 	@./.venv/bin/doorstop publish all ./docs/trace-report

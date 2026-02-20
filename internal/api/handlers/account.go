@@ -217,9 +217,7 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AccountHandler) getAccountForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Account, bool) {
-	return getEntityForUpdate[
-		crm.Account,
-	](w, r, wsID, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, h.accountService.Get)
+	return getEntityForUpdate[crm.Account](w, r, wsID, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, h.accountService.Get)
 }
 
 // DeleteAccount handles DELETE /api/v1/accounts/{id}
@@ -232,9 +230,7 @@ func (h *AccountHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accountID, ok := ensureEntityExistsBeforeDelete[
-		crm.Account,
-	](w, r, wsID, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, h.accountService.Get)
+	accountID, ok := ensureEntityExistsBeforeDelete[crm.Account](w, r, wsID, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, h.accountService.Get)
 	if !ok {
 		return
 	}
