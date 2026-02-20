@@ -1,9 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -34,14 +31,12 @@ type CreateActivityRequest struct {
 type UpdateActivityRequest = CreateActivityRequest
 
 func (h *ActivityHandler) CreateActivity(w http.ResponseWriter, r *http.Request) {
-	wsID, err := getWorkspaceID(r.Context())
-	if err != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 	var req CreateActivityRequest
-	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
+	if !decodeBodyJSON(w, r, &req) {
 		return
 	}
 	if !isActivityRequestValid(req) {
@@ -67,38 +62,29 @@ func (h *ActivityHandler) CreateActivity(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writeJSONOr500(w, out) {
 		return
 	}
 }
 
 func (h *ActivityHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 	id := chi.URLParam(r, paramID)
 	out, svcErr := h.service.Get(r.Context(), wsID, id)
-	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "activity not found")
+	if handleGetError(w, svcErr, "activity not found", "failed to get activity: %v") {
 		return
 	}
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get activity: %v", svcErr))
-		return
-	}
-	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writeJSONOr500(w, out) {
 		return
 	}
 }
 
 func (h *ActivityHandler) ListActivities(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 	page := parsePaginationParams(r)
@@ -107,31 +93,23 @@ func (h *ActivityHandler) ListActivities(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list activities: %v", svcErr))
 		return
 	}
-	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writePaginatedOr500(w, items, total, page) {
 		return
 	}
 }
 
 func (h *ActivityHandler) UpdateActivity(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 	id := chi.URLParam(r, paramID)
 	existing, svcErr := h.service.Get(r.Context(), wsID, id)
-	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "activity not found")
-		return
-	}
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get activity: %v", svcErr))
+	if handleGetError(w, svcErr, "activity not found", "failed to get activity: %v") {
 		return
 	}
 	var req UpdateActivityRequest
-	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
+	if !decodeBodyJSON(w, r, &req) {
 		return
 	}
 	out, svcErr := h.service.Update(r.Context(), wsID, id, buildUpdateActivityInput(req, existing))
@@ -139,13 +117,12 @@ func (h *ActivityHandler) UpdateActivity(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update activity: %v", svcErr))
 		return
 	}
-	json.NewEncoder(w).Encode(out) //nolint:errcheck
+	_ = writeJSONOr500(w, out)
 }
 
 func (h *ActivityHandler) DeleteActivity(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 	id := chi.URLParam(r, paramID)

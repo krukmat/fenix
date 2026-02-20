@@ -55,7 +55,7 @@ func NewNoteService(db *sql.DB) *NoteService {
 
 func (s *NoteService) Create(ctx context.Context, input CreateNoteInput) (*Note, error) {
 	id := uuid.NewV7().String()
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := nowRFC3339()
 	err := s.querier.CreateNote(ctx, sqlcgen.CreateNoteParams{
 		ID:          id,
 		WorkspaceID: input.WorkspaceID,
@@ -98,10 +98,7 @@ func (s *NoteService) List(ctx context.Context, workspaceID string, input ListNo
 	if err != nil {
 		return nil, 0, fmt.Errorf("list notes: %w", err)
 	}
-	out := make([]*Note, len(rows))
-	for i := range rows {
-		out[i] = rowToNote(rows[i])
-	}
+	out := mapRows(rows, rowToNote)
 	return out, int(total), nil
 }
 
@@ -110,7 +107,7 @@ func (s *NoteService) Update(ctx context.Context, workspaceID, noteID string, in
 		Content:     input.Content,
 		IsInternal:  input.IsInternal,
 		Metadata:    nullString(input.Metadata),
-		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
+		UpdatedAt:   nowRFC3339(),
 		ID:          noteID,
 		WorkspaceID: workspaceID,
 	})
@@ -141,8 +138,8 @@ func (s *NoteService) Delete(ctx context.Context, workspaceID, noteID string) er
 }
 
 func rowToNote(row sqlcgen.Note) *Note {
-	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
-	updatedAt, _ := time.Parse(time.RFC3339, row.UpdatedAt)
+	createdAt := parseRFC3339Time(row.CreatedAt)
+	updatedAt := parseRFC3339Time(row.UpdatedAt)
 	return &Note{
 		ID:          row.ID,
 		WorkspaceID: row.WorkspaceID,

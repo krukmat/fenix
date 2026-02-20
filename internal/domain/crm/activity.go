@@ -73,7 +73,7 @@ func NewActivityService(db *sql.DB) *ActivityService {
 
 func (s *ActivityService) Create(ctx context.Context, input CreateActivityInput) (*Activity, error) {
 	id := uuid.NewV7().String()
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := nowRFC3339()
 	status := input.Status
 	if status == "" {
 		status = "pending"
@@ -127,10 +127,7 @@ func (s *ActivityService) List(ctx context.Context, workspaceID string, input Li
 	if err != nil {
 		return nil, 0, fmt.Errorf("list activities: %w", err)
 	}
-	out := make([]*Activity, len(rows))
-	for i := range rows {
-		out[i] = rowToActivity(rows[i])
-	}
+	out := mapRows(rows, rowToActivity)
 	return out, int(total), nil
 }
 
@@ -147,7 +144,7 @@ func (s *ActivityService) Update(ctx context.Context, workspaceID, activityID st
 		DueAt:        nullString(input.DueAt),
 		CompletedAt:  nullString(input.CompletedAt),
 		Metadata:     nullString(input.Metadata),
-		UpdatedAt:    time.Now().UTC().Format(time.RFC3339),
+		UpdatedAt:    nowRFC3339(),
 		ID:           activityID,
 		WorkspaceID:  workspaceID,
 	})
@@ -173,20 +170,10 @@ func (s *ActivityService) Delete(ctx context.Context, workspaceID, activityID st
 }
 
 func rowToActivity(row sqlcgen.Activity) *Activity {
-	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
-	updatedAt, _ := time.Parse(time.RFC3339, row.UpdatedAt)
-
-	var dueAt *time.Time
-	if row.DueAt != nil {
-		t, _ := time.Parse(time.RFC3339, *row.DueAt)
-		dueAt = &t
-	}
-
-	var completedAt *time.Time
-	if row.CompletedAt != nil {
-		t, _ := time.Parse(time.RFC3339, *row.CompletedAt)
-		completedAt = &t
-	}
+	createdAt := parseRFC3339Time(row.CreatedAt)
+	updatedAt := parseRFC3339Time(row.UpdatedAt)
+	dueAt := parseOptionalRFC3339(row.DueAt)
+	completedAt := parseOptionalRFC3339(row.CompletedAt)
 
 	return &Activity{
 		ID:           row.ID,

@@ -1,9 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -30,14 +27,12 @@ type CreateAttachmentRequest struct {
 }
 
 func (h *AttachmentHandler) CreateAttachment(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 	var req CreateAttachmentRequest
-	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
+	if !decodeBodyJSON(w, r, &req) {
 		return
 	}
 	if !isAttachmentRequestValid(req) {
@@ -61,38 +56,29 @@ func (h *AttachmentHandler) CreateAttachment(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writeJSONOr500(w, out) {
 		return
 	}
 }
 
 func (h *AttachmentHandler) GetAttachment(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 	id := chi.URLParam(r, paramID)
 	out, svcErr := h.service.Get(r.Context(), wsID, id)
-	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "attachment not found")
+	if handleGetError(w, svcErr, "attachment not found", "failed to get attachment: %v") {
 		return
 	}
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get attachment: %v", svcErr))
-		return
-	}
-	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writeJSONOr500(w, out) {
 		return
 	}
 }
 
 func (h *AttachmentHandler) ListAttachments(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 	page := parsePaginationParams(r)
@@ -101,16 +87,14 @@ func (h *AttachmentHandler) ListAttachments(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list attachments: %v", svcErr))
 		return
 	}
-	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writePaginatedOr500(w, items, total, page) {
 		return
 	}
 }
 
 func (h *AttachmentHandler) DeleteAttachment(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 	id := chi.URLParam(r, paramID)

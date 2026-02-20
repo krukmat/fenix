@@ -62,7 +62,7 @@ func NewLeadService(db *sql.DB) *LeadService {
 
 func (s *LeadService) Create(ctx context.Context, input CreateLeadInput) (*Lead, error) {
 	id := uuid.NewV7().String()
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := nowRFC3339()
 	status := input.Status
 	if status == "" {
 		status = "new"
@@ -113,11 +113,7 @@ func (s *LeadService) List(ctx context.Context, workspaceID string, input ListLe
 	if err != nil {
 		return nil, 0, fmt.Errorf("list leads: %w", err)
 	}
-
-	out := make([]*Lead, len(rows))
-	for i := range rows {
-		out[i] = rowToLead(rows[i])
-	}
+	out := mapRows(rows, rowToLead)
 
 	return out, int(total), nil
 }
@@ -127,10 +123,7 @@ func (s *LeadService) ListByOwner(ctx context.Context, workspaceID, ownerID stri
 	if err != nil {
 		return nil, fmt.Errorf("list leads by owner: %w", err)
 	}
-	out := make([]*Lead, len(rows))
-	for i := range rows {
-		out[i] = rowToLead(rows[i])
-	}
+	out := mapRows(rows, rowToLead)
 	return out, nil
 }
 
@@ -143,7 +136,7 @@ func (s *LeadService) Update(ctx context.Context, workspaceID, leadID string, in
 		OwnerID:     input.OwnerID,
 		Score:       input.Score,
 		Metadata:    nullString(input.Metadata),
-		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
+		UpdatedAt:   nowRFC3339(),
 		ID:          leadID,
 		WorkspaceID: workspaceID,
 	})
@@ -158,7 +151,7 @@ func (s *LeadService) Update(ctx context.Context, workspaceID, leadID string, in
 }
 
 func (s *LeadService) Delete(ctx context.Context, workspaceID, leadID string) error {
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := nowRFC3339()
 	err := s.querier.SoftDeleteLead(ctx, sqlcgen.SoftDeleteLeadParams{
 		DeletedAt:   &now,
 		UpdatedAt:   now,
@@ -175,14 +168,9 @@ func (s *LeadService) Delete(ctx context.Context, workspaceID, leadID string) er
 }
 
 func rowToLead(row sqlcgen.Lead) *Lead {
-	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
-	updatedAt, _ := time.Parse(time.RFC3339, row.UpdatedAt)
-
-	var deletedAt *time.Time
-	if row.DeletedAt != nil {
-		t, _ := time.Parse(time.RFC3339, *row.DeletedAt)
-		deletedAt = &t
-	}
+	createdAt := parseRFC3339Time(row.CreatedAt)
+	updatedAt := parseRFC3339Time(row.UpdatedAt)
+	deletedAt := parseOptionalRFC3339(row.DeletedAt)
 
 	return &Lead{
 		ID:          row.ID,

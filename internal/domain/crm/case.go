@@ -87,7 +87,7 @@ func NewCaseServiceWithBus(db *sql.DB, bus eventbus.EventBus) *CaseService {
 
 func (s *CaseService) Create(ctx context.Context, input CreateCaseInput) (*CaseTicket, error) {
 	id := uuid.NewV7().String()
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := nowRFC3339()
 	priority := input.Priority
 	if priority == "" {
 		priority = "medium"
@@ -149,11 +149,7 @@ func (s *CaseService) List(ctx context.Context, workspaceID string, input ListCa
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cases: %w", err)
 	}
-
-	out := make([]*CaseTicket, len(rows))
-	for i := range rows {
-		out[i] = rowToCaseTicket(rows[i])
-	}
+	out := mapRows(rows, rowToCaseTicket)
 
 	return out, int(total), nil
 }
@@ -173,7 +169,7 @@ func (s *CaseService) Update(ctx context.Context, workspaceID, caseID string, in
 		SlaConfig:   nullString(input.SLAConfig),
 		SlaDeadline: nullString(input.SLADeadline),
 		Metadata:    nullString(input.Metadata),
-		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
+		UpdatedAt:   nowRFC3339(),
 		ID:          caseID,
 		WorkspaceID: workspaceID,
 	})
@@ -189,7 +185,7 @@ func (s *CaseService) Update(ctx context.Context, workspaceID, caseID string, in
 }
 
 func (s *CaseService) Delete(ctx context.Context, workspaceID, caseID string) error {
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := nowRFC3339()
 	err := s.querier.SoftDeleteCase(ctx, sqlcgen.SoftDeleteCaseParams{
 		DeletedAt:   &now,
 		UpdatedAt:   now,
@@ -220,14 +216,9 @@ func (s *CaseService) publishRecordChanged(changeType knowledge.ChangeType, work
 }
 
 func rowToCaseTicket(row sqlcgen.CaseTicket) *CaseTicket {
-	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
-	updatedAt, _ := time.Parse(time.RFC3339, row.UpdatedAt)
-
-	var deletedAt *time.Time
-	if row.DeletedAt != nil {
-		t, _ := time.Parse(time.RFC3339, *row.DeletedAt)
-		deletedAt = &t
-	}
+	createdAt := parseRFC3339Time(row.CreatedAt)
+	updatedAt := parseRFC3339Time(row.UpdatedAt)
+	deletedAt := parseOptionalRFC3339(row.DeletedAt)
 
 	return &CaseTicket{
 		ID:          row.ID,

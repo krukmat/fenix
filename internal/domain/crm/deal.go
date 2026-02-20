@@ -74,7 +74,7 @@ func NewDealService(db *sql.DB) *DealService {
 
 func (s *DealService) Create(ctx context.Context, input CreateDealInput) (*Deal, error) {
 	id := uuid.NewV7().String()
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := nowRFC3339()
 	status := input.Status
 	if status == "" {
 		status = "open"
@@ -129,11 +129,7 @@ func (s *DealService) List(ctx context.Context, workspaceID string, input ListDe
 	if err != nil {
 		return nil, 0, fmt.Errorf("list deals: %w", err)
 	}
-
-	out := make([]*Deal, len(rows))
-	for i := range rows {
-		out[i] = rowToDeal(rows[i])
-	}
+	out := mapRows(rows, rowToDeal)
 
 	return out, int(total), nil
 }
@@ -151,7 +147,7 @@ func (s *DealService) Update(ctx context.Context, workspaceID, dealID string, in
 		ExpectedClose: nullString(input.ExpectedClose),
 		Status:        input.Status,
 		Metadata:      nullString(input.Metadata),
-		UpdatedAt:     time.Now().UTC().Format(time.RFC3339),
+		UpdatedAt:     nowRFC3339(),
 		ID:            dealID,
 		WorkspaceID:   workspaceID,
 	})
@@ -166,7 +162,7 @@ func (s *DealService) Update(ctx context.Context, workspaceID, dealID string, in
 }
 
 func (s *DealService) Delete(ctx context.Context, workspaceID, dealID string) error {
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := nowRFC3339()
 	err := s.querier.SoftDeleteDeal(ctx, sqlcgen.SoftDeleteDealParams{
 		DeletedAt:   &now,
 		UpdatedAt:   now,
@@ -183,14 +179,9 @@ func (s *DealService) Delete(ctx context.Context, workspaceID, dealID string) er
 }
 
 func rowToDeal(row sqlcgen.Deal) *Deal {
-	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
-	updatedAt, _ := time.Parse(time.RFC3339, row.UpdatedAt)
-
-	var deletedAt *time.Time
-	if row.DeletedAt != nil {
-		t, _ := time.Parse(time.RFC3339, *row.DeletedAt)
-		deletedAt = &t
-	}
+	createdAt := parseRFC3339Time(row.CreatedAt)
+	updatedAt := parseRFC3339Time(row.UpdatedAt)
+	deletedAt := parseOptionalRFC3339(row.DeletedAt)
 
 	return &Deal{
 		ID:            row.ID,

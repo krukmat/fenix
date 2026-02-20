@@ -3,6 +3,9 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -138,4 +141,57 @@ func buildUpdateInput(req UpdateAccountRequest, existing *crm.Account) crm.Updat
 		input.OwnerID = existing.OwnerID
 	}
 	return input
+}
+
+// requireWorkspaceID obtiene workspace_id desde contexto y responde 400 cuando falta.
+func requireWorkspaceID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+		return "", false
+	}
+	return wsID, true
+}
+
+// decodeBodyJSON decodifica body JSON y responde 400 si es inválido.
+func decodeBodyJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	if decodeErr := json.NewDecoder(r.Body).Decode(dst); decodeErr != nil {
+		writeError(w, http.StatusBadRequest, errInvalidBody)
+		return false
+	}
+	return true
+}
+
+// writeJSONOr500 escribe payload JSON y responde 500 en caso de fallo.
+func writeJSONOr500(w http.ResponseWriter, payload any) bool {
+	if encodeErr := json.NewEncoder(w).Encode(payload); encodeErr != nil {
+		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+		return false
+	}
+	return true
+}
+
+// writePaginatedOr500 escribe respuesta estándar paginada {data, meta}.
+func writePaginatedOr500(w http.ResponseWriter, items any, total int, page paginationParams) bool {
+	return writeJSONOr500(w, map[string]any{
+		"data": items,
+		"meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset},
+	})
+}
+
+// handleGetError unifica manejo ErrNoRows + error interno para endpoints Get.
+func handleGetError(w http.ResponseWriter, err error, notFoundMsg, internalFmt string) bool {
+	if errorsIsNoRows(err) {
+		writeError(w, http.StatusNotFound, notFoundMsg)
+		return true
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(internalFmt, err))
+		return true
+	}
+	return false
+}
+
+func errorsIsNoRows(err error) bool {
+	return errors.Is(err, sql.ErrNoRows)
 }

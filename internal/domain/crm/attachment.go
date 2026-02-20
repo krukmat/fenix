@@ -54,7 +54,7 @@ func NewAttachmentService(db *sql.DB) *AttachmentService {
 
 func (s *AttachmentService) Create(ctx context.Context, input CreateAttachmentInput) (*Attachment, error) {
 	id := uuid.NewV7().String()
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := nowRFC3339()
 	err := s.querier.CreateAttachment(ctx, sqlcgen.CreateAttachmentParams{
 		ID:          id,
 		WorkspaceID: input.WorkspaceID,
@@ -99,10 +99,7 @@ func (s *AttachmentService) List(ctx context.Context, workspaceID string, input 
 	if err != nil {
 		return nil, 0, fmt.Errorf("list attachments: %w", err)
 	}
-	out := make([]*Attachment, len(rows))
-	for i := range rows {
-		out[i] = rowToAttachment(rows[i])
-	}
+	out := mapRows(rows, rowToAttachment)
 	return out, int(total), nil
 }
 
@@ -121,7 +118,7 @@ func (s *AttachmentService) Delete(ctx context.Context, workspaceID, attachmentI
 }
 
 func rowToAttachment(row sqlcgen.Attachment) *Attachment {
-	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
+	createdAt := parseRFC3339Time(row.CreatedAt)
 	return &Attachment{
 		ID:          row.ID,
 		WorkspaceID: row.WorkspaceID,
