@@ -13,6 +13,7 @@ const config: Config = {
     '<rootDir>/__tests__/hooks/**/*.test.ts',
     '<rootDir>/__tests__/components/**/*.test.ts',
     '<rootDir>/__tests__/components/**/*.test.tsx',
+    '<rootDir>/__tests__/app/**/*.test.tsx',
     '<rootDir>/__tests__/navigation.test.tsx',
   ],
   testPathIgnorePatterns: [

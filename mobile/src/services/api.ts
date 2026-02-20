@@ -124,13 +124,32 @@ export const crmApi = {
 
 // Agent API
 export const agentApi = {
-  getRuns: async (workspaceId: string) => {
-    const response = await apiClient.get(`/bff/api/v1/agents/runs?workspace_id=${workspaceId}`);
+  getRuns: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
+    const response = await apiClient.get('/bff/api/v1/agents/runs', {
+      params: {
+        workspace_id: workspaceId,
+        page: pagination?.page ?? 1,
+        limit: pagination?.limit ?? 25,
+      },
+    });
     return response.data;
   },
-  
+
   getRun: async (id: string) => {
     const response = await apiClient.get(`/bff/api/v1/agents/runs/${id}`);
+    return response.data;
+  },
+
+  getDefinitions: async () => {
+    const response = await apiClient.get('/bff/api/v1/agents/definitions');
+    return response.data;
+  },
+
+  triggerRun: async (agentId: string, context: { entity_type?: string; entity_id?: string }) => {
+    const response = await apiClient.post(`/bff/api/v1/agents/trigger`, {
+      agent_id: agentId,
+      ...context,
+    });
     return response.data;
   },
 };

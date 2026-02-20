@@ -146,12 +146,21 @@ describe('api.ts', () => {
 
     it('agentApi methods should call expected GET endpoints', async () => {
       const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValue({ data: { ok: true } } as never);
+      const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValue({ data: { ok: true } } as never);
 
       await agentApi.getRuns('ws-1');
       await agentApi.getRun('run-1');
+      await agentApi.getDefinitions();
+      await agentApi.triggerRun('agent-1', { entity_type: 'case', entity_id: 'c1' });
 
-      expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/agents/runs?workspace_id=ws-1');
+      expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/agents/runs', { params: { workspace_id: 'ws-1', page: 1, limit: 25 } });
       expect(getSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/agents/runs/run-1');
+      expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/api/v1/agents/definitions');
+      expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/agents/trigger', {
+        agent_id: 'agent-1',
+        entity_type: 'case',
+        entity_id: 'c1',
+      });
     });
   });
 });

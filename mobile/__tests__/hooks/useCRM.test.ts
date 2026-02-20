@@ -12,6 +12,7 @@ import {
   useCase,
   useAgentRuns,
   useAgentRun,
+  useAgentDefinitions,
 } from '../../src/hooks/useCRM';
 
 const mockUseQuery = jest.fn();
@@ -41,6 +42,7 @@ jest.mock('../../src/services/api', () => ({
   agentApi: {
     getRuns: jest.fn(),
     getRun: jest.fn(),
+    getDefinitions: jest.fn(),
   },
 }));
 
@@ -66,6 +68,7 @@ describe('useCRM hooks', () => {
       expect(queryKeys.case('ws', 'id-4')).toEqual(['case', 'ws', 'id-4']);
       expect(queryKeys.agentRuns('ws')).toEqual(['agent-runs', 'ws']);
       expect(queryKeys.agentRun('ws', 'id-5')).toEqual(['agent-run', 'ws', 'id-5']);
+      expect(queryKeys.agentDefinitions()).toEqual(['agent-definitions']);
     });
   });
 
@@ -135,12 +138,12 @@ describe('useCRM hooks', () => {
     useAgentRuns();
     useAgentRun('r-1');
 
-    expect(mockUseQuery).toHaveBeenNthCalledWith(
-      1,
+    // useAgentRuns uses useInfiniteQuery (paginates like CRM list hooks)
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['agent-runs', 'ws-1'], staleTime: 15000, enabled: true })
     );
-    expect(mockUseQuery).toHaveBeenNthCalledWith(
-      2,
+    // useAgentRun uses useQuery (single record)
+    expect(mockUseQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['agent-run', 'ws-1', 'r-1'], staleTime: 15000, enabled: true })
     );
   });

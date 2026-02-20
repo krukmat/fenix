@@ -19,6 +19,7 @@ export const queryKeys = {
   case: (workspaceId: string, id: string) => ['case', workspaceId, id] as const,
   agentRuns: (workspaceId: string) => ['agent-runs', workspaceId] as const,
   agentRun: (workspaceId: string, id: string) => ['agent-run', workspaceId, id] as const,
+  agentDefinitions: () => ['agent-definitions'] as const,
 };
 
 // Hook to get workspaceId from auth store - returns null if not available
@@ -170,10 +171,17 @@ export function useCase(id: string) {
 export function useAgentRuns() {
   const workspaceId = useWorkspaceId();
 
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.agentRuns(workspaceId ?? ''),
-    queryFn: () => agentApi.getRuns(workspaceId!),
-    staleTime: 15_000, // 15s - changes frequently
+    queryFn: ({ pageParam }: { pageParam: number }) =>
+      agentApi.getRuns(workspaceId!, { page: pageParam, limit: PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage: { total?: number; data?: unknown[] }, allPages) => {
+      const total = lastPage.total ?? 0;
+      const loaded = allPages.flatMap((p) => p.data ?? []).length;
+      return loaded < total ? allPages.length + 1 : undefined;
+    },
+    staleTime: 15_000,
     gcTime: 5 * 60_000,
     retry: 1,
     refetchOnWindowFocus: false,
@@ -189,6 +197,18 @@ export function useAgentRun(id: string) {
     queryFn: () => agentApi.getRun(id),
     staleTime: 15_000,
     enabled: !!workspaceId && !!id,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// Agent Definitions
+export function useAgentDefinitions() {
+  return useQuery({
+    queryKey: queryKeys.agentDefinitions(),
+    queryFn: () => agentApi.getDefinitions(),
+    staleTime: 5 * 60_000, // 5 minutes - definitions don't change often
+    gcTime: 30 * 60_000,
     retry: 1,
     refetchOnWindowFocus: false,
   });
