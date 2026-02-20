@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 )
@@ -194,4 +195,91 @@ func handleGetError(w http.ResponseWriter, err error, notFoundMsg, internalFmt s
 
 func errorsIsNoRows(err error) bool {
 	return errors.Is(err, sql.ErrNoRows)
+}
+
+// getEntityForUpdate centraliza patrón: leer id path param, cargar entidad, mapear errores.
+func getEntityForUpdate[T any](
+	w http.ResponseWriter,
+	r *http.Request,
+	wsID string,
+	idRequiredMsg string,
+	notFoundMsg string,
+	internalFmt string,
+	getter func(context.Context, string, string) (*T, error),
+) (string, *T, bool) {
+	ctx := r.Context()
+	id := chiURLParamID(r)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, idRequiredMsg)
+		return "", nil, false
+	}
+
+	existing, err := getter(ctx, wsID, id)
+	if errorsIsNoRows(err) {
+		writeError(w, http.StatusNotFound, notFoundMsg)
+		return "", nil, false
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(internalFmt, err))
+		return "", nil, false
+	}
+
+	return id, existing, true
+}
+
+// ensureEntityExistsBeforeDelete centraliza verificación previa de existencia para DELETE.
+func ensureEntityExistsBeforeDelete[T any](
+	w http.ResponseWriter,
+	r *http.Request,
+	wsID string,
+	idRequiredMsg string,
+	notFoundMsg string,
+	internalFmt string,
+	getter func(context.Context, string, string) (*T, error),
+) (string, bool) {
+	ctx := r.Context()
+	id := chiURLParamID(r)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, idRequiredMsg)
+		return "", false
+	}
+
+	_, err := getter(ctx, wsID, id)
+	if errorsIsNoRows(err) {
+		writeError(w, http.StatusNotFound, notFoundMsg)
+		return "", false
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(internalFmt, err))
+		return "", false
+	}
+
+	return id, true
+}
+
+func chiURLParamID(r *http.Request) string {
+	return chi.URLParam(r, paramID)
+}
+
+// handleListWithPagination centraliza listados estándar con meta paginada.
+func handleListWithPagination[T any](
+	w http.ResponseWriter,
+	r *http.Request,
+	errFmt string,
+	listFn func(context.Context, string, int, int) ([]*T, int, error),
+) {
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+		return
+	}
+
+	page := parsePaginationParams(r)
+	items, total, err := listFn(r.Context(), wsID, page.Limit, page.Offset)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFmt, err))
+		return
+	}
+
+	_ = writePaginatedOr500(w, items, total, page)
 }

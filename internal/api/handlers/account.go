@@ -2,9 +2,7 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -219,24 +217,9 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AccountHandler) getAccountForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Account, bool) {
-	ctx := r.Context()
-	accountID := chi.URLParam(r, paramID)
-	if accountID == "" {
-		writeError(w, http.StatusBadRequest, errAccountIDRequired)
-		return "", nil, false
-	}
-
-	existing, svcErr := h.accountService.Get(ctx, wsID, accountID)
-	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, errAccountNotFound)
-		return "", nil, false
-	}
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetAccount, svcErr))
-		return "", nil, false
-	}
-
-	return accountID, existing, true
+	return getEntityForUpdate[
+		crm.Account,
+	](w, r, wsID, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, h.accountService.Get)
 }
 
 // DeleteAccount handles DELETE /api/v1/accounts/{id}
@@ -249,20 +232,10 @@ func (h *AccountHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accountID := chi.URLParam(r, paramID)
-	if accountID == "" {
-		writeError(w, http.StatusBadRequest, errAccountIDRequired)
-		return
-	}
-
-	// Verify account exists (and is not already soft-deleted) before deleting (TD-3)
-	_, getErr := h.accountService.Get(ctx, wsID, accountID)
-	if errors.Is(getErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, errAccountNotFound)
-		return
-	}
-	if getErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetAccount, getErr))
+	accountID, ok := ensureEntityExistsBeforeDelete[
+		crm.Account,
+	](w, r, wsID, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, h.accountService.Get)
+	if !ok {
 		return
 	}
 

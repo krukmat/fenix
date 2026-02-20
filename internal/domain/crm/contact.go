@@ -137,12 +137,7 @@ func (s *ContactService) List(ctx context.Context, workspaceID string, input Lis
 		return nil, 0, fmt.Errorf("list contacts: %w", err)
 	}
 
-	contacts := make([]*Contact, len(rows))
-	for i, row := range rows {
-		contacts[i] = rowToContact(row)
-	}
-
-	return contacts, int(total), nil
+	return mapRows(rows, rowToContact), int(total), nil
 }
 
 // ListByAccount retrieves active contacts for an account in a workspace.
@@ -155,12 +150,7 @@ func (s *ContactService) ListByAccount(ctx context.Context, workspaceID, account
 		return nil, fmt.Errorf("list contacts by account: %w", err)
 	}
 
-	contacts := make([]*Contact, len(rows))
-	for i, row := range rows {
-		contacts[i] = rowToContact(row)
-	}
-
-	return contacts, nil
+	return mapRows(rows, rowToContact), nil
 }
 
 // Update modifies a contact (excludes soft-deleted).

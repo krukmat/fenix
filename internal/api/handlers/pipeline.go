@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -63,21 +64,9 @@ func (h *PipelineHandler) CreatePipeline(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *PipelineHandler) ListPipelines(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
-		return
-	}
-	page := parsePaginationParams(r)
-	items, total, svcErr := h.service.List(r.Context(), wsID, crm.ListPipelinesInput{Limit: page.Limit, Offset: page.Offset})
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list pipelines: %v", svcErr))
-		return
-	}
-	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
-		return
-	}
+	handleListWithPagination(w, r, "failed to list pipelines: %v", func(ctx context.Context, wsID string, limit, offset int) ([]*crm.Pipeline, int, error) {
+		return h.service.List(ctx, wsID, crm.ListPipelinesInput{Limit: limit, Offset: offset})
+	})
 }
 
 func (h *PipelineHandler) GetPipeline(w http.ResponseWriter, r *http.Request) {

@@ -5,9 +5,14 @@ import { createGoClient } from '../services/goClient';
 const router = Router();
 
 type BffRequest = Request & { bearerToken?: string; mobileHeaders?: Record<string, string> };
+type SettledData = PromiseSettledResult<{ data: unknown }>;
 
 function getToken(req: BffRequest): string | undefined {
   return req.bearerToken;
+}
+
+function settledDataOrNull(result: SettledData): unknown | null {
+  return result.status === 'fulfilled' ? result.value.data : null;
 }
 
 // GET /bff/accounts/:id/full
@@ -26,10 +31,10 @@ router.get('/accounts/:id/full', async (req: BffRequest, res: Response, next: Ne
     ]);
 
     res.status(200).json({
-      account: accountRes.status === 'fulfilled' ? accountRes.value.data : null,
-      contacts: contactsRes.status === 'fulfilled' ? contactsRes.value.data : null,
-      deals: dealsRes.status === 'fulfilled' ? dealsRes.value.data : null,
-      timeline: timelineRes.status === 'fulfilled' ? timelineRes.value.data : null,
+      account: settledDataOrNull(accountRes),
+      contacts: settledDataOrNull(contactsRes),
+      deals: settledDataOrNull(dealsRes),
+      timeline: settledDataOrNull(timelineRes),
     });
   } catch (err) {
     next(err);
@@ -55,9 +60,9 @@ router.get('/deals/:id/full', async (req: BffRequest, res: Response, next: NextF
 
     res.status(200).json({
       deal,
-      account: accountRes.status === 'fulfilled' ? accountRes.value.data : null,
-      contact: contactRes.status === 'fulfilled' ? contactRes.value.data : null,
-      activities: activitiesRes.status === 'fulfilled' ? activitiesRes.value.data : null,
+      account: settledDataOrNull(accountRes),
+      contact: settledDataOrNull(contactRes),
+      activities: settledDataOrNull(activitiesRes),
     });
   } catch (err) {
     next(err);
@@ -86,10 +91,10 @@ router.get('/cases/:id/full', async (req: BffRequest, res: Response, next: NextF
 
     res.status(200).json({
       case: caseData,
-      account: accountRes.status === 'fulfilled' ? accountRes.value.data : null,
-      contact: contactRes.status === 'fulfilled' ? contactRes.value.data : null,
-      activities: activitiesRes.status === 'fulfilled' ? activitiesRes.value.data : null,
-      handoff: handoffRes.status === 'fulfilled' ? handoffRes.value.data : null,
+      account: settledDataOrNull(accountRes),
+      contact: settledDataOrNull(contactRes),
+      activities: settledDataOrNull(activitiesRes),
+      handoff: settledDataOrNull(handoffRes),
     });
   } catch (err) {
     next(err);

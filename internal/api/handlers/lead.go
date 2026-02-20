@@ -2,8 +2,6 @@
 package handlers
 
 import (
-	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -226,24 +224,9 @@ func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *LeadHandler) getLeadForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Lead, bool) {
-	ctx := r.Context()
-	leadID := chi.URLParam(r, paramID)
-	if leadID == "" {
-		writeError(w, http.StatusBadRequest, errLeadIDRequired)
-		return "", nil, false
-	}
-
-	existing, svcErr := h.leadService.Get(ctx, wsID, leadID)
-	if errors.Is(svcErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, errLeadNotFound)
-		return "", nil, false
-	}
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetLead, svcErr))
-		return "", nil, false
-	}
-
-	return leadID, existing, true
+	return getEntityForUpdate[
+		crm.Lead,
+	](w, r, wsID, errLeadIDRequired, errLeadNotFound, errFailedToGetLead, h.leadService.Get)
 }
 
 // DeleteLead handles DELETE /api/v1/leads/{id}
@@ -255,20 +238,10 @@ func (h *LeadHandler) DeleteLead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	leadID := chi.URLParam(r, paramID)
-	if leadID == "" {
-		writeError(w, http.StatusBadRequest, errLeadIDRequired)
-		return
-	}
-
-	// Verify lead exists (and is not already soft-deleted) before deleting
-	_, getErr := h.leadService.Get(ctx, wsID, leadID)
-	if errors.Is(getErr, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, errLeadNotFound)
-		return
-	}
-	if getErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFailedToGetLead, getErr))
+	leadID, ok := ensureEntityExistsBeforeDelete[
+		crm.Lead,
+	](w, r, wsID, errLeadIDRequired, errLeadNotFound, errFailedToGetLead, h.leadService.Get)
+	if !ok {
 		return
 	}
 

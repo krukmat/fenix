@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,21 +17,9 @@ func NewTimelineHandler(service *crm.TimelineService) *TimelineHandler {
 }
 
 func (h *TimelineHandler) ListTimeline(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
-		return
-	}
-	page := parsePaginationParams(r)
-	items, total, listErr := h.service.List(r.Context(), wsID, crm.ListTimelineInput{Limit: page.Limit, Offset: page.Offset})
-	if listErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list timeline: %v", listErr))
-		return
-	}
-	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
-		return
-	}
+	handleListWithPagination(w, r, "failed to list timeline: %v", func(ctx context.Context, wsID string, limit, offset int) ([]*crm.TimelineEvent, int, error) {
+		return h.service.List(ctx, wsID, crm.ListTimelineInput{Limit: limit, Offset: offset})
+	})
 }
 
 func (h *TimelineHandler) ListTimelineByEntity(w http.ResponseWriter, r *http.Request) {

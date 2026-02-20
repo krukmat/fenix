@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -99,21 +100,9 @@ func (h *CaseHandler) GetCase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CaseHandler) ListCases(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
-		return
-	}
-	page := parsePaginationParams(r)
-	items, total, svcErr := h.service.List(r.Context(), wsID, crm.ListCasesInput{Limit: page.Limit, Offset: page.Offset})
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list cases: %v", svcErr))
-		return
-	}
-	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
-		return
-	}
+	handleListWithPagination(w, r, "failed to list cases: %v", func(ctx context.Context, wsID string, limit, offset int) ([]*crm.CaseTicket, int, error) {
+		return h.service.List(ctx, wsID, crm.ListCasesInput{Limit: limit, Offset: offset})
+	})
 }
 
 func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {

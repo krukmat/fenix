@@ -115,10 +115,7 @@ func (s *PipelineService) List(ctx context.Context, workspaceID string, input Li
 	if err != nil {
 		return nil, 0, fmt.Errorf("list pipelines: %w", err)
 	}
-	out := make([]*Pipeline, len(rows))
-	for i := range rows {
-		out[i] = rowToPipeline(rows[i])
-	}
+	out := mapRows(rows, rowToPipeline)
 	return out, int(total), nil
 }
 
@@ -177,11 +174,7 @@ func (s *PipelineService) ListStages(ctx context.Context, pipelineID string) ([]
 	if err != nil {
 		return nil, fmt.Errorf("list pipeline stages: %w", err)
 	}
-	out := make([]*PipelineStage, len(rows))
-	for i := range rows {
-		out[i] = rowToPipelineStage(rows[i])
-	}
-	return out, nil
+	return mapRows(rows, rowToPipelineStage), nil
 }
 
 func (s *PipelineService) UpdateStage(ctx context.Context, stageID string, input UpdatePipelineStageInput) (*PipelineStage, error) {

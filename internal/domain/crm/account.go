@@ -149,10 +149,7 @@ func (s *AccountService) List(ctx context.Context, workspaceID string, input Lis
 		return nil, 0, fmt.Errorf("list accounts: %w", err)
 	}
 
-	accounts := make([]*Account, len(rows))
-	for i, row := range rows {
-		accounts[i] = rowToAccount(row)
-	}
+	accounts := mapRows(rows, rowToAccount)
 
 	return accounts, int(total), nil
 }
@@ -167,12 +164,7 @@ func (s *AccountService) ListByOwner(ctx context.Context, workspaceID, ownerID s
 		return nil, fmt.Errorf("list accounts by owner: %w", err)
 	}
 
-	accounts := make([]*Account, len(rows))
-	for i, row := range rows {
-		accounts[i] = rowToAccount(row)
-	}
-
-	return accounts, nil
+	return mapRows(rows, rowToAccount), nil
 }
 
 // Update modifies an account (excludes soft-deleted).

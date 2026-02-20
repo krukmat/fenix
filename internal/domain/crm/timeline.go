@@ -92,12 +92,7 @@ func (s *TimelineService) List(ctx context.Context, workspaceID string, input Li
 		return nil, 0, fmt.Errorf("list timeline events: %w", err)
 	}
 
-	out := make([]*TimelineEvent, len(rows))
-	for i := range rows {
-		out[i] = rowToTimelineEvent(rows[i])
-	}
-
-	return out, int(total), nil
+	return mapRows(rows, rowToTimelineEvent), int(total), nil
 }
 
 func (s *TimelineService) ListByEntity(ctx context.Context, workspaceID, entityType, entityID string, input ListTimelineInput) ([]*TimelineEvent, error) {
@@ -112,11 +107,7 @@ func (s *TimelineService) ListByEntity(ctx context.Context, workspaceID, entityT
 		return nil, fmt.Errorf("list timeline events by entity: %w", err)
 	}
 
-	out := make([]*TimelineEvent, len(rows))
-	for i := range rows {
-		out[i] = rowToTimelineEvent(rows[i])
-	}
-	return out, nil
+	return mapRows(rows, rowToTimelineEvent), nil
 }
 
 func rowToTimelineEvent(row sqlcgen.TimelineEvent) *TimelineEvent {
