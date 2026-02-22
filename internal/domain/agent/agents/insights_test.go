@@ -1,0 +1,206 @@
+// Package agents provides concrete agent implementations.
+// Task 4.5d — FR-231: Insights Agent tests
+package agents
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"testing"
+
+	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
+	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
+	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
+	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
+)
+
+func insertInsightsAgentDefinition(t *testing.T, db *sql.DB, workspaceID string) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(),
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('insights-agent', ?, 'Insights Agent', 'insights', 'active')`, workspaceID)
+	if err != nil {
+		t.Fatalf("insert insights agent_definition: %v", err)
+	}
+}
+
+func newTestInsightsAgent(t *testing.T, db *sql.DB, search KnowledgeSearchInterface) *InsightsAgent {
+	t.Helper()
+	orch := agent.NewOrchestrator(db)
+	registry := tool.NewToolRegistry(db)
+	if err := registry.Register(tool.BuiltinQueryMetrics, tool.NewQueryMetricsExecutor(db)); err != nil {
+		t.Fatalf("register query_metrics: %v", err)
+	}
+	return NewInsightsAgent(orch, registry, search, db)
+}
+
+func TestInsightsAgent_AllowedTools(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+
+	a := newTestInsightsAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+	tools := a.AllowedTools()
+	want := []string{"search_knowledge", "query_metrics"}
+	if len(tools) != len(want) {
+		t.Fatalf("expected %d tools, got %d", len(want), len(tools))
+	}
+	for i := range want {
+		if tools[i] != want[i] {
+			t.Fatalf("tool[%d]=%s want=%s", i, tools[i], want[i])
+		}
+	}
+}
+
+func TestInsightsAgent_Run_SalesFunnelQuery(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+	workspaceID := "ws-insights-sales"
+	insertInsightsAgentDefinition(t, db, workspaceID)
+	ownerID := insertProspectingTestUser(t, db, workspaceID)
+
+	account, err := crm.NewAccountService(db).Create(context.Background(), crm.CreateAccountInput{
+		WorkspaceID: workspaceID,
+		Name:        "Acme",
+		OwnerID:     ownerID,
+	})
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	pipeline, err := crm.NewPipelineService(db).Create(context.Background(), crm.CreatePipelineInput{
+		WorkspaceID: workspaceID,
+		Name:        "Ventas",
+		EntityType:  "deal",
+	})
+	if err != nil {
+		t.Fatalf("create pipeline: %v", err)
+	}
+	stage, err := crm.NewPipelineService(db).CreateStage(context.Background(), crm.CreatePipelineStageInput{
+		PipelineID: pipeline.ID,
+		Name:       "Discovery",
+		Position:   0,
+	})
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+	amount := 1200.0
+	_, err = crm.NewDealService(db).Create(context.Background(), crm.CreateDealInput{
+		WorkspaceID: workspaceID,
+		AccountID:   account.ID,
+		PipelineID:  pipeline.ID,
+		StageID:     stage.ID,
+		OwnerID:     ownerID,
+		Title:       "Deal 1",
+		Amount:      &amount,
+	})
+	if err != nil {
+		t.Fatalf("create deal: %v", err)
+	}
+
+	a := newTestInsightsAgent(t, db, &mockKnowledgeSearch{results: &knowledge.SearchResults{Items: []knowledge.SearchResult{{KnowledgeItemID: "kb-1", Score: 0.9}}}})
+	run, err := a.Run(context.Background(), InsightsAgentConfig{WorkspaceID: workspaceID, Query: "cuántos deals en pipeline"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	stored, err := agent.NewOrchestrator(db).GetAgentRun(context.Background(), workspaceID, run.ID)
+	if err != nil {
+		t.Fatalf("GetAgentRun: %v", err)
+	}
+	var output struct {
+		Action     string           `json:"action"`
+		Metrics    []map[string]any `json:"metrics"`
+		Confidence string           `json:"confidence"`
+	}
+	if err := json.Unmarshal(stored.Output, &output); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if output.Action == "abstain" {
+		t.Fatalf("expected non-abstain action, got %q", output.Action)
+	}
+	if len(output.Metrics) == 0 {
+		t.Fatal("expected metrics in output")
+	}
+	if output.Confidence == "" {
+		t.Fatal("expected confidence in output")
+	}
+}
+
+func TestInsightsAgent_Run_CaseBacklogQuery(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+	workspaceID := "ws-insights-cases"
+	insertInsightsAgentDefinition(t, db, workspaceID)
+	ownerID := insertProspectingTestUser(t, db, workspaceID)
+
+	caseTicket, err := crm.NewCaseService(db).Create(context.Background(), crm.CreateCaseInput{
+		WorkspaceID: workspaceID,
+		OwnerID:     ownerID,
+		Subject:     "Caso pendiente",
+		Status:      "open",
+		Priority:    "high",
+	})
+	if err != nil {
+		t.Fatalf("create case: %v", err)
+	}
+	_, err = db.ExecContext(context.Background(), `
+		UPDATE case_ticket
+		SET created_at = datetime('now', '-40 day'), updated_at = datetime('now', '-1 day')
+		WHERE id = ?
+	`, caseTicket.ID)
+	if err != nil {
+		t.Fatalf("age case ticket: %v", err)
+	}
+
+	a := newTestInsightsAgent(t, db, &mockKnowledgeSearch{results: &knowledge.SearchResults{Items: []knowledge.SearchResult{{KnowledgeItemID: "kb-2", Score: 0.7}}}})
+	run, err := a.Run(context.Background(), InsightsAgentConfig{WorkspaceID: workspaceID, Query: "casos pendientes"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	stored, err := agent.NewOrchestrator(db).GetAgentRun(context.Background(), workspaceID, run.ID)
+	if err != nil {
+		t.Fatalf("GetAgentRun: %v", err)
+	}
+	var output struct {
+		Metrics []map[string]any `json:"metrics"`
+		Answer  string           `json:"answer"`
+	}
+	if err := json.Unmarshal(stored.Output, &output); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if len(output.Metrics) == 0 {
+		t.Fatal("expected metrics for case backlog query")
+	}
+	if output.Answer == "" {
+		t.Fatal("expected answer for case backlog query")
+	}
+}
+
+func TestInsightsAgent_Run_EmptyData_Abstains(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+	workspaceID := "ws-insights-empty"
+	insertInsightsAgentDefinition(t, db, workspaceID)
+	_ = insertProspectingTestUser(t, db, workspaceID)
+
+	a := newTestInsightsAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+	run, err := a.Run(context.Background(), InsightsAgentConfig{WorkspaceID: workspaceID, Query: "deals en pipeline"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	stored, err := agent.NewOrchestrator(db).GetAgentRun(context.Background(), workspaceID, run.ID)
+	if err != nil {
+		t.Fatalf("GetAgentRun: %v", err)
+	}
+	var output struct {
+		Action     string `json:"action"`
+		Confidence string `json:"confidence"`
+	}
+	if err := json.Unmarshal(stored.Output, &output); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if output.Action != "abstain" {
+		t.Fatalf("expected action=abstain, got %q", output.Action)
+	}
+	if output.Confidence != "low" {
+		t.Fatalf("expected confidence=low, got %q", output.Confidence)
+	}
+}

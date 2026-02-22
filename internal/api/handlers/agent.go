@@ -5,11 +5,17 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent/agents"
+)
+
+const (
+	defaultAgentLanguage = "es"
+	errQueryRequired     = "query is required"
 )
 
 // AgentHandler handles agent-related HTTP requests
@@ -320,6 +326,13 @@ type kbAgentRequest struct {
 	Language string `json:"language,omitempty"`
 }
 
+type insightsAgentRequest struct {
+	Query    string `json:"query"`
+	DateFrom string `json:"date_from,omitempty"`
+	DateTo   string `json:"date_to,omitempty"`
+	Language string `json:"language,omitempty"`
+}
+
 // buildSupportConfig validates and converts an HTTP request into a SupportAgentConfig.
 // Returns ("", nil) on validation error after writing the HTTP error response.
 func buildSupportConfig(w http.ResponseWriter, req supportAgentRequest, workspaceID string) (agents.SupportAgentConfig, bool) {
@@ -394,7 +407,7 @@ func buildProspectingConfig(w http.ResponseWriter, req prospectingAgentRequest, 
 	}
 	language := req.Language
 	if language == "" {
-		language = "es"
+		language = defaultAgentLanguage
 	}
 	return agents.ProspectingAgentConfig{
 		WorkspaceID: workspaceID,
@@ -484,7 +497,7 @@ func buildKBConfig(w http.ResponseWriter, req kbAgentRequest, workspaceID string
 	}
 	language := req.Language
 	if language == "" {
-		language = "es"
+		language = defaultAgentLanguage
 	}
 	return agents.KBAgentConfig{
 		WorkspaceID: workspaceID,
@@ -555,6 +568,118 @@ func handleKBRunError(w http.ResponseWriter, err error) bool {
 		return true
 	}
 	if errors.Is(err, agents.ErrKBDailyLimitExceeded) {
+		writeError(w, http.StatusTooManyRequests, err.Error())
+		return true
+	}
+	return false
+}
+
+// InsightsAgentHandler handles Insights Agent specific endpoints.
+// Task 4.5d — FR-231: Insights Agent trigger endpoint.
+type InsightsAgentHandler struct {
+	insightsAgent *agents.InsightsAgent
+}
+
+// NewInsightsAgentHandler creates a new InsightsAgentHandler.
+func NewInsightsAgentHandler(insightsAgent *agents.InsightsAgent) *InsightsAgentHandler {
+	return &InsightsAgentHandler{insightsAgent: insightsAgent}
+}
+
+func buildInsightsConfig(w http.ResponseWriter, req insightsAgentRequest, workspaceID string) (agents.InsightsAgentConfig, bool) {
+	if req.Query == "" {
+		writeError(w, http.StatusBadRequest, errQueryRequired)
+		return agents.InsightsAgentConfig{}, false
+	}
+	language := req.Language
+	if language == "" {
+		language = defaultAgentLanguage
+	}
+	config := agents.InsightsAgentConfig{
+		WorkspaceID: workspaceID,
+		Query:       req.Query,
+		Language:    language,
+	}
+	if req.DateFrom != "" {
+		t, err := parseDateTimeValue(req.DateFrom)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "date_from must be RFC3339")
+			return agents.InsightsAgentConfig{}, false
+		}
+		config.DateFrom = t
+	}
+	if req.DateTo != "" {
+		t, err := parseDateTimeValue(req.DateTo)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "date_to must be RFC3339")
+			return agents.InsightsAgentConfig{}, false
+		}
+		config.DateTo = t
+	}
+	return config, true
+}
+
+// Task 4.5d — withInsightsTriggeredBy propagates user for audit trail.
+func withInsightsTriggeredBy(config agents.InsightsAgentConfig, userID string) agents.InsightsAgentConfig {
+	if userID == "" {
+		return config
+	}
+	config.TriggeredByUserID = &userID
+	return config
+}
+
+func parseDateTimeValue(v string) (*time.Time, error) {
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+// TriggerInsightsAgent handles POST /api/v1/agents/insights/trigger.
+func (h *InsightsAgentHandler) TriggerInsightsAgent(w http.ResponseWriter, r *http.Request) {
+	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
+	if !ok || workspaceID == "" {
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+		return
+	}
+	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
+
+	var req insightsAgentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, errInvalidBody)
+		return
+	}
+
+	config, valid := buildInsightsConfig(w, req, workspaceID)
+	if !valid {
+		return
+	}
+	config = withInsightsTriggeredBy(config, userID)
+
+	run, err := h.insightsAgent.Run(r.Context(), config)
+	if err != nil {
+		if handled := handleInsightsRunError(w, err); handled {
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to run insights agent")
+		return
+	}
+
+	w.Header().Set(headerContentType, mimeJSON)
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"run_id": run.ID,
+		"status": "queued",
+		"agent":  "insights",
+	})
+}
+
+func handleInsightsRunError(w http.ResponseWriter, err error) bool {
+	if errors.Is(err, agents.ErrInsightsQueryRequired) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return true
+	}
+	if errors.Is(err, agents.ErrInsightsDailyLimitExceeded) {
 		writeError(w, http.StatusTooManyRequests, err.Error())
 		return true
 	}

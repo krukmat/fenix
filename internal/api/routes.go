@@ -32,7 +32,7 @@ const routeByID = "/{id}"
 // Task 1.3.8: Setup go-chi router with middleware + account endpoints
 // Task 1.6.13: Public routes (/health, /auth/*) vs protected routes (/api/v1/*)
 //
-//nolint:funlen // router principal mantiene registro centralizado de rutas por diseño
+//nolint:funlen,maintidx // router principal mantiene registro centralizado de rutas por diseño
 func NewRouter(db *sql.DB) *chi.Mux {
 	r := chi.NewRouter()
 	auditService := domainaudit.NewAuditService(db)
@@ -256,6 +256,14 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			db,
 		)
 		kbAgentHandler := handlers.NewKBAgentHandler(kbAgent)
+		// Task 4.5d — FR-231: Insights Agent wiring.
+		insightsAgent := agents.NewInsightsAgent(
+			agentOrchestrator,
+			toolRegistry,
+			searchSvc,
+			db,
+		)
+		insightsAgentHandler := handlers.NewInsightsAgentHandler(insightsAgent)
 
 		// Task 3.8: Handoff Manager (reuses caseService + knowledgeBus from above)
 		handoffService := agent.NewHandoffService(db, caseService, knowledgeBus)
@@ -272,6 +280,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			r.Post("/support/trigger", supportAgentHandler.TriggerSupportAgent) // POST /api/v1/agents/support/trigger
 			r.Post("/prospecting/trigger", prospectingAgentHandler.TriggerProspectingAgent)
 			r.Post("/kb/trigger", kbAgentHandler.TriggerKBAgent)
+			r.Post("/insights/trigger", insightsAgentHandler.TriggerInsightsAgent)
 		})
 	})
 

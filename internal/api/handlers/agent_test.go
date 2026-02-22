@@ -18,6 +18,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
+	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
 // mockKnowledgeSearchHandler is a no-op search mock for handler tests.
@@ -135,6 +136,26 @@ func newTestKBAgentHandler(t *testing.T, db *sql.DB, wsID, ownerID string) (*KBA
 
 	kbAgent := agents.NewKBAgent(orch, reg, &mockKnowledgeSearchHandler{}, &mockLLMProviderHandler{}, caseSvc, db)
 	return NewKBAgentHandler(kbAgent), caseTicket.ID
+}
+
+// newTestInsightsAgentHandler builds an InsightsAgentHandler backed by an in-memory DB.
+func newTestInsightsAgentHandler(t *testing.T, db *sql.DB, wsID string) *InsightsAgentHandler {
+	t.Helper()
+	orch := agent.NewOrchestrator(db)
+	reg := tool.NewToolRegistry(db)
+	if regErr := reg.Register(tool.BuiltinQueryMetrics, tool.NewQueryMetricsExecutor(db)); regErr != nil {
+		t.Fatalf("register query_metrics executor: %v", regErr)
+	}
+
+	_, err := db.ExecContext(context.Background(),
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('insights-agent', ?, 'Insights Agent', 'insights', 'active')`, wsID)
+	if err != nil {
+		t.Fatalf("insert insights agent_definition: %v", err)
+	}
+
+	insightsAgent := agents.NewInsightsAgent(orch, reg, &mockKnowledgeSearchHandler{}, db)
+	return NewInsightsAgentHandler(insightsAgent)
 }
 
 // insertTestAgentDef inserts an agent_definition for handler tests.
@@ -789,5 +810,91 @@ func TestKBAgentHandler_TriggerKB_MissingCaseID(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestInsightsAgentHandler_TriggerInsights_200(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestInsightsAgentHandler(t, db, wsID)
+
+	body, _ := json.Marshal(map[string]any{"query": "cuántos deals", "language": "es"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerInsightsAgent(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if _, ok := resp["run_id"]; !ok {
+		t.Fatalf("expected run_id field, got: %v", resp)
+	}
+	if got, _ := resp["status"].(string); got != "queued" {
+		t.Fatalf("expected status=queued, got=%q", got)
+	}
+	if got, _ := resp["agent"].(string); got != "insights" {
+		t.Fatalf("expected agent=insights, got=%q", got)
+	}
+}
+
+func TestInsightsAgentHandler_TriggerInsights_MissingQuery(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestInsightsAgentHandler(t, db, wsID)
+
+	body, _ := json.Marshal(map[string]any{})
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerInsightsAgent(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestInsightsAgentHandler_TriggerInsights_DailyLimitExceeded(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestInsightsAgentHandler(t, db, wsID)
+
+	ctx := context.Background()
+	for i := range 100 {
+		_, err := db.ExecContext(ctx, `
+			INSERT INTO agent_run (
+				id, workspace_id, agent_definition_id, trigger_type, status,
+				started_at, created_at
+			) VALUES (?, ?, 'insights-agent', 'manual', 'success', datetime('now'), datetime('now'))
+		`, uuid.NewV7().String(), wsID)
+		if err != nil {
+			t.Fatalf("insert agent_run #%d: %v", i, err)
+		}
+	}
+
+	body, _ := json.Marshal(map[string]any{"query": "cuántos deals"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerInsightsAgent(rr, req)
+
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
