@@ -29,6 +29,7 @@ const (
 // HTTP response string constants (extracted to satisfy goconst lint gate).
 const (
 	headerContentType = "Content-Type"
+	headerContentDisposition = "Content-Disposition"
 	mimeJSON          = "application/json"
 	timeFormatISO     = "2006-01-02T15:04:05Z"
 

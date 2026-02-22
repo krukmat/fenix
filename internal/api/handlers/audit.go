@@ -23,6 +23,8 @@ const (
 	errFailedToQueryAudit   = "failed to query audit events: %v"
 	errFailedToGetAudit     = "failed to get audit event: %v"
 	errFormatMustBeCSV      = "format must be csv"
+	queryParamFormat        = "format"
+	formatCSV               = "csv"
 )
 
 func NewAuditHandler(auditService *domainaudit.AuditService) *AuditHandler {
@@ -41,7 +43,7 @@ func (h *AuditHandler) Query(w http.ResponseWriter, r *http.Request) {
 	items, err := h.auditService.Query(r.Context(), domainaudit.QueryInput{
 		WorkspaceID: wsID,
 		ActorID:     r.URL.Query().Get("actor_id"),
-		EntityType:  r.URL.Query().Get("entity_type"),
+		EntityType:  r.URL.Query().Get(paramEntityType),
 		Action:      r.URL.Query().Get("action"),
 		Outcome:     r.URL.Query().Get("outcome"),
 		DateFrom:    r.URL.Query().Get("date_from"),
@@ -94,7 +96,7 @@ func (h *AuditHandler) Export(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if r.URL.Query().Get("format") != "csv" {
+	if r.URL.Query().Get(queryParamFormat) != formatCSV {
 		writeError(w, http.StatusBadRequest, errFormatMustBeCSV)
 		return
 	}
@@ -102,7 +104,7 @@ func (h *AuditHandler) Export(w http.ResponseWriter, r *http.Request) {
 	reader, err := h.auditService.Export(r.Context(), domainaudit.ExportInput{
 		WorkspaceID: wsID,
 		ActorID:     r.URL.Query().Get("actor_id"),
-		EntityType:  r.URL.Query().Get("entity_type"),
+		EntityType:  r.URL.Query().Get(paramEntityType),
 		Action:      r.URL.Query().Get("action"),
 		Outcome:     r.URL.Query().Get("outcome"),
 		DateFrom:    r.URL.Query().Get("date_from"),
@@ -114,7 +116,7 @@ func (h *AuditHandler) Export(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set(headerContentType, mimeCSV)
-	w.Header().Set("Content-Disposition", `attachment; filename="audit_events.csv"`)
+	w.Header().Set(headerContentDisposition, `attachment; filename="audit_events.csv"`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.Copy(w, reader)
 }
