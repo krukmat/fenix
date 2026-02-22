@@ -81,6 +81,7 @@ type AgentRun struct {
 	StartedAt            time.Time       `db:"started_at" json:"startedAt"`
 	CompletedAt          *time.Time      `db:"completed_at" json:"completedAt"`
 	CreatedAt            time.Time       `db:"created_at" json:"createdAt"`
+	UpdatedAt            time.Time       `db:"updated_at" json:"updatedAt"`
 }
 
 type ApprovalRequest struct {

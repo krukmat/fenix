@@ -108,7 +108,7 @@ INSERT INTO agent_run (
     total_tokens, total_cost, latency_ms, trace_id,
     started_at, completed_at, created_at
 ) VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), NULL, datetime('now'))
-RETURNING id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at
+RETURNING id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at, updated_at
 `
 
 type CreateAgentRunParams struct {
@@ -174,6 +174,7 @@ func (q *Queries) CreateAgentRun(ctx context.Context, arg CreateAgentRunParams) 
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -331,7 +332,7 @@ func (q *Queries) GetAgentDefinitionByName(ctx context.Context, arg GetAgentDefi
 }
 
 const getAgentRunByID = `-- name: GetAgentRunByID :one
-SELECT id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at FROM agent_run
+SELECT id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at, updated_at FROM agent_run
 WHERE id = ? AND workspace_id = ?
 LIMIT 1
 `
@@ -366,6 +367,7 @@ func (q *Queries) GetAgentRunByID(ctx context.Context, arg GetAgentRunByIDParams
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -536,7 +538,7 @@ func (q *Queries) ListAgentDefinitionsByWorkspace(ctx context.Context, workspace
 }
 
 const listAgentRunsByAgent = `-- name: ListAgentRunsByAgent :many
-SELECT id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at FROM agent_run
+SELECT id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at, updated_at FROM agent_run
 WHERE workspace_id = ? AND agent_definition_id = ?
 ORDER BY created_at DESC
 LIMIT ? OFFSET ?
@@ -585,6 +587,7 @@ func (q *Queries) ListAgentRunsByAgent(ctx context.Context, arg ListAgentRunsByA
 			&i.StartedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -600,7 +603,7 @@ func (q *Queries) ListAgentRunsByAgent(ctx context.Context, arg ListAgentRunsByA
 }
 
 const listAgentRunsByStatus = `-- name: ListAgentRunsByStatus :many
-SELECT id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at FROM agent_run
+SELECT id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at, updated_at FROM agent_run
 WHERE workspace_id = ? AND status = ?
 ORDER BY created_at DESC
 LIMIT ? OFFSET ?
@@ -649,6 +652,7 @@ func (q *Queries) ListAgentRunsByStatus(ctx context.Context, arg ListAgentRunsBy
 			&i.StartedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -664,7 +668,7 @@ func (q *Queries) ListAgentRunsByStatus(ctx context.Context, arg ListAgentRunsBy
 }
 
 const listAgentRunsByUser = `-- name: ListAgentRunsByUser :many
-SELECT id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at FROM agent_run
+SELECT id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at, updated_at FROM agent_run
 WHERE workspace_id = ? AND triggered_by_user_id = ?
 ORDER BY created_at DESC
 LIMIT ? OFFSET ?
@@ -713,6 +717,7 @@ func (q *Queries) ListAgentRunsByUser(ctx context.Context, arg ListAgentRunsByUs
 			&i.StartedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -728,7 +733,7 @@ func (q *Queries) ListAgentRunsByUser(ctx context.Context, arg ListAgentRunsByUs
 }
 
 const listAgentRunsByWorkspace = `-- name: ListAgentRunsByWorkspace :many
-SELECT id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at FROM agent_run
+SELECT id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at, updated_at FROM agent_run
 WHERE workspace_id = ?
 ORDER BY created_at DESC
 LIMIT ? OFFSET ?
@@ -771,6 +776,7 @@ func (q *Queries) ListAgentRunsByWorkspace(ctx context.Context, arg ListAgentRun
 			&i.StartedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -930,7 +936,7 @@ SET status = ?, inputs = ?, retrieval_queries = ?, retrieved_evidence_ids = ?,
     completed_at = CASE WHEN ? THEN datetime('now') ELSE completed_at END,
     updated_at = datetime('now')
 WHERE id = ? AND workspace_id = ?
-RETURNING id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at
+RETURNING id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at, updated_at
 `
 
 type UpdateAgentRunParams struct {
@@ -990,6 +996,7 @@ func (q *Queries) UpdateAgentRun(ctx context.Context, arg UpdateAgentRunParams) 
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -998,7 +1005,7 @@ const updateAgentRunStatus = `-- name: UpdateAgentRunStatus :one
 UPDATE agent_run
 SET status = ?, completed_at = datetime('now'), updated_at = datetime('now')
 WHERE id = ? AND workspace_id = ?
-RETURNING id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at
+RETURNING id, workspace_id, agent_definition_id, triggered_by_user_id, trigger_type, trigger_context, status, inputs, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls, output, abstention_reason, total_tokens, total_cost, latency_ms, trace_id, started_at, completed_at, created_at, updated_at
 `
 
 type UpdateAgentRunStatusParams struct {
@@ -1032,6 +1039,7 @@ func (q *Queries) UpdateAgentRunStatus(ctx context.Context, arg UpdateAgentRunSt
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

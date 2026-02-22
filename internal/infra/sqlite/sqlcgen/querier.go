@@ -14,6 +14,9 @@ type Querier interface {
 	// USER ROLE (assignment) queries
 	// ========================
 	AssignRole(ctx context.Context, arg AssignRoleParams) error
+	CaseBacklogByWorkspace(ctx context.Context, arg CaseBacklogByWorkspaceParams) ([]CaseBacklogByWorkspaceRow, error)
+	CaseMTTRByWorkspace(ctx context.Context, workspaceID string) ([]CaseMTTRByWorkspaceRow, error)
+	CaseVolumeByWorkspace(ctx context.Context, workspaceID string) ([]CaseVolumeByWorkspaceRow, error)
 	CountAccountsByWorkspace(ctx context.Context, workspaceID string) (int64, error)
 	CountActivitiesByEntity(ctx context.Context, arg CountActivitiesByEntityParams) (int64, error)
 	CountActivitiesByWorkspace(ctx context.Context, workspaceID string) (int64, error)
@@ -124,6 +127,7 @@ type Querier interface {
 	// Task 1.2.7: sqlc-annotated queries
 	// Note: RETURNING * not supported by sqlc SQLite parser — use :exec + GetByID pattern.
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) error
+	DealAgingByWorkspace(ctx context.Context, workspaceID string) ([]DealAgingByWorkspaceRow, error)
 	DeleteActivity(ctx context.Context, arg DeleteActivityParams) error
 	DeleteAgentDefinition(ctx context.Context, arg DeleteAgentDefinitionParams) error
 	DeleteAgentRun(ctx context.Context, arg DeleteAgentRunParams) error
@@ -276,6 +280,8 @@ type Querier interface {
 	ListWorkspaces(ctx context.Context) ([]Workspace, error)
 	RevokeAllRoles(ctx context.Context, userID string) error
 	RevokeRole(ctx context.Context, arg RevokeRoleParams) error
+	// Task 4.5e - Reporting base queries (FR-003)
+	SalesFunnelByWorkspace(ctx context.Context, workspaceID string) ([]SalesFunnelByWorkspaceRow, error)
 	SetPromptStatus(ctx context.Context, arg SetPromptStatusParams) error
 	SoftDeleteAccount(ctx context.Context, arg SoftDeleteAccountParams) error
 	SoftDeleteCase(ctx context.Context, arg SoftDeleteCaseParams) error
