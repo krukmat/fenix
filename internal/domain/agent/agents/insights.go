@@ -192,10 +192,10 @@ func parseQueryIntent(query string) string {
 	switch {
 	case strings.Contains(q, "aging"), strings.Contains(q, "días en stage"):
 		return "deal_aging"
-	case strings.Contains(q, "caso"), strings.Contains(q, "ticket"), strings.Contains(q, "volumen"):
-		return "case_volume"
 	case strings.Contains(q, "backlog"), strings.Contains(q, "pendiente"), strings.Contains(q, "abierto"):
 		return "case_backlog"
+	case strings.Contains(q, "caso"), strings.Contains(q, "ticket"), strings.Contains(q, "volumen"):
+		return "case_volume"
 	case strings.Contains(q, "mttr"), strings.Contains(q, "resolución"), strings.Contains(q, "tiempo"):
 		return "mttr"
 	case strings.Contains(q, "deal"), strings.Contains(q, "venta"), strings.Contains(q, "funnel"):

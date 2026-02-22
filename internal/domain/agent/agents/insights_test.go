@@ -172,6 +172,23 @@ func TestInsightsAgent_Run_CaseBacklogQuery(t *testing.T) {
 	if output.Answer == "" {
 		t.Fatal("expected answer for case backlog query")
 	}
+
+	var toolCalls []struct {
+		ToolName string `json:"tool_name"`
+		Metric   string `json:"metric"`
+	}
+	if err := json.Unmarshal(stored.ToolCalls, &toolCalls); err != nil {
+		t.Fatalf("unmarshal tool_calls: %v", err)
+	}
+	if len(toolCalls) == 0 {
+		t.Fatal("expected at least one tool call")
+	}
+	if toolCalls[0].ToolName != "query_metrics" {
+		t.Fatalf("expected first tool call query_metrics, got %q", toolCalls[0].ToolName)
+	}
+	if toolCalls[0].Metric != "case_backlog" {
+		t.Fatalf("expected metric case_backlog, got %q", toolCalls[0].Metric)
+	}
 }
 
 func TestInsightsAgent_Run_EmptyData_Abstains(t *testing.T) {
@@ -202,5 +219,27 @@ func TestInsightsAgent_Run_EmptyData_Abstains(t *testing.T) {
 	}
 	if output.Confidence != "low" {
 		t.Fatalf("expected confidence=low, got %q", output.Confidence)
+	}
+}
+
+func TestParseQueryIntent_BacklogPriorityOverCaseVolume(t *testing.T) {
+	tests := []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{name: "casos pendientes", query: "casos pendientes", want: "case_backlog"},
+		{name: "casos abiertos", query: "casos abiertos", want: "case_backlog"},
+		{name: "backlog de casos", query: "backlog de casos", want: "case_backlog"},
+		{name: "volumen de casos", query: "volumen de casos", want: "case_volume"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := parseQueryIntent(tc.query)
+			if got != tc.want {
+				t.Fatalf("parseQueryIntent(%q)=%q want=%q", tc.query, got, tc.want)
+			}
+		})
 	}
 }
