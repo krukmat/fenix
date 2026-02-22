@@ -69,6 +69,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 
 		// Shared app services for protected APIs
 		knowledgeBus := eventbus.New()
+		auditService.RegisterEventSubscribers(knowledgeBus)
 		cfg := config.Load()
 		llmProvider := llm.NewOllamaProvider(cfg.OllamaBaseURL, cfg.OllamaModel)
 		ingestSvc := knowledge.NewIngestService(db, knowledgeBus)
@@ -109,6 +110,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		attachmentHandler := handlers.NewAttachmentHandler(crm.NewAttachmentService(db))
 		timelineHandler := handlers.NewTimelineHandler(crm.NewTimelineService(db))
 		reportHandler := handlers.NewReportHandler(crm.NewReportService(db))
+		auditHandler := handlers.NewAuditHandler(auditService)
 		r.Route("/leads", func(r chi.Router) {
 			r.Post("/", leadHandler.CreateLead)         // POST /api/v1/leads
 			r.Get("/", leadHandler.ListLeads)           // GET /api/v1/leads
@@ -181,6 +183,13 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			r.Get("/support/volume", reportHandler.GetSupportVolume)
 			r.Get("/sales/funnel/export", reportHandler.ExportSalesFunnelCSV)
 			r.Get("/support/backlog/export", reportHandler.ExportSupportBacklogCSV)
+		})
+
+		// Task 4.6 — FR-070/071: Audit advanced endpoints.
+		r.Route("/audit", func(r chi.Router) {
+			r.Get("/events", auditHandler.Query)
+			r.Get("/events/{id}", auditHandler.GetByID)
+			r.Post("/export", auditHandler.Export)
 		})
 
 		// Task 2.5: SearchService — hybrid BM25 + vector search with RRF ranking

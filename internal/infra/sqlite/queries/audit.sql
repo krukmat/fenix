@@ -56,6 +56,20 @@ LIMIT ? OFFSET ?;
 -- name: ListAuditEventsByTimeRange :many
 -- Lists audit events within a time range
 SELECT * FROM audit_event
-WHERE workspace_id = ? AND created_at BETWEEN ? AND ?
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND datetime(created_at) BETWEEN datetime(sqlc.arg(date_from)) AND datetime(sqlc.arg(date_to))
 ORDER BY created_at DESC
-LIMIT ? OFFSET ?;
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: QueryAuditEvents :many
+-- Lists audit events filtered by optional compound criteria
+SELECT * FROM audit_event
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND (sqlc.arg(actor_id) = '' OR actor_id = sqlc.arg(actor_id))
+  AND (sqlc.arg(entity_type) = '' OR entity_type = sqlc.arg(entity_type))
+  AND (sqlc.arg(action) = '' OR action = sqlc.arg(action))
+  AND (sqlc.arg(outcome) = '' OR outcome = sqlc.arg(outcome))
+  AND (sqlc.arg(date_from) = '' OR datetime(created_at) >= datetime(sqlc.arg(date_from)))
+  AND (sqlc.arg(date_to) = '' OR datetime(created_at) <= datetime(sqlc.arg(date_to)))
+ORDER BY created_at DESC
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);

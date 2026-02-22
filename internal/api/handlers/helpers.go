@@ -66,6 +66,10 @@ const (
 	// Error messages — agent
 	errAgentRunNotFound = "agent run not found"
 
+	// Error messages — audit
+	errAuditEventNotFound  = "audit event not found"
+	errFailedToExportAudit = "failed to export audit events"
+
 	// URL param names
 	paramID         = "id"
 	paramStageID    = "stage_id"

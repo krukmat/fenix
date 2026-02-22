@@ -278,6 +278,8 @@ type Querier interface {
 	ListUsersByRole(ctx context.Context, arg ListUsersByRoleParams) ([]UserAccount, error)
 	ListUsersByWorkspace(ctx context.Context, workspaceID string) ([]UserAccount, error)
 	ListWorkspaces(ctx context.Context) ([]Workspace, error)
+	// Lists audit events filtered by optional compound criteria
+	QueryAuditEvents(ctx context.Context, arg QueryAuditEventsParams) ([]AuditEvent, error)
 	RevokeAllRoles(ctx context.Context, userID string) error
 	RevokeRole(ctx context.Context, arg RevokeRoleParams) error
 	// Task 4.5e - Reporting base queries (FR-003)

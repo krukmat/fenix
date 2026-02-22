@@ -3,9 +3,12 @@ package audit
 import (
 	"context"
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
+	"io"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -236,6 +239,207 @@ func (s *AuditService) ListByAction(
 	}
 
 	return events, nil
+}
+
+// Query filters audit events with optional compound criteria.
+// Task 4.6: FR-070 Audit Advanced
+func (s *AuditService) Query(ctx context.Context, in QueryInput) ([]*AuditEvent, error) {
+	params := sqlcgen.QueryAuditEventsParams{
+		WorkspaceID: in.WorkspaceID,
+		ActorID:     in.ActorID,
+		EntityType:  in.EntityType,
+		Action:      in.Action,
+		Outcome:     in.Outcome,
+		DateFrom:    normalizeDateArg(in.DateFrom),
+		DateTo:      normalizeDateArg(in.DateTo),
+		Off:         int64(in.Offset),
+		Lim:         int64(resolveQueryLimit(in.Limit)),
+	}
+
+	rows, err := s.querier.QueryAuditEvents(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]*AuditEvent, len(rows))
+	for i, row := range rows {
+		events[i] = rowToAuditEvent(row)
+	}
+
+	return events, nil
+}
+
+// Export returns audit events as a streaming CSV reader.
+// Task 4.6: FR-071 Audit Export
+func (s *AuditService) Export(ctx context.Context, in ExportInput) (io.Reader, error) {
+	pr, pw := io.Pipe()
+	go s.writeCSVExport(ctx, pw, in)
+	return pr, nil
+}
+
+func (s *AuditService) writeCSVExport(ctx context.Context, pw *io.PipeWriter, in ExportInput) {
+	w := csv.NewWriter(pw)
+	if err := writeAuditCSVHeader(w); err != nil {
+		_ = pw.CloseWithError(err)
+		return
+	}
+	if err := s.writeAuditCSVRows(ctx, w, in); err != nil {
+		_ = pw.CloseWithError(err)
+		return
+	}
+	w.Flush()
+	_ = pw.CloseWithError(w.Error())
+}
+
+func writeAuditCSVHeader(w *csv.Writer) error {
+	return w.Write([]string{
+		"id", "workspace_id", "actor_id", "actor_type", "action",
+		"entity_type", "entity_id", "outcome", "trace_id", "created_at",
+	})
+}
+
+func (s *AuditService) writeAuditCSVRows(ctx context.Context, w *csv.Writer, in ExportInput) error {
+	offset := 0
+	const batchSize = 500
+	for {
+		events, queryErr := s.Query(ctx, QueryInput{
+			WorkspaceID: in.WorkspaceID,
+			ActorID:     in.ActorID,
+			EntityType:  in.EntityType,
+			Action:      in.Action,
+			Outcome:     in.Outcome,
+			DateFrom:    in.DateFrom,
+			DateTo:      in.DateTo,
+			Limit:       batchSize,
+			Offset:      offset,
+		})
+		if queryErr != nil {
+			return queryErr
+		}
+		if err := writeAuditCSVBatch(w, events); err != nil {
+			return err
+		}
+		if len(events) < batchSize {
+			return nil
+		}
+		offset += batchSize
+	}
+}
+
+func writeAuditCSVBatch(w *csv.Writer, events []*AuditEvent) error {
+	for _, ev := range events {
+		if err := w.Write([]string{
+			ev.ID,
+			ev.WorkspaceID,
+			ev.ActorID,
+			string(ev.ActorType),
+			ev.Action,
+			derefString(ev.EntityType),
+			derefString(ev.EntityID),
+			string(ev.Outcome),
+			derefString(ev.TraceID),
+			ev.CreatedAt.UTC().Format(time.RFC3339),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RegisterEventSubscribers wires the audit service to all domain event topics.
+// Task 4.6: Completes FR-070 audit trail for agent/tool/policy/approval events.
+func (s *AuditService) RegisterEventSubscribers(bus eventbus.EventBus) {
+	if bus == nil {
+		return
+	}
+	topics := []string{
+		"agent.run.started", "agent.run.completed", "agent.run.failed",
+		"tool.executed", "tool.denied",
+		"policy.evaluated", "approval.requested", "approval.decided",
+	}
+	for _, topic := range topics {
+		ch := bus.Subscribe(topic)
+		go s.consumeEvents(topic, ch)
+	}
+}
+
+func (s *AuditService) consumeEvents(topic string, ch <-chan eventbus.Event) {
+	for ev := range ch {
+		workspaceID, actorID, entityType, entityID := extractEventContext(ev.Payload)
+		if workspaceID == "" || actorID == "" {
+			continue
+		}
+		_ = s.LogWithDetails(
+			context.Background(),
+			workspaceID,
+			actorID,
+			resolveActorType(topic),
+			topic,
+			entityType,
+			entityID,
+			&EventDetails{Metadata: map[string]any{"topic": topic, "payload": ev.Payload}},
+			resolveOutcome(topic),
+		)
+	}
+}
+
+func resolveQueryLimit(limit int) int {
+	if limit <= 0 {
+		return 25
+	}
+	return limit
+}
+
+func normalizeDateArg(raw string) any {
+	if raw == "" {
+		return ""
+	}
+	parsed, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return raw
+	}
+	return parsed.UTC().Format("2006-01-02 15:04:05")
+}
+
+func derefString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+func extractEventContext(payload any) (string, string, *string, *string) {
+	obj, ok := payload.(map[string]any)
+	if !ok {
+		return "", "", nil, nil
+	}
+	workspaceID, _ := obj["workspace_id"].(string)
+	actorID, _ := obj["actor_id"].(string)
+	entityType := optionalString(obj, "entity_type")
+	entityID := optionalString(obj, "entity_id")
+	return workspaceID, actorID, entityType, entityID
+}
+
+func optionalString(obj map[string]any, key string) *string {
+	v, ok := obj[key].(string)
+	if !ok || v == "" {
+		return nil
+	}
+	return &v
+}
+
+func resolveActorType(topic string) ActorType {
+	if len(topic) >= 5 && topic[:5] == "agent" {
+		return ActorTypeAgent
+	}
+	return ActorTypeSystem
+}
+
+func resolveOutcome(topic string) Outcome {
+	if topic == "agent.run.failed" || topic == "tool.denied" {
+		return OutcomeDenied
+	}
+	return OutcomeSuccess
 }
 
 // rowToAuditEvent converts a sqlcgen AuditEvent row to domain AuditEvent

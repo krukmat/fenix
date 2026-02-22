@@ -65,3 +65,27 @@ type PermissionCheck struct {
 	Granted    bool   `json:"granted"`
 	Reason     string `json:"reason,omitempty"`
 }
+
+// Task 4.6: QueryInput defines optional compound filters for audit queries.
+type QueryInput struct {
+	WorkspaceID string
+	ActorID     string
+	EntityType  string
+	Action      string
+	Outcome     string
+	DateFrom    string
+	DateTo      string
+	Limit       int
+	Offset      int
+}
+
+// Task 4.6: ExportInput defines filters for audit CSV export.
+type ExportInput struct {
+	WorkspaceID string
+	ActorID     string
+	EntityType  string
+	Action      string
+	Outcome     string
+	DateFrom    string
+	DateTo      string
+}

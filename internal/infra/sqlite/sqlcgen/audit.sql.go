@@ -320,20 +320,29 @@ func (q *Queries) ListAuditEventsByOutcome(ctx context.Context, arg ListAuditEve
 
 const listAuditEventsByTimeRange = `-- name: ListAuditEventsByTimeRange :many
 SELECT id, workspace_id, actor_id, actor_type, "action", entity_type, entity_id, details, permissions_checked, outcome, trace_id, ip_address, user_agent, created_at FROM audit_event
-WHERE workspace_id = ? AND created_at BETWEEN ? AND ?
+WHERE workspace_id = ?1
+  AND datetime(created_at) BETWEEN datetime(?2) AND datetime(?3)
 ORDER BY created_at DESC
-LIMIT ? OFFSET ?
+LIMIT ?5 OFFSET ?4
 `
 
 type ListAuditEventsByTimeRangeParams struct {
-	WorkspaceID string `db:"workspace_id" json:"workspaceId"`
-	Limit       int64  `db:"limit" json:"limit"`
-	Offset      int64  `db:"offset" json:"offset"`
+	WorkspaceID string      `db:"workspace_id" json:"workspaceId"`
+	DateFrom    interface{} `db:"date_from" json:"dateFrom"`
+	DateTo      interface{} `db:"date_to" json:"dateTo"`
+	Off         int64       `db:"off" json:"off"`
+	Lim         int64       `db:"lim" json:"lim"`
 }
 
 // Lists audit events within a time range
 func (q *Queries) ListAuditEventsByTimeRange(ctx context.Context, arg ListAuditEventsByTimeRangeParams) ([]AuditEvent, error) {
-	rows, err := q.db.QueryContext(ctx, listAuditEventsByTimeRange, arg.WorkspaceID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listAuditEventsByTimeRange,
+		arg.WorkspaceID,
+		arg.DateFrom,
+		arg.DateTo,
+		arg.Off,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -387,6 +396,80 @@ type ListAuditEventsByWorkspaceParams struct {
 // Results ordered by created_at DESC (newest first)
 func (q *Queries) ListAuditEventsByWorkspace(ctx context.Context, arg ListAuditEventsByWorkspaceParams) ([]AuditEvent, error) {
 	rows, err := q.db.QueryContext(ctx, listAuditEventsByWorkspace, arg.WorkspaceID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditEvent{}
+	for rows.Next() {
+		var i AuditEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ActorID,
+			&i.ActorType,
+			&i.Action,
+			&i.EntityType,
+			&i.EntityID,
+			&i.Details,
+			&i.PermissionsChecked,
+			&i.Outcome,
+			&i.TraceID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const queryAuditEvents = `-- name: QueryAuditEvents :many
+SELECT id, workspace_id, actor_id, actor_type, "action", entity_type, entity_id, details, permissions_checked, outcome, trace_id, ip_address, user_agent, created_at FROM audit_event
+WHERE workspace_id = ?1
+  AND (?2 = '' OR actor_id = ?2)
+  AND (?3 = '' OR entity_type = ?3)
+  AND (?4 = '' OR action = ?4)
+  AND (?5 = '' OR outcome = ?5)
+  AND (?6 = '' OR datetime(created_at) >= datetime(?6))
+  AND (?7 = '' OR datetime(created_at) <= datetime(?7))
+ORDER BY created_at DESC
+LIMIT ?9 OFFSET ?8
+`
+
+type QueryAuditEventsParams struct {
+	WorkspaceID string      `db:"workspace_id" json:"workspaceId"`
+	ActorID     interface{} `db:"actor_id" json:"actorId"`
+	EntityType  interface{} `db:"entity_type" json:"entityType"`
+	Action      interface{} `db:"action" json:"action"`
+	Outcome     interface{} `db:"outcome" json:"outcome"`
+	DateFrom    interface{} `db:"date_from" json:"dateFrom"`
+	DateTo      interface{} `db:"date_to" json:"dateTo"`
+	Off         int64       `db:"off" json:"off"`
+	Lim         int64       `db:"lim" json:"lim"`
+}
+
+// Lists audit events filtered by optional compound criteria
+func (q *Queries) QueryAuditEvents(ctx context.Context, arg QueryAuditEventsParams) ([]AuditEvent, error) {
+	rows, err := q.db.QueryContext(ctx, queryAuditEvents,
+		arg.WorkspaceID,
+		arg.ActorID,
+		arg.EntityType,
+		arg.Action,
+		arg.Outcome,
+		arg.DateFrom,
+		arg.DateTo,
+		arg.Off,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}

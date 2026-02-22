@@ -2,11 +2,14 @@
 package audit
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -764,6 +767,214 @@ func TestListByOutcome_And_ListByAction(t *testing.T) {
 		if e.Action != "delete_account" {
 			t.Fatalf("unexpected action in result: %s", e.Action)
 		}
+	}
+}
+
+func TestQuery_NoFilters_ReturnAllWorkspaceEvents(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	svc := NewAuditService(db)
+	ctx := context.Background()
+
+	wsID := uuid.NewV7().String()
+	otherWS := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+	createWorkspaceForTest(t, db, otherWS)
+
+	for i := 0; i < 3; i++ {
+		mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "a", OutcomeSuccess, time.Now().Add(time.Duration(i)*time.Second))
+	}
+	mustLogEvent(t, svc, otherWS, uuid.NewV7().String(), "a", OutcomeSuccess, time.Now())
+
+	items, err := svc.Query(ctx, QueryInput{WorkspaceID: wsID, Limit: 50})
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(items))
+	}
+}
+
+func TestQuery_FilterByAction_ReturnsOnlyMatching(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	svc := NewAuditService(db)
+	ctx := context.Background()
+	wsID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+
+	mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "tool.executed", OutcomeSuccess, time.Now())
+	mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "approval.decided", OutcomeSuccess, time.Now())
+
+	items, err := svc.Query(ctx, QueryInput{WorkspaceID: wsID, Action: "tool.executed", Limit: 20})
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if len(items) != 1 || items[0].Action != "tool.executed" {
+		t.Fatalf("unexpected query result: %+v", items)
+	}
+}
+
+func TestQuery_FilterByOutcome_ReturnsOnlyMatching(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	svc := NewAuditService(db)
+	ctx := context.Background()
+	wsID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+
+	mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "x", OutcomeDenied, time.Now())
+	mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "x", OutcomeSuccess, time.Now())
+
+	items, err := svc.Query(ctx, QueryInput{WorkspaceID: wsID, Outcome: string(OutcomeDenied), Limit: 20})
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if len(items) != 1 || items[0].Outcome != OutcomeDenied {
+		t.Fatalf("unexpected outcome filter result: %+v", items)
+	}
+}
+
+func TestQuery_FilterByDateRange_ReturnsInRange(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	svc := NewAuditService(db)
+	ctx := context.Background()
+	wsID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+
+	start := time.Now().UTC().Add(-2 * time.Hour)
+	inRange := time.Now().UTC()
+	end := time.Now().UTC().Add(2 * time.Hour)
+
+	mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "x", OutcomeSuccess, start.Add(-time.Hour))
+	mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "x", OutcomeSuccess, inRange)
+
+	items, err := svc.Query(ctx, QueryInput{
+		WorkspaceID: wsID,
+		DateFrom:    start.Format(time.RFC3339),
+		DateTo:      end.Format(time.RFC3339),
+		Limit:       20,
+	})
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 in-range event, got %d", len(items))
+	}
+}
+
+func TestQuery_FilterByActorID_ReturnsOnlyMatching(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	svc := NewAuditService(db)
+	ctx := context.Background()
+	wsID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+	actorID := uuid.NewV7().String()
+
+	mustLogEvent(t, svc, wsID, actorID, "x", OutcomeSuccess, time.Now())
+	mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "x", OutcomeSuccess, time.Now())
+
+	items, err := svc.Query(ctx, QueryInput{WorkspaceID: wsID, ActorID: actorID, Limit: 20})
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if len(items) != 1 || items[0].ActorID != actorID {
+		t.Fatalf("unexpected actor filter result: %+v", items)
+	}
+}
+
+func TestQuery_MultipleFilters_CombinesCorrectly(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	svc := NewAuditService(db)
+	ctx := context.Background()
+	wsID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+	actorID := uuid.NewV7().String()
+
+	mustLogEvent(t, svc, wsID, actorID, "tool.executed", OutcomeSuccess, time.Now())
+	mustLogEvent(t, svc, wsID, actorID, "tool.executed", OutcomeDenied, time.Now())
+	mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "tool.executed", OutcomeSuccess, time.Now())
+
+	items, err := svc.Query(ctx, QueryInput{
+		WorkspaceID: wsID,
+		ActorID:     actorID,
+		Action:      "tool.executed",
+		Outcome:     string(OutcomeSuccess),
+		Limit:       20,
+	})
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 combined result, got %d", len(items))
+	}
+}
+
+func TestExportCSV_Returns1000Rows(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	svc := NewAuditService(db)
+	ctx := context.Background()
+	wsID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+
+	for i := 0; i < 1000; i++ {
+		mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "bulk", OutcomeSuccess, time.Now().Add(time.Duration(i)*time.Millisecond))
+	}
+
+	r, err := svc.Export(ctx, ExportInput{WorkspaceID: wsID})
+	if err != nil {
+		t.Fatalf("Export failed: %v", err)
+	}
+	b, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read export failed: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	if len(lines) != 1001 { // header + 1000 rows
+		t.Fatalf("expected 1001 csv lines, got %d", len(lines))
+	}
+}
+
+func TestExportCSV_ContainsHeaderRow(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	svc := NewAuditService(db)
+	ctx := context.Background()
+	wsID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+	mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "x", OutcomeSuccess, time.Now())
+
+	r, err := svc.Export(ctx, ExportInput{WorkspaceID: wsID})
+	if err != nil {
+		t.Fatalf("Export failed: %v", err)
+	}
+	br := bufio.NewReader(r)
+	header, err := br.ReadString('\n')
+	if err != nil {
+		t.Fatalf("read header failed: %v", err)
+	}
+	if !strings.Contains(header, "id,workspace_id,actor_id,actor_type,action") {
+		t.Fatalf("unexpected csv header: %s", header)
+	}
+}
+
+func mustLogEvent(t *testing.T, svc *AuditService, wsID, actorID, action string, outcome Outcome, createdAt time.Time) {
+	t.Helper()
+	e := &AuditEvent{
+		ID:          uuid.NewV7().String(),
+		WorkspaceID: wsID,
+		ActorID:     actorID,
+		ActorType:   ActorTypeUser,
+		Action:      action,
+		Outcome:     outcome,
+		CreatedAt:   createdAt,
+	}
+	if err := svc.Log(context.Background(), e); err != nil {
+		t.Fatalf("log event failed: %v", err)
 	}
 }
 
