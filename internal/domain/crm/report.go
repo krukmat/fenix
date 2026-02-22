@@ -134,6 +134,19 @@ func (s *ReportService) GetSupportBacklog(ctx context.Context, workspaceID strin
 		return nil, fmt.Errorf("case mttr query: %w", err)
 	}
 
+	items, buckets := buildSupportBacklogItemsAndBuckets(rows)
+	mttr := buildSupportBacklogMTTR(mttrRows)
+
+	return &SupportBacklogReport{
+		GeneratedAt:  time.Now().UTC(),
+		OpenTotal:    len(items),
+		AgingBuckets: buckets,
+		MTTR:         mttr,
+		Items:        items,
+	}, nil
+}
+
+func buildSupportBacklogItemsAndBuckets(rows []sqlcgen.CaseBacklogByWorkspaceRow) ([]SupportBacklogItem, []AgingBucket) {
 	items := make([]SupportBacklogItem, 0, len(rows))
 	buckets := []AgingBucket{
 		{Label: "0-7d", Min: 0, Max: 7},
@@ -143,32 +156,34 @@ func (s *ReportService) GetSupportBacklog(ctx context.Context, workspaceID strin
 	for _, r := range rows {
 		age := int(r.AgingDays)
 		items = append(items, SupportBacklogItem{ID: r.ID, Priority: r.Priority, Status: r.Status, CreatedAt: r.CreatedAt, AgingDays: age})
-		switch {
-		case age <= 7:
-			buckets[0].Count++
-		case age <= 30:
-			buckets[1].Count++
-		default:
-			buckets[2].Count++
-		}
+		buckets[supportBacklogBucketIndex(age)].Count++
 	}
+	return items, buckets
+}
 
-	mttr := make(map[string]float64, len(mttrRows))
-	for _, row := range mttrRows {
-		if row.AvgResolutionDays == nil {
-			mttr[row.Priority] = 0
-			continue
-		}
-		mttr[row.Priority] = *row.AvgResolutionDays
+func supportBacklogBucketIndex(age int) int {
+	if age <= 7 {
+		return 0
 	}
+	if age <= 30 {
+		return 1
+	}
+	return 2
+}
 
-	return &SupportBacklogReport{
-		GeneratedAt:  time.Now().UTC(),
-		OpenTotal:    len(items),
-		AgingBuckets: buckets,
-		MTTR:         mttr,
-		Items:        items,
-	}, nil
+func buildSupportBacklogMTTR(rows []sqlcgen.CaseMTTRByWorkspaceRow) map[string]float64 {
+	mttr := make(map[string]float64, len(rows))
+	for _, row := range rows {
+		mttr[row.Priority] = safeFloat64Ptr(row.AvgResolutionDays)
+	}
+	return mttr
+}
+
+func safeFloat64Ptr(v *float64) float64 {
+	if v == nil {
+		return 0
+	}
+	return *v
 }
 
 func (s *ReportService) ExportSalesFunnelCSV(ctx context.Context, workspaceID string, from, to *time.Time) (io.Reader, error) {
