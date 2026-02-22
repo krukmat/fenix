@@ -17,7 +17,7 @@ func TestReportService_GetSalesFunnel(t *testing.T) {
 	seedDealForReports(t, db, wsID, ownerID)
 
 	svc := crm.NewReportService(db)
-	report, err := svc.GetSalesFunnel(context.Background(), wsID, nil, nil)
+	report, err := svc.GetSalesFunnel(context.Background(), wsID)
 	if err != nil {
 		t.Fatalf("GetSalesFunnel() error = %v", err)
 	}
@@ -49,7 +49,7 @@ func TestReportService_GetCaseVolume(t *testing.T) {
 	seedCaseForReports(t, db, wsID, ownerID)
 
 	svc := crm.NewReportService(db)
-	rows, err := svc.GetCaseVolume(context.Background(), wsID, nil, nil)
+	rows, err := svc.GetCaseVolume(context.Background(), wsID)
 	if err != nil {
 		t.Fatalf("GetCaseVolume() error = %v", err)
 	}
@@ -65,7 +65,7 @@ func TestReportService_GetSupportBacklog(t *testing.T) {
 	seedCaseForReports(t, db, wsID, ownerID)
 
 	svc := crm.NewReportService(db)
-	report, err := svc.GetSupportBacklog(context.Background(), wsID, -1)
+	report, err := svc.GetSupportBacklog(context.Background(), wsID, 30)
 	if err != nil {
 		t.Fatalf("GetSupportBacklog() error = %v", err)
 	}
@@ -84,7 +84,7 @@ func TestReportService_ExportSalesFunnelCSV(t *testing.T) {
 	seedDealForReports(t, db, wsID, ownerID)
 
 	svc := crm.NewReportService(db)
-	r, err := svc.ExportSalesFunnelCSV(context.Background(), wsID, nil, nil)
+	r, err := svc.ExportSalesFunnelCSV(context.Background(), wsID)
 	if err != nil {
 		t.Fatalf("ExportSalesFunnelCSV() error = %v", err)
 	}
@@ -139,7 +139,7 @@ func seedDealForReports(t *testing.T, db DBTX, wsID, ownerID string) {
 func seedCaseForReports(t *testing.T, db DBTX, wsID, ownerID string) {
 	t.Helper()
 	caseID := "case-" + randID()
-	_, err := db.Exec(`INSERT INTO case_ticket (id, workspace_id, owner_id, subject, priority, status, created_at, updated_at) VALUES (?, ?, ?, 'R Case', 'high', 'open', datetime('now','-5 day'), datetime('now'))`, caseID, wsID, ownerID)
+	_, err := db.Exec(`INSERT INTO case_ticket (id, workspace_id, owner_id, subject, priority, status, created_at, updated_at) VALUES (?, ?, ?, 'R Case', 'high', 'open', datetime('now','-40 day'), datetime('now'))`, caseID, wsID, ownerID)
 	if err != nil {
 		t.Fatalf("seed case: %v", err)
 	}

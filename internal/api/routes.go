@@ -108,6 +108,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		noteHandler := handlers.NewNoteHandler(crm.NewNoteService(db))
 		attachmentHandler := handlers.NewAttachmentHandler(crm.NewAttachmentService(db))
 		timelineHandler := handlers.NewTimelineHandler(crm.NewTimelineService(db))
+		reportHandler := handlers.NewReportHandler(crm.NewReportService(db))
 		r.Route("/leads", func(r chi.Router) {
 			r.Post("/", leadHandler.CreateLead)         // POST /api/v1/leads
 			r.Get("/", leadHandler.ListLeads)           // GET /api/v1/leads
@@ -170,6 +171,16 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Route("/timeline", func(r chi.Router) {
 			r.Get("/", timelineHandler.ListTimeline)
 			r.Get("/{entity_type}/{entity_id}", timelineHandler.ListTimelineByEntity)
+		})
+
+		// Task 4.5e — FR-003: Reporting endpoints.
+		r.Route("/reports", func(r chi.Router) {
+			r.Get("/sales/funnel", reportHandler.GetSalesFunnel)
+			r.Get("/sales/aging", reportHandler.GetDealAging)
+			r.Get("/support/backlog", reportHandler.GetSupportBacklog)
+			r.Get("/support/volume", reportHandler.GetSupportVolume)
+			r.Get("/sales/funnel/export", reportHandler.ExportSalesFunnelCSV)
+			r.Get("/support/backlog/export", reportHandler.ExportSupportBacklogCSV)
 		})
 
 		// Task 2.5: SearchService — hybrid BM25 + vector search with RRF ranking

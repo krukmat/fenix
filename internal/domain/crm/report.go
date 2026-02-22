@@ -69,7 +69,7 @@ type AgingBucket struct {
 	Count int    `json:"count"`
 }
 
-func (s *ReportService) GetSalesFunnel(ctx context.Context, workspaceID string, _, _ *time.Time) (*SalesFunnelReport, error) {
+func (s *ReportService) GetSalesFunnel(ctx context.Context, workspaceID string) (*SalesFunnelReport, error) {
 	rows, err := s.querier.SalesFunnelByWorkspace(ctx, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("sales funnel query: %w", err)
@@ -109,7 +109,7 @@ func (s *ReportService) GetDealAging(ctx context.Context, workspaceID string) ([
 	return out, nil
 }
 
-func (s *ReportService) GetCaseVolume(ctx context.Context, workspaceID string, _, _ *time.Time) ([]CaseVolumeRow, error) {
+func (s *ReportService) GetCaseVolume(ctx context.Context, workspaceID string) ([]CaseVolumeRow, error) {
 	rows, err := s.querier.CaseVolumeByWorkspace(ctx, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("case volume query: %w", err)
@@ -186,8 +186,8 @@ func safeFloat64Ptr(v *float64) float64 {
 	return *v
 }
 
-func (s *ReportService) ExportSalesFunnelCSV(ctx context.Context, workspaceID string, from, to *time.Time) (io.Reader, error) {
-	report, err := s.GetSalesFunnel(ctx, workspaceID, from, to)
+func (s *ReportService) ExportSalesFunnelCSV(ctx context.Context, workspaceID string) (io.Reader, error) {
+	report, err := s.GetSalesFunnel(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
