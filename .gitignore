@@ -13,3 +13,7 @@ bff/node_modules/
 bff/coverage/
 bff/dist/
 .hypothesis/*
+fenixcrm
+data/fenixcrm.db
+data/fenixcrm.db-shm
+data/fenixcrm.db-wal

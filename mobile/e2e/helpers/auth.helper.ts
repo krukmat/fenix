@@ -23,6 +23,8 @@ export async function registerAndLogin(): Promise<void> {
 
   await element(by.id('register-name-input')).typeText(TEST_NAME);
   await element(by.id('register-email-input')).typeText(TEST_EMAIL);
+  // Task 4.8 — workspace field is required by RegisterForm
+  await element(by.id('register-workspace-input')).typeText('E2E Test Workspace');
   await element(by.id('register-password-input')).typeText(TEST_PASSWORD);
   await element(by.id('register-submit-button')).tap();
 

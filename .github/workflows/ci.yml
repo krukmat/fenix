@@ -241,13 +241,19 @@ jobs:
         run: |
           JWT_SECRET="ci-test-secret-key-32-chars-min!!!" \
           ./fenix serve --port 8080 &
-          sleep 3
+          # Task 4.8 — wait for backend to be ready (retry up to 30s)
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:8080/health && break || sleep 2
+          done
 
       - name: Install & start BFF
         run: |
           cd bff && npm ci && npm run build
           BACKEND_URL=http://localhost:8080 PORT=3000 node dist/server.js &
-          sleep 2
+          # Task 4.8 — wait for BFF to be ready
+          for i in $(seq 1 10); do
+            curl -sf http://localhost:3000/bff/health && break || sleep 2
+          done
 
       # --- Android emulator + Detox ---
       - name: Install mobile dependencies
@@ -265,7 +271,7 @@ jobs:
           cp .env.e2e .env
           npx expo prebuild --platform android --clean
           cd android
-          ./gradlew assembleDebug assembleAndroidTest -DtestBuildType=debug --init-script ../init.gradle
+          ./gradlew assembleDebug assembleAndroidTest -DtestBuildType=debug -PdebbuggableVariants= --init-script ../init.gradle
 
       - name: Detox test (Android emulator)
         uses: reactivecircus/android-emulator-runner@v2
@@ -278,7 +284,7 @@ jobs:
           disable-animations: true
           script: |
             cd mobile
-            npx detox test --configuration android.emu.debug --headless --record-logs failing --take-screenshots failing
+            node_modules/.bin/detox test --configuration android.emu.debug -H --record-logs failing --take-screenshots failing
 
       - name: Upload Detox artifacts
         if: always()

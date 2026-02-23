@@ -25,6 +25,8 @@ describe('Auth flow', () => {
   it('registers a new user and lands on accounts list', async () => {
     await element(by.id('register-name-input')).typeText('E2E User');
     await element(by.id('register-email-input')).typeText('e2e+auth@fenixcrm.test');
+    // Task 4.8 — workspace field is required by RegisterForm
+    await element(by.id('register-workspace-input')).typeText('E2E Workspace');
     await element(by.id('register-password-input')).typeText('TestPass123!');
     await element(by.id('register-submit-button')).tap();
 
