@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -32,6 +33,12 @@ func setupTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}
+
+	// Important for SQLite in-memory DBs: force a single shared connection.
+	// Otherwise, additional pooled connections may see a different empty
+	// in-memory database (causing "no such table" in async/goroutine paths).
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 
 	if err := sqlite.MigrateUp(db); err != nil {
 		t.Fatalf("failed to run migrations: %v", err)
@@ -990,4 +997,171 @@ func mustJSON(v interface{}) json.RawMessage {
 		panic(err)
 	}
 	return json.RawMessage(b)
+}
+
+func TestRegisterEventSubscribers_ConsumesEvents(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	svc := NewAuditService(db)
+	ctx := context.Background()
+
+	wsID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+	actorID := uuid.NewV7().String()
+	entityID := uuid.NewV7().String()
+
+	bus := eventbus.New()
+	svc.RegisterEventSubscribers(bus)
+
+	// Missing workspace/actor: must be ignored by consumeEvents.
+	bus.Publish("agent.run.started", map[string]any{"workspace_id": "", "actor_id": ""})
+
+	bus.Publish("agent.run.failed", map[string]any{
+		"workspace_id": wsID,
+		"actor_id":     actorID,
+		"entity_type":  "deal",
+		"entity_id":    entityID,
+	})
+	bus.Publish("tool.executed", map[string]any{
+		"workspace_id": wsID,
+		"actor_id":     actorID,
+	})
+
+	var events []*AuditEvent
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		items, _, err := svc.ListByWorkspace(ctx, wsID, 20, 0)
+		if err != nil {
+			t.Fatalf("ListByWorkspace failed: %v", err)
+		}
+		events = items
+		if len(events) >= 2 {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	if len(events) < 2 {
+		t.Fatalf("expected at least 2 audit events from bus, got %d", len(events))
+	}
+
+	seenFailed := false
+	seenTool := false
+	for _, ev := range events {
+		switch ev.Action {
+		case "agent.run.failed":
+			seenFailed = true
+			if ev.ActorType != ActorTypeAgent {
+				t.Fatalf("agent.run.failed ActorType = %s; want %s", ev.ActorType, ActorTypeAgent)
+			}
+			if ev.Outcome != OutcomeDenied {
+				t.Fatalf("agent.run.failed Outcome = %s; want %s", ev.Outcome, OutcomeDenied)
+			}
+			if ev.EntityType == nil || *ev.EntityType != "deal" {
+				t.Fatalf("agent.run.failed EntityType mismatch: %+v", ev.EntityType)
+			}
+			if ev.EntityID == nil || *ev.EntityID != entityID {
+				t.Fatalf("agent.run.failed EntityID mismatch: %+v", ev.EntityID)
+			}
+		case "tool.executed":
+			seenTool = true
+			if ev.ActorType != ActorTypeSystem {
+				t.Fatalf("tool.executed ActorType = %s; want %s", ev.ActorType, ActorTypeSystem)
+			}
+			if ev.Outcome != OutcomeSuccess {
+				t.Fatalf("tool.executed Outcome = %s; want %s", ev.Outcome, OutcomeSuccess)
+			}
+		}
+	}
+
+	if !seenFailed {
+		t.Fatal("expected to find agent.run.failed audit event")
+	}
+	if !seenTool {
+		t.Fatal("expected to find tool.executed audit event")
+	}
+}
+
+func TestServiceHelpers_UtilityFunctions(t *testing.T) {
+	if got := resolveQueryLimit(0); got != 25 {
+		t.Fatalf("resolveQueryLimit(0) = %d; want 25", got)
+	}
+	if got := resolveQueryLimit(10); got != 10 {
+		t.Fatalf("resolveQueryLimit(10) = %d; want 10", got)
+	}
+
+	if got := normalizeDateArg(""); got != "" {
+		t.Fatalf("normalizeDateArg(empty) = %#v; want empty string", got)
+	}
+
+	in := "2026-02-23T00:35:15Z"
+	got := normalizeDateArg(in)
+	if got != "2026-02-23 00:35:15" {
+		t.Fatalf("normalizeDateArg(valid) = %#v; want %q", got, "2026-02-23 00:35:15")
+	}
+
+	bad := "not-a-date"
+	if got := normalizeDateArg(bad); got != bad {
+		t.Fatalf("normalizeDateArg(invalid) = %#v; want original", got)
+	}
+
+	if got := derefString(nil); got != "" {
+		t.Fatalf("derefString(nil) = %q; want empty", got)
+	}
+	v := "x"
+	if got := derefString(&v); got != "x" {
+		t.Fatalf("derefString(ptr) = %q; want x", got)
+	}
+
+	if resolveActorType("agent.run.started") != ActorTypeAgent {
+		t.Fatal("resolveActorType(agent.*) must return ActorTypeAgent")
+	}
+	if resolveActorType("tool.executed") != ActorTypeSystem {
+		t.Fatal("resolveActorType(non-agent) must return ActorTypeSystem")
+	}
+
+	if resolveOutcome("agent.run.failed") != OutcomeDenied {
+		t.Fatal("resolveOutcome(agent.run.failed) must return denied")
+	}
+	if resolveOutcome("tool.denied") != OutcomeDenied {
+		t.Fatal("resolveOutcome(tool.denied) must return denied")
+	}
+	if resolveOutcome("tool.executed") != OutcomeSuccess {
+		t.Fatal("resolveOutcome(default) must return success")
+	}
+
+	m := map[string]any{"entity_type": "account", "entity_id": "a-1"}
+	if et := optionalString(m, "entity_type"); et == nil || *et != "account" {
+		t.Fatalf("optionalString(entity_type) mismatch: %+v", et)
+	}
+	m["empty"] = ""
+	if got := optionalString(m, "empty"); got != nil {
+		t.Fatalf("optionalString(empty) = %+v; want nil", got)
+	}
+	if got := optionalString(m, "missing"); got != nil {
+		t.Fatalf("optionalString(missing) = %+v; want nil", got)
+	}
+
+	ws, actor, et, eid := extractEventContext("not-a-map")
+	if ws != "" || actor != "" || et != nil || eid != nil {
+		t.Fatalf("extractEventContext(non-map) unexpected values: ws=%q actor=%q et=%v eid=%v", ws, actor, et, eid)
+	}
+
+	payload := map[string]any{
+		"workspace_id": "ws-1",
+		"actor_id":     "u-1",
+		"entity_type":  "case",
+		"entity_id":    "c-1",
+	}
+	ws, actor, et, eid = extractEventContext(payload)
+	if ws != "ws-1" || actor != "u-1" {
+		t.Fatalf("extractEventContext ids mismatch: ws=%q actor=%q", ws, actor)
+	}
+	if et == nil || *et != "case" {
+		t.Fatalf("extractEventContext entity_type mismatch: %v", et)
+	}
+	if eid == nil || *eid != "c-1" {
+		t.Fatalf("extractEventContext entity_id mismatch: %v", eid)
+	}
 }
