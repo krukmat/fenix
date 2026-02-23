@@ -12,6 +12,7 @@ import authRouter from './routes/auth';
 import proxyRouter from './routes/proxy';
 import aggregatedRouter from './routes/aggregated';
 import copilotRouter from './routes/copilot';
+import metricsRouter, { incRequests } from './routes/metrics';
 
 const app = express();
 
@@ -28,8 +29,15 @@ app.use(mobileHeaders);
 // Auth relay (before any route that needs tokens)
 app.use(authRelay);
 
+// Task 4.9 — NFR-030: count all requests for metrics
+app.use((_req, _res, next) => {
+  incRequests();
+  next();
+});
+
 // Routes
 app.use('/bff/health', healthRouter);
+app.use('/bff/metrics', metricsRouter);
 app.use('/bff/auth', authRouter);
 app.use('/bff/copilot', copilotRouter);
 

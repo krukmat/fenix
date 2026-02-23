@@ -9,9 +9,18 @@ import { PaperProvider } from 'react-native-paper';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Sentry from '@sentry/react-native';
 
 import { fenixTheme } from '../src/theme';
 import { useAuthStore } from '../src/stores/authStore';
+
+// Task 4.9 — NFR-030: Sentry crash reporting
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? '',
+  enabled: !!process.env.EXPO_PUBLIC_SENTRY_DSN,
+  tracesSampleRate: 0.2,
+  debug: false,
+});
 
 // Keep splash screen visible while loading
 SplashScreen.preventAutoHideAsync();
@@ -33,7 +42,7 @@ const queryClient = new QueryClient({
   },
 });
 
-export default function RootLayout() {
+function RootLayout() {
   const { isLoading, loadStoredToken } = useAuthStore();
   const [isReady, setIsReady] = useState(false);
 
@@ -74,25 +83,25 @@ export default function RootLayout() {
               }}
             >
               {/* Auth screens group */}
-              <Stack.Screen 
-                name="(auth)/login" 
+              <Stack.Screen
+                name="(auth)/login"
                 options={{ animation: 'fade' }}
               />
-              <Stack.Screen 
-                name="(auth)/register" 
+              <Stack.Screen
+                name="(auth)/register"
                 options={{ animation: 'fade' }}
               />
               {/* Main app screens - auth guard is in (tabs)/_layout.tsx */}
-              <Stack.Screen 
-                name="(tabs)" 
-                options={{ headerShown: false }} 
+              <Stack.Screen
+                name="(tabs)"
+                options={{ headerShown: false }}
               />
-              <Stack.Screen 
-                name="modal" 
-                options={{ 
-                  presentation: 'modal', 
-                  title: 'Modal' 
-                }} 
+              <Stack.Screen
+                name="modal"
+                options={{
+                  presentation: 'modal',
+                  title: 'Modal'
+                }}
               />
             </Stack>
             <StatusBar style="auto" />
@@ -102,3 +111,6 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// Task 4.9 — NFR-030: wrap with Sentry for crash capture
+export default Sentry.wrap(RootLayout);

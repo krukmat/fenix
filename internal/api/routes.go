@@ -44,14 +44,21 @@ func NewRouter(db *sql.DB) *chi.Mux {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
+	// Task 4.9 — count all requests for metrics
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			handlers.Metrics.IncRequests()
+			next.ServeHTTP(w, req)
+		})
+	})
+
 	// ===== PUBLIC ROUTES (no auth required) =====
 
-	// Health check — unauthenticated, used by load balancers and health probes
-	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`)) //nolint:errcheck
-	})
+	// Health check — unauthenticated, checks DB (Task 4.9 — NFR-030)
+	r.Get("/health", handlers.NewHealthHandler(db))
+
+	// Metrics — unauthenticated, Prometheus text format (Task 4.9 — NFR-030)
+	r.Get("/metrics", handlers.MetricsHandler)
 
 	// Auth endpoints — public, no JWT required (Task 1.6.13)
 	authHandler := handlers.NewAuthHandler(domainauth.NewAuthServiceWithAudit(db, auditService))
