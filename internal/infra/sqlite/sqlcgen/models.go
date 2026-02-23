@@ -203,6 +203,31 @@ type EmbeddingDocument struct {
 	CreatedAt       time.Time  `db:"created_at" json:"createdAt"`
 }
 
+type EvalRun struct {
+	ID              string     `db:"id" json:"id"`
+	WorkspaceID     string     `db:"workspace_id" json:"workspaceId"`
+	EvalSuiteID     string     `db:"eval_suite_id" json:"evalSuiteId"`
+	PromptVersionID *string    `db:"prompt_version_id" json:"promptVersionId"`
+	Status          string     `db:"status" json:"status"`
+	Scores          string     `db:"scores" json:"scores"`
+	Details         string     `db:"details" json:"details"`
+	TriggeredBy     *string    `db:"triggered_by" json:"triggeredBy"`
+	StartedAt       time.Time  `db:"started_at" json:"startedAt"`
+	CompletedAt     *time.Time `db:"completed_at" json:"completedAt"`
+	CreatedAt       time.Time  `db:"created_at" json:"createdAt"`
+}
+
+type EvalSuite struct {
+	ID          string    `db:"id" json:"id"`
+	WorkspaceID string    `db:"workspace_id" json:"workspaceId"`
+	Name        string    `db:"name" json:"name"`
+	Domain      string    `db:"domain" json:"domain"`
+	TestCases   string    `db:"test_cases" json:"testCases"`
+	Thresholds  string    `db:"thresholds" json:"thresholds"`
+	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updatedAt"`
+}
+
 type Evidence struct {
 	ID              string    `db:"id" json:"id"`
 	KnowledgeItemID string    `db:"knowledge_item_id" json:"knowledgeItemId"`

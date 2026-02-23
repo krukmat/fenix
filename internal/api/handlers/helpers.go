@@ -67,6 +67,12 @@ const (
 	// Error messages — agent
 	errAgentRunNotFound = "agent run not found"
 
+	// Error messages — eval
+	errEvalSuiteNotFound     = "eval suite not found"
+	errEvalRunNotFound       = "eval run not found"
+	errEvalSuiteNameRequired = "name and domain are required"
+	errEvalSuiteIDRequired   = "eval_suite_id is required"
+
 	// Error messages — audit
 	errAuditEventNotFound  = "audit event not found"
 	errFailedToExportAudit = "failed to export audit events"

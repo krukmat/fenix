@@ -78,6 +78,10 @@ type Querier interface {
 	// ============================================================================
 	// Task 2.2/2.4: Insert a chunk with pending embedding status
 	CreateEmbeddingDocument(ctx context.Context, arg CreateEmbeddingDocumentParams) error
+	CreateEvalRun(ctx context.Context, arg CreateEvalRunParams) (EvalRun, error)
+	// eval.sql
+	// Task 4.7: FR-242 Eval Service Basic
+	CreateEvalSuite(ctx context.Context, arg CreateEvalSuiteParams) (EvalSuite, error)
 	// ============================================================================
 	// EVIDENCE QUERIES
 	// ============================================================================
@@ -134,6 +138,7 @@ type Querier interface {
 	DeleteAttachment(ctx context.Context, arg DeleteAttachmentParams) error
 	// Task 2.7: Remove all chunks when knowledge item is deleted/reindexed
 	DeleteEmbeddingDocumentsByKnowledgeItem(ctx context.Context, arg DeleteEmbeddingDocumentsByKnowledgeItemParams) error
+	DeleteEvalSuite(ctx context.Context, arg DeleteEvalSuiteParams) error
 	DeleteNote(ctx context.Context, arg DeleteNoteParams) error
 	DeletePipeline(ctx context.Context, arg DeletePipelineParams) error
 	DeletePipelineStage(ctx context.Context, id string) error
@@ -166,6 +171,8 @@ type Querier interface {
 	GetDealByID(ctx context.Context, arg GetDealByIDParams) (Deal, error)
 	// Task 2.4: Get a single embedding document
 	GetEmbeddingDocumentByID(ctx context.Context, arg GetEmbeddingDocumentByIDParams) (EmbeddingDocument, error)
+	GetEvalRunByID(ctx context.Context, arg GetEvalRunByIDParams) (EvalRun, error)
+	GetEvalSuiteByID(ctx context.Context, arg GetEvalSuiteByIDParams) (EvalSuite, error)
 	// Task 2.6: Retrieve a single evidence record
 	GetEvidenceByID(ctx context.Context, arg GetEvidenceByIDParams) (Evidence, error)
 	// Task 2.7: Find knowledge item linked to a CRM entity
@@ -243,6 +250,9 @@ type Querier interface {
 	ListDealsByWorkspace(ctx context.Context, arg ListDealsByWorkspaceParams) ([]Deal, error)
 	// Task 2.4: Get all chunks for a knowledge item (for embedding job)
 	ListEmbeddingDocumentsByKnowledgeItem(ctx context.Context, arg ListEmbeddingDocumentsByKnowledgeItemParams) ([]EmbeddingDocument, error)
+	ListEvalRuns(ctx context.Context, arg ListEvalRunsParams) ([]EvalRun, error)
+	ListEvalRunsBySuite(ctx context.Context, arg ListEvalRunsBySuiteParams) ([]EvalRun, error)
+	ListEvalSuites(ctx context.Context, workspaceID string) ([]EvalSuite, error)
 	// Task 2.6: List evidence for a knowledge item, ordered by score
 	ListEvidenceByKnowledgeItem(ctx context.Context, arg ListEvidenceByKnowledgeItemParams) ([]Evidence, error)
 	// Task 2.6: List evidence filtered by search method
@@ -303,6 +313,8 @@ type Querier interface {
 	UpdateDeal(ctx context.Context, arg UpdateDealParams) error
 	// Task 2.4: Mark a chunk as embedded (or failed)
 	UpdateEmbeddingDocumentStatus(ctx context.Context, arg UpdateEmbeddingDocumentStatusParams) error
+	UpdateEvalRunResult(ctx context.Context, arg UpdateEvalRunResultParams) error
+	UpdateEvalSuite(ctx context.Context, arg UpdateEvalSuiteParams) error
 	// Task 2.7: Update normalized content after CDC reindex
 	// Triggers knowledge_item_au which re-syncs FTS5 index
 	UpdateKnowledgeItemNormalizedContent(ctx context.Context, arg UpdateKnowledgeItemNormalizedContentParams) error

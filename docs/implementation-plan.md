@@ -1451,22 +1451,32 @@ To avoid sequencing ambiguity, Phase 3 tasks have the following dependency const
 
 #### Task 4.7: Eval Service — Basic (1 day)
 
-**Status**: ❌ Not started
+**Status**: ✅ Completed — 2026-02-23
 
 **NOTE**: Backend-only. No mobile UI.
 
 **Actions**:
-- Create migration `020_eval.up.sql`: `eval_suite`, `eval_run` tables.
-- Implement `domain/eval/suite.go` + `domain/eval/runner.go`:
+- [x] Create migration `020_eval.up.sql`: `eval_suite`, `eval_run` tables.
+- [x] Implement `domain/eval/suite.go` + `domain/eval/runner.go`:
   - Suite CRUD, run eval against prompt version, score groundedness + exactitude.
-- Implement handlers:
+- [x] Implement handlers:
   - `POST /api/v1/admin/eval/suites`
   - `POST /api/v1/admin/eval/run`
   - `GET /api/v1/admin/eval/runs`
 
 **Tests**:
-- Integration test: Create eval suite → stored in DB
-- Integration test: Run eval → scores calculated
+- [x] Integration test: Create eval suite → stored in DB
+- [x] Integration test: Run eval → scores calculated
+
+**Files Created**:
+- `internal/infra/sqlite/migrations/020_eval.up.sql`
+- `internal/infra/sqlite/migrations/020_eval.down.sql`
+- `internal/infra/sqlite/queries/eval.sql`
+- `internal/domain/eval/suite.go`
+- `internal/domain/eval/runner.go`
+- `internal/domain/eval/suite_test.go`
+- `internal/api/handlers/eval.go`
+- `internal/api/handlers/eval_test.go`
 
 **Resolves**: FR-242 (eval basics)
 

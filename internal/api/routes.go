@@ -17,6 +17,7 @@ import (
 	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
 	copilotdomain "github.com/matiasleandrokruk/fenix/internal/domain/copilot"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
+	domaineval "github.com/matiasleandrokruk/fenix/internal/domain/eval"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
 	tooldomain "github.com/matiasleandrokruk/fenix/internal/domain/tool"
@@ -242,6 +243,21 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			r.Post("/", promptHandler.Create)               // POST /api/v1/admin/prompts
 			r.Put("/{id}/promote", promptHandler.Promote)   // PUT /api/v1/admin/prompts/{id}/promote
 			r.Put("/{id}/rollback", promptHandler.Rollback) // PUT /api/v1/admin/prompts/{id}/rollback
+		})
+
+		// Task 4.7 — FR-242: Eval Service Basic routes
+		evalSuiteSvc := domaineval.NewSuiteService(db)
+		evalRunnerSvc := domaineval.NewRunnerService(db)
+		evalHandler := handlers.NewEvalHandler(evalSuiteSvc, evalRunnerSvc)
+		r.Route("/admin/eval", func(r chi.Router) {
+			r.Route("/suites", func(r chi.Router) {
+				r.Post("/", evalHandler.CreateSuite)   // POST /api/v1/admin/eval/suites
+				r.Get("/", evalHandler.ListSuites)     // GET  /api/v1/admin/eval/suites
+				r.Get(routeByID, evalHandler.GetSuite) // GET  /api/v1/admin/eval/suites/{id}
+			})
+			r.Post("/run", evalHandler.RunEval)       // POST /api/v1/admin/eval/run
+			r.Get("/runs", evalHandler.ListRuns)      // GET  /api/v1/admin/eval/runs
+			r.Get("/runs/{id}", evalHandler.GetRun)   // GET  /api/v1/admin/eval/runs/{id}
 		})
 
 		r.Route("/copilot", func(r chi.Router) {
