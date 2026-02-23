@@ -13,6 +13,18 @@ import (
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
+// Event topic constants — Task 4.6: FR-070 audit trail subscribers.
+const (
+	topicAgentRunStarted   = "agent.run.started"
+	topicAgentRunCompleted = "agent.run.completed"
+	topicAgentRunFailed    = "agent.run.failed"
+	topicToolExecuted      = "tool.executed"
+	topicToolDenied        = "tool.denied"
+	topicPolicyEvaluated   = "policy.evaluated"
+	topicApprovalRequested = "approval.requested"
+	topicApprovalDecided   = "approval.decided"
+)
+
 // AuditService provides audit logging capabilities
 // All operations are append-only; no updates or deletes are supported
 //
@@ -353,9 +365,9 @@ func (s *AuditService) RegisterEventSubscribers(bus eventbus.EventBus) {
 		return
 	}
 	topics := []string{
-		"agent.run.started", "agent.run.completed", "agent.run.failed",
-		"tool.executed", "tool.denied",
-		"policy.evaluated", "approval.requested", "approval.decided",
+		topicAgentRunStarted, topicAgentRunCompleted, topicAgentRunFailed,
+		topicToolExecuted, topicToolDenied,
+		topicPolicyEvaluated, topicApprovalRequested, topicApprovalDecided,
 	}
 	for _, topic := range topics {
 		ch := bus.Subscribe(topic)
@@ -436,7 +448,7 @@ func resolveActorType(topic string) ActorType {
 }
 
 func resolveOutcome(topic string) Outcome {
-	if topic == "agent.run.failed" || topic == "tool.denied" {
+	if topic == topicAgentRunFailed || topic == topicToolDenied {
 		return OutcomeDenied
 	}
 	return OutcomeSuccess
