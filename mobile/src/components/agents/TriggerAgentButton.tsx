@@ -39,19 +39,20 @@ function TriggerAgentDialog({
         <Dialog.Content>
           {definitions && definitions.length > 0 ? (
             <View>
-              {definitions.map((agent) => (
-                <RadioButton.Item
-                  key={agent.id}
-                  label={agent.name}
-                  value={agent.id}
-                  status={selectedAgentId === agent.id ? 'checked' : 'unchecked'}
-                  onPress={() => onSelect(agent.id)}
-                  testID={`agent-option-${agent.id}`}
-                />
-              ))}
-              {definitions.some((a) => a.name.toLowerCase().includes('support')) && (
-                <View testID="agent-select-support" />
-              )}
+              {definitions.map((agent) => {
+                // Task 4.8 — E2E uses 'agent-select-support' to tap the support agent
+                const isSupport = agent.name.toLowerCase().includes('support');
+                return (
+                  <RadioButton.Item
+                    key={agent.id}
+                    label={agent.name}
+                    value={agent.id}
+                    status={selectedAgentId === agent.id ? 'checked' : 'unchecked'}
+                    onPress={() => onSelect(agent.id)}
+                    testID={isSupport ? 'agent-select-support' : `agent-option-${agent.id}`}
+                  />
+                );
+              })}
             </View>
           ) : (
             <Paragraph>No agent definitions available. Please contact administrator.</Paragraph>

@@ -108,8 +108,8 @@ describe('TriggerAgentButton', () => {
     fireEvent.press(screen.getByTestId('trigger-agent-button'));
     expect(screen.getByText('Support Agent')).toBeDefined();
 
-    // Select an agent via RadioButton
-    fireEvent.press(screen.getByTestId('agent-option-agent-support-001'));
+    // Select the support agent — testID is 'agent-select-support' for E2E compatibility (Task 4.8)
+    fireEvent.press(screen.getByTestId('agent-select-support'));
 
     // Confirm button is now enabled
     fireEvent.press(screen.getByTestId('trigger-confirm-button'));
