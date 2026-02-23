@@ -321,7 +321,9 @@ func (q *Queries) ListAuditEventsByOutcome(ctx context.Context, arg ListAuditEve
 const listAuditEventsByTimeRange = `-- name: ListAuditEventsByTimeRange :many
 SELECT id, workspace_id, actor_id, actor_type, "action", entity_type, entity_id, details, permissions_checked, outcome, trace_id, ip_address, user_agent, created_at FROM audit_event
 WHERE workspace_id = ?1
-  AND datetime(created_at) BETWEEN datetime(?2) AND datetime(?3)
+  AND substr(created_at, 1, 19)
+      BETWEEN substr(?2, 1, 19)
+          AND substr(?3, 1, 19)
 ORDER BY created_at DESC
 LIMIT ?5 OFFSET ?4
 `
@@ -439,8 +441,14 @@ WHERE workspace_id = ?1
   AND (?3 = '' OR entity_type = ?3)
   AND (?4 = '' OR action = ?4)
   AND (?5 = '' OR outcome = ?5)
-  AND (?6 = '' OR datetime(created_at) >= datetime(?6))
-  AND (?7 = '' OR datetime(created_at) <= datetime(?7))
+  AND (
+      ?6 = '' OR
+      substr(created_at, 1, 19) >= substr(?6, 1, 19)
+  )
+  AND (
+      ?7 = '' OR
+      substr(created_at, 1, 19) <= substr(?7, 1, 19)
+  )
 ORDER BY created_at DESC
 LIMIT ?9 OFFSET ?8
 `

@@ -57,7 +57,9 @@ LIMIT ? OFFSET ?;
 -- Lists audit events within a time range
 SELECT * FROM audit_event
 WHERE workspace_id = sqlc.arg(workspace_id)
-  AND datetime(created_at) BETWEEN datetime(sqlc.arg(date_from)) AND datetime(sqlc.arg(date_to))
+  AND substr(created_at, 1, 19)
+      BETWEEN substr(sqlc.arg(date_from), 1, 19)
+          AND substr(sqlc.arg(date_to), 1, 19)
 ORDER BY created_at DESC
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
@@ -69,7 +71,13 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND (sqlc.arg(entity_type) = '' OR entity_type = sqlc.arg(entity_type))
   AND (sqlc.arg(action) = '' OR action = sqlc.arg(action))
   AND (sqlc.arg(outcome) = '' OR outcome = sqlc.arg(outcome))
-  AND (sqlc.arg(date_from) = '' OR datetime(created_at) >= datetime(sqlc.arg(date_from)))
-  AND (sqlc.arg(date_to) = '' OR datetime(created_at) <= datetime(sqlc.arg(date_to)))
+  AND (
+      sqlc.arg(date_from) = '' OR
+      substr(created_at, 1, 19) >= substr(sqlc.arg(date_from), 1, 19)
+  )
+  AND (
+      sqlc.arg(date_to) = '' OR
+      substr(created_at, 1, 19) <= substr(sqlc.arg(date_to), 1, 19)
+  )
 ORDER BY created_at DESC
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
