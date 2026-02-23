@@ -26,7 +26,7 @@ export default function AgentRunDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ title, headerBackTitle: 'Back' }} />
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView testID="agent-run-detail-screen" style={[styles.container, { backgroundColor: colors.background }]}>
         {isLoading ? (
           <View style={[styles.centered, { backgroundColor: colors.background }]}>
             <ActivityIndicator size="large" color={colors.primary} />

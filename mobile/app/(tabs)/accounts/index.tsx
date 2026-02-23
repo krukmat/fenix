@@ -1,8 +1,9 @@
 // Task 4.3 — Accounts List Screen
+// Task 4.8 — GAP 1: Added FAB for account creation
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTheme, FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { CRMListScreen } from '../../../src/components/crm';
 import { useAccounts } from '../../../src/hooks/useCRM';
@@ -52,11 +53,11 @@ export default function AccountsListScreen() {
   }, []);
 
   const renderItem = useCallback(
-    ({ item }: { item: AccountData }) => (
+    ({ item, index }: { item: AccountData; index: number }) => (
       <TouchableOpacity
         style={[styles.accountItem, { backgroundColor: colors.surface }]}
         onPress={() => router.push(`/accounts/${item.id}`)}
-        testID={`account-item-${item.id}`}
+        testID={`accounts-list-item-${index}`}
       >
         <Text style={[styles.accountName, { color: colors.onSurface }]}>{item.name || 'Unnamed Account'}</Text>
         <Text style={[styles.accountIndustry, { color: colors.onSurfaceVariant }]}>
@@ -71,28 +72,41 @@ export default function AccountsListScreen() {
   );
 
   return (
-    <CRMListScreen
-      data={filteredAccounts}
-      loading={isLoading}
-      error={error ? error.message : null}
-      onRefresh={handleRefresh}
-      searchValue={searchValue}
-      onSearchChange={handleSearchChange}
-      renderItem={renderItem}
-      hasData={allAccounts.length > 0}
-      loadingMore={isFetchingNextPage}
-      hasMore={hasNextPage ?? false}
-      onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
-      emptyTitle="No accounts found"
-      emptySubtitle="Pull to refresh or add a new account"
-      testIDPrefix="accounts"
-      isRefreshing={isRefetching}
-      onRetry={handleRefresh}
-    />
+    <View style={{ flex: 1 }}>
+      <CRMListScreen
+        data={filteredAccounts}
+        loading={isLoading}
+        error={error ? error.message : null}
+        onRefresh={handleRefresh}
+        searchValue={searchValue}
+        onSearchChange={handleSearchChange}
+        renderItem={renderItem}
+        hasData={allAccounts.length > 0}
+        loadingMore={isFetchingNextPage}
+        hasMore={hasNextPage ?? false}
+        onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
+        emptyTitle="No accounts found"
+        emptySubtitle="Pull to refresh or add a new account"
+        testIDPrefix="accounts"
+        isRefreshing={isRefetching}
+        onRetry={handleRefresh}
+      />
+      <FAB
+        testID="create-account-fab"
+        icon="plus"
+        style={[styles.fab, { backgroundColor: colors.primary }]}
+        onPress={() => router.push('/accounts/new')}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  fab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 24,
+  },
   accountItem: {
     padding: 16,
     marginHorizontal: 16,

@@ -29,7 +29,7 @@ export function EvidenceCard({ source, index, testIDPrefix = 'evidence' }: Evide
   }, [source.timestamp]);
 
   return (
-    <Card testID={`${testIDPrefix}-card-container`} style={styles.card}>
+    <Card testID={testIDPrefix} style={styles.card}>
       <TouchableOpacity testID={`${testIDPrefix}-card`} onPress={() => setExpanded((v) => !v)}>
         <Card.Content>
           <View style={styles.header}>

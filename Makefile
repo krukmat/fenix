@@ -30,10 +30,11 @@ test-integration:
 	@echo "Running integration tests..."
 	go test -v -run Integration ./...
 
-# Run E2E tests (requires UI built)
+# Run Detox E2E tests (requires Android emulator + Go backend + BFF running)
+# Task 4.8 — 4 critical flows: auth, accounts, copilot, agent-runs
 test-e2e:
-	@echo "Running E2E tests..."
-	cd tests/e2e && npm test
+	@echo "Running Detox E2E tests..."
+	cd mobile && npx detox test --configuration android.emu.debug
 
 # Build the binary
 build:

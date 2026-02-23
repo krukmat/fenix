@@ -26,7 +26,7 @@ export interface CRMListScreenProps<T extends CRMListItem> {
   onEndReached?: () => void;
   searchValue: string;
   onSearchChange: (value: string) => void;
-  renderItem: ({ item }: { item: T }) => React.ReactElement;
+  renderItem: ({ item, index }: { item: T; index: number }) => React.ReactElement;
   emptyTitle: string;
   emptySubtitle?: string;
   testIDPrefix: string;

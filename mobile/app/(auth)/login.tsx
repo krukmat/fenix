@@ -30,15 +30,12 @@ export default function LoginScreen() {
 
     try {
       const response = await authApi.login(email, password);
-      
-      // Response format: { token, userId, workspaceId }
+
       await login({
         token: response.token,
         userId: response.userId,
         workspaceId: response.workspaceId,
       });
-
-      // Navigate to main app
       router.replace('/(tabs)/accounts');
     } catch (err) {
       console.error('Login error:', err);
@@ -53,9 +50,9 @@ export default function LoginScreen() {
   };
 
   return (
-    <AuthFormLayout title="FenixCRM" subtitle="Sign in to your account">
+    <AuthFormLayout title="FenixCRM" subtitle="Sign in to your account" testID="login-screen">
       <TextInput
-        testID="email-input"
+        testID="login-email-input"
         label="Email"
         value={email}
         onChangeText={setEmail}
@@ -67,7 +64,7 @@ export default function LoginScreen() {
       />
 
       <TextInput
-        testID="password-input"
+        testID="login-password-input"
         label="Password"
         value={password}
         onChangeText={setPassword}
@@ -83,7 +80,7 @@ export default function LoginScreen() {
       ) : null}
 
       <Button
-        testID="login-button"
+        testID="login-submit-button"
         mode="contained"
         onPress={handleLogin}
         loading={loading}
@@ -93,7 +90,7 @@ export default function LoginScreen() {
         Sign In
       </Button>
 
-      <Button mode="text" onPress={() => router.push('/(auth)/register')} style={styles.linkButton}>
+      <Button testID="go-to-register-link" mode="text" onPress={() => router.push('/(auth)/register')} style={styles.linkButton}>
         Do not have an account? Sign up
       </Button>
     </AuthFormLayout>

@@ -18,6 +18,7 @@
   ],
   "exclude": [
     "jest.setup.ts",
-    "__tests__"
+    "__tests__",
+    "e2e"
   ]
 }

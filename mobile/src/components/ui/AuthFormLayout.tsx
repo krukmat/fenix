@@ -6,13 +6,15 @@ interface AuthFormLayoutProps {
   title: string;
   subtitle: string;
   children: React.ReactNode;
+  testID?: string;
 }
 
-export function AuthFormLayout({ title, subtitle, children }: AuthFormLayoutProps) {
+export function AuthFormLayout({ title, subtitle, children, testID }: AuthFormLayoutProps) {
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      testID={testID}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.form}>

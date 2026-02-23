@@ -34,7 +34,7 @@ function TriggerAgentDialog({
 }: TriggerAgentDialogProps) {
   return (
     <Portal>
-      <Dialog visible={visible} onDismiss={onDismiss} testID="trigger-agent-dialog">
+      <Dialog visible={visible} onDismiss={onDismiss} testID="trigger-agent-modal">
         <Dialog.Title>Select Agent</Dialog.Title>
         <Dialog.Content>
           {definitions && definitions.length > 0 ? (
@@ -49,6 +49,9 @@ function TriggerAgentDialog({
                   testID={`agent-option-${agent.id}`}
                 />
               ))}
+              {definitions.some((a) => a.name.toLowerCase().includes('support')) && (
+                <View testID="agent-select-support" />
+              )}
             </View>
           ) : (
             <Paragraph>No agent definitions available. Please contact administrator.</Paragraph>
@@ -62,7 +65,7 @@ function TriggerAgentDialog({
             mode="text"
             onPress={onConfirm}
             disabled={!selectedAgentId}
-            testID="trigger-agent-confirm-btn"
+            testID="trigger-confirm-button"
           >
             Trigger
           </Button>
@@ -118,7 +121,7 @@ export default function TriggerAgentButton() {
         onPress={() => setShowDialog(true)}
         style={[styles.triggerButton, { backgroundColor: colors.primary }]}
         contentStyle={styles.buttonContent}
-        testID="trigger-agent-btn"
+        testID="trigger-agent-button"
       >
         <Text style={styles.triggerButtonText}>Trigger Agent</Text>
       </Button>

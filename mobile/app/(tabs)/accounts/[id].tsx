@@ -63,11 +63,23 @@ function renderDealsSection(deals: DealItem[], colors: ThemeColors) {
   );
 }
 
+// Task 4.8 — GAP 3: Added testIDs for E2E tests
 function renderTimelineSection(timeline: TimelineItem[], colors: ThemeColors) {
   return (
     <View style={styles.section}>
-      <Text style={[styles.title, { color: colors.onSurface }]}>Activity</Text>
-      <EntityTimeline events={timeline} testIDPrefix="account-timeline" emptyMessage="No activity yet" />
+      <Text
+        testID="account-timeline-tab"
+        style={[styles.title, { color: colors.onSurface }]}
+      >
+        Activity
+      </Text>
+      <View testID="account-timeline-list">
+        <EntityTimeline
+          events={timeline}
+          testIDPrefix="account-timeline"
+          emptyMessage="No activity yet"
+        />
+      </View>
     </View>
   );
 }
@@ -100,7 +112,7 @@ export default function AccountDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ title }} />
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView testID="account-detail-screen" style={[styles.container, { backgroundColor: colors.background }]}>
         {isLoading ? (
           <View style={[styles.centered, { backgroundColor: colors.background }]}>
             <ActivityIndicator size="large" color={colors.primary} />

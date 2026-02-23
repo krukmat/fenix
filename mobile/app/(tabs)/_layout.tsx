@@ -3,10 +3,18 @@
 import React from 'react';
 import { Drawer } from 'expo-router/drawer';
 import { Redirect, useRouter } from 'expo-router';
-import { DrawerContentScrollView, DrawerItemList, DrawerContentComponentProps } from '@react-navigation/drawer';
+import { DrawerContentScrollView, DrawerContentComponentProps } from '@react-navigation/drawer';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from 'react-native-paper';
 import { useAuthStore } from '../../src/stores/authStore';
+
+function DrawerNavItem({ label, testID, onPress }: { label: string; testID: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity testID={testID} style={styles.drawerItem} onPress={onPress}>
+      <Text style={styles.drawerItemText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
   const theme = useTheme();
@@ -26,9 +34,14 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
           {userId ? 'Logged in' : 'Guest'}
         </Text>
       </View>
-      <DrawerItemList {...props} />
+      <DrawerNavItem label="Accounts" testID="drawer-accounts-tab" onPress={() => props.navigation.navigate('accounts/index')} />
+      <DrawerNavItem label="Contacts" testID="drawer-contacts-tab" onPress={() => props.navigation.navigate('contacts/index')} />
+      <DrawerNavItem label="Deals" testID="drawer-deals-tab" onPress={() => props.navigation.navigate('deals/index')} />
+      <DrawerNavItem label="Cases" testID="drawer-cases-tab" onPress={() => props.navigation.navigate('cases/index')} />
+      <DrawerNavItem label="Copilot" testID="drawer-copilot-tab" onPress={() => props.navigation.navigate('copilot/index')} />
+      <DrawerNavItem label="Agent Runs" testID="drawer-agents-tab" onPress={() => props.navigation.navigate('agents/index')} />
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <TouchableOpacity testID="drawer-logout-button" style={styles.logoutButton} onPress={handleLogout}>
           <Text style={[styles.logoutText, { color: theme.colors.error }]}>
             Logout
           </Text>
@@ -47,7 +60,16 @@ export default function TabsLayout() {
   }
 
   return (
-    <Drawer drawerContent={(props) => <CustomDrawerContent {...props} />}>
+    <Drawer
+      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      screenOptions={({ navigation }) => ({
+        headerLeft: () => (
+          <TouchableOpacity testID="drawer-open-button" style={styles.drawerOpenButton} onPress={() => navigation.openDrawer()}>
+            <Text style={styles.drawerOpenButtonText}>☰</Text>
+          </TouchableOpacity>
+        ),
+      })}
+    >
       <Drawer.Screen 
         name="accounts/index" 
         options={{ 
@@ -121,5 +143,20 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  drawerItem: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  drawerItemText: {
+    fontSize: 16,
+  },
+  drawerOpenButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  drawerOpenButtonText: {
+    fontSize: 20,
+    fontWeight: '700',
   },
 });

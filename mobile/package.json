@@ -5,8 +5,8 @@
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit --project tsconfig.app.json",
@@ -15,7 +15,9 @@
     "test": "jest --config jest.logic.config.ts",
     "test:coverage": "CI=1 JEST_HASTE_MAP_FORCE_NODE_FS=1 jest --config jest.logic.config.ts --coverage --runInBand --watchman=false --forceExit --testTimeout=30000 --detectOpenHandles",
     "test:ui": "jest --config jest.config.ts --runInBand --watchman=false --forceExit",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "e2e:build": "detox build --configuration android.emu.debug",
+    "e2e:test": "detox test --configuration android.emu.debug"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -53,9 +55,12 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@config-plugins/detox": "^9.0.0",
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.1.0",
+    "detox": "^20.28.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "eslint-plugin-import": "^2.32.0",

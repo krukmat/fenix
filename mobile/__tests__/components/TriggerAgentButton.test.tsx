@@ -89,7 +89,7 @@ describe('TriggerAgentButton', () => {
 
     wrap(<TriggerAgentButton />);
 
-    fireEvent.press(screen.getByTestId('trigger-agent-btn'));
+    fireEvent.press(screen.getByTestId('trigger-agent-button'));
 
     // Dialog should appear with agent list
     expect(screen.getByText('Select Agent')).toBeDefined();
@@ -105,14 +105,14 @@ describe('TriggerAgentButton', () => {
 
     wrap(<TriggerAgentButton />);
 
-    fireEvent.press(screen.getByTestId('trigger-agent-btn'));
+    fireEvent.press(screen.getByTestId('trigger-agent-button'));
     expect(screen.getByText('Support Agent')).toBeDefined();
 
     // Select an agent via RadioButton
     fireEvent.press(screen.getByTestId('agent-option-agent-support-001'));
 
     // Confirm button is now enabled
-    fireEvent.press(screen.getByTestId('trigger-agent-confirm-btn'));
+    fireEvent.press(screen.getByTestId('trigger-confirm-button'));
 
     expect(mockTriggerRun).toHaveBeenCalledWith('agent-support-001', {});
   });
@@ -139,7 +139,7 @@ describe('TriggerAgentButton', () => {
 
     wrap(<TriggerAgentButton />);
 
-    fireEvent.press(screen.getByTestId('trigger-agent-btn'));
+    fireEvent.press(screen.getByTestId('trigger-agent-button'));
     fireEvent.press(screen.getByTestId('trigger-agent-cancel-btn'));
 
     expect(mockTriggerRun).not.toHaveBeenCalled();

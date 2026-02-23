@@ -16,14 +16,19 @@ import { useAuthStore } from '../src/stores/authStore';
 // Keep splash screen visible while loading
 SplashScreen.preventAutoHideAsync();
 
+// Task 4.8 — E2E mode: disable automatic queries so Detox/Espresso sees the app as "idle"
+const isE2E = process.env.EXPO_PUBLIC_E2E_MODE === '1';
+
 // Create QueryClient
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,
+      staleTime: isE2E ? Infinity : 30_000,
       gcTime: 5 * 60_000,
-      retry: 1,
+      retry: isE2E ? 0 : 1,
       refetchOnWindowFocus: false,
+      refetchOnMount: isE2E ? false : true,
+      refetchOnReconnect: isE2E ? false : true,
     },
   },
 });

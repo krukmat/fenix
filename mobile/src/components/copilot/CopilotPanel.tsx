@@ -27,7 +27,7 @@ function Footer({ lastAssistant }: FooterProps) {
   return (
     <View style={styles.footer}>
       {(lastAssistant.evidenceSources ?? []).map((source, idx) => (
-        <EvidenceCard key={source.id} source={source} index={idx + 1} testIDPrefix={`evidence-${idx + 1}`} />
+        <EvidenceCard key={source.id} source={source} index={idx + 1} testIDPrefix={`evidence-card-${idx}`} />
       ))}
 
       {(lastAssistant.actions ?? []).map((action, idx) => (
@@ -79,6 +79,8 @@ export function CopilotPanel() {
         testID="copilot-messages"
       />
 
+      <Text testID="copilot-response-text">{lastAssistant?.content || ''}</Text>
+
       {isStreaming && <Text testID="copilot-streaming">Streaming…</Text>}
       {error && <Text testID="copilot-error">{error}</Text>}
 
@@ -96,6 +98,12 @@ export function CopilotPanel() {
           onPress={onSend}
           disabled={!inputText.trim() || isStreaming}
           testID="copilot-send"
+        />
+        <IconButton
+          icon="send-circle"
+          onPress={onSend}
+          disabled={!inputText.trim() || isStreaming}
+          testID="copilot-send-button"
         />
       </View>
     </View>

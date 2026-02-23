@@ -29,7 +29,7 @@ function RegisterForm(props: RegisterFormProps) {
   return (
     <>
       <TextInput
-        testID="name-input"
+        testID="register-name-input"
         label="Display Name"
         value={props.displayName}
         onChangeText={props.onDisplayNameChange}
@@ -39,7 +39,7 @@ function RegisterForm(props: RegisterFormProps) {
       />
 
       <TextInput
-        testID="email-input"
+        testID="register-email-input"
         label="Email"
         value={props.email}
         onChangeText={props.onEmailChange}
@@ -51,7 +51,7 @@ function RegisterForm(props: RegisterFormProps) {
       />
 
       <TextInput
-        testID="workspace-input"
+        testID="register-workspace-input"
         label="Workspace Name"
         value={props.workspaceName}
         onChangeText={props.onWorkspaceChange}
@@ -61,7 +61,7 @@ function RegisterForm(props: RegisterFormProps) {
       />
 
       <TextInput
-        testID="password-input"
+        testID="register-password-input"
         label="Password"
         value={props.password}
         onChangeText={props.onPasswordChange}
@@ -77,7 +77,7 @@ function RegisterForm(props: RegisterFormProps) {
       ) : null}
 
       <Button
-        testID="register-button"
+        testID="register-submit-button"
         mode="contained"
         onPress={props.onSubmit}
         loading={props.loading}
@@ -87,7 +87,7 @@ function RegisterForm(props: RegisterFormProps) {
         Sign Up
       </Button>
 
-      <Button mode="text" onPress={props.onGoToLogin} style={styles.linkButton}>
+      <Button testID="go-to-login-link" mode="text" onPress={props.onGoToLogin} style={styles.linkButton}>
         Already have an account? Sign in
       </Button>
     </>
@@ -139,7 +139,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <AuthFormLayout title="Create Account" subtitle="Sign up for FenixCRM">
+    <AuthFormLayout title="Create Account" subtitle="Sign up for FenixCRM" testID="register-screen">
       <RegisterForm
         displayName={displayName}
         email={email}

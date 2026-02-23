@@ -78,6 +78,12 @@ export const crmApi = {
     return response.data;
   },
 
+  // Create account (Task 4.8 — GAP 2)
+  createAccount: async (data: { name: string; industry?: string }) => {
+    const response = await apiClient.post('/bff/api/v1/accounts', data);
+    return response.data;
+  },
+
   getContacts: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
     const response = await apiClient.get('/bff/api/v1/contacts', {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },

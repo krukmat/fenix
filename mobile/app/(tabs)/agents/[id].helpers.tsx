@@ -211,7 +211,7 @@ export function renderContent(run: AgentRunData, colors: ThemeColors) {
       <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
         <View style={styles.summaryHeader}>
           <Text style={[styles.agentName, { color: colors.onSurface }]}>{run.agent_name}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(run.status) }]}>
+          <View testID="run-status-chip" style={[styles.statusBadge, { backgroundColor: getStatusColor(run.status) }]}>
             <Text style={styles.statusBadgeText}>{getStatusLabel(run.status)}</Text>
           </View>
         </View>

@@ -1,10 +1,12 @@
 // Task 4.5 — Agent Runs List Screen
+// Task 4.8 — GAP 4: Added TriggerAgentButton for E2E tests
 
 import React, { useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useAgentRuns } from '../../../src/hooks/useCRM';
+import TriggerAgentButton from '../../../src/components/agents/TriggerAgentButton';
 import type { ThemeColors } from '../../../src/theme/types';
 
 interface AgentRun {
@@ -136,7 +138,8 @@ export default function AgentsListScreen() {
   if (error) return renderErrorState(colors, error.message || 'Failed to load agent runs', handleRefresh);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View testID="agent-runs-list-screen" style={[styles.container, { backgroundColor: colors.background }]}>
+      <TriggerAgentButton />
       <View style={styles.list} testID="agent-runs-list">
         {allRuns.length === 0
           ? renderEmptyState(colors)

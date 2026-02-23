@@ -67,11 +67,11 @@ export default function CasesListScreen() {
   }, []);
 
   const renderItem = useCallback(
-    ({ item }: { item: CaseData }) => (
+    ({ item, index }: { item: CaseData; index: number }) => (
       <TouchableOpacity
         style={[styles.caseItem, { backgroundColor: colors.surface }]}
         onPress={() => router.push(`/cases/${item.id}`)}
-        testID={`case-item-${item.id}`}
+        testID={`cases-list-item-${index}`}
       >
         <View style={styles.caseHeader}>
           <Text style={[styles.caseSubject, { color: colors.onSurface }]}>{item.subject || 'No Subject'}</Text>

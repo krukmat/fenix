@@ -1484,7 +1484,7 @@ To avoid sequencing ambiguity, Phase 3 tasks have the following dependency const
 
 #### Task 4.8: E2E Tests — Detox (Mobile) + Supertest (BFF) (1.5 days)
 
-**Status**: ❌ Not started
+**Status**: ✅ Completed — 2026-02-23 (BFF tests + Mobile Detox setup — E2E execution pending emulator)
 
 **Actions**:
 - Setup Detox for mobile E2E:

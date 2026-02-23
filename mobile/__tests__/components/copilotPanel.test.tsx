@@ -37,9 +37,9 @@ describe('CopilotPanel', () => {
   const wrap = () => render(<PaperProvider><CopilotPanel /></PaperProvider>);
 
   it('renders user + assistant messages', () => {
-    const { getByText } = wrap();
+    const { getByText, getAllByText } = wrap();
     expect(getByText('hola')).toBeTruthy();
-    expect(getByText('respuesta')).toBeTruthy();
+    expect(getAllByText('respuesta').length).toBeGreaterThan(0);
   });
 
   it('send disabled when input is empty', () => {

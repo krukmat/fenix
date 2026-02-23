@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { useTheme, Button } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CRMDetailHeader } from '../../../src/components/crm';
 import { useCase } from '../../../src/hooks/useCRM';
@@ -87,6 +87,11 @@ export function renderCaseContent(caseData: CaseDetailData, colors: ThemeColors,
       )}
       {renderHandoffSection(caseData.handoffStatus, colors)}
       {renderAccountSection(caseData.accountId, caseData.accountName, router, colors)}
+      <View style={styles.section}>
+        <Button mode="contained" onPress={() => router.push('/copilot')} testID="copilot-open-button">
+          Open Copilot
+        </Button>
+      </View>
     </>
   );
 }
@@ -107,7 +112,7 @@ export default function CaseDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ title: caseData?.subject || 'Case' }} />
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView testID="case-detail-screen" style={[styles.container, { backgroundColor: colors.background }]}>
         {isLoading ? (
           <View style={[styles.centered, { backgroundColor: colors.background }]}>
             <ActivityIndicator size="large" color={colors.primary} />

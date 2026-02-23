@@ -1,0 +1,36 @@
+// Task 4.8 — Gradle init script: fix duplicate .so files in ALL subprojects
+// This file lives outside android/ so it survives `expo prebuild --clean`
+gradle.projectsLoaded {
+  rootProject.allprojects {
+    plugins.withId('com.android.library') {
+      android {
+        packagingOptions {
+          jniLibs {
+            pickFirsts += [
+              '**/libfbjni.so',
+              '**/libc++_shared.so',
+              '**/libhermestooling.so',
+              '**/libjsi.so',
+              '**/libreactnative.so',
+            ]
+          }
+        }
+      }
+    }
+    plugins.withId('com.android.application') {
+      android {
+        packagingOptions {
+          jniLibs {
+            pickFirsts += [
+              '**/libfbjni.so',
+              '**/libc++_shared.so',
+              '**/libhermestooling.so',
+              '**/libjsi.so',
+              '**/libreactnative.so',
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -18,10 +18,21 @@ import * as apiModule from '../../../../src/services/api';
 
 // Mock TanStack Query hooks
 const mockUseAgentRuns = jest.fn();
+const mockUseAgentDefinitions = jest.fn();
 
 jest.mock('../../../../src/hooks/useCRM', () => ({
   useAgentRuns: (...args: unknown[]) => mockUseAgentRuns(...args),
+  useAgentDefinitions: () => mockUseAgentDefinitions(),
 }));
+
+// Mock TriggerAgentButton component (Task 4.8 — GAP 4)
+jest.mock('../../../../src/components/agents/TriggerAgentButton', () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    default: () => React.createElement('View', { testID: 'trigger-agent-button' }),
+  };
+});
 
 // Mock types
 interface AgentRun {

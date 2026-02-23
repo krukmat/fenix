@@ -6,6 +6,9 @@ Aplicación mobile basada en Expo/React Native para consumir el BFF de FenixCRM.
 
 - Node.js 18+
 - npm 9+
+- Android Studio + Android SDK (API 35, NDK 26+) — para E2E tests
+- Expo CLI: `npm install -g expo-cli eas-cli`
+- Detox CLI: `npm install -g detox-cli` — para E2E tests
 
 ## Desarrollo local
 
@@ -37,6 +40,40 @@ Pipeline agregado:
 ```bash
 npm run quality
 ```
+
+## E2E Tests (Detox)
+
+Los tests E2E validan flujos críticos de usuario en un emulador Android real.
+
+### Prerrequisitos
+
+1. Android Studio con AVD configurado (Pixel 6 API 35 recomendado)
+2. Emulador Android corriendo (`adb devices` debe mostrar un dispositivo)
+3. Backend Go corriendo en `localhost:8080`
+4. BFF corriendo en `localhost:3000`
+
+### Ejecutar tests E2E
+
+```bash
+# 1. Construir APK de prueba
+npm run e2e:build
+
+# 2. Ejecutar tests E2E
+npm run e2e:test
+```
+
+### Suites E2E disponibles
+
+| Archivo | Flujo validado |
+|---------|----------------|
+| `e2e/auth.e2e.ts` | Login → Register → Accounts list → Logout |
+| `e2e/accounts.e2e.ts` | Accounts list → Detail → Timeline |
+| `e2e/copilot.e2e.ts` | Cases list → Case detail → Copilot panel → SSE response → Evidence cards |
+| `e2e/agent-runs.e2e.ts` | Agent runs list → Trigger agent → Run detail → Status chip |
+
+### testIDs requeridos
+
+Los tests E2E dependen de `testID` props en los componentes. Ver `docs/tasks/task_4.8.md` para la lista completa de testIDs usados.
 
 ## Definición de Done para PR (DoD)
 
