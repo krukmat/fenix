@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_001: 969-Z1zNqXKxJjrUhMoNrYBoRG0_PiEtOJUytAYAyQY=
+normative: true
+ref: mobile/__tests__/components/dealsCasesForms.test.ts
+reviewed: uUgZHkBVDQt7rpCee2Y40uH9LSCwePZyFnt8D0o5FWc=
+text: |
+  TST049: Mobile deal create/edit form validation coverage.

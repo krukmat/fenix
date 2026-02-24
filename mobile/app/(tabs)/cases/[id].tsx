@@ -88,6 +88,11 @@ export function renderCaseContent(caseData: CaseDetailData, colors: ThemeColors,
       {renderHandoffSection(caseData.handoffStatus, colors)}
       {renderAccountSection(caseData.accountId, caseData.accountName, router, colors)}
       <View style={styles.section}>
+        <Button mode="contained" onPress={() => router.push(`/cases/edit/${caseData.id}`)} testID="case-edit-button">
+          Edit Case
+        </Button>
+      </View>
+      <View style={styles.section}>
         <Button mode="contained" onPress={() => router.push('/copilot')} testID="copilot-open-button">
           Open Copilot
         </Button>

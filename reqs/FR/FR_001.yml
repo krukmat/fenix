@@ -10,3 +10,8 @@ text: |
   FR-001: Core CRM Entities
   Implement Account, Contact, Lead, Deal, Case, Activity, Note, Attachment
   with full CRUD operations and multi-tenant isolation via workspace_id.
+  For Deal and Case specifically, MVP scope must explicitly include:
+  - List endpoints with pagination, filter, and sort support.
+  - Create endpoint with domain validation and audit event emission.
+  - Update endpoint for business fields (status, stage, owner, priority, amount,
+    expected_close, subject, description, metadata) with audit + timeline events.

@@ -508,6 +508,10 @@ flowchart TD
 **AC:**
 - Navegación principal: Stack + Drawer (React Navigation).
 - Pantallas CRM: listados y detalle de Account, Contact, Deal, Case con búsqueda, filtros, paginación.
+- Deals y Cases deben incluir además pantallas de creación y edición (update) con validaciones, estados de carga/error y feedback de guardado.
+- Flujos mínimos obligatorios en mobile para P0:
+  - Deals: listar, crear, editar (campos comerciales), ver detalle.
+  - Cases: listar, crear, editar (status/priority/owner/description), ver detalle.
 - Panel Copilot integrado en pantallas de detalle.
 - Autenticación: login/registro via BFF → Go backend.
 - Soporte offline básico: cache local de últimos records consultados.
@@ -760,4 +764,3 @@ flowchart LR
 - [x] Dependencias explícitas  
 - [x] Diagramas Mermaid L0/L1/L2  
 - [x] Roadmap y riesgos  
-

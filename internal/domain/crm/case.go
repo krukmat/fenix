@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
@@ -67,9 +68,19 @@ type UpdateCaseInput struct {
 }
 
 type ListCasesInput struct {
-	Limit  int
-	Offset int
+	Limit     int
+	Offset    int
+	Status    string
+	Priority  string
+	OwnerID   string
+	AccountID string
+	Sort      string
 }
+
+const (
+	caseSortCreatedAtAsc  = "created_at"
+	caseSortCreatedAtDesc = "-created_at"
+)
 
 type CaseService struct {
 	db      *sql.DB
@@ -136,6 +147,20 @@ func (s *CaseService) Get(ctx context.Context, workspaceID, caseID string) (*Cas
 }
 
 func (s *CaseService) List(ctx context.Context, workspaceID string, input ListCasesInput) ([]*CaseTicket, int, error) {
+	if input.Sort == "" {
+		input.Sort = caseSortCreatedAtDesc
+	}
+
+	if shouldUseFilteredCaseList(input) {
+		filtered, err := s.listFiltered(ctx, workspaceID, input)
+		if err != nil {
+			return nil, 0, err
+		}
+		total := len(filtered)
+		paged := paginateCases(filtered, input.Offset, input.Limit)
+		return paged, total, nil
+	}
+
 	total, err := s.querier.CountCasesByWorkspace(ctx, workspaceID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("count cases: %w", err)
@@ -152,6 +177,77 @@ func (s *CaseService) List(ctx context.Context, workspaceID string, input ListCa
 	out := mapRows(rows, rowToCaseTicket)
 
 	return out, int(total), nil
+}
+
+func shouldUseFilteredCaseList(input ListCasesInput) bool {
+	return input.Status != "" || input.Priority != "" || input.OwnerID != "" || input.AccountID != "" || input.Sort != caseSortCreatedAtDesc
+}
+
+func (s *CaseService) listFiltered(ctx context.Context, workspaceID string, input ListCasesInput) ([]*CaseTicket, error) {
+	rows, err := s.selectCaseRowsByFilter(ctx, workspaceID, input)
+	if err != nil {
+		return nil, fmt.Errorf("list cases: %w", err)
+	}
+
+	out := mapRows(rows, rowToCaseTicket)
+	out = filterCasesByPriority(out, input.Priority)
+	sortCasesByCreatedAt(out, input.Sort)
+
+	return out, nil
+}
+
+func (s *CaseService) selectCaseRowsByFilter(ctx context.Context, workspaceID string, input ListCasesInput) ([]sqlcgen.CaseTicket, error) {
+	if input.AccountID != "" {
+		return s.querier.ListCasesByAccount(ctx, sqlcgen.ListCasesByAccountParams{WorkspaceID: workspaceID, AccountID: nullString(input.AccountID)})
+	}
+	if input.OwnerID != "" {
+		return s.querier.ListCasesByOwner(ctx, sqlcgen.ListCasesByOwnerParams{WorkspaceID: workspaceID, OwnerID: input.OwnerID})
+	}
+	if input.Status != "" {
+		return s.querier.ListCasesByStatus(ctx, sqlcgen.ListCasesByStatusParams{WorkspaceID: workspaceID, Status: input.Status})
+	}
+
+	total, err := s.querier.CountCasesByWorkspace(ctx, workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("count cases: %w", err)
+	}
+	return s.querier.ListCasesByWorkspace(ctx, sqlcgen.ListCasesByWorkspaceParams{
+		WorkspaceID: workspaceID,
+		Limit:       total,
+		Offset:      0,
+	})
+}
+
+func filterCasesByPriority(items []*CaseTicket, priority string) []*CaseTicket {
+	if priority == "" {
+		return items
+	}
+	filtered := make([]*CaseTicket, 0, len(items))
+	for _, item := range items {
+		if item.Priority == priority {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+func sortCasesByCreatedAt(items []*CaseTicket, sortBy string) {
+	if sortBy == caseSortCreatedAtAsc {
+		sort.SliceStable(items, func(i, j int) bool { return items[i].CreatedAt.Before(items[j].CreatedAt) })
+		return
+	}
+	sort.SliceStable(items, func(i, j int) bool { return items[i].CreatedAt.After(items[j].CreatedAt) })
+}
+
+func paginateCases(items []*CaseTicket, offset, limit int) []*CaseTicket {
+	if offset >= len(items) {
+		return []*CaseTicket{}
+	}
+	end := offset + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[offset:end]
 }
 
 func (s *CaseService) Update(ctx context.Context, workspaceID, caseID string, input UpdateCaseInput) (*CaseTicket, error) {

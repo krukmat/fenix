@@ -79,12 +79,12 @@
 
 ## Phase 4: Integration & Polish (Weeks 11-13)
 
-**Objetivo**: React UI, observability, eval, E2E tests.
+**Objetivo**: Mobile App + BFF, observability, eval, E2E tests.
 
 | Week | Task | Deliverable | Tests |
 |------|------|-------------|-------|
 | 11 | 4.1 Frontend Setup | React + Vite + shadcn/ui | E2E login test |
-| 11 | 4.2 CRM Pages | Account/Contact/Deal/Case pages | E2E CRUD tests |
+| 11 | 4.2 CRM Pages | Account/Contact/Deal/Case pages (incluye deal/case list + create + update) | E2E CRUD tests |
 | 12 | 4.3 Copilot Panel | Chat UI + SSE + evidence cards | E2E copilot tests |
 | 12 | 4.4 Agent Runs Dashboard | Run list + detail views | E2E agent tests |
 | 13 | 4.5 Audit Service Advanced | Query + export + full event bus | Export tests |
@@ -107,6 +107,7 @@
 | 5 | **Task 3.9 Prompt Versioning** (NEW) | Change Management | Architecture shows FK, rollback capability required |
 | 6 | **Task 4.5 Audit Advanced** (Updated) | Scope Adjustment | Base audit moved to Phase 1, Phase 4 = query/export |
 | 7 | **Task 4.8 Observability** (NEW) | NFR Compliance | Architecture requires metrics endpoint + dashboard |
+| 8 | **Deal/Case L-C-U Scope** (Updated) | Scope Clarity | Explicit list/create/update coverage across API + Mobile |
 
 ---
 

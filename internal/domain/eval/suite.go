@@ -16,9 +16,9 @@ type Suite struct {
 	ID          string     `json:"id"`
 	WorkspaceID string     `json:"workspaceId"`
 	Name        string     `json:"name"`
-	Domain      string     `json:"domain"`      // "support" | "sales" | "general"
-	TestCases   []TestCase `json:"testCases"`   // parsed from JSON
-	Thresholds  Thresholds `json:"thresholds"`  // parsed from JSON
+	Domain      string     `json:"domain"`     // "support" | "sales" | "general"
+	TestCases   []TestCase `json:"testCases"`  // parsed from JSON
+	Thresholds  Thresholds `json:"thresholds"` // parsed from JSON
 	CreatedAt   time.Time  `json:"createdAt"`
 	UpdatedAt   time.Time  `json:"updatedAt"`
 }

@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_001: 969-Z1zNqXKxJjrUhMoNrYBoRG0_PiEtOJUytAYAyQY=
+normative: true
+ref: mobile/__tests__/components/caseDetailScreen.test.tsx
+reviewed: N_luotPLvBXeonlcG41DKeTH-VE180urNzVrUzKr210=
+text: |
+  TST050: Mobile case detail/edit entrypoint coverage.

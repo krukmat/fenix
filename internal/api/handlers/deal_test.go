@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -291,6 +292,93 @@ func TestDealHandler_UpdateDeal_InvalidJSON_Returns400(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestDealHandler_ListDeals_FilterByAccountID(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	accountID1 := createAccountForTask15(t, db, wsID, ownerID, "A1")
+	accountID2 := createAccountForTask15(t, db, wsID, ownerID, "A2")
+	pipelineID, stageID := createPipelineAndStageForTask15(t, db, wsID)
+
+	svc := crm.NewDealService(db)
+	_, _ = svc.Create(context.Background(), crm.CreateDealInput{
+		WorkspaceID: wsID, AccountID: accountID1, PipelineID: pipelineID, StageID: stageID, OwnerID: ownerID, Title: "Deal A1",
+	})
+	_, _ = svc.Create(context.Background(), crm.CreateDealInput{
+		WorkspaceID: wsID, AccountID: accountID2, PipelineID: pipelineID, StageID: stageID, OwnerID: ownerID, Title: "Deal A2",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/deals?account_id="+url.QueryEscape(accountID1), nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	h.ListDeals(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		Data []struct {
+			AccountID string `json:"accountId"`
+		} `json:"data"`
+		Meta struct {
+			Total int `json:"total"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.Meta.Total != 1 || len(resp.Data) != 1 {
+		t.Fatalf("expected one filtered deal, total=%d len=%d", resp.Meta.Total, len(resp.Data))
+	}
+	if resp.Data[0].AccountID != accountID1 {
+		t.Fatalf("expected accountId=%s got %s", accountID1, resp.Data[0].AccountID)
+	}
+}
+
+func TestDealHandler_ListDeals_MultipleFilters_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/deals?status=open&owner_id=u1", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	h.ListDeals(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestDealHandler_UpdateDeal_NotFound_Returns404(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/deals/missing", bytes.NewBufferString(`{"title":"x"}`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "missing")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.UpdateDeal(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d body=%s", rr.Code, rr.Body.String())
 	}
 }
 

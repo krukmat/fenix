@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { useTheme, Button } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CRMDetailHeader } from '../../../src/components/crm';
 import { useDeal } from '../../../src/hooks/useCRM';
@@ -15,7 +15,9 @@ function useColors(): ThemeColors {
 
 interface DealDetailData {
   id: string;
+  title?: string;
   name?: string;
+  amount?: number;
   value?: number;
   status: 'open' | 'won' | 'lost';
   stage?: string;
@@ -34,7 +36,7 @@ function getStatusColor(status: string): string {
 
 function getMetadata(deal: DealDetailData) {
   return [
-    { label: 'Value', value: deal.value ? `$${deal.value.toLocaleString()}` : 'Not specified' },
+    { label: 'Value', value: (deal.amount ?? deal.value) ? `$${(deal.amount ?? deal.value)!.toLocaleString()}` : 'Not specified' },
     { label: 'Stage', value: deal.stage || 'Not specified' },
     { label: 'Pipeline', value: deal.pipeline || 'Default' },
     { label: 'Close Date', value: deal.closeDate || 'Not specified' },
@@ -63,8 +65,13 @@ function renderContent(deal: DealDetailData, router: ReturnType<typeof useRouter
       <View style={[styles.statusBanner, { backgroundColor: getStatusColor(deal.status) }]}>
         <Text style={styles.statusText}>{deal.status.toUpperCase()}</Text>
       </View>
-      <CRMDetailHeader title={deal.name || 'Unnamed Deal'} subtitle={deal.description} metadata={metadata} testIDPrefix="deal-detail" />
+      <CRMDetailHeader title={deal.title || deal.name || 'Unnamed Deal'} subtitle={deal.description} metadata={metadata} testIDPrefix="deal-detail" />
       {renderAccountSection(deal.accountId, deal.accountName, router, colors)}
+      <View style={styles.section}>
+        <Button mode="contained" onPress={() => router.push(`/deals/edit/${deal.id}`)} testID="deal-edit-button">
+          Edit Deal
+        </Button>
+      </View>
     </>
   );
 }
@@ -83,7 +90,9 @@ export default function DealDetailScreen() {
   const deal: DealDetailData | undefined = dealObj
     ? {
         id: String(dealObj.id ?? ''),
+        title: dealObj.title as string | undefined,
         name: (dealObj.name as string | undefined) ?? (dealObj.title as string | undefined),
+        amount: dealObj.amount as number | undefined,
         value: (dealObj.value as number | undefined) ?? (dealObj.amount as number | undefined),
         status: ((dealObj.status as 'open' | 'won' | 'lost' | undefined) ?? 'open'),
         stage: dealObj.stage as string | undefined,
@@ -100,7 +109,7 @@ export default function DealDetailScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: deal?.name || 'Deal' }} />
+      <Stack.Screen options={{ title: deal?.title || deal?.name || 'Deal' }} />
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
         {isLoading ? (
           <View style={[styles.centered, { backgroundColor: colors.background }]}>

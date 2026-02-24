@@ -302,6 +302,34 @@ paths:
       summary: List deals
       x-fr-traces:
       - FR-001
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      - name: status
+        in: query
+        schema:
+          type: string
+      - name: owner_id
+        in: query
+        schema:
+          type: string
+      - name: account_id
+        in: query
+        schema:
+          type: string
+      - name: pipeline_id
+        in: query
+        schema:
+          type: string
+      - name: stage_id
+        in: query
+        schema:
+          type: string
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [created_at, '-created_at']
       responses:
         '200':
           description: OK
@@ -381,6 +409,30 @@ paths:
       summary: List cases
       x-fr-traces:
       - FR-001
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Offset'
+      - name: status
+        in: query
+        schema:
+          type: string
+      - name: priority
+        in: query
+        schema:
+          type: string
+      - name: owner_id
+        in: query
+        schema:
+          type: string
+      - name: account_id
+        in: query
+        schema:
+          type: string
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum: [created_at, '-created_at']
       responses:
         '200':
           description: OK

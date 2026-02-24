@@ -1,7 +1,7 @@
 // Task 4.2 — FR-300: TanStack Query hooks para entidades CRM
 // Task 4.3.td — STEP 8: list hooks migrated to useInfiniteQuery
 
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi, agentApi } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
@@ -143,6 +143,58 @@ export function useCase(id: string) {
     enabled: !!workspaceId && !!id,
     retry: 1,
     refetchOnWindowFocus: false,
+  });
+}
+
+// Deal mutations
+export function useCreateDeal() {
+  const workspaceId = useWorkspaceId();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: crmApi.createDeal,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.deals(workspaceId ?? '') });
+    },
+  });
+}
+
+export function useUpdateDeal() {
+  const workspaceId = useWorkspaceId();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof crmApi.updateDeal>[1] }) => crmApi.updateDeal(id, data),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.deals(workspaceId ?? '') });
+      queryClient.invalidateQueries({ queryKey: queryKeys.deal(workspaceId ?? '', variables.id) });
+    },
+  });
+}
+
+// Case mutations
+export function useCreateCase() {
+  const workspaceId = useWorkspaceId();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: crmApi.createCase,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cases(workspaceId ?? '') });
+    },
+  });
+}
+
+export function useUpdateCase() {
+  const workspaceId = useWorkspaceId();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof crmApi.updateCase>[1] }) => crmApi.updateCase(id, data),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cases(workspaceId ?? '') });
+      queryClient.invalidateQueries({ queryKey: queryKeys.case(workspaceId ?? '', variables.id) });
+    },
   });
 }
 

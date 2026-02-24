@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { useTheme, FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { CRMListScreen } from '../../../src/components/crm';
 import { useDeals } from '../../../src/hooks/useCRM';
@@ -106,27 +106,35 @@ export default function DealsListScreen() {
   );
 
   return (
-    <CRMListScreen
-      data={filteredDeals}
-      hasData={allDeals.length > 0}
-      loading={isLoading}
-      loadingMore={isFetchingNextPage}
-      hasMore={hasNextPage ?? false}
-      onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
-      error={error ? error.message : null}
-      onRefresh={handleRefresh}
-      searchValue={searchValue}
-      onSearchChange={handleSearchChange}
-      renderItem={renderItem}
-      emptyTitle="No deals found"
-      emptySubtitle="Pull to refresh or add a new deal"
-      testIDPrefix="deals"
-      isRefreshing={isRefetching}
-      onRetry={handleRefresh}
-      statusFilter={statusFilter}
-      onStatusFilterChange={handleStatusChange}
-      availableStatuses={['open', 'won', 'lost']}
-    />
+    <View style={{ flex: 1 }}>
+      <CRMListScreen
+        data={filteredDeals}
+        hasData={allDeals.length > 0}
+        loading={isLoading}
+        loadingMore={isFetchingNextPage}
+        hasMore={hasNextPage ?? false}
+        onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
+        error={error ? error.message : null}
+        onRefresh={handleRefresh}
+        searchValue={searchValue}
+        onSearchChange={handleSearchChange}
+        renderItem={renderItem}
+        emptyTitle="No deals found"
+        emptySubtitle="Pull to refresh or add a new deal"
+        testIDPrefix="deals"
+        isRefreshing={isRefetching}
+        onRetry={handleRefresh}
+        statusFilter={statusFilter}
+        onStatusFilterChange={handleStatusChange}
+        availableStatuses={['open', 'won', 'lost']}
+      />
+      <FAB
+        testID="create-deal-fab"
+        icon="plus"
+        style={[styles.fab, { backgroundColor: colors.primary }]}
+        onPress={() => router.push('/deals/new')}
+      />
+    </View>
   );
 }
 
@@ -165,5 +173,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginTop: 4,
+  },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 24,
   },
 });

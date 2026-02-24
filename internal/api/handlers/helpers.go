@@ -28,10 +28,10 @@ const (
 
 // HTTP response string constants (extracted to satisfy goconst lint gate).
 const (
-	headerContentType = "Content-Type"
+	headerContentType        = "Content-Type"
 	headerContentDisposition = "Content-Disposition"
-	mimeJSON          = "application/json"
-	timeFormatISO     = "2006-01-02T15:04:05Z"
+	mimeJSON                 = "application/json"
+	timeFormatISO            = "2006-01-02T15:04:05Z"
 
 	// Error messages — workspace / auth
 	errMissingWorkspaceID      = "missing workspace_id in context"
@@ -82,6 +82,12 @@ const (
 	paramStageID    = "stage_id"
 	paramEntityID   = "entity_id"
 	paramEntityType = "entity_type"
+
+	// Common query params
+	queryOwnerID   = "owner_id"
+	queryAccountID = "account_id"
+	querySortAsc   = "created_at"
+	querySortDesc  = "-created_at"
 )
 
 // getWorkspaceID retrieves workspace_id from context.

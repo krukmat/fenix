@@ -111,7 +111,7 @@ func (a *KBAgent) Run(ctx context.Context, config KBAgentConfig) (*agent.Run, er
 	}
 
 	toolCtx := context.WithValue(ctx, ctxkeys.WorkspaceID, normalized.WorkspaceID) // Task 4.5c — toolCtx workspace propagation.
-	result, err := a.executeKBFlow(toolCtx, toolCtx, normalized) // Task 4.5c — propagate enriched ctx to all downstream calls.
+	result, err := a.executeKBFlow(toolCtx, toolCtx, normalized)                   // Task 4.5c — propagate enriched ctx to all downstream calls.
 	if err != nil {
 		if updateErr := a.markRunFailed(ctx, run); updateErr != nil {
 			return run, updateErr
@@ -355,7 +355,7 @@ func caseIsHighSensitivity(metadata *string) bool {
 }
 
 var (
-	ErrKBCaseIDRequired       = &KBError{message: "case_id is required"}
+	ErrKBCaseIDRequired        = &KBError{message: "case_id is required"}
 	ErrCaseNotFound            = &KBError{message: "case not found"}
 	ErrCaseNotResolved         = &KBError{message: "case is not resolved or closed"}
 	ErrKBDailyLimitExceeded    = &KBError{message: "daily article creation limit exceeded (max 10/day)"}

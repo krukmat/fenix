@@ -1,3 +1,4 @@
+// Traces: FR-001
 import { describe, it, expect } from '@jest/globals';
 import { renderCaseContent } from '../../app/(tabs)/cases/[id]';
 

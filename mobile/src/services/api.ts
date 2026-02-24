@@ -104,6 +104,80 @@ export const crmApi = {
     });
     return response.data;
   },
+
+  // Mutations: deals
+  createDeal: async (data: {
+    accountId: string;
+    contactId?: string;
+    pipelineId: string;
+    stageId: string;
+    ownerId: string;
+    title: string;
+    amount?: number;
+    currency?: string;
+    expectedClose?: string;
+    status?: string;
+    metadata?: string;
+  }) => {
+    const response = await apiClient.post('/bff/api/v1/deals', data);
+    return response.data;
+  },
+
+  updateDeal: async (id: string, data: {
+    accountId?: string;
+    contactId?: string;
+    pipelineId?: string;
+    stageId?: string;
+    ownerId?: string;
+    title?: string;
+    amount?: number;
+    currency?: string;
+    expectedClose?: string;
+    status?: string;
+    metadata?: string;
+  }) => {
+    const response = await apiClient.put(`/bff/api/v1/deals/${id}`, data);
+    return response.data;
+  },
+
+  // Mutations: cases
+  createCase: async (data: {
+    accountId?: string;
+    contactId?: string;
+    pipelineId?: string;
+    stageId?: string;
+    ownerId: string;
+    subject: string;
+    description?: string;
+    priority?: string;
+    status?: string;
+    channel?: string;
+    slaConfig?: string;
+    slaDeadline?: string;
+    metadata?: string;
+  }) => {
+    const response = await apiClient.post('/bff/api/v1/cases', data);
+    return response.data;
+  },
+
+  updateCase: async (id: string, data: {
+    accountId?: string;
+    contactId?: string;
+    pipelineId?: string;
+    stageId?: string;
+    ownerId?: string;
+    subject?: string;
+    description?: string;
+    priority?: string;
+    status?: string;
+    channel?: string;
+    slaConfig?: string;
+    slaDeadline?: string;
+    metadata?: string;
+  }) => {
+    const response = await apiClient.put(`/bff/api/v1/cases/${id}`, data);
+    return response.data;
+  },
   
   // Details (aggregated)
   getAccountFull: async (id: string) => {

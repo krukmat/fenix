@@ -1,0 +1,11 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_001: 969-Z1zNqXKxJjrUhMoNrYBoRG0_PiEtOJUytAYAyQY=
+normative: true
+ref: internal/api/handlers/case_test.go
+reviewed: 5v2fPhPjOjt1p-f3lstlhRZXr90NYDAx1ghMuME6oaA=
+text: |
+  TST048: Case API list/create/update contract coverage (handler-level).

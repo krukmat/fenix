@@ -144,6 +144,36 @@ describe('api.ts', () => {
       expect(getSpy).toHaveBeenNthCalledWith(8, '/bff/api/v1/contacts/ct1');
     });
 
+    it('crmApi deal/case mutations should call expected POST/PUT endpoints', async () => {
+      const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValue({ data: { ok: true } } as never);
+      const putSpy = jest.spyOn(apiClient, 'put').mockResolvedValue({ data: { ok: true } } as never);
+
+      await crmApi.createDeal({
+        accountId: 'acc-1',
+        pipelineId: 'pipe-1',
+        stageId: 'stage-1',
+        ownerId: 'owner-1',
+        title: 'Deal A',
+      });
+      await crmApi.updateDeal('deal-1', { status: 'won' });
+      await crmApi.createCase({ ownerId: 'owner-1', subject: 'Case A' });
+      await crmApi.updateCase('case-1', { status: 'in_progress' });
+
+      expect(postSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/deals', {
+        accountId: 'acc-1',
+        pipelineId: 'pipe-1',
+        stageId: 'stage-1',
+        ownerId: 'owner-1',
+        title: 'Deal A',
+      });
+      expect(putSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/deals/deal-1', { status: 'won' });
+      expect(postSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/cases', {
+        ownerId: 'owner-1',
+        subject: 'Case A',
+      });
+      expect(putSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/cases/case-1', { status: 'in_progress' });
+    });
+
     it('agentApi methods should call expected GET endpoints', async () => {
       const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValue({ data: { ok: true } } as never);
       const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValue({ data: { ok: true } } as never);

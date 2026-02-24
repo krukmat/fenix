@@ -2,7 +2,7 @@
 
 > **Version**: 1.0
 > **Status**: Approved
-> **Last updated**: 2026-02-09
+> **Last updated**: 2026-02-24
 > **Source of truth**: `agentic_crm_requirements_agent_ready.md`
 
 ---
@@ -1127,7 +1127,17 @@ flowchart TD
 
 - `GET/POST /api/v1/accounts`, `GET/PUT/DELETE /api/v1/accounts/{id}`
 - `GET /api/v1/accounts/{id}/timeline`
-- Same pattern for contacts, leads, deals, cases, activities
+- Same pattern for contacts, leads, activities
+- Deals required operations (P0):
+  - `GET /api/v1/deals` (list with pagination/filter/sort)
+  - `POST /api/v1/deals` (create)
+  - `PUT /api/v1/deals/{id}` (update mutable fields)
+  - `GET /api/v1/deals/{id}` (detail)
+- Cases required operations (P0):
+  - `GET /api/v1/cases` (list with pagination/filter/sort)
+  - `POST /api/v1/cases` (create)
+  - `PUT /api/v1/cases/{id}` (update mutable fields)
+  - `GET /api/v1/cases/{id}` (detail)
 - `PUT /api/v1/deals/{id}/stage` (triggers pipeline event)
 - `POST /api/v1/{entity_type}/{entity_id}/notes`
 - `POST /api/v1/{entity_type}/{entity_id}/attachments`
@@ -1395,8 +1405,8 @@ fenixcrm/                          # Monorepo root
 │   │   ├── (tabs)/               # Main tab navigation
 │   │   │   ├── accounts/         # Account list + detail
 │   │   │   ├── contacts/         # Contact list + detail
-│   │   │   ├── deals/            # Deal list + detail + pipeline board
-│   │   │   ├── cases/            # Case list + detail
+│   │   │   ├── deals/            # Deal list + detail + create/edit + pipeline board
+│   │   │   ├── cases/            # Case list + detail + create/edit
 │   │   │   ├── copilot/          # Copilot chat screen
 │   │   │   └── agents/           # Agent runs list + detail
 │   │   └── _layout.tsx           # Root layout (drawer + stack)

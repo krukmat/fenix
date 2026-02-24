@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
@@ -92,7 +93,13 @@ func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page := parsePaginationParams(r)
-	items, total, svcErr := h.service.List(r.Context(), wsID, crm.ListDealsInput{Limit: page.Limit, Offset: page.Offset})
+	input, parseErr := parseDealListInput(r, page)
+	if parseErr != nil {
+		writeError(w, http.StatusBadRequest, parseErr.Error())
+		return
+	}
+
+	items, total, svcErr := h.service.List(r.Context(), wsID, input)
 	if svcErr != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list deals: %v", svcErr))
 		return
@@ -100,6 +107,43 @@ func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
 	if !writePaginatedOr500(w, items, total, page) {
 		return
 	}
+}
+
+func parseDealListInput(r *http.Request, page paginationParams) (crm.ListDealsInput, error) {
+	q := r.URL.Query()
+	status := strings.TrimSpace(q.Get("status"))
+	ownerID := strings.TrimSpace(q.Get(queryOwnerID))
+	accountID := strings.TrimSpace(q.Get(queryAccountID))
+	pipelineID := strings.TrimSpace(q.Get("pipeline_id"))
+	stageID := strings.TrimSpace(q.Get(paramStageID))
+	sortParam := strings.TrimSpace(q.Get("sort"))
+	if sortParam == "" {
+		sortParam = querySortDesc
+	}
+	if sortParam != querySortDesc && sortParam != querySortAsc {
+		return crm.ListDealsInput{}, fmt.Errorf("invalid sort. allowed: %s, %s", querySortDesc, querySortAsc)
+	}
+
+	filterCount := 0
+	for _, v := range []string{status, ownerID, accountID, pipelineID, stageID} {
+		if v != "" {
+			filterCount++
+		}
+	}
+	if filterCount > 1 {
+		return crm.ListDealsInput{}, fmt.Errorf("only one filter is allowed: status, owner_id, account_id, pipeline_id, stage_id")
+	}
+
+	return crm.ListDealsInput{
+		Limit:      page.Limit,
+		Offset:     page.Offset,
+		Status:     status,
+		OwnerID:    ownerID,
+		AccountID:  accountID,
+		PipelineID: pipelineID,
+		StageID:    stageID,
+		Sort:       sortParam,
+	}, nil
 }
 
 func (h *DealHandler) UpdateDeal(w http.ResponseWriter, r *http.Request) {

@@ -137,6 +137,21 @@ Se realizó una auditoría de coherencia entre `docs/architecture.md` y `docs/im
 
 ---
 
+### 8. ✅ Alcance Explícito de Deal/Case (list + create + update)
+
+**Problema**: El alcance de `deal` y `case_ticket` estaba descrito como "CRUD" genérico, sin granularidad explícita para flujos de listado, creación y modificación end-to-end (API + mobile).
+
+**Corrección**:
+- Requerimientos ajustados para dejar explícitos `list/create/update` en deals y cases.
+- Arquitectura actualizada con operaciones obligatorias por endpoint en sección REST API.
+- Plan de implementación actualizado:
+  - Task 1.5: tests de contrato para list/create/update (deals y cases).
+  - Task 4.3: pantallas mobile de alta/edición para deals y cases + pruebas E2E.
+
+**Impacto**: Se elimina ambigüedad de alcance y queda trazabilidad completa entre requisitos, arquitectura y ejecución.
+
+---
+
 ## Nuevos Artefactos Creados
 
 ### 1. Traceability Matrix (Section 2)
@@ -226,6 +241,7 @@ fenixcrm/
 - [x] CDC/Reindex explícito con SLA target
 - [x] Prompt versioning con promote/rollback capability
 - [x] Observabilidad con métricas + health checks
+- [x] Deal/Case con cobertura explícita de list/create/update (API + mobile)
 
 ---
 

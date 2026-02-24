@@ -216,6 +216,102 @@ func TestDealService_CRUD(t *testing.T) {
 	}
 }
 
+func TestDealService_List_FilterByAccount(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	accountA := "acc-" + randID()
+	accountB := "acc-" + randID()
+	for _, accountID := range []string{accountA, accountB} {
+		if _, err := db.Exec(`INSERT INTO account (id, workspace_id, name, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, accountID, wsID, "Acme-"+accountID, ownerID, now, now); err != nil {
+			t.Fatalf("seed account error = %v", err)
+		}
+	}
+
+	pipelineID := "pl-" + randID()
+	if _, err := db.Exec(`INSERT INTO pipeline (id, workspace_id, name, entity_type, created_at, updated_at) VALUES (?, ?, ?, 'deal', ?, ?)`, pipelineID, wsID, "Sales", now, now); err != nil {
+		t.Fatalf("seed pipeline error = %v", err)
+	}
+	stageID := "st-" + randID()
+	if _, err := db.Exec(`INSERT INTO pipeline_stage (id, pipeline_id, name, position, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`, stageID, pipelineID, "Discovery", now, now); err != nil {
+		t.Fatalf("seed stage error = %v", err)
+	}
+
+	svc := crm.NewDealService(db)
+	_, err := svc.Create(context.Background(), crm.CreateDealInput{
+		WorkspaceID: wsID, AccountID: accountA, PipelineID: pipelineID, StageID: stageID, OwnerID: ownerID, Title: "Deal A",
+	})
+	if err != nil {
+		t.Fatalf("seed deal A error = %v", err)
+	}
+	_, err = svc.Create(context.Background(), crm.CreateDealInput{
+		WorkspaceID: wsID, AccountID: accountB, PipelineID: pipelineID, StageID: stageID, OwnerID: ownerID, Title: "Deal B",
+	})
+	if err != nil {
+		t.Fatalf("seed deal B error = %v", err)
+	}
+
+	items, total, err := svc.List(context.Background(), wsID, crm.ListDealsInput{
+		Limit:     10,
+		Offset:    0,
+		AccountID: accountA,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("expected one filtered deal, total=%d len=%d", total, len(items))
+	}
+	if items[0].AccountID != accountA {
+		t.Fatalf("expected account=%s got %s", accountA, items[0].AccountID)
+	}
+}
+
+func TestCaseService_List_FilterByPriority(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	svc := crm.NewCaseService(db)
+
+	_, err := svc.Create(context.Background(), crm.CreateCaseInput{
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Urgent case",
+		Priority:    "urgent",
+	})
+	if err != nil {
+		t.Fatalf("seed urgent case error = %v", err)
+	}
+	_, err = svc.Create(context.Background(), crm.CreateCaseInput{
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Low case",
+		Priority:    "low",
+	})
+	if err != nil {
+		t.Fatalf("seed low case error = %v", err)
+	}
+
+	items, total, err := svc.List(context.Background(), wsID, crm.ListCasesInput{
+		Limit:    10,
+		Offset:   0,
+		Priority: "urgent",
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("expected one filtered case, total=%d len=%d", total, len(items))
+	}
+	if items[0].Priority != "urgent" {
+		t.Fatalf("expected urgent priority, got %s", items[0].Priority)
+	}
+}
+
 func TestNoteService_TimelineConstraintAndReadPaths(t *testing.T) {
 	t.Parallel()
 

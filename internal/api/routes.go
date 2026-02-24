@@ -263,9 +263,9 @@ func NewRouter(db *sql.DB) *chi.Mux {
 				r.Get("/", evalHandler.ListSuites)     // GET  /api/v1/admin/eval/suites
 				r.Get(routeByID, evalHandler.GetSuite) // GET  /api/v1/admin/eval/suites/{id}
 			})
-			r.Post("/run", evalHandler.RunEval)       // POST /api/v1/admin/eval/run
-			r.Get("/runs", evalHandler.ListRuns)      // GET  /api/v1/admin/eval/runs
-			r.Get("/runs/{id}", evalHandler.GetRun)   // GET  /api/v1/admin/eval/runs/{id}
+			r.Post("/run", evalHandler.RunEval)     // POST /api/v1/admin/eval/run
+			r.Get("/runs", evalHandler.ListRuns)    // GET  /api/v1/admin/eval/runs
+			r.Get("/runs/{id}", evalHandler.GetRun) // GET  /api/v1/admin/eval/runs/{id}
 		})
 
 		r.Route("/copilot", func(r chi.Router) {

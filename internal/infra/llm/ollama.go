@@ -25,8 +25,8 @@ const (
 // OllamaProvider implements LLMProvider against a running Ollama instance (Task 2.3).
 type OllamaProvider struct {
 	baseURL    string
-	model      string     // embedding model (POST /api/embeddings)
-	chatModel  string     // chat model (POST /api/chat) — UAT fix: separate from embed model
+	model      string // embedding model (POST /api/embeddings)
+	chatModel  string // chat model (POST /api/chat) — UAT fix: separate from embed model
 	httpClient *http.Client
 }
 

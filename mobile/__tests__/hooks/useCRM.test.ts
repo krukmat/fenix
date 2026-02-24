@@ -10,6 +10,10 @@ import {
   useDeal,
   useCases,
   useCase,
+  useCreateDeal,
+  useUpdateDeal,
+  useCreateCase,
+  useUpdateCase,
   useAgentRuns,
   useAgentRun,
   useAgentDefinitions,
@@ -17,11 +21,16 @@ import {
 
 const mockUseQuery = jest.fn();
 const mockUseInfiniteQuery = jest.fn();
+const mockUseMutation = jest.fn();
+const mockUseQueryClient = jest.fn();
 const mockUseAuthStore = jest.fn();
+const mockInvalidateQueries = jest.fn();
 
 jest.mock('@tanstack/react-query', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args),
   useInfiniteQuery: (...args: unknown[]) => mockUseInfiniteQuery(...args),
+  useMutation: (...args: unknown[]) => mockUseMutation(...args),
+  useQueryClient: () => mockUseQueryClient(),
 }));
 
 jest.mock('../../src/stores/authStore', () => ({
@@ -38,6 +47,10 @@ jest.mock('../../src/services/api', () => ({
     getDealFull: jest.fn(),
     getCases: jest.fn(),
     getCaseFull: jest.fn(),
+    createDeal: jest.fn(),
+    updateDeal: jest.fn(),
+    createCase: jest.fn(),
+    updateCase: jest.fn(),
   },
   agentApi: {
     getRuns: jest.fn(),
@@ -51,6 +64,9 @@ describe('useCRM hooks', () => {
     jest.clearAllMocks();
     mockUseQuery.mockReturnValue({ data: [] });
     mockUseInfiniteQuery.mockReturnValue({ data: { pages: [] } });
+    mockUseMutation.mockReturnValue({ mutate: jest.fn() });
+    mockUseQueryClient.mockReturnValue({ invalidateQueries: mockInvalidateQueries });
+    mockInvalidateQueries.mockReset();
     mockUseAuthStore.mockImplementation((selector: unknown) =>
       (selector as (state: { workspaceId: string | null }) => unknown)({ workspaceId: 'ws-1' })
     );
@@ -173,5 +189,43 @@ describe('useCRM hooks', () => {
     expect(mockUseQuery).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['account', '', 'a-1'], enabled: false })
     );
+  });
+
+  it('useCreateDeal should invalidate deals list on success', () => {
+    useCreateDeal();
+    const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: () => void };
+    options.onSuccess?.();
+
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['deals', 'ws-1'] });
+  });
+
+  it('useUpdateDeal should invalidate deals list and deal detail on success', () => {
+    useUpdateDeal();
+    const options = mockUseMutation.mock.calls[0][0] as {
+      onSuccess?: (_result: unknown, vars: { id: string }) => void;
+    };
+    options.onSuccess?.({}, { id: 'd-1' });
+
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['deals', 'ws-1'] });
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['deal', 'ws-1', 'd-1'] });
+  });
+
+  it('useCreateCase should invalidate cases list on success', () => {
+    useCreateCase();
+    const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: () => void };
+    options.onSuccess?.();
+
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['cases', 'ws-1'] });
+  });
+
+  it('useUpdateCase should invalidate cases list and case detail on success', () => {
+    useUpdateCase();
+    const options = mockUseMutation.mock.calls[0][0] as {
+      onSuccess?: (_result: unknown, vars: { id: string }) => void;
+    };
+    options.onSuccess?.({}, { id: 'c-1' });
+
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['cases', 'ws-1'] });
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['case', 'ws-1', 'c-1'] });
   });
 });

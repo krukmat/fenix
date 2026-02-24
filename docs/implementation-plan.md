@@ -4,6 +4,7 @@
 > **Duration**: 13 weeks (3 months)
 > **Based on**: `docs/architecture.md` — Sections 9 & 11
 > **Approach**: TDD (Test-Driven Development), incremental delivery, continuous integration
+> **Focused addendum (Deal/Case gap closure)**: `docs/tasks/task_deals_cases_gap.md` (2026-02-24)
 
 ---
 
@@ -126,8 +127,8 @@ fenixcrm/
 | Account | `account` | ✅ Completed | 1 | 1.3 | CRUD + API + HTTP handlers (14 tests passing) |
 | Contact | `contact` | ✅ Completed | 1 | 1.4 | CRUD + API |
 | Lead | `lead` | ✅ Completed | 1 | 1.5 | CRUD + API |
-| Deal | `deal` | ✅ Completed | 1 | 1.5 | CRUD + API |
-| Case Ticket | `case_ticket` | ✅ Completed | 1 | 1.5 | CRUD + API |
+| Deal | `deal` | ✅ Completed | 1 | 1.5 | CRUD + API (list/create/update explicitly in P0 scope) |
+| Case Ticket | `case_ticket` | ✅ Completed | 1 | 1.5 | CRUD + API (list/create/update explicitly in P0 scope) |
 | Pipeline | `pipeline` | ✅ Completed | 1 | 1.5 | Stage management |
 | Pipeline Stage | `pipeline_stage` | ✅ Completed | 1 | 1.5 | Stage transitions |
 | Activity | `activity` | ✅ Completed | 1 | 1.5 (expanded) | **CORRECTED** |
@@ -165,6 +166,7 @@ fenixcrm/
 3. **✅ Prompt Versioning (Task 3.9)**: Added explicit task — architecture requires it for agent runtime
 4. **⚠️ CDC/Reindex (Task 2.7)**: Added explicit task for Change Data Capture flow
 5. **⚠️ Multi-tenant Vector Search**: Security fix in Task 2.1 for `workspace_id` filtering
+6. **✅ Deal/Case List-Create-Update Scope (Task 1.5 + 4.3)**: Explicitly documented end-to-end flow (backend + mobile)
 
 ### Legend
 
@@ -414,6 +416,8 @@ fenixcrm/
 - Unit + integration + API tests (same pattern)
 - Test FK constraints (deal → account, stage)
 - Test pipeline stage transitions
+- **NEW**: Deal API contract tests for list/create/update (including pagination/filter/sort in list)
+- **NEW**: Case API contract tests for list/create/update (including pagination/filter/sort in list)
 - **NEW**: Test activity polymorphic FK (entity_type + entity_id)
 - **NEW**: Test timeline event auto-generated on create/update
 - **NEW**: Test attachment upload + storage path
@@ -1206,10 +1210,14 @@ To avoid sequencing ambiguity, Phase 3 tasks have the following dependency const
 - Implement Contact screens (same pattern): List, Detail (with linked account), Form.
 - Implement Deal screens:
   - List with status chips (open/won/lost).
+  - Create form: title, account, contact (optional), pipeline/stage, amount, currency, expected close.
+  - Edit form: update commercial fields (status, stage, owner, amount, expected close, metadata).
   - Detail: pipeline stage indicator, amount, expected close date, timeline.
   - Pipeline board view (horizontal scroll with stage columns — simplified Kanban).
 - Implement Case screens:
   - List with priority badges (RN Paper Badge).
+  - Create form: subject, account/contact (optional), priority, channel, description, owner.
+  - Edit form: update status, priority, stage, owner, description, metadata.
   - Detail: description, status, SLA deadline, timeline, handoff status.
   - Detail includes Copilot integration (embedded chat panel at bottom).
 - Implement search/filter: Global search bar in drawer header. Per-entity filters: status, owner, date range.
@@ -1217,8 +1225,12 @@ To avoid sequencing ambiguity, Phase 3 tasks have the following dependency const
 **Tests**:
 - Unit test: CRMListScreen renders items from TanStack Query
 - Unit test: AccountDetailScreen shows aggregated data (account + contacts + deals)
+- Unit test: Deal create/edit form validates fields and submits to `POST/PUT /api/v1/deals`
+- Unit test: Case create/edit form validates fields and submits to `POST/PUT /api/v1/cases`
 - Unit test: Pull-to-refresh triggers query invalidation
 - Unit test: Infinite scroll loads next page
+- Integration test: End-to-end mobile flow for Deal (list → create → edit → verify list/detail refresh)
+- Integration test: End-to-end mobile flow for Case (list → create → edit → verify list/detail refresh)
 - Snapshot tests: Key screens render without crashes (RN Paper)
 
 **Resolves**: FR-300 (CRM mobile screens), FR-001 (mobile UI for CRM entities)

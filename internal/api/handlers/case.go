@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
@@ -100,9 +100,25 @@ func (h *CaseHandler) GetCase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CaseHandler) ListCases(w http.ResponseWriter, r *http.Request) {
-	handleListWithPagination(w, r, "failed to list cases: %v", func(ctx context.Context, wsID string, limit, offset int) ([]*crm.CaseTicket, int, error) {
-		return h.service.List(ctx, wsID, crm.ListCasesInput{Limit: limit, Offset: offset})
-	})
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+	page := parsePaginationParams(r)
+	input, parseErr := parseCaseListInput(r, page)
+	if parseErr != nil {
+		writeError(w, http.StatusBadRequest, parseErr.Error())
+		return
+	}
+
+	items, total, svcErr := h.service.List(r.Context(), wsID, input)
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list cases: %v", svcErr))
+		return
+	}
+	if !writePaginatedOr500(w, items, total, page) {
+		return
+	}
 }
 
 func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {
@@ -166,4 +182,39 @@ func buildUpdateCaseInput(req UpdateCaseRequest, existing *crm.CaseTicket) crm.U
 		SLADeadline: req.SLADeadline,
 		Metadata:    req.Metadata,
 	}
+}
+
+func parseCaseListInput(r *http.Request, page paginationParams) (crm.ListCasesInput, error) {
+	q := r.URL.Query()
+	status := strings.TrimSpace(q.Get("status"))
+	priority := strings.TrimSpace(q.Get("priority"))
+	ownerID := strings.TrimSpace(q.Get(queryOwnerID))
+	accountID := strings.TrimSpace(q.Get(queryAccountID))
+	sortParam := strings.TrimSpace(q.Get("sort"))
+	if sortParam == "" {
+		sortParam = querySortDesc
+	}
+	if sortParam != querySortDesc && sortParam != querySortAsc {
+		return crm.ListCasesInput{}, fmt.Errorf("invalid sort. allowed: %s, %s", querySortDesc, querySortAsc)
+	}
+
+	filterCount := 0
+	for _, v := range []string{status, ownerID, accountID} {
+		if v != "" {
+			filterCount++
+		}
+	}
+	if filterCount > 1 {
+		return crm.ListCasesInput{}, fmt.Errorf("only one filter is allowed: status, owner_id, account_id")
+	}
+
+	return crm.ListCasesInput{
+		Limit:     page.Limit,
+		Offset:    page.Offset,
+		Status:    status,
+		Priority:  priority,
+		OwnerID:   ownerID,
+		AccountID: accountID,
+		Sort:      sortParam,
+	}, nil
 }

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { useTheme, FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { CRMListScreen } from '../../../src/components/crm';
 import { useCases } from '../../../src/hooks/useCRM';
@@ -25,6 +25,31 @@ function getPriorityColor(priority: string): string {
   if (priority === 'high') return '#EF4444';
   if (priority === 'medium') return '#F59E0B';
   return '#10B981';
+}
+
+export function renderCaseItem(
+  { item, index }: { item: CaseData; index: number },
+  colors: ThemeColors,
+  router: ReturnType<typeof useRouter>
+) {
+  return (
+    <TouchableOpacity
+      style={[styles.caseItem, { backgroundColor: colors.surface }]}
+      onPress={() => router.push(`/cases/${item.id}`)}
+      testID={`cases-list-item-${index}`}
+    >
+      <View style={styles.caseHeader}>
+        <Text style={[styles.caseSubject, { color: colors.onSurface }]}>{item.subject || 'No Subject'}</Text>
+        <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(item.priority) }]}>
+          <Text style={styles.priorityText}>{item.priority}</Text>
+        </View>
+      </View>
+      {item.accountName && (
+        <Text style={[styles.caseAccount, { color: colors.onSurfaceVariant }]}>{item.accountName}</Text>
+      )}
+      <Text style={[styles.caseStatus, { color: colors.onSurfaceVariant }]}>Status: {item.status}</Text>
+    </TouchableOpacity>
+  );
 }
 
 export default function CasesListScreen() {
@@ -67,49 +92,40 @@ export default function CasesListScreen() {
   }, []);
 
   const renderItem = useCallback(
-    ({ item, index }: { item: CaseData; index: number }) => (
-      <TouchableOpacity
-        style={[styles.caseItem, { backgroundColor: colors.surface }]}
-        onPress={() => router.push(`/cases/${item.id}`)}
-        testID={`cases-list-item-${index}`}
-      >
-        <View style={styles.caseHeader}>
-          <Text style={[styles.caseSubject, { color: colors.onSurface }]}>{item.subject || 'No Subject'}</Text>
-          <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(item.priority) }]}>
-            <Text style={styles.priorityText}>{item.priority}</Text>
-          </View>
-        </View>
-        {item.accountName && (
-          <Text style={[styles.caseAccount, { color: colors.onSurfaceVariant }]}>{item.accountName}</Text>
-        )}
-        <Text style={[styles.caseStatus, { color: colors.onSurfaceVariant }]}>Status: {item.status}</Text>
-      </TouchableOpacity>
-    ),
+    ({ item, index }: { item: CaseData; index: number }) => renderCaseItem({ item, index }, colors, router),
     [colors, router]
   );
 
   return (
-    <CRMListScreen
-      data={filteredCases}
-      loading={isLoading}
-      error={error ? error.message : null}
-      onRefresh={handleRefresh}
-      searchValue={searchValue}
-      onSearchChange={handleSearchChange}
-      renderItem={renderItem}
-      hasData={allCases.length > 0}
-      loadingMore={isFetchingNextPage}
-      hasMore={hasNextPage ?? false}
-      onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
-      emptyTitle="No cases found"
-      emptySubtitle="Pull to refresh or add a new case"
-      testIDPrefix="cases"
-      isRefreshing={isRefetching}
-      onRetry={handleRefresh}
-      statusFilter={statusFilter}
-      onStatusFilterChange={handleStatusChange}
-      availableStatuses={['open', 'closed', 'pending']}
-    />
+    <View style={{ flex: 1 }}>
+      <CRMListScreen
+        data={filteredCases}
+        loading={isLoading}
+        error={error ? error.message : null}
+        onRefresh={handleRefresh}
+        searchValue={searchValue}
+        onSearchChange={handleSearchChange}
+        renderItem={renderItem}
+        hasData={allCases.length > 0}
+        loadingMore={isFetchingNextPage}
+        hasMore={hasNextPage ?? false}
+        onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
+        emptyTitle="No cases found"
+        emptySubtitle="Pull to refresh or add a new case"
+        testIDPrefix="cases"
+        isRefreshing={isRefetching}
+        onRetry={handleRefresh}
+        statusFilter={statusFilter}
+        onStatusFilterChange={handleStatusChange}
+        availableStatuses={['open', 'closed', 'pending']}
+      />
+      <FAB
+        testID="create-case-fab"
+        icon="plus"
+        style={[styles.fab, { backgroundColor: colors.primary }]}
+        onPress={() => router.push('/cases/new')}
+      />
+    </View>
   );
 }
 
@@ -121,4 +137,9 @@ const styles = StyleSheet.create({
   priorityText: { color: '#FFFFFF', fontSize: 12, fontWeight: '500' },
   caseAccount: { fontSize: 14 },
   caseStatus: { fontSize: 12, marginTop: 4 },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 24,
+  },
 });
