@@ -1,0 +1,63 @@
+# Post-MVP Polish — Docker Compose: Go backend + BFF + Ollama
+# Usage: docker compose up --build
+# First run: Ollama will download models (~2.3GB) — takes a few minutes
+version: '3.9'
+
+services:
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-key-32-chars-minimum!!}
+      - DATABASE_URL=/data/fenixcrm.db
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_CHAT_MODEL=${OLLAMA_CHAT_MODEL:-llama3.2:3b-instruct-q4_K_M}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-nomic-embed-text}
+    volumes:
+      - db_data:/data
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  bff:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.bff
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend:8080
+      - NODE_ENV=production
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/bff/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  ollama_data:
+  db_data:

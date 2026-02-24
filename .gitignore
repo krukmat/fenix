@@ -17,3 +17,4 @@ fenixcrm
 data/fenixcrm.db
 data/fenixcrm.db-shm
 data/fenixcrm.db-wal
+mobile/artifacts/*
