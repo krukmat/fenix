@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -24,15 +25,19 @@ const (
 // OllamaProvider implements LLMProvider against a running Ollama instance (Task 2.3).
 type OllamaProvider struct {
 	baseURL    string
-	model      string
+	model      string     // embedding model (POST /api/embeddings)
+	chatModel  string     // chat model (POST /api/chat) — UAT fix: separate from embed model
 	httpClient *http.Client
 }
 
 // NewOllamaProvider creates an OllamaProvider with a 30s default timeout.
-func NewOllamaProvider(baseURL, model string) *OllamaProvider {
+// embedModel is used for Embed(); chatModel is used for ChatCompletion().
+// UAT fix: routes.go was passing the embed model for both — causing 404 on /api/chat.
+func NewOllamaProvider(baseURL, embedModel, chatModel string) *OllamaProvider {
 	return &OllamaProvider{
-		baseURL: baseURL,
-		model:   model,
+		baseURL:   baseURL,
+		model:     embedModel,
+		chatModel: chatModel,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -114,10 +119,11 @@ func (p *OllamaProvider) embedOne(ctx context.Context, model, text string) ([]fl
 }
 
 // ChatCompletion performs a non-streaming chat via POST /api/chat.
+// UAT fix: uses p.chatModel (not p.model which is the embed model) to avoid 404.
 func (p *OllamaProvider) ChatCompletion(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
 	model := req.Model
 	if model == "" {
-		model = p.model
+		model = p.chatModel
 	}
 
 	msgs := make([]ollamaChatMessage, len(req.Messages))
@@ -212,7 +218,9 @@ func (p *OllamaProvider) doPost(ctx context.Context, path string, body []byte) (
 		return nil, fmt.Errorf("ollama post %s: %w", path, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		errBody, _ := io.ReadAll(resp.Body)
 		resp.Body.Close() //nolint:errcheck
+		log.Printf("[ollama] doPost %s: status %d body=%s", path, resp.StatusCode, string(errBody))
 		return nil, fmt.Errorf("ollama post %s: status %d", path, resp.StatusCode)
 	}
 	return resp.Body, nil

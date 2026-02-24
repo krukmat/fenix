@@ -79,7 +79,8 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		knowledgeBus := eventbus.New()
 		auditService.RegisterEventSubscribers(knowledgeBus)
 		cfg := config.Load()
-		llmProvider := llm.NewOllamaProvider(cfg.OllamaBaseURL, cfg.OllamaModel)
+		// UAT fix: pass embed model + chat model separately — using embed model for chat caused 404.
+		llmProvider := llm.NewOllamaProvider(cfg.OllamaBaseURL, cfg.OllamaModel, cfg.OllamaChatModel)
 		ingestSvc := knowledge.NewIngestService(db, knowledgeBus)
 		embedder := knowledge.NewEmbedderService(db, llmProvider)
 		reindexSvc := knowledge.NewReindexService(db, knowledgeBus, ingestSvc, auditService)

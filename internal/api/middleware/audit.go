@@ -84,6 +84,13 @@ func (w *statusRecorder) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
+// Flush implements http.Flusher so SSE streams work through AuditMiddleware (Task 4.4 UAT fix).
+func (w *statusRecorder) Flush() {
+	if fl, ok := w.ResponseWriter.(http.Flusher); ok {
+		fl.Flush()
+	}
+}
+
 func getStringContext(ctx context.Context, key ctxkeys.Key) (string, bool) {
 	v, ok := ctx.Value(key).(string)
 	if !ok || v == "" {

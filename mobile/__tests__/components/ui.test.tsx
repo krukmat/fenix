@@ -1,4 +1,5 @@
 import React from 'react';
+import { Text } from 'react-native';
 import { describe, it, expect } from '@jest/globals';
 import { render } from '@testing-library/react-native';
 
@@ -13,9 +14,10 @@ describe('UI components', () => {
   });
 
   it('AuthFormLayout renders title, subtitle and children', () => {
+    // children must be a <Text> node — RNTL getByText only finds text inside RN Text elements
     const { getByText } = render(
       <AuthFormLayout title="Title" subtitle="Subtitle">
-        <>{'Child content'}</>
+        <Text>Child content</Text>
       </AuthFormLayout>
     );
 
@@ -25,9 +27,10 @@ describe('UI components', () => {
   });
 
   it('ErrorBoundaryClass renders children when no error', () => {
+    // same: wrap in <Text> so RNTL can find the node
     const { getByText } = render(
       <ErrorBoundaryClass>
-        <>{'Safe child'}</>
+        <Text>Safe child</Text>
       </ErrorBoundaryClass>
     );
 

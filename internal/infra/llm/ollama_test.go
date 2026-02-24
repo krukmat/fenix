@@ -28,7 +28,7 @@ func TestOllamaProvider_Embed_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := NewOllamaProvider(srv.URL, "nomic-embed-text")
+	p := NewOllamaProvider(srv.URL, "nomic-embed-text", "")
 	resp, err := p.Embed(context.Background(), EmbedRequest{Texts: []string{"hello world"}})
 	if err != nil {
 		t.Fatalf("Embed failed: %v", err)
@@ -52,7 +52,7 @@ func TestOllamaProvider_Embed_MultiText_CallsOncePerText(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := NewOllamaProvider(srv.URL, "nomic-embed-text")
+	p := NewOllamaProvider(srv.URL, "nomic-embed-text", "")
 	resp, err := p.Embed(context.Background(), EmbedRequest{Texts: []string{"a", "b", "c"}})
 	if err != nil {
 		t.Fatalf("Embed failed: %v", err)
@@ -73,7 +73,7 @@ func TestOllamaProvider_Embed_ServerError_ReturnsError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := NewOllamaProvider(srv.URL, "nomic-embed-text")
+	p := NewOllamaProvider(srv.URL, "nomic-embed-text", "")
 	_, err := p.Embed(context.Background(), EmbedRequest{Texts: []string{"hello"}})
 	if err == nil {
 		t.Error("expected error for 500 response, got nil")
@@ -83,7 +83,7 @@ func TestOllamaProvider_Embed_ServerError_ReturnsError(t *testing.T) {
 func TestOllamaProvider_Embed_EmptyTexts_ReturnsEmptyEmbeddings(t *testing.T) {
 	t.Parallel()
 
-	p := NewOllamaProvider("http://localhost:99999", "nomic-embed-text")
+	p := NewOllamaProvider("http://localhost:99999", "nomic-embed-text", "")
 	resp, err := p.Embed(context.Background(), EmbedRequest{Texts: []string{}})
 	if err != nil {
 		t.Fatalf("expected no error for empty texts, got %v", err)
@@ -114,7 +114,7 @@ func TestOllamaProvider_ChatCompletion_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := NewOllamaProvider(srv.URL, "llama3.2:3b")
+	p := NewOllamaProvider(srv.URL, "", "llama3.2:3b")
 	resp, err := p.ChatCompletion(context.Background(), ChatRequest{
 		Messages: []Message{{Role: "user", Content: "hi"}},
 	})
@@ -137,7 +137,7 @@ func TestOllamaProvider_ChatCompletion_ServerError_ReturnsError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := NewOllamaProvider(srv.URL, "llama3.2:3b")
+	p := NewOllamaProvider(srv.URL, "", "llama3.2:3b")
 	_, err := p.ChatCompletion(context.Background(), ChatRequest{
 		Messages: []Message{{Role: "user", Content: "hi"}},
 	})
@@ -163,7 +163,7 @@ func TestOllamaProvider_HealthCheck_Healthy(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := NewOllamaProvider(srv.URL, "nomic-embed-text")
+	p := NewOllamaProvider(srv.URL, "nomic-embed-text", "")
 	if err := p.HealthCheck(context.Background()); err != nil {
 		t.Errorf("expected healthy, got error: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestOllamaProvider_HealthCheck_Down_ReturnsError(t *testing.T) {
 	}))
 	srv.Close() // Closed before the health check call.
 
-	p := NewOllamaProvider(srv.URL, "nomic-embed-text")
+	p := NewOllamaProvider(srv.URL, "nomic-embed-text", "")
 	if err := p.HealthCheck(context.Background()); err == nil {
 		t.Error("expected error when server is down, got nil")
 	}
@@ -192,7 +192,7 @@ func TestOllamaProvider_HealthCheck_Down_ReturnsError(t *testing.T) {
 func TestOllamaProvider_ModelInfo_ReturnsMetadata(t *testing.T) {
 	t.Parallel()
 
-	p := NewOllamaProvider("http://localhost:11434", "nomic-embed-text")
+	p := NewOllamaProvider("http://localhost:11434", "nomic-embed-text", "")
 	meta := p.ModelInfo()
 	if meta.ID != "nomic-embed-text" {
 		t.Errorf("expected model ID 'nomic-embed-text', got %q", meta.ID)

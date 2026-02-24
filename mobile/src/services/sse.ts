@@ -1,4 +1,6 @@
-// Task 4.4 — FR-200/FR-092: SSE client via fetch + ReadableStream (POST)
+// Task 4.4 — FR-200/FR-092: SSE client via XMLHttpRequest (POST)
+// Uses XHR instead of fetch+ReadableStream because React Native / Hermes does not expose
+// response.body as a ReadableStream — XHR onprogress delivers incremental chunks natively.
 
 export interface EvidenceSource {
   id: string;
@@ -88,42 +90,10 @@ function mapFrames(frames: string[], onMessage: (msg: SSEMessage) => void): void
   }
 }
 
-function handleTransportError(err: unknown, onMessage: (msg: SSEMessage) => void, onError?: (err: Error) => void): void {
-  const aborted = err instanceof DOMException && err.name === 'AbortError';
-  if (aborted) return;
-
-  const message = err instanceof Error ? err.message : 'Unknown SSE error';
-  onMessage({ type: 'error', message });
-  onError?.(err instanceof Error ? err : new Error(message));
-}
-
-async function streamLoop(
-  response: Response,
-  onMessage: (msg: SSEMessage) => void,
-): Promise<void> {
-  if (!response.ok || !response.body) {
-    throw new Error(`SSE request failed (${response.status})`);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const frames = buffer.split('\n\n');
-    buffer = frames.pop() ?? '';
-    mapFrames(frames, onMessage);
-  }
-
-  if (buffer.trim()) {
-    mapFrames([buffer], onMessage);
-  }
-}
-
+// Task 4.4 UAT fix: XHR-based SSE transport.
+// React Native Hermes/JSC does not expose response.body as ReadableStream, so fetch-based
+// streaming fails with "SSE failed (200)". XMLHttpRequest.onprogress delivers incremental
+// responseText chunks natively on both Android and iOS.
 export function createSSEClient(
   url: string,
   token: string,
@@ -131,28 +101,63 @@ export function createSSEClient(
   onMessage: (msg: SSEMessage) => void = () => undefined,
   onError?: (err: Error) => void,
 ): SSEClient {
-  const controller = new AbortController();
+  const xhr = new XMLHttpRequest();
+  let offset = 0; // track how many chars of responseText we've already processed
+  let buffer = '';
+  let aborted = false;
 
-  void (async () => {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          Accept: 'text/event-stream',
-        },
-        body: JSON.stringify(body),
-      });
-      await streamLoop(response, onMessage);
-      onMessage({ type: 'done' });
-    } catch (err) {
-      handleTransportError(err, onMessage, onError);
+  xhr.open('POST', url, true);
+  xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('Accept', 'text/event-stream');
+
+  xhr.onprogress = () => {
+    // responseText grows with each chunk; slice only the new bytes
+    const newText = xhr.responseText.slice(offset);
+    offset = xhr.responseText.length;
+
+    buffer += newText;
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop() ?? '';
+    mapFrames(frames, onMessage);
+  };
+
+  xhr.onload = () => {
+    if (aborted) return;
+
+    // Flush any remaining buffer after stream ends
+    if (buffer.trim()) {
+      mapFrames([buffer], onMessage);
+      buffer = '';
     }
-  })();
+
+    if (xhr.status < 200 || xhr.status >= 300) {
+      const err = new Error(`SSE request failed (${xhr.status})`);
+      onMessage({ type: 'error', message: err.message });
+      onError?.(err);
+      return;
+    }
+
+    onMessage({ type: 'done' });
+  };
+
+  xhr.onerror = () => {
+    if (aborted) return;
+    const err = new Error('SSE network error');
+    onMessage({ type: 'error', message: err.message });
+    onError?.(err);
+  };
+
+  xhr.onabort = () => {
+    // Abort is intentional (close() called) — do not emit error
+  };
+
+  xhr.send(JSON.stringify(body));
 
   return {
-    close: () => controller.abort(),
+    close: () => {
+      aborted = true;
+      xhr.abort();
+    },
   };
 }

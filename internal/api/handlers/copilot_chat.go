@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
@@ -45,6 +46,7 @@ func (h *CopilotChatHandler) Chat(w http.ResponseWriter, r *http.Request) {
 
 	stream, err := h.chatService.Chat(r.Context(), input)
 	if err != nil {
+		log.Printf("[copilot] chat failed: %v", err)
 		writeError(w, http.StatusInternalServerError, "chat failed")
 		return
 	}
