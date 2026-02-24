@@ -72,16 +72,49 @@ async function loginOrRegister() {
   return registerRes.data;
 }
 
+async function seedPipeline(token) {
+  // Create a default Sales Pipeline with 3 stages (required for deal creation)
+  const pipelineRes = await requestJson(
+    'POST',
+    '/api/v1/pipelines',
+    { name: 'Sales Pipeline', entityType: 'deal' },
+    token,
+  );
+  must(pipelineRes.ok, `Create pipeline failed (${pipelineRes.status})`, pipelineRes.data);
+  const pipeline = pipelineRes.data;
+
+  const stageNames = ['Prospecting', 'Qualified', 'Closed Won'];
+  const createdStages = [];
+  for (let i = 0; i < stageNames.length; i += 1) {
+    const stageRes = await requestJson(
+      'POST',
+      `/api/v1/pipelines/${pipeline.id}/stages`,
+      { name: stageNames[i], position: i + 1 },
+      token,
+    );
+    must(stageRes.ok, `Create stage failed (${stageRes.status})`, stageRes.data);
+    createdStages.push(stageRes.data);
+  }
+
+  return { pipeline, stages: createdStages };
+}
+
 async function seed() {
   const auth = await loginOrRegister();
   const token = auth.token;
   const ownerId = auth.userId;
   must(!!token && !!ownerId, 'Auth response missing token/userId', auth);
 
+  // Seed pipeline + stages first — deals depend on them
+  const { pipeline, stages } = await seedPipeline(token);
+
   const accountNames = ['Acme Corp', 'Globex LLC', 'Soylent Inc', 'Initech', 'Umbrella Co'];
+  const dealTitles = ['Enterprise License', 'Pro Plan Renewal', 'Consulting Project', 'Support Contract', 'Platform Upgrade'];
+  const dealAmounts = [50000, 12000, 35000, 8000, 95000];
   const createdAccounts = [];
   const createdContacts = [];
   const createdCases = [];
+  const createdDeals = [];
 
   for (let i = 0; i < accountNames.length; i += 1) {
     const accountName = `${accountNames[i]} ${now.toString().slice(-5)}`;
@@ -134,6 +167,24 @@ async function seed() {
     );
     must(caseRes.ok, `Create case failed (${caseRes.status})`, caseRes.data);
     createdCases.push(caseRes.data);
+
+    // Each account gets one deal — distributed across the pipeline stages
+    const stageIdx = i % stages.length;
+    const dealRes = await requestJson(
+      'POST',
+      '/api/v1/deals',
+      {
+        title: dealTitles[i],
+        amount: dealAmounts[i],
+        accountId: account.id,
+        pipelineId: pipeline.id,
+        stageId: stages[stageIdx].id,
+        ownerId,
+      },
+      token,
+    );
+    must(dealRes.ok, `Create deal failed (${dealRes.status})`, dealRes.data);
+    createdDeals.push(dealRes.data);
   }
 
   // eslint-disable-next-line no-console
@@ -147,11 +198,17 @@ async function seed() {
           accounts: createdAccounts.length,
           contacts: createdContacts.length,
           cases: createdCases.length,
+          deals: createdDeals.length,
+          pipeline: pipeline.name,
+          stages: stages.length,
         },
         sampleIds: {
           accountId: createdAccounts[0]?.id,
           contactId: createdContacts[0]?.id,
           caseId: createdCases[0]?.id,
+          dealId: createdDeals[0]?.id,
+          pipelineId: pipeline.id,
+          stageId: stages[0]?.id,
         },
       },
       null,

@@ -10,7 +10,10 @@ import type { ThemeColors } from '../../../src/theme/types';
 
 interface DealData {
   id: string;
+  // backend returns `title` and `amount`; `name`/`value` kept for backwards compat
+  title?: string;
   name?: string;
+  amount?: number;
   value?: number;
   status: 'open' | 'won' | 'lost';
   stage?: string;
@@ -38,7 +41,7 @@ export function renderDealItem({ item }: { item: DealData }, colors: ThemeColors
       testID={`deal-item-${item.id}`}
     >
       <View style={styles.dealHeader}>
-        <Text style={[styles.dealName, { color: colors.onSurface }]}>{item.name || 'Unnamed Deal'}</Text>
+        <Text style={[styles.dealName, { color: colors.onSurface }]}>{item.title || item.name || 'Unnamed Deal'}</Text>
         <View style={[styles.statusChip, { backgroundColor: getStatusColor(item.status, colors) }]} testID={`deal-status-${item.status}`}>
           <Text style={[styles.statusChipText, { color: '#FFFFFF' }]}>{item.status}</Text>
         </View>
@@ -48,9 +51,9 @@ export function renderDealItem({ item }: { item: DealData }, colors: ThemeColors
           {item.accountName}
         </Text>
       )}
-      {item.value !== undefined && (
+      {(item.amount ?? item.value) !== undefined && (
         <Text style={[styles.dealValue, { color: colors.onSurfaceVariant }]}>
-          ${item.value.toLocaleString()}
+          ${(item.amount ?? item.value)!.toLocaleString()}
         </Text>
       )}
     </TouchableOpacity>
@@ -79,6 +82,7 @@ export default function DealsListScreen() {
     const searchLower = searchValue.toLowerCase();
     return result.filter(
       (deal: DealData) =>
+        deal.title?.toLowerCase().includes(searchLower) ||
         deal.name?.toLowerCase().includes(searchLower) ||
         deal.accountName?.toLowerCase().includes(searchLower)
     );
