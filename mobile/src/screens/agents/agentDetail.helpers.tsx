@@ -2,8 +2,8 @@
 
 import React from 'react';
 import { View, Text } from 'react-native';
-import type { ThemeColors } from '../../../src/theme/types';
-import { styles } from './[id].styles';
+import type { ThemeColors } from '../../theme/types';
+import { styles } from './agentDetail.styles';
 
 export interface EvidenceItem {
   source_id: string;

@@ -77,7 +77,23 @@ export default function DealDetailScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data, isLoading, error } = useDeal(id);
-  const deal: DealDetailData | undefined = data?.data;
+  const payload = (data?.data ?? data ?? null) as Record<string, unknown> | null;
+  const dealObj = (payload?.deal as Record<string, unknown> | undefined) ?? payload ?? undefined;
+  const accountObj = payload?.account as Record<string, unknown> | undefined;
+  const deal: DealDetailData | undefined = dealObj
+    ? {
+        id: String(dealObj.id ?? ''),
+        name: (dealObj.name as string | undefined) ?? (dealObj.title as string | undefined),
+        value: (dealObj.value as number | undefined) ?? (dealObj.amount as number | undefined),
+        status: ((dealObj.status as 'open' | 'won' | 'lost' | undefined) ?? 'open'),
+        stage: dealObj.stage as string | undefined,
+        accountId: (dealObj.accountId as string | undefined) ?? (dealObj.account_id as string | undefined),
+        accountName: accountObj?.name as string | undefined,
+        closeDate: (dealObj.closeDate as string | undefined) ?? (dealObj.expectedClose as string | undefined),
+        description: dealObj.description as string | undefined,
+        pipeline: dealObj.pipeline as string | undefined,
+      }
+    : undefined;
 
   // FIX-1: Removed useMemo wrapping JSX
   const content = deal ? renderContent(deal, router, colors) : null;

@@ -104,7 +104,24 @@ export default function CaseDetailScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data, isLoading, error } = useCase(id);
-  const caseData: CaseDetailData | undefined = data?.data;
+  const payload = (data?.data ?? data ?? null) as Record<string, unknown> | null;
+  const caseObj = (payload?.case as Record<string, unknown> | undefined) ?? payload ?? undefined;
+  const accountObj = payload?.account as Record<string, unknown> | undefined;
+  const handoffObj = payload?.handoff as Record<string, unknown> | undefined;
+  const caseData: CaseDetailData | undefined = caseObj
+    ? {
+        id: String(caseObj.id ?? ''),
+        subject: caseObj.subject as string | undefined,
+        status: (caseObj.status as string | undefined) ?? 'open',
+        priority: ((caseObj.priority as 'low' | 'medium' | 'high' | undefined) ?? 'medium'),
+        description: caseObj.description as string | undefined,
+        accountId: (caseObj.accountId as string | undefined) ?? (caseObj.account_id as string | undefined),
+        accountName: accountObj?.name as string | undefined,
+        slaDeadline: (caseObj.slaDeadline as string | undefined) ?? (caseObj.sla_deadline as string | undefined),
+        handoffStatus: (handoffObj?.status as string | undefined) ?? (caseObj.handoffStatus as string | undefined),
+        assignee: caseObj.assignee as string | undefined,
+      }
+    : undefined;
 
   // FIX-1: Removed useMemo wrapping JSX
   const content = caseData ? renderCaseContent(caseData, colors, router) : null;

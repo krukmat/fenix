@@ -39,7 +39,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
       <DrawerNavItem label="Deals" testID="drawer-deals-tab" onPress={() => props.navigation.navigate('deals/index')} />
       <DrawerNavItem label="Cases" testID="drawer-cases-tab" onPress={() => props.navigation.navigate('cases/index')} />
       <DrawerNavItem label="Copilot" testID="drawer-copilot-tab" onPress={() => props.navigation.navigate('copilot/index')} />
-      <DrawerNavItem label="Agent Runs" testID="drawer-agents-tab" onPress={() => props.navigation.navigate('agents/index')} />
+      <DrawerNavItem label="Agent Runs" testID="drawer-agents-tab" onPress={() => props.navigation.navigate('agents')} />
       <View style={styles.footer}>
         <TouchableOpacity testID="drawer-logout-button" style={styles.logoutButton} onPress={handleLogout}>
           <Text style={[styles.logoutText, { color: theme.colors.error }]}>
@@ -106,7 +106,7 @@ export default function TabsLayout() {
         }} 
       />
       <Drawer.Screen 
-        name="agents/index" 
+        name="agents" 
         options={{ 
           title: 'Agent Runs',
           drawerLabel: 'Agent Runs',

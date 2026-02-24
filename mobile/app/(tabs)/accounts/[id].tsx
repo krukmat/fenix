@@ -1,9 +1,9 @@
 // Task 4.3 — Account Detail Screen
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useTheme } from 'react-native-paper';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CRMDetailHeader, EntityTimeline } from '../../../src/components/crm';
 import { useAccount } from '../../../src/hooks/useCRM';
 import type { ThemeColors } from '../../../src/theme/types';
@@ -13,7 +13,7 @@ function useColors(): ThemeColors {
   return theme.colors as ThemeColors;
 }
 
-interface ContactItem { id: string; name: string; email?: string; }
+interface ContactItem { id: string; name: string; email?: string; phone?: string; title?: string; }
 interface DealItem { id: string; name: string; value?: number; status: string; }
 interface TimelineItem { id: string; type: 'note' | 'activity' | 'status_change' | 'created' | 'updated'; title: string; description?: string; timestamp: string; userName?: string; }
 interface AccountData { id: string; name?: string; industry?: string; phone?: string; email?: string; website?: string; description?: string; contacts?: ContactItem[]; deals?: DealItem[]; timeline?: TimelineItem[]; }
@@ -27,16 +27,41 @@ function getMetadata(account: AccountData) {
   ];
 }
 
-function renderContactsSection(contacts: ContactItem[], colors: ThemeColors) {
+function contactSubline(contact: ContactItem): string {
+  if (contact.title && contact.email) return `${contact.title} · ${contact.email}`;
+  if (contact.email) return contact.email;
+  if (contact.phone) return contact.phone;
+  if (contact.title) return contact.title;
+  return 'Tap to view details';
+}
+
+function renderContactsSection(contacts: ContactItem[], colors: ThemeColors, onOpenContact: (id: string) => void) {
   return (
     <View style={styles.section}>
-      <Text style={[styles.title, { color: colors.onSurface }]}>Related Contacts</Text>
-      {contacts.map(c => (
-        <View key={c.id} style={[styles.card, { backgroundColor: colors.surface }]}>
-          <Text style={{ color: colors.onSurface, fontWeight: '500' }}>{c.name}</Text>
-          {c.email && <Text style={{ color: colors.onSurfaceVariant, fontSize: 12, marginTop: 4 }}>{c.email}</Text>}
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.title, { color: colors.onSurface }]}>Related Contacts</Text>
+        <Text style={[styles.sectionCount, { color: colors.onSurfaceVariant }]}>{contacts.length}</Text>
+      </View>
+      {contacts.length === 0 ? (
+        <View style={[styles.emptyCard, { backgroundColor: colors.surface }]}>
+          <Text style={{ color: colors.onSurfaceVariant }}>No related contacts yet</Text>
         </View>
-      ))}
+      ) : (
+        contacts.map((contact) => (
+          <TouchableOpacity
+            key={contact.id}
+            style={[styles.contactCard, { backgroundColor: colors.surface }]}
+            onPress={() => onOpenContact(contact.id)}
+            testID={`account-related-contact-${contact.id}`}
+          >
+            <View style={styles.contactHeader}>
+              <Text style={[styles.contactName, { color: colors.onSurface }]}>{contact.name}</Text>
+              <Text style={[styles.contactCta, { color: colors.primary }]}>View</Text>
+            </View>
+            <Text style={[styles.contactSubline, { color: colors.onSurfaceVariant }]}>{contactSubline(contact)}</Text>
+          </TouchableOpacity>
+        ))
+      )}
     </View>
   );
 }
@@ -84,12 +109,12 @@ function renderTimelineSection(timeline: TimelineItem[], colors: ThemeColors) {
   );
 }
 
-function renderContent(account: AccountData, colors: ThemeColors) {
+function renderContent(account: AccountData, colors: ThemeColors, onOpenContact: (id: string) => void) {
   const metadata = getMetadata(account);
   return (
     <>
       <CRMDetailHeader title={account.name || 'Unnamed Account'} subtitle={account.description} metadata={metadata} testIDPrefix="account-detail" />
-      {account.contacts && account.contacts.length > 0 && renderContactsSection(account.contacts, colors)}
+      {renderContactsSection(account.contacts || [], colors, onOpenContact)}
       {account.deals && account.deals.length > 0 && renderDealsSection(account.deals, colors)}
       {renderTimelineSection(account.timeline || [], colors)}
     </>
@@ -99,14 +124,43 @@ function renderContent(account: AccountData, colors: ThemeColors) {
 // eslint-disable-next-line complexity
 export default function AccountDetailScreen() {
   const colors = useColors();
+  const router = useRouter();
   // FIX-4: Runtime guard for id param
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data, isLoading, error } = useAccount(id);
-  const account: AccountData | undefined = data?.data;
+  const payload = (data?.data ?? data ?? null) as Record<string, unknown> | null;
+  const accountObj = (payload?.account as Record<string, unknown> | undefined) ?? payload ?? undefined;
+  const contactsData = payload?.contacts as { data?: ContactItem[] } | ContactItem[] | undefined;
+  const dealsData = payload?.deals as { data?: DealItem[] } | DealItem[] | undefined;
+  const timelineData = payload?.timeline as { data?: TimelineItem[] } | TimelineItem[] | undefined;
+  const account: AccountData | undefined = accountObj
+    ? {
+        id: String(accountObj.id ?? ''),
+        name: accountObj.name as string | undefined,
+        industry: accountObj.industry as string | undefined,
+        phone: accountObj.phone as string | undefined,
+        email: accountObj.email as string | undefined,
+        website: accountObj.website as string | undefined,
+        description: accountObj.description as string | undefined,
+        contacts: (Array.isArray(contactsData) ? contactsData : contactsData?.data)?.map((contact) => {
+          const raw = contact as unknown as Record<string, unknown>;
+          const fullName = [raw.firstName, raw.lastName].filter(Boolean).join(' ').trim();
+          return {
+            id: String(raw.id ?? ''),
+            name: (raw.name as string | undefined) ?? (fullName || 'Unnamed Contact'),
+            email: raw.email as string | undefined,
+            phone: raw.phone as string | undefined,
+            title: raw.title as string | undefined,
+          };
+        }),
+        deals: Array.isArray(dealsData) ? dealsData : dealsData?.data,
+        timeline: Array.isArray(timelineData) ? timelineData : timelineData?.data,
+      }
+    : undefined;
 
   // FIX-1: Removed useMemo wrapping JSX
-  const content = account ? renderContent(account, colors) : null;
+  const content = account ? renderContent(account, colors, (contactId) => router.push(`/contacts/${contactId}`)) : null;
   const title = account?.name || 'Account';
 
   return (
@@ -132,8 +186,46 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { justifyContent: 'center', alignItems: 'center', flex: 1 },
   section: { padding: 16 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionCount: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   title: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
   card: { padding: 12, borderRadius: 8, marginBottom: 8 },
+  contactCard: {
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 10,
+    elevation: 1,
+  },
+  emptyCard: {
+    padding: 14,
+    borderRadius: 10,
+  },
+  contactHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  contactName: {
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+  },
+  contactCta: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  contactSubline: {
+    fontSize: 12,
+  },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   badgeText: { color: '#FFF', fontSize: 12, fontWeight: '500' },

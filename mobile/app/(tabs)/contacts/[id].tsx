@@ -71,7 +71,19 @@ export default function ContactDetailScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data, isLoading, error } = useContact(id);
-  const contact: ContactDetailData | undefined = data?.data;
+  const raw = (data?.data ?? data ?? null) as Record<string, unknown> | null;
+  const contact: ContactDetailData | undefined = raw
+    ? {
+        id: String(raw.id ?? ''),
+        name: (raw.name as string | undefined) ?? ([raw.firstName, raw.lastName].filter(Boolean).join(' ') || undefined),
+        email: raw.email as string | undefined,
+        phone: raw.phone as string | undefined,
+        accountId: (raw.accountId as string | undefined) ?? (raw.account_id as string | undefined),
+        accountName: raw.accountName as string | undefined,
+        title: raw.title as string | undefined,
+        department: raw.department as string | undefined,
+      }
+    : undefined;
 
   // FIX-1: Removed useMemo wrapping JSX
   const content = contact ? renderContent(contact, router, colors) : null;

@@ -1,0 +1,26 @@
+.git
+.github
+
+# Node / frontend artifacts
+node_modules
+mobile
+bff/node_modules
+bff/dist
+
+# Build/test artifacts
+coverage
+bff/coverage
+mobile/coverage
+*.out
+*.log
+
+# Local binaries and databases
+fenix
+*.db
+*.sqlite
+data
+
+# OS/editor noise
+.DS_Store
+.idea
+.vscode

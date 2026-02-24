@@ -27,7 +27,7 @@ router.get('/accounts/:id/full', async (req: BffRequest, res: Response, next: Ne
       client.get(`/api/v1/accounts/${id}`),
       client.get(`/api/v1/contacts?account_id=${id}&limit=50`),
       client.get(`/api/v1/deals?account_id=${id}&limit=50`),
-      client.get(`/api/v1/accounts/${id}/timeline`),
+      client.get(`/api/v1/timeline/account/${id}`),
     ]);
 
     res.status(200).json({

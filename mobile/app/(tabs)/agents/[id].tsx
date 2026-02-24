@@ -6,8 +6,8 @@ import { useTheme } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useAgentRun } from '../../../src/hooks/useCRM';
 import type { ThemeColors } from '../../../src/theme/types';
-import { renderContent } from './[id].helpers';
-import { styles } from './[id].styles';
+import { renderContent } from '../../../src/screens/agents/agentDetail.helpers';
+import { styles } from '../../../src/screens/agents/agentDetail.styles';
 
 function useColors(): ThemeColors {
   const theme = useTheme();

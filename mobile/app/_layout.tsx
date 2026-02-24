@@ -84,11 +84,7 @@ function RootLayout() {
             >
               {/* Auth screens group */}
               <Stack.Screen
-                name="(auth)/login"
-                options={{ animation: 'fade' }}
-              />
-              <Stack.Screen
-                name="(auth)/register"
+                name="(auth)"
                 options={{ animation: 'fade' }}
               />
               {/* Main app screens - auth guard is in (tabs)/_layout.tsx */}

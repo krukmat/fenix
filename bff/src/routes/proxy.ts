@@ -12,7 +12,9 @@ router.use(
   createProxyMiddleware({
     target: config.backendUrl,
     changeOrigin: true,
-    pathRewrite: { '^/bff/api/v1': '/api/v1' },
+    // Router is mounted at /bff/api/v1 in app.ts; at this point req.url is usually /<resource>.
+    // Prefix all forwarded paths with /api/v1 to match Go backend routes.
+    pathRewrite: (path) => `/api/v1${path}`,
     on: {
       // istanbul ignore next — proxy error handler only reachable with live network failure
       error: (err, _req, res) => {
