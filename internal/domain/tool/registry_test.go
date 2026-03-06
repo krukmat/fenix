@@ -315,6 +315,71 @@ func TestExtractStringSlice(t *testing.T) {
 	}
 }
 
+func TestValidateUpdateInput_Errors(t *testing.T) {
+	t.Parallel()
+
+	validSchema := json.RawMessage(`{"type":"object","required":["x"],"properties":{"x":{"type":"string"}},"additionalProperties":false}`)
+
+	t.Run("empty ID returns error", func(t *testing.T) {
+		t.Parallel()
+		err := validateUpdateInput(UpdateToolDefinitionInput{ID: "", Name: "n", InputSchema: validSchema})
+		if err == nil {
+			t.Fatal("expected error for empty ID")
+		}
+	})
+
+	t.Run("empty Name returns error", func(t *testing.T) {
+		t.Parallel()
+		err := validateUpdateInput(UpdateToolDefinitionInput{ID: "x", Name: "  ", InputSchema: validSchema})
+		if err == nil {
+			t.Fatal("expected error for empty Name")
+		}
+	})
+}
+
+func TestIsUniqueConstraintError(t *testing.T) {
+	t.Parallel()
+
+	if isUniqueConstraintError(nil) {
+		t.Fatal("expected false for nil error")
+	}
+	if isUniqueConstraintError(sql.ErrNoRows) {
+		t.Fatal("expected false for sql.ErrNoRows")
+	}
+	if !isUniqueConstraintError(fmt.Errorf("UNIQUE constraint failed: foo.bar")) {
+		t.Fatal("expected true for UNIQUE constraint error")
+	}
+	if isUniqueConstraintError(fmt.Errorf("some other error")) {
+		t.Fatal("expected false for unrelated error")
+	}
+}
+
+func TestToolRegistry_Execute_MissingUserContext(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	r := NewToolRegistryWithAuthorizer(db, toolPermStub{allow: true})
+	if err := r.Register("create_task", noopExecutor{}); err != nil {
+		t.Fatalf("Register returned error: %v", err)
+	}
+
+	_, err := r.CreateToolDefinition(context.Background(), CreateToolDefinitionInput{
+		WorkspaceID: wsID,
+		Name:        "create_task",
+		InputSchema: json.RawMessage(`{"type":"object","required":["title"],"properties":{"title":{"type":"string"}},"additionalProperties":false}`),
+	})
+	if err != nil {
+		t.Fatalf("CreateToolDefinition returned error: %v", err)
+	}
+
+	// No user ID in context — enforceToolPermission should return ErrToolUserContextMissing.
+	_, err = r.Execute(context.Background(), wsID, "create_task", json.RawMessage(`{"title":"x"}`))
+	if !errors.Is(err, ErrToolUserContextMissing) {
+		t.Fatalf("expected ErrToolUserContextMissing, got %v", err)
+	}
+}
+
 func ptrString(v string) *string {
 	return &v
 }
