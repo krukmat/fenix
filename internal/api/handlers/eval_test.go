@@ -63,6 +63,10 @@ func contextWithWorkspaceIDEval(ctx context.Context, wsID string) context.Contex
 	return context.WithValue(ctx, ctxkeys.WorkspaceID, wsID)
 }
 
+func contextWithUserIDEval(ctx context.Context, userID string) context.Context {
+	return context.WithValue(ctx, ctxkeys.UserID, userID)
+}
+
 // TestEvalHandler_CreateSuite_201 verifies creating an eval suite.
 func TestEvalHandler_CreateSuite_201(t *testing.T) {
 	db := mustOpenDBWithMigrationsEval(t)
@@ -372,5 +376,48 @@ func TestEvalHandler_MissingWorkspaceID_400(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
+	}
+}
+
+func TestEvalHandler_CreateSuite_ForbiddenByAuthorizer(t *testing.T) {
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, ownerID := setupWorkspaceAndOwnerEval(t, db)
+	h := NewEvalHandlerWithAuthorizer(
+		eval.NewSuiteService(db),
+		eval.NewRunnerService(db),
+		&toolAuthzStub{allow: false},
+	)
+
+	body := `{"name":"Test Suite","domain":"support","test_cases":[],"thresholds":{}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/suites", bytes.NewBufferString(body))
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	req = req.WithContext(contextWithUserIDEval(req.Context(), ownerID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.CreateSuite(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected status 403, got %d", rr.Code)
+	}
+}
+
+func TestEvalHandler_ListSuites_MissingUserIDWithAuthorizer_401(t *testing.T) {
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
+	h := NewEvalHandlerWithAuthorizer(
+		eval.NewSuiteService(db),
+		eval.NewRunnerService(db),
+		&toolAuthzStub{allow: true},
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/eval/suites", nil)
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	h.ListSuites(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", rr.Code)
 	}
 }

@@ -9,14 +9,6 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 )
 
-type ActionAuthorizer interface {
-	CheckActionPermission(
-		ctx context.Context,
-		userID, resource, action string,
-		attrs map[string]string,
-	) (bool, error)
-}
-
 type ToolHandler struct {
 	registry *tool.ToolRegistry
 	authz    ActionAuthorizer
@@ -50,7 +42,7 @@ type toolResponse struct {
 }
 
 func (h *ToolHandler) ListTools(w http.ResponseWriter, r *http.Request) {
-	if !h.checkAuthorization(w, r, "api", "admin.tools.list") {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.tools.list") {
 		return
 	}
 
@@ -77,7 +69,7 @@ func (h *ToolHandler) ListTools(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ToolHandler) CreateTool(w http.ResponseWriter, r *http.Request) {
-	if !h.checkAuthorization(w, r, "api", "admin.tools.create") {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.tools.create") {
 		return
 	}
 
@@ -143,28 +135,4 @@ func toToolResponse(item *tool.ToolDefinition) toolResponse {
 		CreatedAt:           item.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:           item.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 	}
-}
-
-func (h *ToolHandler) checkAuthorization(w http.ResponseWriter, r *http.Request, resource, action string) bool {
-	if h.authz == nil {
-		return true
-	}
-
-	userID, ok := r.Context().Value(ctxkeys.UserID).(string)
-	if !ok || userID == "" {
-		writeError(w, http.StatusUnauthorized, "missing user_id in context")
-		return false
-	}
-
-	allowed, err := h.authz.CheckActionPermission(r.Context(), userID, resource, action, nil)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "authorization failed")
-		return false
-	}
-	if !allowed {
-		writeError(w, http.StatusForbidden, "forbidden")
-		return false
-	}
-
-	return true
 }

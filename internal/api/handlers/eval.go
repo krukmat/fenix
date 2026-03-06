@@ -14,12 +14,21 @@ import (
 type EvalHandler struct {
 	suites *domaineval.SuiteService
 	runner *domaineval.RunnerService
+	authz  ActionAuthorizer
 }
 
 // NewEvalHandler constructs an EvalHandler.
 // Task 4.7: FR-242
 func NewEvalHandler(suites *domaineval.SuiteService, runner *domaineval.RunnerService) *EvalHandler {
 	return &EvalHandler{suites: suites, runner: runner}
+}
+
+func NewEvalHandlerWithAuthorizer(
+	suites *domaineval.SuiteService,
+	runner *domaineval.RunnerService,
+	authz ActionAuthorizer,
+) *EvalHandler {
+	return &EvalHandler{suites: suites, runner: runner, authz: authz}
 }
 
 // CreateSuiteRequest — request body for POST /admin/eval/suites
@@ -37,6 +46,10 @@ func isCreateSuiteRequestValid(req CreateSuiteRequest) bool {
 // CreateSuite — POST /api/v1/admin/eval/suites
 // Task 4.7: FR-242
 func (h *EvalHandler) CreateSuite(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.eval.suites.create") {
+		return
+	}
+
 	wsID, ok := requireWorkspaceID(w, r)
 	if !ok {
 		return
@@ -67,6 +80,10 @@ func (h *EvalHandler) CreateSuite(w http.ResponseWriter, r *http.Request) {
 // ListSuites — GET /api/v1/admin/eval/suites
 // Task 4.7: FR-242
 func (h *EvalHandler) ListSuites(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.eval.suites.list") {
+		return
+	}
+
 	wsID, ok := requireWorkspaceID(w, r)
 	if !ok {
 		return
@@ -82,6 +99,10 @@ func (h *EvalHandler) ListSuites(w http.ResponseWriter, r *http.Request) {
 // GetSuite — GET /api/v1/admin/eval/suites/{id}
 // Task 4.7: FR-242
 func (h *EvalHandler) GetSuite(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.eval.suites.get") {
+		return
+	}
+
 	wsID, ok := requireWorkspaceID(w, r)
 	if !ok {
 		return
@@ -107,6 +128,10 @@ func isRunEvalRequestValid(req RunEvalRequest) bool {
 // RunEval — POST /api/v1/admin/eval/run
 // Task 4.7: FR-242
 func (h *EvalHandler) RunEval(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.eval.run") {
+		return
+	}
+
 	wsID, ok := requireWorkspaceID(w, r)
 	if !ok {
 		return
@@ -134,6 +159,10 @@ func (h *EvalHandler) RunEval(w http.ResponseWriter, r *http.Request) {
 // ListRuns — GET /api/v1/admin/eval/runs
 // Task 4.7: FR-242
 func (h *EvalHandler) ListRuns(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.eval.runs.list") {
+		return
+	}
+
 	wsID, ok := requireWorkspaceID(w, r)
 	if !ok {
 		return
@@ -150,6 +179,10 @@ func (h *EvalHandler) ListRuns(w http.ResponseWriter, r *http.Request) {
 // GetRun — GET /api/v1/admin/eval/runs/{id}
 // Task 4.7: FR-242
 func (h *EvalHandler) GetRun(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.eval.runs.get") {
+		return
+	}
+
 	wsID, ok := requireWorkspaceID(w, r)
 	if !ok {
 		return

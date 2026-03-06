@@ -28,11 +28,16 @@ type PromptVersionService interface {
 // PromptHandler gestiona endpoints de prompts
 type PromptHandler struct {
 	service PromptVersionService
+	authz   ActionAuthorizer
 }
 
 // NewPromptHandler crea un nuevo handler
 func NewPromptHandler(service PromptVersionService) *PromptHandler {
 	return &PromptHandler{service: service}
+}
+
+func NewPromptHandlerWithAuthorizer(service PromptVersionService, authz ActionAuthorizer) *PromptHandler {
+	return &PromptHandler{service: service, authz: authz}
 }
 
 // CreatePromptVersionRequest es el body para crear versión
@@ -58,6 +63,10 @@ type PromptVersionResponse struct {
 // List lista todas las versiones de un agente
 // GET /api/v1/admin/prompts?agent_id={id}
 func (h *PromptHandler) List(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.prompts.list") {
+		return
+	}
+
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
 		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
@@ -88,6 +97,10 @@ func (h *PromptHandler) List(w http.ResponseWriter, r *http.Request) {
 // Create crea una nueva versión de prompt
 // POST /api/v1/admin/prompts
 func (h *PromptHandler) Create(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.prompts.create") {
+		return
+	}
+
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
 		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
@@ -146,6 +159,10 @@ func resolvePromptConfig(config *string) string {
 // Promote activa una versión
 // PUT /api/v1/admin/prompts/{id}/promote
 func (h *PromptHandler) Promote(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.prompts.promote") {
+		return
+	}
+
 	workspaceID, ok := getWorkspaceIDFromContext(r)
 	if !ok {
 		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
@@ -225,6 +242,10 @@ func (h *PromptHandler) respondWithPromptVersion(w http.ResponseWriter, r *http.
 // Rollback reactiva la versión anterior
 // PUT /api/v1/admin/prompts/{id}/rollback (nota: {id} aquí es agent_id, no prompt_version_id)
 func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, "api", "admin.prompts.rollback") {
+		return
+	}
+
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
 		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)

@@ -214,7 +214,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		policyEngine := policy.NewPolicyEngine(db, nil, auditService)
 		toolHandler := handlers.NewToolHandlerWithAuthorizer(toolRegistry, policyEngine)
 		// Task 3.9: Prompt Versioning
-		promptHandler := handlers.NewPromptHandler(agent.NewPromptService(db, auditService))
+		promptHandler := handlers.NewPromptHandlerWithAuthorizer(agent.NewPromptService(db, auditService), policyEngine)
 		copilotChatSvc := copilotdomain.NewChatService(evidenceSvc, llmProvider, policyEngine, auditService)
 		copilotChatHandler := handlers.NewCopilotChatHandler(copilotChatSvc)
 		copilotActionsSvc := copilotdomain.NewActionService(evidenceSvc, llmProvider, policyEngine, auditService)
@@ -256,7 +256,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		// Task 4.7 — FR-242: Eval Service Basic routes
 		evalSuiteSvc := domaineval.NewSuiteService(db)
 		evalRunnerSvc := domaineval.NewRunnerService(db)
-		evalHandler := handlers.NewEvalHandler(evalSuiteSvc, evalRunnerSvc)
+		evalHandler := handlers.NewEvalHandlerWithAuthorizer(evalSuiteSvc, evalRunnerSvc, policyEngine)
 		r.Route("/admin/eval", func(r chi.Router) {
 			r.Route("/suites", func(r chi.Router) {
 				r.Post("/", evalHandler.CreateSuite)   // POST /api/v1/admin/eval/suites

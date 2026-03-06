@@ -491,3 +491,55 @@ func TestRollbackPromptHandler_MissingWorkspaceID(t *testing.T) {
 		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
+
+func TestCreatePromptHandler_ForbiddenByAuthorizer(t *testing.T) {
+	mock := NewMockPromptVersionService()
+	handler := NewPromptHandlerWithAuthorizer(mock, &toolAuthzStub{allow: false})
+
+	r := chi.NewRouter()
+	r.Route("/admin/prompts", func(r chi.Router) {
+		r.Post("/", handler.Create)
+	})
+
+	body := CreatePromptVersionRequest{
+		AgentDefinitionID: "agent_support",
+		SystemPrompt:      "You are a support agent.",
+	}
+	bodyBytes, _ := json.Marshal(body)
+
+	req := httptest.NewRequest("POST", "/admin/prompts", bytes.NewReader(bodyBytes))
+	ctx := req.Context()
+	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
+	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
+	req = req.WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestListPromptsHandler_MissingUserIDWithAuthorizer(t *testing.T) {
+	mock := NewMockPromptVersionService()
+	handler := NewPromptHandlerWithAuthorizer(mock, &toolAuthzStub{allow: true})
+
+	r := chi.NewRouter()
+	r.Route("/admin/prompts", func(r chi.Router) {
+		r.Get("/", handler.List)
+	})
+
+	req := httptest.NewRequest("GET", "/admin/prompts?agent_id=agent_support", nil)
+	ctx := req.Context()
+	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
