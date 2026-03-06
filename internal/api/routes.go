@@ -87,7 +87,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		go embedder.Start(context.Background(), knowledgeBus)
 		go reindexSvc.Start(context.Background())
 		policyEngine := policy.NewPolicyEngine(db, nil, auditService)
-		toolRegistry := tooldomain.NewToolRegistryWithAuthorizer(db, policyEngine)
+		toolRegistry := tooldomain.NewToolRegistryWithRuntime(db, policyEngine, auditService)
 
 		// Account endpoints (Task 1.3.8)
 		accountHandler := handlers.NewAccountHandler(crm.NewAccountServiceWithBus(db, knowledgeBus))

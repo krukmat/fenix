@@ -336,9 +336,6 @@ func (a *KBAgent) searchSimilarArticles(ctx context.Context, workspaceID, query 
 }
 
 func (a *KBAgent) updateKnowledgeArticle(ctx context.Context, articleID, subject, content string) (string, error) {
-	if _, err := a.toolRegistry.Get(tool.BuiltinUpdateKnowledgeItem); err != nil {
-		return "", fmt.Errorf("update_knowledge_item tool not registered: %w", err)
-	}
 	raw, err := a.toolRegistry.Execute(ctx, workspaceFromCtx(ctx), tool.BuiltinUpdateKnowledgeItem, mustJSON(map[string]any{
 		"id":      articleID,
 		"title":   "Solución: " + subject,
@@ -360,9 +357,6 @@ func (a *KBAgent) updateKnowledgeArticle(ctx context.Context, articleID, subject
 }
 
 func (a *KBAgent) createKnowledgeArticle(ctx context.Context, workspaceID, subject, content string) (string, error) {
-	if _, err := a.toolRegistry.Get(tool.BuiltinCreateKnowledgeItem); err != nil {
-		return "", fmt.Errorf("create_knowledge_item tool not registered: %w", err)
-	}
 	raw, err := a.toolRegistry.Execute(ctx, workspaceID, tool.BuiltinCreateKnowledgeItem, mustJSON(map[string]any{
 		"workspace_id": workspaceID,
 		"source_type":  "kb_article",

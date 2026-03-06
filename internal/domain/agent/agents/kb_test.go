@@ -41,6 +41,7 @@ func (m *mockToolExecutor) Execute(_ context.Context, _ json.RawMessage) (json.R
 
 func insertKBAgentDefinition(t *testing.T, db *sql.DB, workspaceID string) {
 	t.Helper()
+	ensureAgentTestWorkspace(t, db, workspaceID)
 	_, err := db.ExecContext(context.Background(),
 		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
 		 VALUES ('kb-agent', ?, 'KB Agent', 'kb', 'active')`, workspaceID)

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
@@ -68,14 +67,19 @@ type ToolRegistry struct {
 	db        *sql.DB
 	executors map[string]ToolExecutor
 	authz     ToolAuthorizer
+	audit     ToolAuditLogger
 }
 
 func NewToolRegistry(db *sql.DB) *ToolRegistry {
-	return NewToolRegistryWithAuthorizer(db, nil)
+	return NewToolRegistryWithRuntime(db, nil, nil)
 }
 
 func NewToolRegistryWithAuthorizer(db *sql.DB, authz ToolAuthorizer) *ToolRegistry {
-	return &ToolRegistry{db: db, executors: make(map[string]ToolExecutor), authz: authz}
+	return NewToolRegistryWithRuntime(db, authz, nil)
+}
+
+func NewToolRegistryWithRuntime(db *sql.DB, authz ToolAuthorizer, audit ToolAuditLogger) *ToolRegistry {
+	return &ToolRegistry{db: db, executors: make(map[string]ToolExecutor), authz: authz, audit: audit}
 }
 
 func (r *ToolRegistry) Register(name string, executor ToolExecutor) error {
@@ -291,31 +295,6 @@ func (r *ToolRegistry) ValidateParams(ctx context.Context, workspaceID, toolName
 	return nil
 }
 
-func (r *ToolRegistry) Execute(ctx context.Context, workspaceID, toolName string, params json.RawMessage) (json.RawMessage, error) {
-	def, err := r.getDefinitionForExecution(ctx, workspaceID, toolName)
-	if err != nil {
-		return nil, err
-	}
-	if !def.IsActive {
-		return nil, ErrToolInactive
-	}
-	if len(params) == 0 {
-		params = json.RawMessage(`{}`)
-	}
-	if errVal := r.ValidateParams(ctx, workspaceID, toolName, params); errVal != nil {
-		return nil, errVal
-	}
-	if errPerm := r.enforceToolPermission(ctx, def.Name); errPerm != nil {
-		return nil, errPerm
-	}
-
-	executor, err := r.Get(def.Name)
-	if err != nil {
-		return nil, err
-	}
-	return executor.Execute(ctx, params)
-}
-
 func (r *ToolRegistry) getToolDefinitionByName(ctx context.Context, workspaceID, toolName string) (*ToolDefinition, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, workspace_id, name, description, input_schema,
@@ -347,26 +326,6 @@ func (r *ToolRegistry) getDefinitionForExecution(ctx context.Context, workspaceI
 		return nil, ensureErr
 	}
 	return r.getToolDefinitionByName(ctx, workspaceID, toolName)
-}
-
-func (r *ToolRegistry) enforceToolPermission(ctx context.Context, toolName string) error {
-	if r.authz == nil {
-		return nil
-	}
-
-	userID, ok := ctx.Value(ctxkeys.UserID).(string)
-	if !ok || strings.TrimSpace(userID) == "" {
-		return ErrToolUserContextMissing
-	}
-
-	allowed, err := r.authz.CheckToolPermission(ctx, userID, toolName)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		return ErrToolPermissionDenied
-	}
-	return nil
 }
 
 func validateToolSchema(raw json.RawMessage) error {

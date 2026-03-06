@@ -67,6 +67,38 @@ func (m *mockAccountGetter) Get(_ context.Context, _, _ string) (*crm.Account, e
 	return m.account, nil
 }
 
+type mockLeadToolExecutor struct{ getter LeadGetter }
+
+func (m *mockLeadToolExecutor) Execute(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
+	var in struct {
+		LeadID string `json:"lead_id"`
+	}
+	if err := json.Unmarshal(params, &in); err != nil {
+		return nil, err
+	}
+	lead, err := m.getter.Get(ctx, "", in.LeadID)
+	if err != nil {
+		return nil, err
+	}
+	return mustJSON(map[string]any{"lead": lead}), nil
+}
+
+type mockAccountToolExecutor struct{ getter AccountGetter }
+
+func (m *mockAccountToolExecutor) Execute(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
+	var in struct {
+		AccountID string `json:"account_id"`
+	}
+	if err := json.Unmarshal(params, &in); err != nil {
+		return nil, err
+	}
+	account, err := m.getter.Get(ctx, "", in.AccountID)
+	if err != nil {
+		return nil, err
+	}
+	return mustJSON(map[string]any{"account": account}), nil
+}
+
 func setupProspectingTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")
@@ -79,8 +111,20 @@ func setupProspectingTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
+func ensureAgentTestWorkspace(t *testing.T, db *sql.DB, workspaceID string) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(), `
+		INSERT OR IGNORE INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES (?, ?, ?, datetime('now'), datetime('now'))
+	`, workspaceID, "Agent Test Workspace", workspaceID)
+	if err != nil {
+		t.Fatalf("insert workspace: %v", err)
+	}
+}
+
 func insertProspectingAgentDefinition(t *testing.T, db *sql.DB, workspaceID string) {
 	t.Helper()
+	ensureAgentTestWorkspace(t, db, workspaceID)
 	_, err := db.ExecContext(context.Background(),
 		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
 		 VALUES ('prospecting-agent', ?, 'Prospecting Agent', 'prospecting', 'active')`, workspaceID)
@@ -91,6 +135,7 @@ func insertProspectingAgentDefinition(t *testing.T, db *sql.DB, workspaceID stri
 
 func insertProspectingTestUser(t *testing.T, db *sql.DB, workspaceID string) string {
 	t.Helper()
+	ensureAgentTestWorkspace(t, db, workspaceID)
 	userID := uuid.NewV7().String()
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := db.ExecContext(context.Background(),
@@ -121,6 +166,12 @@ func newTestProspectingAgent(
 	registry := tool.NewToolRegistry(db)
 	if err := registry.Register(tool.BuiltinCreateTask, tool.NewCreateTaskExecutor(db)); err != nil {
 		t.Fatalf("register create_task: %v", err)
+	}
+	if err := registry.Register(tool.BuiltinGetLead, &mockLeadToolExecutor{getter: lead}); err != nil {
+		t.Fatalf("register get_lead: %v", err)
+	}
+	if err := registry.Register(tool.BuiltinGetAccount, &mockAccountToolExecutor{getter: account}); err != nil {
+		t.Fatalf("register get_account: %v", err)
 	}
 	return NewProspectingAgent(orch, registry, search, provider, lead, account, db)
 }

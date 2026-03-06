@@ -210,10 +210,6 @@ func (a *InsightsAgent) queryMetrics(
 	workspaceID, metric string,
 	dateFrom, dateTo *time.Time,
 ) ([]map[string]any, error) {
-	_, err := a.toolRegistry.Get(tool.BuiltinQueryMetrics) // Task 4.5d — use ToolRegistry, no direct SQL metric queries.
-	if err != nil {
-		return nil, ErrInsightsQueryMetricsFailed
-	}
 	payload := map[string]any{"metric": metric, "workspace_id": workspaceID}
 	if dateFrom != nil {
 		payload["from"] = dateFrom.UTC().Format(time.RFC3339)

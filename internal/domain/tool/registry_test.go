@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
+	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 )
 
@@ -31,6 +32,29 @@ func (s toolPermStub) CheckToolPermission(_ context.Context, _, _ string) (bool,
 		return false, s.err
 	}
 	return s.allow, nil
+}
+
+type toolAuditStub struct {
+	actions  []string
+	outcomes []audit.Outcome
+	details  []map[string]any
+}
+
+func (s *toolAuditStub) LogWithDetails(
+	_ context.Context,
+	_, _ string,
+	_ audit.ActorType,
+	action string,
+	_, _ *string,
+	details *audit.EventDetails,
+	outcome audit.Outcome,
+) error {
+	s.actions = append(s.actions, action)
+	s.outcomes = append(s.outcomes, outcome)
+	if meta, ok := details.Metadata.(map[string]any); ok {
+		s.details = append(s.details, meta)
+	}
+	return nil
 }
 
 func openToolTestDB(t *testing.T) *sql.DB {
@@ -243,6 +267,52 @@ func TestToolRegistry_Execute_EnforcesActiveValidationAndPermissions(t *testing.
 	}
 }
 
+func TestToolRegistry_Execute_BuiltinAuditAndErrorContract(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	auditStub := &toolAuditStub{}
+	r := NewToolRegistryWithRuntime(db, toolPermStub{allow: true}, auditStub)
+	if err := r.Register(BuiltinCreateTask, noopExecutor{}); err != nil {
+		t.Fatalf("Register returned error: %v", err)
+	}
+
+	_, err := r.CreateToolDefinition(context.Background(), CreateToolDefinitionInput{
+		WorkspaceID:         wsID,
+		Name:                BuiltinCreateTask,
+		InputSchema:         json.RawMessage(`{"type":"object","required":["title"],"properties":{"title":{"type":"string"}},"additionalProperties":false}`),
+		RequiredPermissions: []string{"tools:create_task"},
+	})
+	if err != nil {
+		t.Fatalf("CreateToolDefinition returned error: %v", err)
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkeys.UserID, "user-1")
+	if _, err := r.Execute(ctx, wsID, BuiltinCreateTask, json.RawMessage(`{"title":"x"}`)); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if len(auditStub.actions) != 1 || auditStub.actions[0] != "tool.executed" {
+		t.Fatalf("unexpected audit actions: %#v", auditStub.actions)
+	}
+	if auditStub.outcomes[0] != audit.OutcomeSuccess {
+		t.Fatalf("unexpected audit outcome: %v", auditStub.outcomes[0])
+	}
+
+	deniedAudit := &toolAuditStub{}
+	denied := NewToolRegistryWithRuntime(db, toolPermStub{allow: false}, deniedAudit)
+	if err := denied.Register(BuiltinCreateTask, noopExecutor{}); err != nil {
+		t.Fatalf("Register returned error: %v", err)
+	}
+	err = executeExpectError(t, denied, ctx, wsID, BuiltinCreateTask, json.RawMessage(`{"title":"x"}`))
+	if !IsToolExecutionErrorCode(err, ToolErrorPermissionDenied) {
+		t.Fatalf("expected ToolErrorPermissionDenied, got %v", err)
+	}
+	if len(deniedAudit.actions) != 1 || deniedAudit.actions[0] != "tool.denied" {
+		t.Fatalf("unexpected denied audit actions: %#v", deniedAudit.actions)
+	}
+}
+
 func TestValidateAgainstMinimalSchema(t *testing.T) {
 	t.Parallel()
 
@@ -382,6 +452,15 @@ func TestToolRegistry_Execute_MissingUserContext(t *testing.T) {
 
 func ptrString(v string) *string {
 	return &v
+}
+
+func executeExpectError(t *testing.T, r *ToolRegistry, ctx context.Context, wsID, toolName string, params json.RawMessage) error {
+	t.Helper()
+	_, err := r.Execute(ctx, wsID, toolName, params)
+	if err == nil {
+		t.Fatal("expected execution error")
+	}
+	return err
 }
 
 var toolRandCounter int64

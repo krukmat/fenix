@@ -16,6 +16,7 @@ import (
 
 func insertInsightsAgentDefinition(t *testing.T, db *sql.DB, workspaceID string) {
 	t.Helper()
+	ensureAgentTestWorkspace(t, db, workspaceID)
 	_, err := db.ExecContext(context.Background(),
 		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
 		 VALUES ('insights-agent', ?, 'Insights Agent', 'insights', 'active')`, workspaceID)
