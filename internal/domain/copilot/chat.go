@@ -33,6 +33,20 @@ type ChatService struct {
 	audit    AuditLogger
 }
 
+type AnswerType string
+
+const (
+	AnswerTypeGrounded   AnswerType = "grounded_answer"
+	AnswerTypeAbstention AnswerType = "abstention"
+)
+
+type AbstentionReason string
+
+const (
+	AbstentionReasonInsufficientEvidence AbstentionReason = "insufficient_evidence"
+	AbstentionReasonIrrelevantEvidence   AbstentionReason = "irrelevant_evidence"
+)
+
 type ChatInput struct {
 	WorkspaceID string
 	UserID      string
@@ -50,14 +64,36 @@ type StreamChunk struct {
 	Error   string               `json:"error,omitempty"`
 }
 
+type ChatResult struct {
+	AnswerType       AnswerType
+	Content          string
+	Sources          []knowledge.Evidence
+	AbstentionReason *AbstentionReason
+}
+
 func NewChatService(e EvidencePackBuilder, l llm.LLMProvider, p PolicyEnforcer, a AuditLogger) *ChatService {
 	return &ChatService{evidence: e, llm: l, policy: p, audit: a}
 }
 
 func (s *ChatService) Chat(ctx context.Context, in ChatInput) (<-chan StreamChunk, error) {
-	filter, err := s.policy.BuildPermissionFilter(ctx, in.UserID)
+	filter, pack, err := s.prepareChatContext(ctx, in)
 	if err != nil {
 		return nil, err
+	}
+
+	result, err := s.buildChatResult(ctx, in.Query, pack)
+	if err != nil {
+		return nil, err
+	}
+
+	s.auditChat(ctx, in, filter, pack, result)
+	return streamChatResult(result), nil
+}
+
+func (s *ChatService) prepareChatContext(ctx context.Context, in ChatInput) (policy.Filter, *knowledge.EvidencePack, error) {
+	filter, err := s.policy.BuildPermissionFilter(ctx, in.UserID)
+	if err != nil {
+		return policy.Filter{}, nil, err
 	}
 
 	pack, err := s.evidence.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
@@ -66,50 +102,180 @@ func (s *ChatService) Chat(ctx context.Context, in ChatInput) (<-chan StreamChun
 		Limit:       10,
 	})
 	if err != nil {
-		return nil, err
+		return policy.Filter{}, nil, err
 	}
 
 	redacted, err := s.policy.RedactPII(ctx, pack.Sources)
 	if err != nil {
-		return nil, err
+		return policy.Filter{}, nil, err
 	}
 	pack.Sources = redacted
 
-	prompt := buildPrompt(in.Query, pack.Sources)
+	return filter, pack, nil
+}
+
+func (s *ChatService) buildChatResult(ctx context.Context, query string, pack *knowledge.EvidencePack) (ChatResult, error) {
+	if reason := evaluateAbstention(pack, query); reason != nil {
+		return newAbstentionResult(pack.Sources, *reason), nil
+	}
+
 	resp, err := s.llm.ChatCompletion(ctx, llm.ChatRequest{
 		Messages: []llm.Message{
-			{Role: "system", Content: "You are FenixCRM Copilot. Always cite sources."},
-			{Role: "user", Content: prompt},
+			{Role: "system", Content: "You are FenixCRM Copilot. Always answer only from the provided evidence and cite sources."},
+			{Role: "user", Content: buildPrompt(query, pack.Sources)},
 		},
 		Temperature: 0.2,
 		MaxTokens:   512,
 	})
 	if err != nil {
-		return nil, err
+		return ChatResult{}, err
 	}
 
-	content := redactOutputPII(resp.Content)
+	return ChatResult{
+		AnswerType: AnswerTypeGrounded,
+		Content:    redactOutputPII(resp.Content),
+		Sources:    pack.Sources,
+	}, nil
+}
+
+func newAbstentionResult(sources []knowledge.Evidence, reason AbstentionReason) ChatResult {
+	return ChatResult{
+		AnswerType:       AnswerTypeAbstention,
+		Content:          abstentionMessage(reason),
+		Sources:          sources,
+		AbstentionReason: &reason,
+	}
+}
+
+func abstentionMessage(reason AbstentionReason) string {
+	switch reason {
+	case AbstentionReasonIrrelevantEvidence:
+		return "No puedo responder de forma grounded porque la evidencia recuperada no es suficientemente relevante para tu consulta."
+	default:
+		return "No puedo responder de forma grounded porque no hay evidencia suficiente y trazable para sostener una respuesta."
+	}
+}
+
+func evaluateAbstention(pack *knowledge.EvidencePack, query string) *AbstentionReason {
+	if !hasTraceableEvidence(pack) {
+		reason := AbstentionReasonInsufficientEvidence
+		return &reason
+	}
+	if !hasRelevantEvidence(query, pack.Sources) {
+		reason := AbstentionReasonIrrelevantEvidence
+		return &reason
+	}
+	return nil
+}
+
+func hasTraceableEvidence(pack *knowledge.EvidencePack) bool {
+	if pack == nil || pack.Confidence == knowledge.ConfidenceLow {
+		return false
+	}
+	for _, source := range pack.Sources {
+		if source.ID != "" && source.Snippet != nil && strings.TrimSpace(*source.Snippet) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func hasRelevantEvidence(query string, sources []knowledge.Evidence) bool {
+	queryTerms := normalizedTerms(query)
+	if len(queryTerms) == 0 {
+		return false
+	}
+	for _, source := range sources {
+		if source.Snippet == nil {
+			continue
+		}
+		if sharesRelevantTerm(queryTerms, normalizedTerms(*source.Snippet)) {
+			return true
+		}
+	}
+	return false
+}
+
+func sharesRelevantTerm(queryTerms, sourceTerms []string) bool {
+	if len(sourceTerms) == 0 {
+		return false
+	}
+	sourceSet := make(map[string]struct{}, len(sourceTerms))
+	for _, term := range sourceTerms {
+		sourceSet[term] = struct{}{}
+	}
+	for _, term := range queryTerms {
+		if _, ok := sourceSet[term]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizedTerms(text string) []string {
+	raw := tokenSplitter.Split(strings.ToLower(text), -1)
+	terms := make([]string, 0, len(raw))
+	for _, term := range raw {
+		if len(term) < 4 || ignoredTerms[term] {
+			continue
+		}
+		terms = append(terms, term)
+	}
+	return terms
+}
+
+func (s *ChatService) auditChat(ctx context.Context, in ChatInput, filter policy.Filter, pack *knowledge.EvidencePack, result ChatResult) {
+	metadata := map[string]any{
+		"query":           in.Query,
+		"permissionWhere": filter.Where,
+		"filteredCount":   pack.FilteredCount,
+		"confidence":      string(pack.Confidence),
+		"answerType":      string(result.AnswerType),
+		"sourceCount":     len(result.Sources),
+	}
+	if result.AbstentionReason != nil {
+		metadata["abstentionReason"] = string(*result.AbstentionReason)
+	}
 
 	_ = s.audit.LogWithDetails(ctx, in.WorkspaceID, in.UserID, audit.ActorTypeUser, "copilot.chat", in.EntityType, in.EntityID, &audit.EventDetails{
-		Metadata: map[string]any{
-			"query":           in.Query,
-			"permissionWhere": filter.Where,
-			"filteredCount":   pack.FilteredCount,
-			"confidence":      string(pack.Confidence),
-		},
+		Metadata: metadata,
 	}, audit.OutcomeSuccess)
+}
 
+func streamChatResult(result ChatResult) <-chan StreamChunk {
 	ch := make(chan StreamChunk)
 	go func() {
 		defer close(ch)
-		ch <- StreamChunk{Type: "evidence", Sources: pack.Sources}
-		for _, tk := range strings.Fields(content) {
+		ch <- StreamChunk{Type: "evidence", Sources: result.Sources}
+		for _, tk := range strings.Fields(result.Content) {
 			ch <- StreamChunk{Type: "token", Delta: tk + " "}
 		}
-		ch <- StreamChunk{Type: "done", Done: true, Meta: map[string]any{"at": time.Now().UTC().Format(time.RFC3339)}}
+		ch <- StreamChunk{Type: "done", Done: true, Meta: doneMeta(result)}
 	}()
 
-	return ch, nil
+	return ch
+}
+
+func doneMeta(result ChatResult) map[string]any {
+	meta := map[string]any{
+		"at":          time.Now().UTC().Format(time.RFC3339),
+		"answer_type": string(result.AnswerType),
+		"source_ids":  sourceIDs(result.Sources),
+	}
+	if result.AbstentionReason != nil {
+		meta["abstention_reason"] = string(*result.AbstentionReason)
+	}
+	return meta
+}
+
+func sourceIDs(sources []knowledge.Evidence) []string {
+	ids := make([]string, 0, len(sources))
+	for _, source := range sources {
+		if source.ID != "" {
+			ids = append(ids, source.ID)
+		}
+	}
+	return ids
 }
 
 func buildPrompt(query string, sources []knowledge.Evidence) string {
@@ -131,6 +297,12 @@ func buildPrompt(query string, sources []knowledge.Evidence) string {
 }
 
 var piiOutRe = regexp.MustCompile(`\b(?:[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|\d{3}-\d{2}-\d{4})\b`)
+var tokenSplitter = regexp.MustCompile(`[^a-z0-9]+`)
+var ignoredTerms = map[string]bool{
+	"about": true, "como": true, "con": true, "cual": true, "del": true, "desde": true,
+	"donde": true, "esta": true, "este": true, "estos": true, "from": true, "para": true,
+	"that": true, "this": true, "what": true, "when": true, "where": true, "which": true,
+}
 
 func redactOutputPII(content string) string {
 	return piiOutRe.ReplaceAllString(content, "[REDACTED]")

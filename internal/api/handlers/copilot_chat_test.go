@@ -35,7 +35,7 @@ func TestCopilotChatHandler_SSE_OK(t *testing.T) {
 	h := NewCopilotChatHandler(&copilotChatServiceStub{chunks: []copilot.StreamChunk{
 		{Type: "evidence"},
 		{Type: "token", Delta: "hola "},
-		{Type: "done", Done: true},
+		{Type: "done", Done: true, Meta: map[string]any{"answer_type": "grounded_answer"}},
 	}})
 
 	body, _ := json.Marshal(map[string]any{"query": "estado del caso"})
@@ -56,6 +56,9 @@ func TestCopilotChatHandler_SSE_OK(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "data: {") {
 		t.Fatalf("expected SSE data frames, got %q", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "\"answer_type\":\"grounded_answer\"") {
+		t.Fatalf("expected done metadata to be preserved, got %q", rr.Body.String())
 	}
 }
 
