@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -23,6 +24,24 @@ type Cache interface {
 type Filter struct {
 	Where string
 	Args  []any
+}
+
+// PolicyDecisionTrace captures deterministic rule resolution context.
+type PolicyDecisionTrace struct {
+	PolicySetID      string
+	PolicyVersionID  string
+	PolicyVersionNum int64
+	Resource         string
+	Action           string
+	MatchedRuleID    string
+	MatchedEffect    string
+	RuleTrace        []string
+}
+
+// PolicyDecision contains final allow/deny and optional trace metadata.
+type PolicyDecision struct {
+	Allow bool
+	Trace *PolicyDecisionTrace
 }
 
 // AuditLogEvent captures the minimum event data required for EP4 logging.
@@ -44,6 +63,26 @@ type PolicyEngine struct {
 	db    *sql.DB
 	cache Cache
 	audit *audit.AuditService
+}
+
+type policyRule struct {
+	ID         string         `json:"id"`
+	Resource   string         `json:"resource"`
+	Action     string         `json:"action"`
+	Effect     string         `json:"effect"`
+	Priority   int            `json:"priority"`
+	Conditions map[string]any `json:"conditions"`
+}
+
+type policyDoc struct {
+	Rules []policyRule `json:"rules"`
+}
+
+type activePolicyVersion struct {
+	PolicySetID    string
+	PolicyVersion  string
+	VersionNumber  int64
+	RawPolicyRules string
 }
 
 func NewPolicyEngine(db *sql.DB, cache Cache, auditService *audit.AuditService) *PolicyEngine {
@@ -99,23 +138,102 @@ func (p *PolicyEngine) RedactPII(ctx context.Context, evidence []knowledge.Evide
 
 // CheckToolPermission (EP3): verifies user permissions before tool execution.
 func (p *PolicyEngine) CheckToolPermission(ctx context.Context, userID, toolID string) (bool, error) {
-	_, rolePerms, err := p.loadUserWorkspaceAndRolePermissions(ctx, userID)
-	if err != nil {
-		return false, err
-	}
-
 	requiredPerms, err := p.loadToolRequiredPermissions(ctx, toolID)
 	if err != nil {
 		return false, err
 	}
 
 	for _, req := range requiredPerms {
-		if hasPermission(rolePerms, "tools", req) || hasPermission(rolePerms, "tools", "*") {
-			return true, nil
+		for _, action := range candidateToolActions(req) {
+			ok, checkErr := p.CheckActionPermission(ctx, userID, "tools", action, nil)
+			if checkErr != nil {
+				return false, checkErr
+			}
+			if ok {
+				return true, nil
+			}
 		}
 	}
 
 	return false, nil
+}
+
+// CheckActionPermission performs unified RBAC/ABAC evaluation for API/tool actions.
+// 1) If an active policy exists, its decision is authoritative.
+// 2) If no active policy is available, fallback to role permissions.
+func (p *PolicyEngine) CheckActionPermission(
+	ctx context.Context,
+	userID, resource, action string,
+	attrs map[string]string,
+) (bool, error) {
+	workspaceID, rolePerms, err := p.loadUserWorkspaceAndRolePermissions(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+
+	decision, decisionErr := p.EvaluatePolicyDecision(ctx, workspaceID, userID, resource, action, attrs)
+	if decisionErr != nil {
+		return false, decisionErr
+	}
+	if decision.Trace != nil {
+		return decision.Allow, nil
+	}
+
+	return roleAllowsAction(rolePerms, resource, action), nil
+}
+
+// EvaluatePolicyDecision resolves allow/deny for resource+action against active policy set/version.
+// If no active policy is found or no rule matches, Trace is nil and callers may fallback.
+func (p *PolicyEngine) EvaluatePolicyDecision(
+	ctx context.Context,
+	workspaceID, actorID, resource, action string,
+	attrs map[string]string,
+) (PolicyDecision, error) {
+	active, ok, err := p.loadActivePolicyVersion(ctx, workspaceID)
+	if err != nil {
+		return PolicyDecision{}, err
+	}
+	if !ok {
+		return PolicyDecision{Allow: false, Trace: nil}, nil
+	}
+
+	rules, err := parsePolicyRules(active.RawPolicyRules)
+	if err != nil {
+		return PolicyDecision{}, err
+	}
+
+	matched := filterMatchingRules(rules, resource, action, attrs)
+	if len(matched) == 0 {
+		return PolicyDecision{
+			Allow: false,
+			Trace: &PolicyDecisionTrace{
+				PolicySetID:      active.PolicySetID,
+				PolicyVersionID:  active.PolicyVersion,
+				PolicyVersionNum: active.VersionNumber,
+				Resource:         resource,
+				Action:           action,
+				RuleTrace:        []string{},
+			},
+		}, nil
+	}
+
+	resolved := resolveDeterministicRule(matched)
+
+	trace := &PolicyDecisionTrace{
+		PolicySetID:      active.PolicySetID,
+		PolicyVersionID:  active.PolicyVersion,
+		PolicyVersionNum: active.VersionNumber,
+		Resource:         resource,
+		Action:           action,
+		MatchedRuleID:    resolved.ID,
+		MatchedEffect:    normalizeEffect(resolved.Effect),
+		RuleTrace:        makeRuleTrace(matched),
+	}
+
+	decision := PolicyDecision{Allow: normalizeEffect(resolved.Effect) == "allow", Trace: trace}
+	p.logPolicyDecision(ctx, workspaceID, actorID, decision)
+
+	return decision, nil
 }
 
 // LogAuditEvent (EP4): appends an immutable audit event.
@@ -311,6 +429,37 @@ func parseRequiredPermissions(raw, fallback string) []string {
 	return perms
 }
 
+func candidateToolActions(required string) []string {
+	required = strings.TrimSpace(required)
+	if required == "" {
+		return nil
+	}
+	out := []string{required}
+	if strings.HasPrefix(required, "tools:") {
+		trimmed := strings.TrimSpace(strings.TrimPrefix(required, "tools:"))
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func roleAllowsAction(perms map[string][]string, resource, action string) bool {
+	if hasPermission(perms, "global", "*") || hasPermission(perms, "global", "admin") {
+		return true
+	}
+	if hasPermission(perms, resource, action) || hasPermission(perms, resource, "*") {
+		return true
+	}
+	if hasPermission(perms, "*", action) || hasPermission(perms, "*", "*") {
+		return true
+	}
+	if resource == "api" && strings.HasPrefix(action, "admin.") && hasPermission(perms, "api", "admin") {
+		return true
+	}
+	return false
+}
+
 func hasPermission(perms map[string][]string, key, value string) bool {
 	vals := perms[key]
 	for _, v := range vals {
@@ -319,4 +468,160 @@ func hasPermission(perms map[string][]string, key, value string) bool {
 		}
 	}
 	return false
+}
+
+func (p *PolicyEngine) loadActivePolicyVersion(ctx context.Context, workspaceID string) (activePolicyVersion, bool, error) {
+	var out activePolicyVersion
+	dbErr := p.db.QueryRowContext(ctx, `
+		SELECT pv.policy_set_id, pv.id, pv.version_number, pv.policy_json
+		FROM policy_set ps
+		JOIN policy_version pv ON pv.policy_set_id = ps.id
+		WHERE ps.workspace_id = ?
+		  AND ps.is_active = 1
+		  AND pv.workspace_id = ?
+		  AND pv.status = 'active'
+		ORDER BY pv.version_number DESC, pv.created_at DESC
+		LIMIT 1
+	`, workspaceID, workspaceID).Scan(&out.PolicySetID, &out.PolicyVersion, &out.VersionNumber, &out.RawPolicyRules)
+	if dbErr == sql.ErrNoRows {
+		return activePolicyVersion{}, false, nil
+	}
+	if dbErr != nil {
+		return activePolicyVersion{}, false, dbErr
+	}
+	return out, true, nil
+}
+
+func parsePolicyRules(raw string) ([]policyRule, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var doc policyDoc
+	if err := json.Unmarshal([]byte(raw), &doc); err == nil && len(doc.Rules) > 0 {
+		return doc.Rules, nil
+	}
+
+	var arr []policyRule
+	if err := json.Unmarshal([]byte(raw), &arr); err != nil {
+		return nil, fmt.Errorf("policy: parse policy rules: %w", err)
+	}
+	return arr, nil
+}
+
+func filterMatchingRules(rules []policyRule, resource, action string, attrs map[string]string) []policyRule {
+	matched := make([]policyRule, 0, len(rules))
+	for _, rule := range rules {
+		if !matchesResourceAction(rule, resource, action) {
+			continue
+		}
+		if !matchesConditions(rule.Conditions, attrs) {
+			continue
+		}
+		matched = append(matched, rule)
+	}
+	return matched
+}
+
+func matchesResourceAction(rule policyRule, resource, action string) bool {
+	resourceRule := strings.TrimSpace(rule.Resource)
+	actionRule := strings.TrimSpace(rule.Action)
+	if resourceRule == "" {
+		resourceRule = "*"
+	}
+	if actionRule == "" {
+		actionRule = "*"
+	}
+	return matchToken(resourceRule, resource) && matchToken(actionRule, action)
+}
+
+func matchToken(pattern, value string) bool {
+	return pattern == "*" || pattern == value
+}
+
+func matchesConditions(conditions map[string]any, attrs map[string]string) bool {
+	if len(conditions) == 0 {
+		return true
+	}
+	for key, expected := range conditions {
+		expectedStr, ok := expected.(string)
+		if !ok {
+			return false
+		}
+		if attrs == nil || attrs[key] != expectedStr {
+			return false
+		}
+	}
+	return true
+}
+
+func resolveDeterministicRule(rules []policyRule) policyRule {
+	sorted := append([]policyRule(nil), rules...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		if sorted[i].Priority != sorted[j].Priority {
+			return sorted[i].Priority > sorted[j].Priority
+		}
+		eI := normalizeEffect(sorted[i].Effect)
+		eJ := normalizeEffect(sorted[j].Effect)
+		if eI != eJ {
+			return eI == "deny"
+		}
+		return sorted[i].ID < sorted[j].ID
+	})
+	return sorted[0]
+}
+
+func makeRuleTrace(rules []policyRule) []string {
+	out := make([]string, len(rules))
+	for i, rule := range rules {
+		id := rule.ID
+		if strings.TrimSpace(id) == "" {
+			id = fmt.Sprintf("rule_%d", i+1)
+		}
+		out[i] = fmt.Sprintf("%s:%s:p=%d", id, normalizeEffect(rule.Effect), rule.Priority)
+	}
+	return out
+}
+
+func normalizeEffect(effect string) string {
+	e := strings.ToLower(strings.TrimSpace(effect))
+	if e == "deny" {
+		return "deny"
+	}
+	return "allow"
+}
+
+func (p *PolicyEngine) logPolicyDecision(ctx context.Context, workspaceID, actorID string, decision PolicyDecision) {
+	if p.audit == nil || decision.Trace == nil {
+		return
+	}
+	entityType := "policy_set"
+	entityID := decision.Trace.PolicySetID
+	_ = p.audit.LogWithDetails(
+		ctx,
+		workspaceID,
+		actorID,
+		audit.ActorTypeUser,
+		"policy.evaluated",
+		&entityType,
+		&entityID,
+		&audit.EventDetails{Metadata: map[string]any{
+			"policy_set_id":      decision.Trace.PolicySetID,
+			"policy_version_id":  decision.Trace.PolicyVersionID,
+			"policy_version_num": decision.Trace.PolicyVersionNum,
+			"resource":           decision.Trace.Resource,
+			"action":             decision.Trace.Action,
+			"matched_rule_id":    decision.Trace.MatchedRuleID,
+			"matched_effect":     decision.Trace.MatchedEffect,
+			"rule_trace":         decision.Trace.RuleTrace,
+			"allow":              decision.Allow,
+		}},
+		resolvePolicyOutcome(decision.Allow),
+	)
+}
+
+func resolvePolicyOutcome(allow bool) audit.Outcome {
+	if allow {
+		return audit.OutcomeSuccess
+	}
+	return audit.OutcomeDenied
 }

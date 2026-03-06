@@ -4,6 +4,7 @@ package policy
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -69,6 +70,29 @@ func seedWorkspaceUserRole(t *testing.T, db *sql.DB, permsJSON string) (workspac
 	}
 
 	return workspaceID, userID
+}
+
+func seedActivePolicyVersion(t *testing.T, db *sql.DB, workspaceID string, version int, policyJSON string) (string, string) {
+	t.Helper()
+	now := time.Now().UTC().Format(time.RFC3339)
+	setID := uuid.NewV7().String()
+	verID := uuid.NewV7().String()
+
+	if _, err := db.Exec(`
+		INSERT INTO policy_set (id, workspace_id, name, description, is_active, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 1, ?, ?)
+	`, setID, workspaceID, "default-policy", "test set", now, now); err != nil {
+		t.Fatalf("insert policy_set: %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO policy_version (id, policy_set_id, workspace_id, version_number, policy_json, status, created_at)
+		VALUES (?, ?, ?, ?, ?, 'active', ?)
+	`, verID, setID, workspaceID, version, policyJSON, now); err != nil {
+		t.Fatalf("insert policy_version: %v", err)
+	}
+
+	return setID, verID
 }
 
 func TestBuildPermissionFilter(t *testing.T) {
@@ -212,4 +236,121 @@ func TestLogAuditEvent(t *testing.T) {
 	if items[0].Action != "tool.execute" {
 		t.Fatalf("unexpected action in audit event: %q", items[0].Action)
 	}
+}
+
+func TestEvaluatePolicyDecision_DeterministicPrecedenceAndTrace(t *testing.T) {
+	db := setupPolicyTestDB(t)
+	workspaceID, userID := seedWorkspaceUserRole(t, db, `{"tools":["read_own"]}`)
+
+	policyJSON := `{
+	  "rules": [
+	    {"id":"allow_tools_wildcard","resource":"tools","action":"*","effect":"allow","priority":1},
+	    {"id":"deny_update_case","resource":"tools","action":"update_case","effect":"deny","priority":10}
+	  ]
+	}`
+	setID, verID := seedActivePolicyVersion(t, db, workspaceID, 1, policyJSON)
+
+	auditService := audit.NewAuditService(db)
+	engine := NewPolicyEngine(db, nil, auditService)
+
+	decision, err := engine.EvaluatePolicyDecision(context.Background(), workspaceID, userID, "tools", "update_case", nil)
+	if err != nil {
+		t.Fatalf("EvaluatePolicyDecision error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatalf("expected deny by precedence")
+	}
+	if decision.Trace == nil {
+		t.Fatalf("expected non-nil trace")
+	}
+	if decision.Trace.PolicySetID != setID || decision.Trace.PolicyVersionID != verID {
+		t.Fatalf("unexpected policy identifiers in trace: %#v", decision.Trace)
+	}
+	if decision.Trace.MatchedRuleID != "deny_update_case" || decision.Trace.MatchedEffect != "deny" {
+		t.Fatalf("unexpected matched rule/effect: %#v", decision.Trace)
+	}
+
+	events, err := auditService.ListByAction(context.Background(), workspaceID, "policy.evaluated", 20, 0)
+	if err != nil {
+		t.Fatalf("ListByAction(policy.evaluated) error: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatalf("expected at least one policy.evaluated event")
+	}
+
+	var details map[string]any
+	if err := json.Unmarshal(events[0].Details, &details); err != nil {
+		t.Fatalf("unmarshal details error: %v", err)
+	}
+	meta, ok := details["metadata"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected metadata map in details: %#v", details)
+	}
+	if got, _ := meta["matched_rule_id"].(string); got != "deny_update_case" {
+		t.Fatalf("unexpected matched_rule_id in audit details: %v", meta["matched_rule_id"])
+	}
+}
+
+func TestCheckToolPermission_UsesActivePolicyVersionWhenAvailable(t *testing.T) {
+	t.Run("policy deny overrides role allow", func(t *testing.T) {
+		db := setupPolicyTestDB(t)
+		workspaceID, userID := seedWorkspaceUserRole(t, db, `{"tools":["update_case"]}`)
+		policyJSON := `{"rules":[{"id":"deny_update_case","resource":"tools","action":"update_case","effect":"deny","priority":100}]}`
+		seedActivePolicyVersion(t, db, workspaceID, 1, policyJSON)
+
+		engine := NewPolicyEngine(db, nil, nil)
+		ok, err := engine.CheckToolPermission(context.Background(), userID, "update_case")
+		if err != nil {
+			t.Fatalf("CheckToolPermission error: %v", err)
+		}
+		if ok {
+			t.Fatalf("expected denied by active policy")
+		}
+	})
+
+	t.Run("fallback to role permissions when no active policy", func(t *testing.T) {
+		db := setupPolicyTestDB(t)
+		_, userID := seedWorkspaceUserRole(t, db, `{"tools":["update_case"]}`)
+
+		engine := NewPolicyEngine(db, nil, nil)
+		ok, err := engine.CheckToolPermission(context.Background(), userID, "update_case")
+		if err != nil {
+			t.Fatalf("CheckToolPermission error: %v", err)
+		}
+		if !ok {
+			t.Fatalf("expected granted by fallback role permissions")
+		}
+	})
+}
+
+func TestCheckActionPermission(t *testing.T) {
+	t.Run("role fallback allows api admin action", func(t *testing.T) {
+		db := setupPolicyTestDB(t)
+		_, userID := seedWorkspaceUserRole(t, db, `{"api":["admin"]}`)
+
+		engine := NewPolicyEngine(db, nil, nil)
+		ok, err := engine.CheckActionPermission(context.Background(), userID, "api", "admin.tools.create", nil)
+		if err != nil {
+			t.Fatalf("CheckActionPermission error: %v", err)
+		}
+		if !ok {
+			t.Fatalf("expected granted by role fallback")
+		}
+	})
+
+	t.Run("active policy deny overrides role fallback", func(t *testing.T) {
+		db := setupPolicyTestDB(t)
+		workspaceID, userID := seedWorkspaceUserRole(t, db, `{"api":["admin"]}`)
+		policyJSON := `{"rules":[{"id":"deny_admin_tools_create","resource":"api","action":"admin.tools.create","effect":"deny","priority":100}]}`
+		seedActivePolicyVersion(t, db, workspaceID, 1, policyJSON)
+
+		engine := NewPolicyEngine(db, nil, nil)
+		ok, err := engine.CheckActionPermission(context.Background(), userID, "api", "admin.tools.create", nil)
+		if err != nil {
+			t.Fatalf("CheckActionPermission error: %v", err)
+		}
+		if ok {
+			t.Fatalf("expected denied by active policy")
+		}
+	})
 }
