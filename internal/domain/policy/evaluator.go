@@ -27,6 +27,7 @@ type Filter struct {
 }
 
 // PolicyDecisionTrace captures deterministic rule resolution context.
+//nolint:revive // API name kept for backward compatibility in policy package.
 type PolicyDecisionTrace struct {
 	PolicySetID      string
 	PolicyVersionID  string
@@ -39,6 +40,7 @@ type PolicyDecisionTrace struct {
 }
 
 // PolicyDecision contains final allow/deny and optional trace metadata.
+//nolint:revive // API name kept for backward compatibility in policy package.
 type PolicyDecision struct {
 	Allow bool
 	Trace *PolicyDecisionTrace
@@ -101,7 +103,7 @@ func (p *PolicyEngine) BuildPermissionFilter(ctx context.Context, userID string)
 		return Filter{}, err
 	}
 
-	if hasPermission(rolePerms, "global", "read_all") || hasPermission(rolePerms, "records", "read_all") {
+	if hasPermission(rolePerms, permGlobal, "read_all") || hasPermission(rolePerms, "records", "read_all") {
 		return Filter{Where: "workspace_id = ?", Args: []any{workspaceID}}, nil
 	}
 
@@ -112,6 +114,11 @@ var (
 	emailRe = regexp.MustCompile(`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b`)
 	phoneRe = regexp.MustCompile(`\b(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3}[\s.-]?\d{3,4}\b`)
 	ssnRe   = regexp.MustCompile(`\b\d{3}-\d{2}-\d{4}\b`)
+)
+
+const (
+	permGlobal = "global"
+	permAPI    = "api"
 )
 
 // RedactPII (EP2): redacts PII in evidence snippets.
@@ -445,20 +452,14 @@ func candidateToolActions(required string) []string {
 }
 
 func roleAllowsAction(perms map[string][]string, resource, action string) bool {
-	if hasGlobalAdminPermission(perms) {
-		return true
-	}
-	if hasDirectResourcePermission(perms, resource, action) {
-		return true
-	}
-	if hasWildcardPermission(perms, action) {
-		return true
-	}
-	return hasAPIAdminPermission(perms, resource, action)
+	return hasGlobalAdminPermission(perms) ||
+		hasDirectResourcePermission(perms, resource, action) ||
+		hasWildcardPermission(perms, action) ||
+		hasAPIAdminPermission(perms, resource, action)
 }
 
 func hasGlobalAdminPermission(perms map[string][]string) bool {
-	return hasPermission(perms, "global", "*") || hasPermission(perms, "global", "admin")
+	return hasPermission(perms, permGlobal, "*") || hasPermission(perms, permGlobal, "admin")
 }
 
 func hasDirectResourcePermission(perms map[string][]string, resource, action string) bool {
@@ -470,13 +471,10 @@ func hasWildcardPermission(perms map[string][]string, action string) bool {
 }
 
 func hasAPIAdminPermission(perms map[string][]string, resource, action string) bool {
-	if resource != "api" {
+	if resource != permAPI || !strings.HasPrefix(action, "admin.") {
 		return false
 	}
-	if !strings.HasPrefix(action, "admin.") {
-		return false
-	}
-	return hasPermission(perms, "api", "admin")
+	return hasPermission(perms, permAPI, "admin")
 }
 
 func hasPermission(perms map[string][]string, key, value string) bool {
@@ -530,10 +528,7 @@ func parsePolicyRules(raw string) ([]policyRule, error) {
 func filterMatchingRules(rules []policyRule, resource, action string, attrs map[string]string) []policyRule {
 	matched := make([]policyRule, 0, len(rules))
 	for _, rule := range rules {
-		if !matchesResourceAction(rule, resource, action) {
-			continue
-		}
-		if !matchesConditions(rule.Conditions, attrs) {
+		if !matchesResourceAction(rule, resource, action) || !matchesConditions(rule.Conditions, attrs) {
 			continue
 		}
 		matched = append(matched, rule)
@@ -563,10 +558,7 @@ func matchesConditions(conditions map[string]any, attrs map[string]string) bool 
 	}
 	for key, expected := range conditions {
 		expectedStr, ok := expected.(string)
-		if !ok {
-			return false
-		}
-		if attrs == nil || attrs[key] != expectedStr {
+		if !ok || attrs == nil || attrs[key] != expectedStr {
 			return false
 		}
 	}
@@ -582,7 +574,7 @@ func resolveDeterministicRule(rules []policyRule) policyRule {
 		eI := normalizeEffect(sorted[i].Effect)
 		eJ := normalizeEffect(sorted[j].Effect)
 		if eI != eJ {
-			return eI == "deny"
+			return eI == decisionDeny
 		}
 		return sorted[i].ID < sorted[j].ID
 	})
@@ -603,8 +595,8 @@ func makeRuleTrace(rules []policyRule) []string {
 
 func normalizeEffect(effect string) string {
 	e := strings.ToLower(strings.TrimSpace(effect))
-	if e == "deny" {
-		return "deny"
+	if e == decisionDeny {
+		return decisionDeny
 	}
 	return "allow"
 }
