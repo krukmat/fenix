@@ -86,7 +86,8 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		reindexSvc := knowledge.NewReindexService(db, knowledgeBus, ingestSvc, auditService)
 		go embedder.Start(context.Background(), knowledgeBus)
 		go reindexSvc.Start(context.Background())
-		toolRegistry := tooldomain.NewToolRegistry(db)
+		policyEngine := policy.NewPolicyEngine(db, nil, auditService)
+		toolRegistry := tooldomain.NewToolRegistryWithAuthorizer(db, policyEngine)
 
 		// Account endpoints (Task 1.3.8)
 		accountHandler := handlers.NewAccountHandler(crm.NewAccountServiceWithBus(db, knowledgeBus))
@@ -211,7 +212,6 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		knowledgeEvidenceHandler := handlers.NewKnowledgeEvidenceHandler(evidenceSvc)
 		knowledgeReindexHandler := handlers.NewKnowledgeReindexHandler(reindexSvc)
 		approvalHandler := handlers.NewApprovalHandler(policy.NewApprovalService(db, auditService))
-		policyEngine := policy.NewPolicyEngine(db, nil, auditService)
 		toolHandler := handlers.NewToolHandlerWithAuthorizer(toolRegistry, policyEngine)
 		// Task 3.9: Prompt Versioning
 		promptHandler := handlers.NewPromptHandlerWithAuthorizer(agent.NewPromptService(db, auditService), policyEngine)
@@ -241,8 +241,12 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		})
 
 		r.Route("/admin/tools", func(r chi.Router) {
-			r.Get("/", toolHandler.ListTools)   // GET /api/v1/admin/tools
-			r.Post("/", toolHandler.CreateTool) // POST /api/v1/admin/tools
+			r.Get("/", toolHandler.ListTools)        // GET /api/v1/admin/tools
+			r.Post("/", toolHandler.CreateTool)      // POST /api/v1/admin/tools
+			r.Put(routeByID, toolHandler.UpdateTool) // PUT /api/v1/admin/tools/{id}
+			r.Put("/{id}/activate", toolHandler.ActivateTool)
+			r.Put("/{id}/deactivate", toolHandler.DeactivateTool)
+			r.Delete(routeByID, toolHandler.DeleteTool) // DELETE /api/v1/admin/tools/{id}
 		})
 
 		// Task 3.9: Prompt Versioning routes

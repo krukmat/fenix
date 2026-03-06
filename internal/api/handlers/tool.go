@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 )
@@ -79,7 +80,7 @@ func (h *ToolHandler) CreateTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, ok := decodeCreateToolRequest(w, r)
+	req, ok := decodeToolRequest(w, r)
 	if !ok {
 		return
 	}
@@ -103,7 +104,101 @@ func (h *ToolHandler) CreateTool(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(toToolResponse(item))
 }
 
-func decodeCreateToolRequest(w http.ResponseWriter, r *http.Request) (createToolRequest, bool) {
+func (h *ToolHandler) UpdateTool(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.tools.update") {
+		return
+	}
+
+	workspaceID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, paramID)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "tool id is required")
+		return
+	}
+
+	req, ok := decodeToolRequest(w, r)
+	if !ok {
+		return
+	}
+
+	item, err := h.registry.UpdateToolDefinition(r.Context(), tool.UpdateToolDefinitionInput{
+		ID:                  id,
+		WorkspaceID:         workspaceID,
+		Name:                req.Name,
+		Description:         req.Description,
+		InputSchema:         req.InputSchema,
+		RequiredPermissions: req.RequiredPermissions,
+	})
+	if err != nil {
+		writeToolError(w, err)
+		return
+	}
+
+	writeJSONOr500(w, toToolResponse(item))
+}
+
+func (h *ToolHandler) ActivateTool(w http.ResponseWriter, r *http.Request) {
+	h.setToolActive(w, r, true, "admin.tools.activate")
+}
+
+func (h *ToolHandler) DeactivateTool(w http.ResponseWriter, r *http.Request) {
+	h.setToolActive(w, r, false, "admin.tools.deactivate")
+}
+
+func (h *ToolHandler) DeleteTool(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.tools.delete") {
+		return
+	}
+
+	workspaceID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, paramID)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "tool id is required")
+		return
+	}
+
+	if err := h.registry.DeleteToolDefinition(r.Context(), workspaceID, id); err != nil {
+		writeToolError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ToolHandler) setToolActive(w http.ResponseWriter, r *http.Request, isActive bool, action string) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, action) {
+		return
+	}
+
+	workspaceID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, paramID)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "tool id is required")
+		return
+	}
+
+	item, err := h.registry.SetToolDefinitionActive(r.Context(), workspaceID, id, isActive)
+	if err != nil {
+		writeToolError(w, err)
+		return
+	}
+
+	writeJSONOr500(w, toToolResponse(item))
+}
+
+func decodeToolRequest(w http.ResponseWriter, r *http.Request) (createToolRequest, bool) {
 	var req createToolRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, errInvalidBody)
@@ -114,6 +209,19 @@ func decodeCreateToolRequest(w http.ResponseWriter, r *http.Request) (createTool
 		return createToolRequest{}, false
 	}
 	return req, true
+}
+
+func writeToolError(w http.ResponseWriter, err error) {
+	switch {
+	case err == nil:
+		return
+	case err == tool.ErrToolDefinitionNotFound:
+		writeError(w, http.StatusNotFound, "tool definition not found")
+	case err == tool.ErrToolDefinitionInvalid:
+		writeError(w, http.StatusBadRequest, err.Error())
+	default:
+		writeError(w, http.StatusBadRequest, err.Error())
+	}
 }
 
 func getCreatedByFromContext(ctx context.Context) *string {

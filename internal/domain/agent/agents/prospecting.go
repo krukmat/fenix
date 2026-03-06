@@ -377,11 +377,10 @@ func (a *ProspectingAgent) requestProspectingApproval(
 }
 
 func (a *ProspectingAgent) fetchLead(ctx context.Context, config ProspectingAgentConfig) (*crm.Lead, error) {
-	exec, err := a.toolRegistry.Get(tool.BuiltinGetLead)
-	if err != nil {
+	if _, err := a.toolRegistry.Get(tool.BuiltinGetLead); err != nil {
 		return a.leadService.Get(ctx, config.WorkspaceID, config.LeadID)
 	}
-	raw, err := exec.Execute(ctx, mustJSON(map[string]any{"lead_id": config.LeadID}))
+	raw, err := a.toolRegistry.Execute(ctx, config.WorkspaceID, tool.BuiltinGetLead, mustJSON(map[string]any{"lead_id": config.LeadID}))
 	if err != nil {
 		return nil, err
 	}
@@ -399,11 +398,10 @@ func (a *ProspectingAgent) fetchLead(ctx context.Context, config ProspectingAgen
 }
 
 func (a *ProspectingAgent) fetchAccount(ctx context.Context, accountID string) (*crm.Account, error) {
-	exec, err := a.toolRegistry.Get(tool.BuiltinGetAccount)
-	if err != nil {
+	if _, err := a.toolRegistry.Get(tool.BuiltinGetAccount); err != nil {
 		return a.accountService.Get(ctx, workspaceFromCtx(ctx), accountID)
 	}
-	raw, err := exec.Execute(ctx, mustJSON(map[string]any{"account_id": accountID}))
+	raw, err := a.toolRegistry.Execute(ctx, workspaceFromCtx(ctx), tool.BuiltinGetAccount, mustJSON(map[string]any{"account_id": accountID}))
 	if err != nil {
 		return nil, err
 	}
@@ -424,11 +422,10 @@ func (a *ProspectingAgent) createFollowUpTask(ctx context.Context, lead *crm.Lea
 	if lead.AccountID == nil || *lead.AccountID == "" {
 		return "", ErrAccountRequired
 	}
-	exec, err := a.toolRegistry.Get(tool.BuiltinCreateTask)
-	if err != nil {
+	if _, err := a.toolRegistry.Get(tool.BuiltinCreateTask); err != nil {
 		return "", ErrTaskCreationFailed
 	}
-	raw, err := exec.Execute(ctx, mustJSON(map[string]any{
+	raw, err := a.toolRegistry.Execute(ctx, workspaceFromCtx(ctx), tool.BuiltinCreateTask, mustJSON(map[string]any{
 		"owner_id":    lead.OwnerID,
 		"title":       "Follow-up prospecting",
 		"entity_type": "account",

@@ -95,7 +95,7 @@
 
 ### Dependencias que marcan el siguiente paso
 - FR-202 ya esta desbloqueada por el cierre de FR-060 y FR-071.
-- FR-211 sigue condicionada por FR-202 y FR-070.
+- FR-211 sigue condicionada por FR-202 y FR-070; toma de FR-202 el registry/lifecycle/validation/enforcement base, mientras que la pipeline unificada de built-in tools pertenece al scope propio de FR-211.
 - FR-201 depende de FR-200 y FR-202/211.
 - FR-230 depende de FR-202/211 y FR-200.
 - FR-231 depende de FR-230 y FR-232.

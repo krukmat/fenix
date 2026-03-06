@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
@@ -17,6 +18,10 @@ var (
 	ErrToolExecutorNotRegistered     = errors.New("tool executor not registered")
 	ErrToolDefinitionNotFound        = errors.New("tool definition not found")
 	ErrToolValidationFailed          = errors.New("tool params validation failed")
+	ErrToolDefinitionInvalid         = errors.New("tool definition invalid")
+	ErrToolInactive                  = errors.New("tool is inactive")
+	ErrToolPermissionDenied          = errors.New("tool permission denied")
+	ErrToolUserContextMissing        = errors.New("tool user context missing")
 )
 
 //nolint:revive // tipo público persistido/serializado y usado transversalmente
@@ -43,14 +48,34 @@ type CreateToolDefinitionInput struct {
 	CreatedBy           *string
 }
 
+//nolint:revive // tipos publicos consolidados en modulo tool
+type UpdateToolDefinitionInput struct {
+	ID                  string
+	WorkspaceID         string
+	Name                string
+	Description         *string
+	InputSchema         json.RawMessage
+	RequiredPermissions []string
+}
+
+//nolint:revive // interfaz publica usada por runtime para enforcement de tools
+type ToolAuthorizer interface {
+	CheckToolPermission(ctx context.Context, userID, toolID string) (bool, error)
+}
+
 //nolint:revive // registro principal usado transversalmente en app/api/tests
 type ToolRegistry struct {
 	db        *sql.DB
 	executors map[string]ToolExecutor
+	authz     ToolAuthorizer
 }
 
 func NewToolRegistry(db *sql.DB) *ToolRegistry {
-	return &ToolRegistry{db: db, executors: make(map[string]ToolExecutor)}
+	return NewToolRegistryWithAuthorizer(db, nil)
+}
+
+func NewToolRegistryWithAuthorizer(db *sql.DB, authz ToolAuthorizer) *ToolRegistry {
+	return &ToolRegistry{db: db, executors: make(map[string]ToolExecutor), authz: authz}
 }
 
 func (r *ToolRegistry) Register(name string, executor ToolExecutor) error {
@@ -77,12 +102,8 @@ func (r *ToolRegistry) CreateToolDefinition(ctx context.Context, in CreateToolDe
 	if strings.TrimSpace(in.Name) == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-
-	if len(in.InputSchema) == 0 {
-		in.InputSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{}}`)
-	}
-	if !json.Valid(in.InputSchema) {
-		return nil, fmt.Errorf("input schema must be valid json")
+	if err := validateToolSchema(in.InputSchema); err != nil {
+		return nil, err
 	}
 
 	requiredPermsRaw, err := json.Marshal(in.RequiredPermissions)
@@ -128,6 +149,51 @@ func (r *ToolRegistry) CreateToolDefinition(ctx context.Context, in CreateToolDe
 	return item, nil
 }
 
+func (r *ToolRegistry) UpdateToolDefinition(ctx context.Context, in UpdateToolDefinitionInput) (*ToolDefinition, error) {
+	if strings.TrimSpace(in.ID) == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	if strings.TrimSpace(in.Name) == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	if err := validateToolSchema(in.InputSchema); err != nil {
+		return nil, err
+	}
+
+	requiredPermsRaw, err := json.Marshal(in.RequiredPermissions)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	res, err := r.db.ExecContext(ctx, `
+		UPDATE tool_definition
+		SET name = ?, description = ?, input_schema = ?, required_permissions = ?, updated_at = ?
+		WHERE id = ? AND workspace_id = ?
+	`,
+		strings.TrimSpace(in.Name),
+		in.Description,
+		[]byte(in.InputSchema),
+		[]byte(requiredPermsRaw),
+		now,
+		in.ID,
+		in.WorkspaceID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if rows == 0 {
+		return nil, ErrToolDefinitionNotFound
+	}
+
+	return r.GetToolDefinitionByID(ctx, in.WorkspaceID, in.ID)
+}
+
 func (r *ToolRegistry) ListToolDefinitions(ctx context.Context, workspaceID string) ([]*ToolDefinition, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, workspace_id, name, description, input_schema,
@@ -153,6 +219,71 @@ func (r *ToolRegistry) ListToolDefinitions(ctx context.Context, workspaceID stri
 		return nil, rowsErr
 	}
 	return out, nil
+}
+
+func (r *ToolRegistry) GetToolDefinitionByID(ctx context.Context, workspaceID, id string) (*ToolDefinition, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, workspace_id, name, description, input_schema,
+		       required_permissions, is_active, created_by, created_at, updated_at
+		FROM tool_definition
+		WHERE workspace_id = ? AND id = ?
+		LIMIT 1
+	`, workspaceID, id)
+
+	item, scanErr := scanToolDefinition(row)
+	if errors.Is(scanErr, sql.ErrNoRows) {
+		return nil, ErrToolDefinitionNotFound
+	}
+	if scanErr != nil {
+		return nil, scanErr
+	}
+	return item, nil
+}
+
+func (r *ToolRegistry) SetToolDefinitionActive(ctx context.Context, workspaceID, id string, isActive bool) (*ToolDefinition, error) {
+	now := time.Now().UTC()
+	activeRaw := 0
+	if isActive {
+		activeRaw = 1
+	}
+
+	res, err := r.db.ExecContext(ctx, `
+		UPDATE tool_definition
+		SET is_active = ?, updated_at = ?
+		WHERE id = ? AND workspace_id = ?
+	`, activeRaw, now, id, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if rows == 0 {
+		return nil, ErrToolDefinitionNotFound
+	}
+
+	return r.GetToolDefinitionByID(ctx, workspaceID, id)
+}
+
+func (r *ToolRegistry) DeleteToolDefinition(ctx context.Context, workspaceID, id string) error {
+	res, err := r.db.ExecContext(ctx, `
+		DELETE FROM tool_definition
+		WHERE id = ? AND workspace_id = ?
+	`, id, workspaceID)
+	if err != nil {
+		return err
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrToolDefinitionNotFound
+	}
+	return nil
 }
 
 func (r *ToolRegistry) ValidateParams(ctx context.Context, workspaceID, toolName string, params json.RawMessage) error {
@@ -182,6 +313,31 @@ func (r *ToolRegistry) ValidateParams(ctx context.Context, workspaceID, toolName
 	return nil
 }
 
+func (r *ToolRegistry) Execute(ctx context.Context, workspaceID, toolName string, params json.RawMessage) (json.RawMessage, error) {
+	def, err := r.getDefinitionForExecution(ctx, workspaceID, toolName)
+	if err != nil {
+		return nil, err
+	}
+	if !def.IsActive {
+		return nil, ErrToolInactive
+	}
+	if len(params) == 0 {
+		params = json.RawMessage(`{}`)
+	}
+	if err := r.ValidateParams(ctx, workspaceID, toolName, params); err != nil {
+		return nil, err
+	}
+	if err := r.enforceToolPermission(ctx, def.Name); err != nil {
+		return nil, err
+	}
+
+	executor, err := r.Get(def.Name)
+	if err != nil {
+		return nil, err
+	}
+	return executor.Execute(ctx, params)
+}
+
 func (r *ToolRegistry) getToolDefinitionByName(ctx context.Context, workspaceID, toolName string) (*ToolDefinition, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, workspace_id, name, description, input_schema,
@@ -201,6 +357,77 @@ func (r *ToolRegistry) getToolDefinitionByName(ctx context.Context, workspaceID,
 	return item, nil
 }
 
+func (r *ToolRegistry) getDefinitionForExecution(ctx context.Context, workspaceID, toolName string) (*ToolDefinition, error) {
+	def, err := r.getToolDefinitionByName(ctx, workspaceID, toolName)
+	if err == nil {
+		return def, nil
+	}
+	if !errors.Is(err, ErrToolDefinitionNotFound) {
+		return nil, err
+	}
+	if ensureErr := r.EnsureBuiltInToolDefinitions(ctx, workspaceID); ensureErr != nil {
+		return nil, ensureErr
+	}
+	return r.getToolDefinitionByName(ctx, workspaceID, toolName)
+}
+
+func (r *ToolRegistry) enforceToolPermission(ctx context.Context, toolName string) error {
+	if r.authz == nil {
+		return nil
+	}
+
+	userID, ok := ctx.Value(ctxkeys.UserID).(string)
+	if !ok || strings.TrimSpace(userID) == "" {
+		return ErrToolUserContextMissing
+	}
+
+	allowed, err := r.authz.CheckToolPermission(ctx, userID, toolName)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return ErrToolPermissionDenied
+	}
+	return nil
+}
+
+func validateToolSchema(raw json.RawMessage) error {
+	if len(raw) == 0 {
+		return fmt.Errorf("%w: input schema is required", ErrToolDefinitionInvalid)
+	}
+	if !json.Valid(raw) {
+		return fmt.Errorf("%w: input schema must be valid json", ErrToolDefinitionInvalid)
+	}
+
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		return fmt.Errorf("%w: input schema must be a json object", ErrToolDefinitionInvalid)
+	}
+	if schemaType, _ := schema["type"].(string); schemaType != "object" {
+		return fmt.Errorf("%w: input schema type must be object", ErrToolDefinitionInvalid)
+	}
+
+	props, ok := schema["properties"].(map[string]any)
+	if !ok || len(props) == 0 {
+		return fmt.Errorf("%w: input schema properties must be a non-empty object", ErrToolDefinitionInvalid)
+	}
+	if _, ok := schema["additionalProperties"].(bool); !ok {
+		return fmt.Errorf("%w: input schema additionalProperties must be explicit", ErrToolDefinitionInvalid)
+	}
+
+	required, err := parseRequiredKeys(schema["required"])
+	if err != nil {
+		return err
+	}
+	for _, key := range required {
+		if _, exists := props[key]; !exists {
+			return fmt.Errorf("%w: required field %q must be declared in properties", ErrToolDefinitionInvalid, key)
+		}
+	}
+
+	return nil
+}
+
 func validateAgainstMinimalSchema(input, schema map[string]any) error {
 	if valErr := validateRequiredFields(input, extractStringSlice(schema["required"])); valErr != nil {
 		return valErr
@@ -211,6 +438,27 @@ func validateAgainstMinimalSchema(input, schema map[string]any) error {
 	}
 
 	return validateUnknownFields(input, buildAllowedPropsSet(schema))
+}
+
+func parseRequiredKeys(v any) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+
+	arr, ok := v.([]any)
+	if !ok {
+		return nil, fmt.Errorf("%w: required must be an array of strings", ErrToolDefinitionInvalid)
+	}
+
+	out := make([]string, 0, len(arr))
+	for _, item := range arr {
+		key, isString := item.(string)
+		if !isString || strings.TrimSpace(key) == "" {
+			return nil, fmt.Errorf("%w: required must be an array of non-empty strings", ErrToolDefinitionInvalid)
+		}
+		out = append(out, key)
+	}
+	return out, nil
 }
 
 func validateRequiredFields(input map[string]any, requiredKeys []string) error {

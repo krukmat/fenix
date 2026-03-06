@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 )
 
@@ -18,6 +19,18 @@ type noopExecutor struct{}
 
 func (noopExecutor) Execute(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
 	return json.RawMessage(`{"ok":true}`), nil
+}
+
+type toolPermStub struct {
+	allow bool
+	err   error
+}
+
+func (s toolPermStub) CheckToolPermission(_ context.Context, _, _ string) (bool, error) {
+	if s.err != nil {
+		return false, s.err
+	}
+	return s.allow, nil
 }
 
 func openToolTestDB(t *testing.T) *sql.DB {
@@ -75,6 +88,23 @@ func TestToolRegistry_ValidateParams_InvalidJSON_ReturnsError(t *testing.T) {
 	}
 }
 
+func TestToolRegistry_CreateToolDefinition_RejectsWeakSchema(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	r := NewToolRegistry(db)
+
+	_, err := r.CreateToolDefinition(context.Background(), CreateToolDefinitionInput{
+		WorkspaceID: wsID,
+		Name:        "create_task",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+	})
+	if !errors.Is(err, ErrToolDefinitionInvalid) {
+		t.Fatalf("expected ErrToolDefinitionInvalid, got %v", err)
+	}
+}
+
 func TestToolRegistry_ListToolDefinitions_DeserializesSchemaAndPerms(t *testing.T) {
 	t.Parallel()
 
@@ -105,6 +135,111 @@ func TestToolRegistry_ListToolDefinitions_DeserializesSchemaAndPerms(t *testing.
 	}
 	if len(items[0].RequiredPermissions) != 1 || items[0].RequiredPermissions[0] != "tools:update_case" {
 		t.Fatalf("unexpected required permissions: %#v", items[0].RequiredPermissions)
+	}
+}
+
+func TestToolRegistry_UpdateActivateDeactivateDeleteLifecycle(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	r := NewToolRegistry(db)
+
+	created, err := r.CreateToolDefinition(context.Background(), CreateToolDefinitionInput{
+		WorkspaceID:         wsID,
+		Name:                "update_case",
+		InputSchema:         json.RawMessage(`{"type":"object","required":["case_id"],"properties":{"case_id":{"type":"string"}},"additionalProperties":false}`),
+		RequiredPermissions: []string{"tools:update_case"},
+	})
+	if err != nil {
+		t.Fatalf("CreateToolDefinition returned error: %v", err)
+	}
+
+	updated, err := r.UpdateToolDefinition(context.Background(), UpdateToolDefinitionInput{
+		ID:                  created.ID,
+		WorkspaceID:         wsID,
+		Name:                "update_case_v2",
+		Description:         ptrString("updated"),
+		InputSchema:         json.RawMessage(`{"type":"object","required":["case_id","status"],"properties":{"case_id":{"type":"string"},"status":{"type":"string"}},"additionalProperties":false}`),
+		RequiredPermissions: []string{"tools:update_case", "tools:update_case_v2"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateToolDefinition returned error: %v", err)
+	}
+	if updated.Name != "update_case_v2" {
+		t.Fatalf("updated.Name=%s want=update_case_v2", updated.Name)
+	}
+
+	inactive, err := r.SetToolDefinitionActive(context.Background(), wsID, created.ID, false)
+	if err != nil {
+		t.Fatalf("SetToolDefinitionActive(false) returned error: %v", err)
+	}
+	if inactive.IsActive {
+		t.Fatal("expected tool to be inactive")
+	}
+
+	active, err := r.SetToolDefinitionActive(context.Background(), wsID, created.ID, true)
+	if err != nil {
+		t.Fatalf("SetToolDefinitionActive(true) returned error: %v", err)
+	}
+	if !active.IsActive {
+		t.Fatal("expected tool to be active")
+	}
+
+	if err := r.DeleteToolDefinition(context.Background(), wsID, created.ID); err != nil {
+		t.Fatalf("DeleteToolDefinition returned error: %v", err)
+	}
+	if _, err := r.GetToolDefinitionByID(context.Background(), wsID, created.ID); !errors.Is(err, ErrToolDefinitionNotFound) {
+		t.Fatalf("expected ErrToolDefinitionNotFound after delete, got %v", err)
+	}
+}
+
+func TestToolRegistry_Execute_EnforcesActiveValidationAndPermissions(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	r := NewToolRegistryWithAuthorizer(db, toolPermStub{allow: true})
+	if err := r.Register("create_task", noopExecutor{}); err != nil {
+		t.Fatalf("Register returned error: %v", err)
+	}
+
+	created, err := r.CreateToolDefinition(context.Background(), CreateToolDefinitionInput{
+		WorkspaceID:         wsID,
+		Name:                "create_task",
+		InputSchema:         json.RawMessage(`{"type":"object","required":["title"],"properties":{"title":{"type":"string"}},"additionalProperties":false}`),
+		RequiredPermissions: []string{"tools:create_task"},
+	})
+	if err != nil {
+		t.Fatalf("CreateToolDefinition returned error: %v", err)
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkeys.UserID, "user-1")
+
+	if _, err := r.Execute(ctx, wsID, "create_task", json.RawMessage(`{"title":"x"}`)); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if _, err := r.Execute(ctx, wsID, "create_task", json.RawMessage(`{"unexpected":true}`)); !errors.Is(err, ErrToolValidationFailed) {
+		t.Fatalf("expected ErrToolValidationFailed, got %v", err)
+	}
+
+	if _, err := r.SetToolDefinitionActive(context.Background(), wsID, created.ID, false); err != nil {
+		t.Fatalf("SetToolDefinitionActive returned error: %v", err)
+	}
+	if _, err := r.Execute(ctx, wsID, "create_task", json.RawMessage(`{"title":"x"}`)); !errors.Is(err, ErrToolInactive) {
+		t.Fatalf("expected ErrToolInactive, got %v", err)
+	}
+
+	denied := NewToolRegistryWithAuthorizer(db, toolPermStub{allow: false})
+	if err := denied.Register("create_task", noopExecutor{}); err != nil {
+		t.Fatalf("Register returned error: %v", err)
+	}
+	if _, err := denied.SetToolDefinitionActive(context.Background(), wsID, created.ID, true); err != nil {
+		t.Fatalf("SetToolDefinitionActive returned error: %v", err)
+	}
+	if _, err := denied.Execute(ctx, wsID, "create_task", json.RawMessage(`{"title":"x"}`)); !errors.Is(err, ErrToolPermissionDenied) {
+		t.Fatalf("expected ErrToolPermissionDenied, got %v", err)
 	}
 }
 
@@ -178,6 +313,10 @@ func TestExtractStringSlice(t *testing.T) {
 	if out != nil {
 		t.Fatalf("expected nil for non-array input, got %#v", out)
 	}
+}
+
+func ptrString(v string) *string {
+	return &v
 }
 
 var toolRandCounter int64

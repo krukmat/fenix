@@ -210,7 +210,7 @@ func (a *InsightsAgent) queryMetrics(
 	workspaceID, metric string,
 	dateFrom, dateTo *time.Time,
 ) ([]map[string]any, error) {
-	exec, err := a.toolRegistry.Get(tool.BuiltinQueryMetrics) // Task 4.5d — use ToolRegistry, no direct SQL metric queries.
+	_, err := a.toolRegistry.Get(tool.BuiltinQueryMetrics) // Task 4.5d — use ToolRegistry, no direct SQL metric queries.
 	if err != nil {
 		return nil, ErrInsightsQueryMetricsFailed
 	}
@@ -221,7 +221,7 @@ func (a *InsightsAgent) queryMetrics(
 	if dateTo != nil {
 		payload["to"] = dateTo.UTC().Format(time.RFC3339)
 	}
-	raw, err := exec.Execute(ctx, mustJSON(payload))
+	raw, err := a.toolRegistry.Execute(ctx, workspaceID, tool.BuiltinQueryMetrics, mustJSON(payload))
 	if err != nil {
 		return nil, ErrInsightsQueryMetricsFailed
 	}
