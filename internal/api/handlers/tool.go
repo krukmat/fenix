@@ -87,21 +87,11 @@ func (h *ToolHandler) CreateTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req createToolRequest
-	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
+	req, ok := decodeCreateToolRequest(w, r)
+	if !ok {
 		return
 	}
-
-	if req.Name == "" {
-		writeError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-
-	var createdBy *string
-	if userID, ok := r.Context().Value(ctxkeys.UserID).(string); ok && userID != "" {
-		createdBy = &userID
-	}
+	createdBy := getCreatedByFromContext(r.Context())
 
 	item, err := h.registry.CreateToolDefinition(r.Context(), tool.CreateToolDefinitionInput{
 		WorkspaceID:         workspaceID,
@@ -119,6 +109,26 @@ func (h *ToolHandler) CreateTool(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(toToolResponse(item))
+}
+
+func decodeCreateToolRequest(w http.ResponseWriter, r *http.Request) (createToolRequest, bool) {
+	var req createToolRequest
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
+		writeError(w, http.StatusBadRequest, errInvalidBody)
+		return createToolRequest{}, false
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return createToolRequest{}, false
+	}
+	return req, true
+}
+
+func getCreatedByFromContext(ctx context.Context) *string {
+	if userID, ok := ctx.Value(ctxkeys.UserID).(string); ok && userID != "" {
+		return &userID
+	}
+	return nil
 }
 
 func toToolResponse(item *tool.ToolDefinition) toolResponse {

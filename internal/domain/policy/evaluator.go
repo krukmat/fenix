@@ -445,19 +445,38 @@ func candidateToolActions(required string) []string {
 }
 
 func roleAllowsAction(perms map[string][]string, resource, action string) bool {
-	if hasPermission(perms, "global", "*") || hasPermission(perms, "global", "admin") {
+	if hasGlobalAdminPermission(perms) {
 		return true
 	}
-	if hasPermission(perms, resource, action) || hasPermission(perms, resource, "*") {
+	if hasDirectResourcePermission(perms, resource, action) {
 		return true
 	}
-	if hasPermission(perms, "*", action) || hasPermission(perms, "*", "*") {
+	if hasWildcardPermission(perms, action) {
 		return true
 	}
-	if resource == "api" && strings.HasPrefix(action, "admin.") && hasPermission(perms, "api", "admin") {
-		return true
+	return hasAPIAdminPermission(perms, resource, action)
+}
+
+func hasGlobalAdminPermission(perms map[string][]string) bool {
+	return hasPermission(perms, "global", "*") || hasPermission(perms, "global", "admin")
+}
+
+func hasDirectResourcePermission(perms map[string][]string, resource, action string) bool {
+	return hasPermission(perms, resource, action) || hasPermission(perms, resource, "*")
+}
+
+func hasWildcardPermission(perms map[string][]string, action string) bool {
+	return hasPermission(perms, "*", action) || hasPermission(perms, "*", "*")
+}
+
+func hasAPIAdminPermission(perms map[string][]string, resource, action string) bool {
+	if resource != "api" {
+		return false
 	}
-	return false
+	if !strings.HasPrefix(action, "admin.") {
+		return false
+	}
+	return hasPermission(perms, "api", "admin")
 }
 
 func hasPermission(perms map[string][]string, key, value string) bool {
