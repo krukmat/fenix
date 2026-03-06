@@ -28,6 +28,9 @@ const (
 
 // HTTP response string constants (extracted to satisfy goconst lint gate).
 const (
+	// resourceAPI is the resource type passed to checkActionAuthorization for API-level actions.
+	resourceAPI = "api"
+
 	headerContentType        = "Content-Type"
 	headerContentDisposition = "Content-Disposition"
 	mimeJSON                 = "application/json"

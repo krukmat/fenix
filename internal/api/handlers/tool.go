@@ -42,7 +42,7 @@ type toolResponse struct {
 }
 
 func (h *ToolHandler) ListTools(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, "api", "admin.tools.list") {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.tools.list") {
 		return
 	}
 
@@ -69,7 +69,7 @@ func (h *ToolHandler) ListTools(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ToolHandler) CreateTool(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, "api", "admin.tools.create") {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.tools.create") {
 		return
 	}
 

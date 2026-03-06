@@ -63,7 +63,7 @@ type PromptVersionResponse struct {
 // List lista todas las versiones de un agente
 // GET /api/v1/admin/prompts?agent_id={id}
 func (h *PromptHandler) List(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, "api", "admin.prompts.list") {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.list") {
 		return
 	}
 
@@ -97,7 +97,7 @@ func (h *PromptHandler) List(w http.ResponseWriter, r *http.Request) {
 // Create crea una nueva versión de prompt
 // POST /api/v1/admin/prompts
 func (h *PromptHandler) Create(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, "api", "admin.prompts.create") {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.create") {
 		return
 	}
 
@@ -159,7 +159,7 @@ func resolvePromptConfig(config *string) string {
 // Promote activa una versión
 // PUT /api/v1/admin/prompts/{id}/promote
 func (h *PromptHandler) Promote(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, "api", "admin.prompts.promote") {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.promote") {
 		return
 	}
 
@@ -242,7 +242,7 @@ func (h *PromptHandler) respondWithPromptVersion(w http.ResponseWriter, r *http.
 // Rollback reactiva la versión anterior
 // PUT /api/v1/admin/prompts/{id}/rollback (nota: {id} aquí es agent_id, no prompt_version_id)
 func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, "api", "admin.prompts.rollback") {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.rollback") {
 		return
 	}
 
