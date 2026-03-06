@@ -291,6 +291,52 @@ func TestEvaluatePolicyDecision_DeterministicPrecedenceAndTrace(t *testing.T) {
 	}
 }
 
+func TestEvaluatePolicyDecision_NoMatchingRule_DeniesWithTraceAndAudit(t *testing.T) {
+	db := setupPolicyTestDB(t)
+	workspaceID, userID := seedWorkspaceUserRole(t, db, `{"tools":["update_case"]}`)
+
+	policyJSON := `{
+	  "rules": [
+	    {"id":"allow_other_action","resource":"tools","action":"create_task","effect":"allow","priority":1}
+	  ]
+	}`
+	setID, verID := seedActivePolicyVersion(t, db, workspaceID, 1, policyJSON)
+
+	auditService := audit.NewAuditService(db)
+	engine := NewPolicyEngine(db, nil, auditService)
+
+	decision, err := engine.EvaluatePolicyDecision(context.Background(), workspaceID, userID, "tools", "update_case", nil)
+	if err != nil {
+		t.Fatalf("EvaluatePolicyDecision error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatalf("expected deny when no rule matches")
+	}
+	if decision.Trace == nil {
+		t.Fatalf("expected non-nil trace for active policy no-match")
+	}
+	if decision.Trace.PolicySetID != setID || decision.Trace.PolicyVersionID != verID {
+		t.Fatalf("unexpected policy identifiers in trace: %#v", decision.Trace)
+	}
+	if decision.Trace.MatchedRuleID != "" {
+		t.Fatalf("expected empty matched rule id for no-match, got %q", decision.Trace.MatchedRuleID)
+	}
+	if decision.Trace.MatchedEffect != decisionDeny {
+		t.Fatalf("expected matched effect deny for no-match, got %q", decision.Trace.MatchedEffect)
+	}
+	if len(decision.Trace.RuleTrace) != 0 {
+		t.Fatalf("expected empty rule trace for no-match, got %#v", decision.Trace.RuleTrace)
+	}
+
+	events, err := auditService.ListByAction(context.Background(), workspaceID, "policy.evaluated", 20, 0)
+	if err != nil {
+		t.Fatalf("ListByAction(policy.evaluated) error: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatalf("expected at least one policy.evaluated event")
+	}
+}
+
 func TestCheckToolPermission_UsesActivePolicyVersionWhenAvailable(t *testing.T) {
 	t.Run("policy deny overrides role allow", func(t *testing.T) {
 		db := setupPolicyTestDB(t)

@@ -211,7 +211,7 @@ func (p *PolicyEngine) EvaluatePolicyDecision(
 
 	matched := filterMatchingRules(rules, resource, action, attrs)
 	if len(matched) == 0 {
-		return PolicyDecision{
+		decision := PolicyDecision{
 			Allow: false,
 			Trace: &PolicyDecisionTrace{
 				PolicySetID:      active.PolicySetID,
@@ -219,9 +219,12 @@ func (p *PolicyEngine) EvaluatePolicyDecision(
 				PolicyVersionNum: active.VersionNumber,
 				Resource:         resource,
 				Action:           action,
+				MatchedEffect:    decisionDeny,
 				RuleTrace:        []string{},
 			},
-		}, nil
+		}
+		p.logPolicyDecision(ctx, workspaceID, actorID, decision)
+		return decision, nil
 	}
 
 	resolved := resolveDeterministicRule(matched)
