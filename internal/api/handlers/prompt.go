@@ -246,15 +246,14 @@ func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
-	if !ok || workspaceID == "" {
+	workspaceID, ok := getWorkspaceIDFromContext(r)
+	if !ok {
 		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
 		return
 	}
 
-	agentID := chi.URLParam(r, paramID)
-	if agentID == "" {
-		http.Error(w, "missing id param", http.StatusBadRequest)
+	agentID, ok := getPromptVersionIDParam(w, r)
+	if !ok {
 		return
 	}
 
