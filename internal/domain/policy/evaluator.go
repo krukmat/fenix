@@ -119,6 +119,9 @@ var (
 const (
 	permGlobal = "global"
 	permAPI    = "api"
+	permTools  = "tools"
+
+	auditActionPolicyEvaluated = "policy.evaluated"
 )
 
 // RedactPII (EP2): redacts PII in evidence snippets.
@@ -152,7 +155,7 @@ func (p *PolicyEngine) CheckToolPermission(ctx context.Context, userID, toolID s
 
 	for _, req := range requiredPerms {
 		for _, action := range candidateToolActions(req) {
-			ok, checkErr := p.CheckActionPermission(ctx, userID, "tools", action, nil)
+			ok, checkErr := p.CheckActionPermission(ctx, userID, permTools, action, nil)
 			if checkErr != nil {
 				return false, checkErr
 			}
@@ -615,7 +618,7 @@ func (p *PolicyEngine) logPolicyDecision(ctx context.Context, workspaceID, actor
 		workspaceID,
 		actorID,
 		audit.ActorTypeUser,
-		"policy.evaluated",
+		auditActionPolicyEvaluated,
 		&entityType,
 		&entityID,
 		&audit.EventDetails{Metadata: map[string]any{
