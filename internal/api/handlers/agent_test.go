@@ -98,6 +98,15 @@ func newTestProspectingAgentHandler(t *testing.T, db *sql.DB, wsID, ownerID stri
 	if err != nil {
 		t.Fatalf("create lead: %v", err)
 	}
+	if regErr := reg.Register(tool.BuiltinGetLead, tool.NewGetLeadExecutor(leadSvc)); regErr != nil {
+		t.Fatalf("register get_lead executor: %v", regErr)
+	}
+	if regErr := reg.Register(tool.BuiltinGetAccount, tool.NewGetAccountExecutor(accountSvc)); regErr != nil {
+		t.Fatalf("register get_account executor: %v", regErr)
+	}
+	if regErr := reg.Register(tool.BuiltinCreateTask, tool.NewCreateTaskExecutor(db)); regErr != nil {
+		t.Fatalf("register create_task executor: %v", regErr)
+	}
 
 	pa := agents.NewProspectingAgent(orch, reg, &mockKnowledgeSearchHandler{}, &mockLLMProviderHandler{}, leadSvc, accountSvc, db)
 	return NewProspectingAgentHandler(pa), lead.ID
