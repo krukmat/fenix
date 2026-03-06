@@ -76,7 +76,7 @@ func (s *auditStub) LogWithDetails(_ context.Context, _, _ string, _ audit.Actor
 }
 
 func TestChat_StreamIncludesEvidenceTokenDone(t *testing.T) {
-	sn := "customer email is john@acme.com"
+	sn := "estado del caso abierto para el cliente john@acme.com"
 	llmSvc := &llmStub{resp: "respuesta final"}
 	svc := NewChatService(
 		&evidenceStub{pack: &knowledge.EvidencePack{Sources: []knowledge.Evidence{{ID: "ev_1", Snippet: &sn}}, Confidence: knowledge.ConfidenceHigh}},
@@ -85,7 +85,7 @@ func TestChat_StreamIncludesEvidenceTokenDone(t *testing.T) {
 		&auditStub{},
 	)
 
-	ch, err := svc.Chat(context.Background(), ChatInput{WorkspaceID: "ws_1", UserID: "u_1", Query: "estado del caso"})
+	ch, err := svc.Chat(context.Background(), ChatInput{WorkspaceID: "ws_1", UserID: "u_1", Query: "estado del caso abierto"})
 	if err != nil {
 		t.Fatalf("Chat error: %v", err)
 	}
@@ -112,14 +112,15 @@ func TestChat_StreamIncludesEvidenceTokenDone(t *testing.T) {
 }
 
 func TestChat_PropagatesProviderError(t *testing.T) {
+	sn := "pricing tiers for enterprise plan"
 	svc := NewChatService(
-		&evidenceStub{pack: &knowledge.EvidencePack{}},
+		&evidenceStub{pack: &knowledge.EvidencePack{Sources: []knowledge.Evidence{{ID: "ev_1", Snippet: &sn}}, Confidence: knowledge.ConfidenceHigh}},
 		&llmStub{err: errors.New("llm down")},
 		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
 		&auditStub{},
 	)
 
-	_, err := svc.Chat(context.Background(), ChatInput{WorkspaceID: "ws_1", UserID: "u_1", Query: "q"})
+	_, err := svc.Chat(context.Background(), ChatInput{WorkspaceID: "ws_1", UserID: "u_1", Query: "enterprise pricing tiers"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
