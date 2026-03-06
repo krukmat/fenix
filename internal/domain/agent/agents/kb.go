@@ -178,6 +178,28 @@ func (a *KBAgent) executeKBFlow(ctx context.Context, toolCtx context.Context, co
 	}
 	query := caseTicket.Subject + " " + content
 	topID, topScore := a.searchSimilarArticles(scopedToolCtx, config.WorkspaceID, query)
+	if isHighSensitivityMetadata(caseTicket.Metadata) {
+		approvalID, err := a.requestKBApproval(scopedToolCtx, config.WorkspaceID, caseTicket, topID, topScore, subjectAndContent(caseTicket.Subject, content))
+		if err != nil {
+			return nil, err
+		}
+		output, _ := json.Marshal(map[string]any{
+			"action":      "pending_approval",
+			"article_id":  "",
+			"reason":      "high_sensitivity",
+			"approval_id": approvalID,
+		})
+		calls, _ := json.Marshal([]map[string]any{{"tool_name": "approval.requested"}})
+		latency := time.Since(start).Milliseconds()
+		return &KBResult{
+			Status:      agent.StatusEscalated,
+			Output:      output,
+			ToolCalls:   calls,
+			TotalTokens: &tokens,
+			TotalCost:   &cost,
+			LatencyMs:   &latency,
+		}, nil
+	}
 
 	articleID, action, reason, toolCalls, mutErr := a.resolveArticleMutation(scopedToolCtx, config.WorkspaceID, caseTicket.Subject, content, topID, topScore)
 	if mutErr != nil {
@@ -195,6 +217,52 @@ func (a *KBAgent) executeKBFlow(ctx context.Context, toolCtx context.Context, co
 		TotalCost:   &cost,
 		LatencyMs:   &latency,
 	}, nil
+}
+
+func subjectAndContent(subject, content string) map[string]any {
+	return map[string]any{"subject": subject, "content": content}
+}
+
+func (a *KBAgent) requestKBApproval(
+	ctx context.Context,
+	workspaceID string,
+	caseTicket *crm.CaseTicket,
+	topID string,
+	topScore float64,
+	article map[string]any,
+) (string, error) {
+	if a.db == nil {
+		return "", ErrKBApprovalCreationFailed
+	}
+	requesterID := requesterFromCtxOrDefault(ctx, caseTicket.OwnerID)
+	approverID := caseTicket.OwnerID
+	approvalID, err := createApprovalGateRequest(ctx, a.db, approvalGateInput{
+		WorkspaceID:  workspaceID,
+		RequestedBy:  requesterID,
+		ApproverID:   approverID,
+		Action:       "kb.article.mutation",
+		ResourceType: "case_ticket",
+		ResourceID:   caseTicket.ID,
+		Reason:       "high_sensitivity",
+		Payload: map[string]any{
+			"candidate_article_id": topID,
+			"candidate_score":      topScore,
+			"proposed_tool":        plannedKBTool(topScore),
+			"article":              article,
+		},
+		TTL: 24 * time.Hour,
+	})
+	if err != nil {
+		return "", err
+	}
+	return approvalID, nil
+}
+
+func plannedKBTool(score float64) string {
+	if score > 0.85 {
+		return tool.BuiltinUpdateKnowledgeItem
+	}
+	return tool.BuiltinCreateKnowledgeItem
 }
 
 func (a *KBAgent) loadEligibleCase(
@@ -228,10 +296,6 @@ func resolveKBAgentUserID(ownerID string, triggeredBy *string) string {
 }
 
 func buildKBOutput(metadata *string, articleID, action, reason string) json.RawMessage {
-	if caseIsHighSensitivity(metadata) {
-		action = "pending_approval"
-		reason = "high_sensitivity"
-	}
 	output, _ := json.Marshal(map[string]any{
 		"action":     action,
 		"article_id": articleID,
@@ -343,24 +407,14 @@ func (a *KBAgent) checkDailyLimits(ctx context.Context, workspaceID string) erro
 	return nil
 }
 
-func caseIsHighSensitivity(metadata *string) bool {
-	if metadata == nil {
-		return false
-	}
-	var m map[string]string
-	if err := json.Unmarshal([]byte(*metadata), &m); err != nil {
-		return false
-	}
-	return m["sensitivity"] == "high"
-}
-
 var (
-	ErrKBCaseIDRequired        = &KBError{message: "case_id is required"}
-	ErrCaseNotFound            = &KBError{message: "case not found"}
-	ErrCaseNotResolved         = &KBError{message: "case is not resolved or closed"}
-	ErrKBDailyLimitExceeded    = &KBError{message: "daily article creation limit exceeded (max 10/day)"}
-	ErrKBArticleCreationFailed = &KBError{message: "failed to create knowledge article"}
-	ErrKBArticleUpdateFailed   = &KBError{message: "failed to update knowledge article"}
+	ErrKBCaseIDRequired         = &KBError{message: "case_id is required"}
+	ErrCaseNotFound             = &KBError{message: "case not found"}
+	ErrCaseNotResolved          = &KBError{message: "case is not resolved or closed"}
+	ErrKBDailyLimitExceeded     = &KBError{message: "daily article creation limit exceeded (max 10/day)"}
+	ErrKBArticleCreationFailed  = &KBError{message: "failed to create knowledge article"}
+	ErrKBArticleUpdateFailed    = &KBError{message: "failed to update knowledge article"}
+	ErrKBApprovalCreationFailed = &KBError{message: "failed to create approval request"}
 )
 
 // KBError is the typed error for the KB agent.

@@ -183,3 +183,73 @@ func TestKBAgent_Run_UnresolvedCase_Error(t *testing.T) {
 		t.Fatalf("expected ErrCaseNotResolved, got %v", err)
 	}
 }
+
+func TestKBAgent_Run_HighSensitivity_CreatesApprovalAndBlocksMutation(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+	insertKBAgentDefinition(t, db, "ws-1")
+	ownerID := insertProspectingTestUser(t, db, "ws-1")
+
+	highSensitivityMeta := `{"sensitivity":"high"}`
+	a := newTestKBAgent(
+		t,
+		db,
+		&mockKnowledgeSearch{results: &knowledge.SearchResults{Items: []knowledge.SearchResult{{Score: 0.4}}}},
+		&mockKBCaseGetter{caseTicket: &crm.CaseTicket{ID: "case-hs-1", WorkspaceID: "ws-1", Subject: "Reset", Status: "resolved", OwnerID: ownerID, Metadata: &highSensitivityMeta}},
+		mustJSON(map[string]any{"knowledge_item_id": "kb-new"}),
+		mustJSON(map[string]any{"knowledge_item_id": "kb-upd"}),
+	)
+
+	run, err := a.Run(context.Background(), KBAgentConfig{WorkspaceID: "ws-1", CaseID: "case-hs-1"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	stored, getErr := agent.NewOrchestrator(db).GetAgentRun(context.Background(), "ws-1", run.ID)
+	if getErr != nil {
+		t.Fatalf("GetAgentRun: %v", getErr)
+	}
+	if stored.Status != agent.StatusEscalated {
+		t.Fatalf("status=%s want=%s", stored.Status, agent.StatusEscalated)
+	}
+
+	var output struct {
+		Action     string `json:"action"`
+		Reason     string `json:"reason"`
+		ApprovalID string `json:"approval_id"`
+		ArticleID  string `json:"article_id"`
+	}
+	if unmarshalErr := json.Unmarshal(stored.Output, &output); unmarshalErr != nil {
+		t.Fatalf("unmarshal output: %v", unmarshalErr)
+	}
+	if output.Action != "pending_approval" {
+		t.Fatalf("action=%s want=pending_approval", output.Action)
+	}
+	if output.Reason != "high_sensitivity" {
+		t.Fatalf("reason=%s want=high_sensitivity", output.Reason)
+	}
+	if output.ApprovalID == "" {
+		t.Fatalf("expected non-empty approval_id")
+	}
+	if output.ArticleID != "" {
+		t.Fatalf("article_id=%q want empty", output.ArticleID)
+	}
+
+	var (
+		status string
+		action string
+	)
+	err = db.QueryRowContext(context.Background(), `
+		SELECT status, action
+		FROM approval_request
+		WHERE id = ?
+	`, output.ApprovalID).Scan(&status, &action)
+	if err != nil {
+		t.Fatalf("query approval_request: %v", err)
+	}
+	if status != "pending" {
+		t.Fatalf("approval status=%s want=pending", status)
+	}
+	if action != "kb.article.mutation" {
+		t.Fatalf("approval action=%s want=kb.article.mutation", action)
+	}
+}

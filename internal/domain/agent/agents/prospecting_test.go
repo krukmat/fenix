@@ -254,4 +254,67 @@ func TestProspectingAgent_Run_MissingLead_Error(t *testing.T) {
 	}
 }
 
+func TestProspectingAgent_Run_HighSensitivity_CreatesApprovalAndBlocks(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+	insertProspectingAgentDefinition(t, db, "ws-1")
+	ownerID := insertProspectingTestUser(t, db, "ws-1")
+
+	leadID := "lead-hs-1"
+	accountID := "acc-hs-1"
+	highSensitivityMeta := `{"sensitivity":"high"}`
+	a := newTestProspectingAgent(t, db,
+		&mockKnowledgeSearch{results: &knowledge.SearchResults{Items: []knowledge.SearchResult{{Score: 0.9}}}},
+		&mockLLMProvider{content: "hola", tokens: 5},
+		&mockLeadGetter{lead: &crm.Lead{ID: leadID, AccountID: &accountID, Status: "new", OwnerID: ownerID, Metadata: &highSensitivityMeta}},
+		&mockAccountGetter{account: &crm.Account{ID: accountID, Name: "Acme"}},
+	)
+
+	run, err := a.Run(context.Background(), ProspectingAgentConfig{WorkspaceID: "ws-1", LeadID: leadID})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	stored, getErr := agent.NewOrchestrator(db).GetAgentRun(context.Background(), "ws-1", run.ID)
+	if getErr != nil {
+		t.Fatalf("GetAgentRun: %v", getErr)
+	}
+	if stored.Status != agent.StatusEscalated {
+		t.Fatalf("status=%s want=%s", stored.Status, agent.StatusEscalated)
+	}
+
+	var output struct {
+		Action     string `json:"action"`
+		Reason     string `json:"reason"`
+		ApprovalID string `json:"approval_id"`
+	}
+	if err := json.Unmarshal(stored.Output, &output); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if output.Action != "pending_approval" {
+		t.Fatalf("action=%s want=pending_approval", output.Action)
+	}
+	if output.Reason != "high_sensitivity" {
+		t.Fatalf("reason=%s want=high_sensitivity", output.Reason)
+	}
+	if output.ApprovalID == "" {
+		t.Fatal("expected approval_id in output")
+	}
+
+	var status, action string
+	err = db.QueryRowContext(context.Background(), `
+		SELECT status, action
+		FROM approval_request
+		WHERE id = ?
+	`, output.ApprovalID).Scan(&status, &action)
+	if err != nil {
+		t.Fatalf("query approval_request: %v", err)
+	}
+	if status != "pending" {
+		t.Fatalf("approval status=%s want=pending", status)
+	}
+	if action != "prospecting.followup.draft" {
+		t.Fatalf("approval action=%s want=prospecting.followup.draft", action)
+	}
+}
+
 func contains(s, sub string) bool { return strings.Contains(s, sub) }

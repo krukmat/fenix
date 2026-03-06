@@ -208,7 +208,7 @@ func (a *ProspectingAgent) executeProspectingFlow(ctx context.Context, config Pr
 	}
 
 	toolCalls := baseProspectingToolCalls(config.LeadID, lead.AccountID, query)
-	out, nextToolCalls, tokens, cost, flowErr := a.resolveAction(ctx, toolCtx, config, lead, accountName, confidence)
+	status, out, nextToolCalls, tokens, cost, flowErr := a.resolveAction(ctx, toolCtx, config, lead, accountName, confidence)
 	if flowErr != nil {
 		return nil, flowErr
 	}
@@ -227,7 +227,7 @@ func (a *ProspectingAgent) executeProspectingFlow(ctx context.Context, config Pr
 	latency := time.Since(startTime).Milliseconds()
 
 	return &ProspectingResult{
-		Status:         agent.StatusSuccess,
+		Status:         status,
 		Output:         outputJSON,
 		ToolCalls:      toolCallsJSON,
 		ReasoningTrace: reasoningTrace,
@@ -291,9 +291,9 @@ func (a *ProspectingAgent) resolveAction(
 	lead *crm.Lead,
 	accountName string,
 	confidence float64,
-) (map[string]any, []map[string]any, int64, float64, error) {
+) (string, map[string]any, []map[string]any, int64, float64, error) {
 	if confidence <= 0.6 {
-		return map[string]any{
+		return agent.StatusSuccess, map[string]any{
 			"action":     "skip",
 			"reason":     "insufficient_signals",
 			"lead_id":    lead.ID,
@@ -301,14 +301,28 @@ func (a *ProspectingAgent) resolveAction(
 		}, nil, 0, 0, nil
 	}
 
+	if isHighSensitivityMetadata(lead.Metadata) {
+		approvalID, err := a.requestProspectingApproval(toolCtx, config.WorkspaceID, lead, accountName, confidence)
+		if err != nil {
+			return "", nil, nil, 0, 0, err
+		}
+		return agent.StatusEscalated, map[string]any{
+			"action":      "pending_approval",
+			"reason":      "high_sensitivity",
+			"lead_id":     lead.ID,
+			"confidence":  confidence,
+			"approval_id": approvalID,
+		}, []map[string]any{{"tool_name": "approval.requested"}}, 0, 0, nil
+	}
+
 	draft, usedTokens, draftCost, draftErr := a.generateDraft(ctx, config.Language, lead, accountName)
 	if draftErr != nil {
-		return nil, nil, 0, 0, draftErr
+		return "", nil, nil, 0, 0, draftErr
 	}
 
 	taskID, createTaskErr := a.createFollowUpTask(toolCtx, lead)
 	if createTaskErr != nil {
-		return nil, nil, 0, 0, createTaskErr
+		return "", nil, nil, 0, 0, createTaskErr
 	}
 
 	createTaskCall := map[string]any{
@@ -328,7 +342,38 @@ func (a *ProspectingAgent) resolveAction(
 		"lead_id":    lead.ID,
 		"confidence": confidence,
 	}
-	return out, []map[string]any{createTaskCall}, usedTokens, draftCost + 0.15, nil
+	return agent.StatusSuccess, out, []map[string]any{createTaskCall}, usedTokens, draftCost + 0.15, nil
+}
+
+func (a *ProspectingAgent) requestProspectingApproval(
+	ctx context.Context,
+	workspaceID string,
+	lead *crm.Lead,
+	accountName string,
+	confidence float64,
+) (string, error) {
+	if a.db == nil {
+		return "", ErrProspectingApprovalCreationFailed
+	}
+	requesterID := requesterFromCtxOrDefault(ctx, lead.OwnerID)
+	payload := map[string]any{
+		"lead_id":         lead.ID,
+		"account_id":      safePtr(lead.AccountID),
+		"account_name":    accountName,
+		"confidence":      confidence,
+		"proposed_action": "draft_outreach",
+	}
+	return createApprovalGateRequest(ctx, a.db, approvalGateInput{
+		WorkspaceID:  workspaceID,
+		RequestedBy:  requesterID,
+		ApproverID:   lead.OwnerID,
+		Action:       "prospecting.followup.draft",
+		ResourceType: "lead",
+		ResourceID:   lead.ID,
+		Reason:       "high_sensitivity",
+		Payload:      payload,
+		TTL:          24 * time.Hour,
+	})
 }
 
 func (a *ProspectingAgent) fetchLead(ctx context.Context, config ProspectingAgentConfig) (*crm.Lead, error) {
@@ -505,6 +550,7 @@ var (
 	ErrEmptyDraft                        = &ProspectingError{message: "llm returned empty draft"}
 	ErrProspectingDailyLeadLimitExceeded = &ProspectingError{message: "daily lead limit exceeded"}
 	ErrProspectingDailyCostLimitExceeded = &ProspectingError{message: "daily cost limit exceeded"}
+	ErrProspectingApprovalCreationFailed = &ProspectingError{message: "failed to create approval request"}
 )
 
 // ProspectingError is the typed error for the prospecting agent.

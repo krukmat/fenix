@@ -4,6 +4,7 @@ package agents
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -34,6 +35,7 @@ type SupportAgent struct {
 	orchestrator    *agent.Orchestrator
 	toolRegistry    *tool.ToolRegistry
 	knowledgeSearch KnowledgeSearchInterface
+	db              *sql.DB
 }
 
 // NewSupportAgent creates a new Support Agent instance
@@ -42,10 +44,20 @@ func NewSupportAgent(
 	toolRegistry *tool.ToolRegistry,
 	knowledgeSearch KnowledgeSearchInterface,
 ) *SupportAgent {
+	return NewSupportAgentWithDB(orchestrator, toolRegistry, knowledgeSearch, nil)
+}
+
+func NewSupportAgentWithDB(
+	orchestrator *agent.Orchestrator,
+	toolRegistry *tool.ToolRegistry,
+	knowledgeSearch KnowledgeSearchInterface,
+	db *sql.DB,
+) *SupportAgent {
 	return &SupportAgent{
 		orchestrator:    orchestrator,
 		toolRegistry:    toolRegistry,
 		knowledgeSearch: knowledgeSearch,
+		db:              db,
 	}
 }
 
@@ -173,6 +185,31 @@ func (a *SupportAgent) executeSupportFlow(ctx context.Context, config SupportAge
 	}
 
 	action := a.determineAction(config, caseContext, evidence)
+	if action.Type == "update_case" && isHighSensitivityMetadata(nilIfEmpty(action.Metadata)) {
+		approvalID, err := a.requestSupportApproval(ctx, caseContext, action)
+		if err != nil {
+			return nil, err
+		}
+		escalatedAction := &Action{
+			Type:       "pending_approval",
+			Details:    "Sensitive action requires human approval",
+			CaseID:     action.CaseID,
+			Status:     "pending_approval",
+			Confidence: action.Confidence,
+			ApprovalID: approvalID,
+		}
+		toolCalls, _ := json.Marshal([]map[string]any{{"tool_name": "approval.requested"}})
+		elapsed := time.Since(startTime).Milliseconds()
+		return &SupportResult{
+			Status:         agent.StatusEscalated,
+			Output:         escalatedAction.toJSON(),
+			ToolCalls:      toolCalls,
+			ReasoningTrace: buildReasoningTrace(config, evidence, escalatedAction),
+			TotalTokens:    &totalTokens,
+			TotalCost:      &totalCost,
+			LatencyMs:      &elapsed,
+		}, nil
+	}
 
 	toolCalls, _ := a.executeAction(action, caseContext)
 
@@ -219,6 +256,8 @@ type Action struct {
 	Status     string
 	Confidence int
 	NextSteps  []string
+	ApprovalID string
+	Metadata   string
 }
 
 func (a *SupportAgent) determineAction(config SupportAgentConfig, _ *CaseContext, evidence *knowledge.SearchResults) *Action {
@@ -241,6 +280,7 @@ func (a *SupportAgent) determineAction(config SupportAgentConfig, _ *CaseContext
 			Status:     "resolved",
 			Confidence: 85,
 			NextSteps:  []string{"send_resolution_email"},
+			Metadata:   config.Priority,
 		}
 	}
 
@@ -305,6 +345,40 @@ func (a *Action) toJSON() json.RawMessage {
 	return data
 }
 
+func nilIfEmpty(v string) *string {
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
+func (a *SupportAgent) requestSupportApproval(ctx context.Context, caseContext *CaseContext, action *Action) (string, error) {
+	if a.db == nil {
+		return "", ErrSupportApprovalCreationFailed
+	}
+	requestedBy := requesterFromCtxOrDefault(ctx, "")
+	if requestedBy == "" {
+		requestedBy = "support_lead"
+	}
+	payload := map[string]any{
+		"case_id":          caseContext.ID,
+		"proposed_action":  action.Type,
+		"proposed_status":  action.Status,
+		"proposed_details": action.Details,
+	}
+	return createApprovalGateRequest(ctx, a.db, approvalGateInput{
+		WorkspaceID:  caseContext.WorkspaceID,
+		RequestedBy:  requestedBy,
+		ApproverID:   requestedBy,
+		Action:       "support.case.update",
+		ResourceType: "case_ticket",
+		ResourceID:   caseContext.ID,
+		Reason:       "high_sensitivity",
+		Payload:      payload,
+		TTL:          24 * time.Hour,
+	})
+}
+
 func buildReasoningTrace(_ SupportAgentConfig, evidence *knowledge.SearchResults, action *Action) json.RawMessage {
 	trace := []map[string]any{
 		{
@@ -332,6 +406,7 @@ func buildReasoningTrace(_ SupportAgentConfig, evidence *knowledge.SearchResults
 // Errors
 
 var ErrCaseIDRequired = &SupportError{message: "case_id is required"}
+var ErrSupportApprovalCreationFailed = &SupportError{message: "failed to create approval request"}
 
 type SupportError struct {
 	message string
