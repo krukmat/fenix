@@ -400,3 +400,31 @@ func TestCheckActionPermission(t *testing.T) {
 		}
 	})
 }
+
+func TestParseRequiredPermissions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid JSON array returns perms", func(t *testing.T) {
+		t.Parallel()
+		got := parseRequiredPermissions(`["tools:create_task","tools:update_case"]`, "fallback")
+		if len(got) != 2 || got[0] != "tools:create_task" || got[1] != "tools:update_case" {
+			t.Fatalf("unexpected result: %v", got)
+		}
+	})
+
+	t.Run("invalid JSON falls back", func(t *testing.T) {
+		t.Parallel()
+		got := parseRequiredPermissions(`not-json`, "fallback")
+		if len(got) != 1 || got[0] != "fallback" {
+			t.Fatalf("expected fallback, got: %v", got)
+		}
+	})
+
+	t.Run("empty array falls back", func(t *testing.T) {
+		t.Parallel()
+		got := parseRequiredPermissions(`[]`, "fallback")
+		if len(got) != 1 || got[0] != "fallback" {
+			t.Fatalf("expected fallback for empty array, got: %v", got)
+		}
+	})
+}
