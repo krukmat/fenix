@@ -67,7 +67,7 @@ type ToolRegistry struct {
 	db        *sql.DB
 	executors map[string]ToolExecutor
 	authz     ToolAuthorizer
-	audit     ToolAuditLogger
+	audit     AuditLogger
 }
 
 func NewToolRegistry(db *sql.DB) *ToolRegistry {
@@ -78,7 +78,7 @@ func NewToolRegistryWithAuthorizer(db *sql.DB, authz ToolAuthorizer) *ToolRegist
 	return NewToolRegistryWithRuntime(db, authz, nil)
 }
 
-func NewToolRegistryWithRuntime(db *sql.DB, authz ToolAuthorizer, audit ToolAuditLogger) *ToolRegistry {
+func NewToolRegistryWithRuntime(db *sql.DB, authz ToolAuthorizer, audit AuditLogger) *ToolRegistry {
 	return &ToolRegistry{db: db, executors: make(map[string]ToolExecutor), authz: authz, audit: audit}
 }
 

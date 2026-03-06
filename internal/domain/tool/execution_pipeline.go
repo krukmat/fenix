@@ -11,7 +11,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 )
 
-type ToolAuditLogger interface {
+type AuditLogger interface {
 	LogWithDetails(
 		ctx context.Context,
 		workspaceID string,
@@ -25,26 +25,26 @@ type ToolAuditLogger interface {
 	) error
 }
 
-type ToolExecutionErrorCode string
+type ExecutionErrorCode string
 
 const (
-	ToolErrorInvalidInput     ToolExecutionErrorCode = "invalid_input"
-	ToolErrorPermissionDenied ToolExecutionErrorCode = "permission_denied"
-	ToolErrorToolInactive     ToolExecutionErrorCode = "tool_inactive"
-	ToolErrorInternal         ToolExecutionErrorCode = "internal_error"
+	ToolErrorInvalidInput     ExecutionErrorCode = "invalid_input"
+	ToolErrorPermissionDenied ExecutionErrorCode = "permission_denied"
+	ToolErrorToolInactive     ExecutionErrorCode = "tool_inactive"
+	ToolErrorInternal         ExecutionErrorCode = "internal_error"
 )
 
-type ToolExecutionError struct {
+type ExecutionError struct {
 	ToolName string
-	Code     ToolExecutionErrorCode
+	Code     ExecutionErrorCode
 	Err      error
 }
 
-func (e *ToolExecutionError) Error() string {
+func (e *ExecutionError) Error() string {
 	return fmt.Sprintf("tool %s %s: %v", e.ToolName, e.Code, e.Err)
 }
 
-func (e *ToolExecutionError) Unwrap() error {
+func (e *ExecutionError) Unwrap() error {
 	return e.Err
 }
 
@@ -122,10 +122,10 @@ func (r *ToolRegistry) handleExecutionError(
 	ctx context.Context,
 	workspaceID, toolName string,
 	params json.RawMessage,
-	code ToolExecutionErrorCode,
+	code ExecutionErrorCode,
 	err error,
 ) error {
-	wrapped := &ToolExecutionError{ToolName: toolName, Code: code, Err: err}
+	wrapped := &ExecutionError{ToolName: toolName, Code: code, Err: err}
 	r.auditToolExecution(ctx, workspaceID, toolName, params, resolveAuditOutcome(code), string(code))
 	return wrapped
 }
@@ -162,7 +162,7 @@ func (r *ToolRegistry) auditToolExecution(
 	)
 }
 
-func resolveAuditOutcome(code ToolExecutionErrorCode) audit.Outcome {
+func resolveAuditOutcome(code ExecutionErrorCode) audit.Outcome {
 	if code == ToolErrorPermissionDenied {
 		return audit.OutcomeDenied
 	}
@@ -218,7 +218,7 @@ func isBuiltinTool(toolName string) bool {
 	}
 }
 
-func IsToolExecutionErrorCode(err error, code ToolExecutionErrorCode) bool {
-	var execErr *ToolExecutionError
+func IsToolExecutionErrorCode(err error, code ExecutionErrorCode) bool {
+	var execErr *ExecutionError
 	return errors.As(err, &execErr) && execErr.Code == code
 }
