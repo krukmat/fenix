@@ -179,9 +179,9 @@ func (a *KBAgent) executeKBFlow(ctx context.Context, toolCtx context.Context, co
 	query := caseTicket.Subject + " " + content
 	topID, topScore := a.searchSimilarArticles(scopedToolCtx, config.WorkspaceID, query)
 	if isHighSensitivityMetadata(caseTicket.Metadata) {
-		approvalID, err := a.requestKBApproval(scopedToolCtx, config.WorkspaceID, caseTicket, topID, topScore, subjectAndContent(caseTicket.Subject, content))
-		if err != nil {
-			return nil, err
+		approvalID, approvalErr := a.requestKBApproval(scopedToolCtx, config.WorkspaceID, caseTicket, topID, topScore, subjectAndContent(caseTicket.Subject, content))
+		if approvalErr != nil {
+			return nil, approvalErr
 		}
 		output, _ := json.Marshal(map[string]any{
 			"action":      "pending_approval",
@@ -205,7 +205,7 @@ func (a *KBAgent) executeKBFlow(ctx context.Context, toolCtx context.Context, co
 	if mutErr != nil {
 		return nil, mutErr
 	}
-	output := buildKBOutput(caseTicket.Metadata, articleID, action, reason)
+	output := buildKBOutput(articleID, action, reason)
 	calls, _ := json.Marshal(toolCalls)
 	latency := time.Since(start).Milliseconds()
 
@@ -295,7 +295,7 @@ func resolveKBAgentUserID(ownerID string, triggeredBy *string) string {
 	return *triggeredBy
 }
 
-func buildKBOutput(metadata *string, articleID, action, reason string) json.RawMessage {
+func buildKBOutput(articleID, action, reason string) json.RawMessage {
 	output, _ := json.Marshal(map[string]any{
 		"action":     action,
 		"article_id": articleID,

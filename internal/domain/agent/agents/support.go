@@ -29,6 +29,8 @@ type SupportAgentConfig struct {
 	ContextContact string `json:"context_contact,omitempty"`
 }
 
+const supportActionUpdateCase = "update_case"
+
 // SupportAgent handles customer support case resolution
 // UC-C1: Resolver casos de soporte de clientes
 type SupportAgent struct {
@@ -64,7 +66,7 @@ func NewSupportAgentWithDB(
 // AllowedTools returns the tools available to the Support Agent
 func (a *SupportAgent) AllowedTools() []string {
 	return []string{
-		"update_case",
+		supportActionUpdateCase,
 		"send_reply",
 		"create_task",
 		"search_knowledge",
@@ -185,10 +187,10 @@ func (a *SupportAgent) executeSupportFlow(ctx context.Context, config SupportAge
 	}
 
 	action := a.determineAction(config, caseContext, evidence)
-	if action.Type == "update_case" && isHighSensitivityMetadata(nilIfEmpty(action.Metadata)) {
-		approvalID, err := a.requestSupportApproval(ctx, caseContext, action)
-		if err != nil {
-			return nil, err
+	if action.Type == supportActionUpdateCase && isHighSensitivityMetadata(nilIfEmpty(action.Metadata)) {
+		approvalID, approvalErr := a.requestSupportApproval(ctx, caseContext, action)
+		if approvalErr != nil {
+			return nil, approvalErr
 		}
 		escalatedAction := &Action{
 			Type:       "pending_approval",
@@ -274,7 +276,7 @@ func (a *SupportAgent) determineAction(config SupportAgentConfig, _ *CaseContext
 
 	if len(evidence.Items) > 0 && evidence.Items[0].Score > 0.8 {
 		return &Action{
-			Type:       "update_case",
+			Type:       supportActionUpdateCase,
 			Details:    "Applied solution from knowledge base",
 			CaseID:     config.CaseID,
 			Status:     "resolved",
@@ -298,7 +300,7 @@ func (a *SupportAgent) executeAction(action *Action, caseContext *CaseContext) (
 	toolCalls := []map[string]any{}
 
 	switch action.Type {
-	case "update_case":
+	case supportActionUpdateCase:
 		toolCall := map[string]any{
 			"tool_name": "update_case",
 			"params": map[string]any{
