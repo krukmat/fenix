@@ -176,8 +176,8 @@ func (r *ToolRegistry) UpdateToolDefinition(ctx context.Context, in UpdateToolDe
 	if err != nil {
 		return nil, err
 	}
-	if err := ensureRowsAffected(res, ErrToolDefinitionNotFound); err != nil {
-		return nil, err
+	if errRows := ensureRowsAffected(res, ErrToolDefinitionNotFound); errRows != nil {
+		return nil, errRows
 	}
 
 	return r.GetToolDefinitionByID(ctx, in.WorkspaceID, in.ID)
@@ -245,8 +245,8 @@ func (r *ToolRegistry) SetToolDefinitionActive(ctx context.Context, workspaceID,
 		return nil, err
 	}
 
-	if err := ensureRowsAffected(res, ErrToolDefinitionNotFound); err != nil {
-		return nil, err
+	if errRows := ensureRowsAffected(res, ErrToolDefinitionNotFound); errRows != nil {
+		return nil, errRows
 	}
 
 	return r.GetToolDefinitionByID(ctx, workspaceID, id)
@@ -302,11 +302,11 @@ func (r *ToolRegistry) Execute(ctx context.Context, workspaceID, toolName string
 	if len(params) == 0 {
 		params = json.RawMessage(`{}`)
 	}
-	if err := r.ValidateParams(ctx, workspaceID, toolName, params); err != nil {
-		return nil, err
+	if errVal := r.ValidateParams(ctx, workspaceID, toolName, params); errVal != nil {
+		return nil, errVal
 	}
-	if err := r.enforceToolPermission(ctx, def.Name); err != nil {
-		return nil, err
+	if errPerm := r.enforceToolPermission(ctx, def.Name); errPerm != nil {
+		return nil, errPerm
 	}
 
 	executor, err := r.Get(def.Name)
@@ -374,15 +374,15 @@ func validateToolSchema(raw json.RawMessage) error {
 	if err != nil {
 		return err
 	}
-	if err := validateSchemaObjectType(schema); err != nil {
-		return err
+	if errType := validateSchemaObjectType(schema); errType != nil {
+		return errType
 	}
 	props, err := validateSchemaProperties(schema)
 	if err != nil {
 		return err
 	}
-	if err := validateSchemaAdditionalProperties(schema); err != nil {
-		return err
+	if errAdd := validateSchemaAdditionalProperties(schema); errAdd != nil {
+		return errAdd
 	}
 	return validateSchemaRequiredKeys(schema, props)
 }

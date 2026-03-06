@@ -31,6 +31,9 @@ const (
 	// resourceAPI is the resource type passed to checkActionAuthorization for API-level actions.
 	resourceAPI = "api"
 
+	// errToolIDRequired is returned when a tool ID is missing from the request.
+	errToolIDRequired = "tool id is required"
+
 	headerContentType        = "Content-Type"
 	headerContentDisposition = "Content-Disposition"
 	mimeJSON                 = "application/json"

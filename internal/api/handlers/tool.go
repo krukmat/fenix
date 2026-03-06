@@ -116,7 +116,7 @@ func (h *ToolHandler) UpdateTool(w http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, paramID)
 	if id == "" {
-		writeError(w, http.StatusBadRequest, "tool id is required")
+		writeError(w, http.StatusBadRequest, errToolIDRequired)
 		return
 	}
 
@@ -161,7 +161,7 @@ func (h *ToolHandler) DeleteTool(w http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, paramID)
 	if id == "" {
-		writeError(w, http.StatusBadRequest, "tool id is required")
+		writeError(w, http.StatusBadRequest, errToolIDRequired)
 		return
 	}
 
@@ -185,7 +185,7 @@ func (h *ToolHandler) setToolActive(w http.ResponseWriter, r *http.Request, isAc
 
 	id := chi.URLParam(r, paramID)
 	if id == "" {
-		writeError(w, http.StatusBadRequest, "tool id is required")
+		writeError(w, http.StatusBadRequest, errToolIDRequired)
 		return
 	}
 
