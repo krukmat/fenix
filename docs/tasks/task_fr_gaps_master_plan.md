@@ -64,6 +64,8 @@
 - FR-060
 - FR-061
 - FR-071
+- FR-202
+- FR-211
 
 ### Pendientes
 - FR-001
@@ -72,8 +74,6 @@
 - FR-091
 - FR-200
 - FR-201
-- FR-202
-- FR-211
 - FR-230
 - FR-231
 - FR-232
@@ -81,9 +81,9 @@
 
 ### Lectura por bloques
 1. **Governance/Auth**
-   - Cerradas: FR-060, FR-061, FR-071
-   - Pendientes: FR-202, FR-211
-   - Siguiente tarea desbloqueada: FR-202
+   - Cerradas: FR-060, FR-061, FR-071, FR-202, FR-211
+   - Pendientes: ninguna
+   - Siguiente tarea desbloqueada: FR-200
 2. **AI runtime quality/safety**
    - Pendientes: FR-200, FR-201, FR-230, FR-231, FR-232
 3. **Knowledge reliability**
@@ -94,10 +94,10 @@
    - Pendientes: FR-001, FR-070
 
 ### Dependencias que marcan el siguiente paso
-- FR-202 ya esta desbloqueada por el cierre de FR-060 y FR-071.
-- FR-211 sigue condicionada por FR-202 y FR-070; toma de FR-202 el registry/lifecycle/validation/enforcement base, mientras que la pipeline unificada de built-in tools pertenece al scope propio de FR-211.
-- FR-201 depende de FR-200 y FR-202/211.
-- FR-230 depende de FR-202/211 y FR-200.
+- FR-202 y FR-211 quedaron cerradas en `main` con validacion final de CI verde.
+- FR-200 pasa a ser la siguiente tarea desbloqueada del frente AI runtime quality/safety.
+- FR-201 depende de FR-200; la base de `FR-202/211` ya quedo satisfecha.
+- FR-230 depende de FR-200; la base de `FR-202/211` ya quedo satisfecha.
 - FR-231 depende de FR-230 y FR-232.
 - FR-091 depende de FR-090.
 - FR-001 depende de FR-070.
