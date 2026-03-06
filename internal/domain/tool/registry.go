@@ -150,17 +150,11 @@ func (r *ToolRegistry) CreateToolDefinition(ctx context.Context, in CreateToolDe
 }
 
 func (r *ToolRegistry) UpdateToolDefinition(ctx context.Context, in UpdateToolDefinitionInput) (*ToolDefinition, error) {
-	if strings.TrimSpace(in.ID) == "" {
-		return nil, fmt.Errorf("id is required")
-	}
-	if strings.TrimSpace(in.Name) == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-	if err := validateToolSchema(in.InputSchema); err != nil {
+	if err := validateUpdateInput(in); err != nil {
 		return nil, err
 	}
 
-	requiredPermsRaw, err := json.Marshal(in.RequiredPermissions)
+	requiredPermsRaw, err := marshalRequiredPermissions(in.RequiredPermissions)
 	if err != nil {
 		return nil, err
 	}
@@ -182,13 +176,8 @@ func (r *ToolRegistry) UpdateToolDefinition(ctx context.Context, in UpdateToolDe
 	if err != nil {
 		return nil, err
 	}
-
-	rows, err := res.RowsAffected()
-	if err != nil {
+	if err := ensureRowsAffected(res, ErrToolDefinitionNotFound); err != nil {
 		return nil, err
-	}
-	if rows == 0 {
-		return nil, ErrToolDefinitionNotFound
 	}
 
 	return r.GetToolDefinitionByID(ctx, in.WorkspaceID, in.ID)
@@ -256,12 +245,8 @@ func (r *ToolRegistry) SetToolDefinitionActive(ctx context.Context, workspaceID,
 		return nil, err
 	}
 
-	rows, err := res.RowsAffected()
-	if err != nil {
+	if err := ensureRowsAffected(res, ErrToolDefinitionNotFound); err != nil {
 		return nil, err
-	}
-	if rows == 0 {
-		return nil, ErrToolDefinitionNotFound
 	}
 
 	return r.GetToolDefinitionByID(ctx, workspaceID, id)
@@ -276,14 +261,7 @@ func (r *ToolRegistry) DeleteToolDefinition(ctx context.Context, workspaceID, id
 		return err
 	}
 
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return ErrToolDefinitionNotFound
-	}
-	return nil
+	return ensureRowsAffected(res, ErrToolDefinitionNotFound)
 }
 
 func (r *ToolRegistry) ValidateParams(ctx context.Context, workspaceID, toolName string, params json.RawMessage) error {
@@ -392,40 +370,21 @@ func (r *ToolRegistry) enforceToolPermission(ctx context.Context, toolName strin
 }
 
 func validateToolSchema(raw json.RawMessage) error {
-	if len(raw) == 0 {
-		return fmt.Errorf("%w: input schema is required", ErrToolDefinitionInvalid)
-	}
-	if !json.Valid(raw) {
-		return fmt.Errorf("%w: input schema must be valid json", ErrToolDefinitionInvalid)
-	}
-
-	var schema map[string]any
-	if err := json.Unmarshal(raw, &schema); err != nil {
-		return fmt.Errorf("%w: input schema must be a json object", ErrToolDefinitionInvalid)
-	}
-	if schemaType, _ := schema["type"].(string); schemaType != "object" {
-		return fmt.Errorf("%w: input schema type must be object", ErrToolDefinitionInvalid)
-	}
-
-	props, ok := schema["properties"].(map[string]any)
-	if !ok || len(props) == 0 {
-		return fmt.Errorf("%w: input schema properties must be a non-empty object", ErrToolDefinitionInvalid)
-	}
-	if _, ok := schema["additionalProperties"].(bool); !ok {
-		return fmt.Errorf("%w: input schema additionalProperties must be explicit", ErrToolDefinitionInvalid)
-	}
-
-	required, err := parseRequiredKeys(schema["required"])
+	schema, err := parseToolSchema(raw)
 	if err != nil {
 		return err
 	}
-	for _, key := range required {
-		if _, exists := props[key]; !exists {
-			return fmt.Errorf("%w: required field %q must be declared in properties", ErrToolDefinitionInvalid, key)
-		}
+	if err := validateSchemaObjectType(schema); err != nil {
+		return err
 	}
-
-	return nil
+	props, err := validateSchemaProperties(schema)
+	if err != nil {
+		return err
+	}
+	if err := validateSchemaAdditionalProperties(schema); err != nil {
+		return err
+	}
+	return validateSchemaRequiredKeys(schema, props)
 }
 
 func validateAgainstMinimalSchema(input, schema map[string]any) error {
@@ -438,6 +397,81 @@ func validateAgainstMinimalSchema(input, schema map[string]any) error {
 	}
 
 	return validateUnknownFields(input, buildAllowedPropsSet(schema))
+}
+
+func validateUpdateInput(in UpdateToolDefinitionInput) error {
+	if strings.TrimSpace(in.ID) == "" {
+		return fmt.Errorf("id is required")
+	}
+	if strings.TrimSpace(in.Name) == "" {
+		return fmt.Errorf("name is required")
+	}
+	return validateToolSchema(in.InputSchema)
+}
+
+func marshalRequiredPermissions(perms []string) ([]byte, error) {
+	return json.Marshal(perms)
+}
+
+func ensureRowsAffected(res sql.Result, notFoundErr error) error {
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return notFoundErr
+	}
+	return nil
+}
+
+func parseToolSchema(raw json.RawMessage) (map[string]any, error) {
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("%w: input schema is required", ErrToolDefinitionInvalid)
+	}
+	if !json.Valid(raw) {
+		return nil, fmt.Errorf("%w: input schema must be valid json", ErrToolDefinitionInvalid)
+	}
+
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		return nil, fmt.Errorf("%w: input schema must be a json object", ErrToolDefinitionInvalid)
+	}
+	return schema, nil
+}
+
+func validateSchemaObjectType(schema map[string]any) error {
+	if schemaType, _ := schema["type"].(string); schemaType != "object" {
+		return fmt.Errorf("%w: input schema type must be object", ErrToolDefinitionInvalid)
+	}
+	return nil
+}
+
+func validateSchemaProperties(schema map[string]any) (map[string]any, error) {
+	props, ok := schema["properties"].(map[string]any)
+	if !ok || len(props) == 0 {
+		return nil, fmt.Errorf("%w: input schema properties must be a non-empty object", ErrToolDefinitionInvalid)
+	}
+	return props, nil
+}
+
+func validateSchemaAdditionalProperties(schema map[string]any) error {
+	if _, ok := schema["additionalProperties"].(bool); !ok {
+		return fmt.Errorf("%w: input schema additionalProperties must be explicit", ErrToolDefinitionInvalid)
+	}
+	return nil
+}
+
+func validateSchemaRequiredKeys(schema map[string]any, props map[string]any) error {
+	required, err := parseRequiredKeys(schema["required"])
+	if err != nil {
+		return err
+	}
+	for _, key := range required {
+		if _, exists := props[key]; !exists {
+			return fmt.Errorf("%w: required field %q must be declared in properties", ErrToolDefinitionInvalid, key)
+		}
+	}
+	return nil
 }
 
 func parseRequiredKeys(v any) ([]string, error) {
