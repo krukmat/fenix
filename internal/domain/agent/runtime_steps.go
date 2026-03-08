@@ -99,60 +99,21 @@ func (o *Orchestrator) RecoverRun(ctx context.Context, workspaceID, runID string
 		return run, nil
 	}
 
-	tx, err := o.db.BeginTx(ctx, nil)
-	if err != nil {
+	tx, current, err := o.loadRecoverableStep(ctx, workspaceID, runID)
+	if err != nil || current == nil {
+		if err == nil && current == nil {
+			return run, nil
+		}
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	steps, err := listRunStepsTx(ctx, tx, workspaceID, runID)
-	if err != nil {
+	if shouldFailRecovery(current) {
+		return o.failRecoveredRun(ctx, tx, run, current)
+	}
+	if err := queueRetryStepTx(ctx, tx, workspaceID, runID, current); err != nil {
 		return nil, err
 	}
-
-	current := findRunningRunStep(steps)
-	if current == nil {
-		return run, tx.Commit()
-	}
-
-	if !isRetryableStepType(current.StepType) || current.Attempt >= maxStepRetries {
-		if err := updateRunStepStatusTx(ctx, tx, current.ID, workspaceID, StepStatusFailed, current.Output, current.Error); err != nil {
-			return nil, err
-		}
-		if err := finalizeRunStatusTx(ctx, tx, workspaceID, runID, StatusFailed, nil); err != nil {
-			return nil, err
-		}
-		if err := reconcileOpenStepsTx(ctx, tx, workspaceID, runID, StepStatusFailed); err != nil {
-			return nil, err
-		}
-		if err := ensureFinalizeStepTx(ctx, tx, run, StatusFailed, nil); err != nil {
-			return nil, err
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, err
-		}
-		return o.GetAgentRun(ctx, workspaceID, runID)
-	}
-
-	if err := updateRunStepStatusTx(ctx, tx, current.ID, workspaceID, StepStatusRetrying, current.Output, current.Error); err != nil {
-		return nil, err
-	}
-	if err := insertRunStepTx(ctx, tx, &RunStep{
-		ID:          uuid.NewV7().String(),
-		WorkspaceID: workspaceID,
-		RunID:       runID,
-		StepIndex:   current.StepIndex,
-		StepType:    current.StepType,
-		Status:      StepStatusPending,
-		Attempt:     current.Attempt + 1,
-		Input:       current.Input,
-		Output:      current.Output,
-		CreatedAt:   time.Now().UTC(),
-		UpdatedAt:   time.Now().UTC(),
-	}); err != nil {
-		return nil, err
-	}
-
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -269,25 +230,11 @@ func findRunningRunStep(steps []*RunStep) *RunStep {
 }
 
 func hasMeaningfulPayload(raw json.RawMessage) bool {
-	if len(raw) == 0 || !json.Valid(raw) {
+	value, ok := decodePayload(raw)
+	if !ok {
 		return false
 	}
-	var value any
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return false
-	}
-	switch v := value.(type) {
-	case nil:
-		return false
-	case string:
-		return v != ""
-	case []any:
-		return len(v) > 0
-	case map[string]any:
-		return len(v) > 0
-	default:
-		return true
-	}
+	return payloadValueIsMeaningful(value)
 }
 
 func synthesizeRunSteps(ctx context.Context, tx *sql.Tx, run *Run, updates RunUpdates) error {
@@ -553,14 +500,7 @@ func updateRunStepStateTx(ctx context.Context, tx *sql.Tx, stepID, workspaceID, 
 	}
 
 	now := time.Now().UTC()
-	startedAt := step.StartedAt
-	if startedAt == nil && status != StepStatusPending {
-		startedAt = &now
-	}
-	completedAt := step.CompletedAt
-	if status != StepStatusPending && status != StepStatusRunning {
-		completedAt = &now
-	}
+	startedAt, completedAt := deriveStepTimestamps(step, status, now)
 
 	_, err = tx.ExecContext(ctx, `
 		UPDATE agent_run_step
@@ -571,22 +511,8 @@ func updateRunStepStateTx(ctx context.Context, tx *sql.Tx, stepID, workspaceID, 
 }
 
 func validateStepTransition(current, next string) error {
-	if current == next {
+	if current == next || isAllowedStepTransition(current, next) {
 		return nil
-	}
-	switch current {
-	case StepStatusPending:
-		if next == StepStatusRunning || next == StepStatusSuccess || next == StepStatusSkipped || next == StepStatusFailed {
-			return nil
-		}
-	case StepStatusRunning:
-		if next == StepStatusSuccess || next == StepStatusFailed || next == StepStatusRetrying {
-			return nil
-		}
-	case StepStatusRetrying:
-		if next == StepStatusPending {
-			return nil
-		}
 	}
 	return ErrInvalidStepTransition
 }
@@ -605,4 +531,141 @@ func timePtr(t time.Time) *time.Time {
 func calculateRunLatency(startedAt time.Time) *int64 {
 	latency := time.Since(startedAt).Milliseconds()
 	return &latency
+}
+
+func (o *Orchestrator) loadRecoverableStep(ctx context.Context, workspaceID, runID string) (*sql.Tx, *RunStep, error) {
+	tx, err := o.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	steps, err := listRunStepsTx(ctx, tx, workspaceID, runID)
+	if err != nil {
+		tx.Rollback()
+		return nil, nil, err
+	}
+	return tx, findRunningRunStep(steps), nil
+}
+
+func (o *Orchestrator) failRecoveredRun(ctx context.Context, tx *sql.Tx, run *Run, current *RunStep) (*Run, error) {
+	if err := markRecoveredRunFailed(ctx, tx, run, current); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return o.GetAgentRun(ctx, run.WorkspaceID, run.ID)
+}
+
+func shouldFailRecovery(step *RunStep) bool {
+	return !isRetryableStepType(step.StepType) || step.Attempt >= maxStepRetries
+}
+
+func markRecoveredRunFailed(ctx context.Context, tx *sql.Tx, run *Run, current *RunStep) error {
+	if err := updateRunStepStatusTx(ctx, tx, current.ID, run.WorkspaceID, StepStatusFailed, current.Output, current.Error); err != nil {
+		return err
+	}
+	if err := finalizeRunStatusTx(ctx, tx, run.WorkspaceID, run.ID, StatusFailed, nil); err != nil {
+		return err
+	}
+	if err := reconcileOpenStepsTx(ctx, tx, run.WorkspaceID, run.ID, StepStatusFailed); err != nil {
+		return err
+	}
+	return ensureFinalizeStepTx(ctx, tx, run, StatusFailed, nil)
+}
+
+func queueRetryStepTx(ctx context.Context, tx *sql.Tx, workspaceID, runID string, current *RunStep) error {
+	if err := updateRunStepStatusTx(ctx, tx, current.ID, workspaceID, StepStatusRetrying, current.Output, current.Error); err != nil {
+		return err
+	}
+	return insertRunStepTx(ctx, tx, retryStepFromCurrent(workspaceID, runID, current))
+}
+
+func retryStepFromCurrent(workspaceID, runID string, current *RunStep) *RunStep {
+	now := time.Now().UTC()
+	return &RunStep{
+		ID:          uuid.NewV7().String(),
+		WorkspaceID: workspaceID,
+		RunID:       runID,
+		StepIndex:   current.StepIndex,
+		StepType:    current.StepType,
+		Status:      StepStatusPending,
+		Attempt:     current.Attempt + 1,
+		Input:       current.Input,
+		Output:      current.Output,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+}
+
+func decodePayload(raw json.RawMessage) (any, bool) {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return nil, false
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, false
+	}
+	return value, true
+}
+
+func payloadValueIsMeaningful(value any) bool {
+	switch v := value.(type) {
+	case nil:
+		return false
+	case string:
+		return v != ""
+	case []any:
+		return len(v) > 0
+	case map[string]any:
+		return len(v) > 0
+	default:
+		return true
+	}
+}
+
+func deriveStepTimestamps(step *RunStep, status string, now time.Time) (*time.Time, *time.Time) {
+	startedAt := step.StartedAt
+	if shouldSetStepStartedAt(startedAt, status) {
+		startedAt = &now
+	}
+	completedAt := step.CompletedAt
+	if shouldSetStepCompletedAt(status) {
+		completedAt = &now
+	}
+	return startedAt, completedAt
+}
+
+func shouldSetStepStartedAt(startedAt *time.Time, status string) bool {
+	return startedAt == nil && status != StepStatusPending
+}
+
+func shouldSetStepCompletedAt(status string) bool {
+	return status != StepStatusPending && status != StepStatusRunning
+}
+
+func isAllowedStepTransition(current, next string) bool {
+	return nextStepStatusMap(current)[next]
+}
+
+func nextStepStatusMap(current string) map[string]bool {
+	switch current {
+	case StepStatusPending:
+		return map[string]bool{
+			StepStatusRunning: true,
+			StepStatusSuccess: true,
+			StepStatusSkipped: true,
+			StepStatusFailed:  true,
+		}
+	case StepStatusRunning:
+		return map[string]bool{
+			StepStatusSuccess:  true,
+			StepStatusFailed:   true,
+			StepStatusRetrying: true,
+		}
+	case StepStatusRetrying:
+		return map[string]bool{StepStatusPending: true}
+	default:
+		return map[string]bool{}
+	}
 }
