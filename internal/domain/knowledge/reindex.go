@@ -21,6 +21,11 @@ const (
 	TopicRecordDeleted = "record.deleted"
 )
 
+const (
+	reindexMaxAttempts = 3
+	reindexBaseDelay   = 100 * time.Millisecond
+)
+
 type ChangeType string
 
 const (
@@ -32,6 +37,11 @@ const (
 const (
 	EntityTypeAccount    = "account"
 	EntityTypeCaseTicket = "case_ticket"
+)
+
+var (
+	errInvalidRecordChangeEvent = errors.New("invalid record change event")
+	errUnsupportedReindexEntity = errors.New("unsupported entity_type for reindex")
 )
 
 // RecordChangedEvent is the CDC payload used by Task 2.7.
@@ -57,10 +67,12 @@ func TopicForChangeType(changeType ChangeType) string {
 
 // ReindexService consumes CDC events and keeps knowledge indexes fresh.
 type ReindexService struct {
-	q      *sqlcgen.Queries
-	bus    eventbus.EventBus
-	ingest *IngestService
-	audit  *audit.AuditService
+	q       *sqlcgen.Queries
+	bus     eventbus.EventBus
+	ingest  *IngestService
+	audit   *audit.AuditService
+	sleepFn func(context.Context, time.Duration) error
+	applyFn func(context.Context, RecordChangedEvent, *sqlcgen.KnowledgeItem) error
 }
 
 func NewReindexService(db *sql.DB, bus eventbus.EventBus, ingest *IngestService, auditSvc *audit.AuditService) *ReindexService {
@@ -69,6 +81,14 @@ func NewReindexService(db *sql.DB, bus eventbus.EventBus, ingest *IngestService,
 		bus:    bus,
 		ingest: ingest,
 		audit:  auditSvc,
+		sleepFn: func(ctx context.Context, delay time.Duration) error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+				return nil
+			}
+		},
 	}
 }
 
@@ -185,20 +205,36 @@ func (s *ReindexService) HandleRecordChange(ctx context.Context, evt RecordChang
 	if err != nil {
 		return err
 	}
-	if item == nil {
+	if item == nil && evt.ChangeType != ChangeTypeCreated {
 		return nil
 	}
-
 	start := eventStartTime(evt)
-	opErr := s.applyChange(ctx, evt, *item)
+	var opErr error
+	attemptCount := 0
 
-	s.logReindexAudit(ctx, evt, opErr, time.Since(start))
+	for attempt := 1; attempt <= reindexMaxAttempts; attempt++ {
+		attemptCount = attempt
+		opErr = s.applyChange(ctx, evt, item)
+		if opErr == nil {
+			s.logReindexAudit(ctx, evt, nil, time.Since(start), attemptCount, false)
+			return nil
+		}
+		if !shouldRetryReindex(opErr) || attempt == reindexMaxAttempts {
+			break
+		}
+		if waitErr := s.sleepFn(ctx, retryDelay(attempt)); waitErr != nil {
+			opErr = waitErr
+			break
+		}
+	}
+
+	s.logReindexAudit(ctx, evt, opErr, time.Since(start), attemptCount, shouldRetryReindex(opErr))
 	return opErr
 }
 
 func validateRecordChangeEvent(evt RecordChangedEvent) error {
 	if evt.EntityType == "" || evt.EntityID == "" || evt.WorkspaceID == "" {
-		return errors.New("invalid record change event")
+		return errInvalidRecordChangeEvent
 	}
 	return nil
 }
@@ -229,9 +265,15 @@ func (s *ReindexService) getLinkedKnowledgeItem(ctx context.Context, evt RecordC
 	return &item, nil
 }
 
-func (s *ReindexService) applyChange(ctx context.Context, evt RecordChangedEvent, item sqlcgen.KnowledgeItem) error {
+func (s *ReindexService) applyChange(ctx context.Context, evt RecordChangedEvent, item *sqlcgen.KnowledgeItem) error {
+	if s.applyFn != nil {
+		return s.applyFn(ctx, evt, item)
+	}
 	if evt.ChangeType == ChangeTypeDeleted {
-		return s.handleDelete(ctx, item)
+		if item == nil {
+			return nil
+		}
+		return s.handleDelete(ctx, *item)
 	}
 	return s.handleUpsert(ctx, evt, item)
 }
@@ -259,17 +301,19 @@ func (s *ReindexService) handleDelete(ctx context.Context, item sqlcgen.Knowledg
 	})
 }
 
-func (s *ReindexService) handleUpsert(ctx context.Context, evt RecordChangedEvent, item sqlcgen.KnowledgeItem) error {
+func (s *ReindexService) handleUpsert(ctx context.Context, evt RecordChangedEvent, item *sqlcgen.KnowledgeItem) error {
 	title, rawContent, sourceType, buildErr := s.buildKnowledgePayloadFromEntity(ctx, evt)
 	if buildErr != nil {
 		return buildErr
 	}
 
-	if delErr := s.q.DeleteVecEmbeddingsByKnowledgeItem(ctx, sqlcgen.DeleteVecEmbeddingsByKnowledgeItemParams{
-		KnowledgeItemID: item.ID,
-		WorkspaceID:     item.WorkspaceID,
-	}); delErr != nil {
-		return delErr
+	if item != nil {
+		if delErr := s.q.DeleteVecEmbeddingsByKnowledgeItem(ctx, sqlcgen.DeleteVecEmbeddingsByKnowledgeItemParams{
+			KnowledgeItemID: item.ID,
+			WorkspaceID:     item.WorkspaceID,
+		}); delErr != nil {
+			return delErr
+		}
 	}
 
 	_, ingestErr := s.ingest.Ingest(ctx, CreateKnowledgeItemInput{
@@ -290,7 +334,7 @@ func (s *ReindexService) buildKnowledgePayloadFromEntity(ctx context.Context, ev
 	case EntityTypeAccount:
 		return s.buildAccountPayload(ctx, evt)
 	default:
-		return "", "", "", fmt.Errorf("unsupported entity_type for reindex: %s", evt.EntityType)
+		return "", "", "", fmt.Errorf("%w: %s", errUnsupportedReindexEntity, evt.EntityType)
 	}
 }
 
@@ -333,14 +377,17 @@ func (s *ReindexService) buildAccountPayload(ctx context.Context, evt RecordChan
 	return row.Name, raw, SourceTypeDocument, nil
 }
 
-func (s *ReindexService) logReindexAudit(ctx context.Context, evt RecordChangedEvent, opErr error, latency time.Duration) {
+func (s *ReindexService) logReindexAudit(ctx context.Context, evt RecordChangedEvent, opErr error, latency time.Duration, attemptCount int, retriesExhausted bool) {
 	if s.audit == nil {
 		return
 	}
 
 	details, _ := json.Marshal(map[string]any{
-		"change_type": evt.ChangeType,
-		"latency_ms":  latency.Milliseconds(),
+		"change_type":       evt.ChangeType,
+		"latency_ms":        latency.Milliseconds(),
+		"attempt_count":     attemptCount,
+		"retries_exhausted": retriesExhausted,
+		"entity_type":       evt.EntityType,
 	})
 
 	outcome := audit.OutcomeSuccess
@@ -360,4 +407,17 @@ func (s *ReindexService) logReindexAudit(ctx context.Context, evt RecordChangedE
 		Outcome:     outcome,
 		CreatedAt:   time.Now(),
 	})
+}
+
+func shouldRetryReindex(err error) bool {
+	return err != nil &&
+		!errors.Is(err, errInvalidRecordChangeEvent) &&
+		!errors.Is(err, errUnsupportedReindexEntity)
+}
+
+func retryDelay(attempt int) time.Duration {
+	if attempt <= 0 {
+		return reindexBaseDelay
+	}
+	return reindexBaseDelay * time.Duration(1<<(attempt-1))
 }

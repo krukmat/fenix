@@ -4,12 +4,16 @@ package knowledge
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
+	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
 )
 
 func TestTopicForChangeType_Mapping(t *testing.T) {
@@ -95,6 +99,88 @@ func TestReindexService_RecordUpdatedCase_RefreshesKnowledge(t *testing.T) {
 	}
 	if auditCount == 0 {
 		t.Fatal("expected at least one audit event for knowledge.reindex")
+	}
+}
+
+func TestReindexService_RecordCreatedAccount_CreatesKnowledge(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	wsID := createWorkspace(t, db)
+	ownerID := createUserForReindex(t, db, wsID)
+
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	reindex := NewReindexService(db, bus, ingest, audit.NewAuditService(db))
+
+	accountID := newID()
+	now := time.Now().Format(time.RFC3339)
+	_, err := db.Exec(
+		`INSERT INTO account (id, workspace_id, name, domain, industry, owner_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		accountID, wsID, "Acme Created", "acme-created.com", "SaaS", ownerID, now, now,
+	)
+	if err != nil {
+		t.Fatalf("seed account: %v", err)
+	}
+
+	if err := reindex.HandleRecordChange(context.Background(), RecordChangedEvent{
+		EntityType:  EntityTypeAccount,
+		EntityID:    accountID,
+		WorkspaceID: wsID,
+		ChangeType:  ChangeTypeCreated,
+		OccurredAt:  time.Now(),
+	}); err != nil {
+		t.Fatalf("handle create reindex: %v", err)
+	}
+
+	var raw string
+	if err := db.QueryRow(`SELECT raw_content FROM knowledge_item WHERE workspace_id = ? AND entity_type = ? AND entity_id = ?`, wsID, EntityTypeAccount, accountID).Scan(&raw); err != nil {
+		t.Fatalf("query created knowledge item: %v", err)
+	}
+	if !strings.Contains(raw, "Domain: acme-created.com") {
+		t.Fatalf("expected created account content, got: %q", raw)
+	}
+}
+
+func TestReindexService_RecordCreatedCase_CreatesKnowledge(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	wsID := createWorkspace(t, db)
+	ownerID := createUserForReindex(t, db, wsID)
+
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	reindex := NewReindexService(db, bus, ingest, audit.NewAuditService(db))
+
+	caseID := newID()
+	now := time.Now().Format(time.RFC3339)
+	_, err := db.Exec(
+		`INSERT INTO case_ticket (id, workspace_id, owner_id, subject, description, priority, status, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, 'medium', 'open', ?, ?)`,
+		caseID, wsID, ownerID, "Created Case", "created from crm", now, now,
+	)
+	if err != nil {
+		t.Fatalf("seed case: %v", err)
+	}
+
+	if err := reindex.HandleRecordChange(context.Background(), RecordChangedEvent{
+		EntityType:  EntityTypeCaseTicket,
+		EntityID:    caseID,
+		WorkspaceID: wsID,
+		ChangeType:  ChangeTypeCreated,
+		OccurredAt:  time.Now(),
+	}); err != nil {
+		t.Fatalf("handle create reindex: %v", err)
+	}
+
+	var raw string
+	if err := db.QueryRow(`SELECT raw_content FROM knowledge_item WHERE workspace_id = ? AND entity_type = ? AND entity_id = ?`, wsID, EntityTypeCaseTicket, caseID).Scan(&raw); err != nil {
+		t.Fatalf("query created case knowledge item: %v", err)
+	}
+	if !strings.Contains(raw, "Description: created from crm") {
+		t.Fatalf("expected created case content, got: %q", raw)
 	}
 }
 
@@ -396,6 +482,146 @@ func TestReindexService_Start_StopsOnContextCancel(t *testing.T) {
 	}
 }
 
+func TestReindexService_HandleRecordChange_RetriesTransientError(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	wsID := createWorkspace(t, db)
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	reindex := NewReindexService(db, bus, ingest, audit.NewAuditService(db))
+
+	var attempts int32
+	reindex.sleepFn = func(context.Context, time.Duration) error { return nil }
+	reindex.applyFn = func(_ context.Context, _ RecordChangedEvent, _ *sqlcgen.KnowledgeItem) error {
+		if atomic.AddInt32(&attempts, 1) < 3 {
+			return errors.New("transient failure")
+		}
+		return nil
+	}
+
+	err := reindex.HandleRecordChange(context.Background(), RecordChangedEvent{
+		EntityType:  EntityTypeAccount,
+		EntityID:    newID(),
+		WorkspaceID: wsID,
+		ChangeType:  ChangeTypeCreated,
+		OccurredAt:  time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("expected retry to succeed, got %v", err)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 3 {
+		t.Fatalf("expected 3 attempts, got %d", got)
+	}
+
+	assertReindexAuditMetadata(t, db, wsID, "attempt_count", float64(3))
+	assertReindexAuditMetadata(t, db, wsID, "retries_exhausted", false)
+}
+
+func TestReindexService_Start_ContinuesAfterPermanentFailure(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	wsID := createWorkspace(t, db)
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	reindex := NewReindexService(db, bus, ingest, audit.NewAuditService(db))
+
+	reindex.sleepFn = func(context.Context, time.Duration) error { return nil }
+	successSeen := make(chan struct{}, 1)
+	reindex.applyFn = func(_ context.Context, evt RecordChangedEvent, _ *sqlcgen.KnowledgeItem) error {
+		if evt.EntityID == "fail" {
+			return errors.New("permanent failure")
+		}
+		select {
+		case successSeen <- struct{}{}:
+		default:
+		}
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go reindex.Start(ctx)
+	time.Sleep(25 * time.Millisecond)
+
+	bus.Publish(TopicRecordCreated, RecordChangedEvent{
+		EntityType:  EntityTypeAccount,
+		EntityID:    "fail",
+		WorkspaceID: wsID,
+		OccurredAt:  time.Now(),
+	})
+	bus.Publish(TopicRecordCreated, RecordChangedEvent{
+		EntityType:  EntityTypeAccount,
+		EntityID:    "ok",
+		WorkspaceID: wsID,
+		OccurredAt:  time.Now(),
+	})
+
+	select {
+	case <-successSeen:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected worker to keep processing events after failure")
+	}
+
+	assertReindexAuditMetadata(t, db, wsID, "retries_exhausted", true)
+}
+
+func TestReindexService_FreshnessSLA_AccountVisibleInHybridSearch(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	wsID := createWorkspace(t, db)
+	ownerID := createUserForReindex(t, db, wsID)
+	bus := eventbus.New()
+	stub := newStubEmbedder(4)
+
+	ingest := NewIngestService(db, bus)
+	embedder := NewEmbedderService(db, stub)
+	reindex := NewReindexService(db, bus, ingest, audit.NewAuditService(db))
+	search := NewSearchService(db, stub)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go embedder.Start(ctx, bus)
+	go reindex.Start(ctx)
+
+	start := time.Now()
+	accountID := newID()
+	_, err := db.Exec(
+		`INSERT INTO account (id, workspace_id, name, domain, industry, owner_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		accountID, wsID, "Freshness Account", "freshness.example", "AI", ownerID, time.Now().Format(time.RFC3339), time.Now().Format(time.RFC3339),
+	)
+	if err != nil {
+		t.Fatalf("seed account: %v", err)
+	}
+	bus.Publish(TopicRecordCreated, RecordChangedEvent{
+		EntityType:  EntityTypeAccount,
+		EntityID:    accountID,
+		WorkspaceID: wsID,
+		OccurredAt:  start,
+	})
+
+	deadline := start.Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		results, searchErr := search.HybridSearch(context.Background(), SearchInput{
+			Query:       "freshness example",
+			WorkspaceID: wsID,
+			Limit:       10,
+		})
+		if searchErr == nil && containsKnowledgeResult(results.Items, "Freshness Account") {
+			if elapsed := time.Since(start); elapsed >= 60*time.Second {
+				t.Fatalf("freshness SLA breached: %v", elapsed)
+			}
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	t.Fatal("expected account to become visible in HybridSearch within SLA window")
+}
+
 func createUserForReindex(t *testing.T, db *sql.DB, workspaceID string) string {
 	t.Helper()
 	id := newID()
@@ -412,4 +638,36 @@ func createUserForReindex(t *testing.T, db *sql.DB, workspaceID string) string {
 		t.Fatalf("create user for reindex: %v", err)
 	}
 	return id
+}
+
+func assertReindexAuditMetadata(t *testing.T, db *sql.DB, workspaceID, key string, expected any) {
+	t.Helper()
+
+	var raw string
+	if err := db.QueryRow(`
+		SELECT details
+		FROM audit_event
+		WHERE workspace_id = ? AND action = 'knowledge.reindex'
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, workspaceID).Scan(&raw); err != nil {
+		t.Fatalf("query latest reindex audit: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		t.Fatalf("unmarshal reindex audit: %v", err)
+	}
+	if payload[key] != expected {
+		t.Fatalf("expected audit[%s]=%v, got %#v", key, expected, payload[key])
+	}
+}
+
+func containsKnowledgeResult(items []SearchResult, title string) bool {
+	for _, item := range items {
+		if item.Title == title {
+			return true
+		}
+	}
+	return false
 }
