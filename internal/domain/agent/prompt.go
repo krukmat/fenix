@@ -45,9 +45,12 @@ const (
 )
 
 const (
-	evalStatusPassed = "passed"
-	systemActorID    = "system"
-	entityTypePrompt = "prompt_version"
+	evalStatusPassed           = "passed"
+	systemActorID              = "system"
+	entityTypePrompt           = "prompt_version"
+	actionPromptActivated      = "prompt.activated"
+	actionPromptRollback       = "prompt.rollback"
+	actionPromptPromoteBlocked = "prompt.promote_blocked"
 )
 
 var (
@@ -360,7 +363,7 @@ func (s *PromptService) syncActivePromptVersion(
 
 func (s *PromptService) logPromptActivation(ctx context.Context, workspaceID, promptVersionID, agentID string) {
 	if s.audit != nil {
-		_ = s.audit.LogWithDetails(ctx, workspaceID, systemActorID, audit.ActorTypeSystem, "prompt.activated", stringPtr(entityTypePrompt), &promptVersionID, &audit.EventDetails{
+		_ = s.audit.LogWithDetails(ctx, workspaceID, systemActorID, audit.ActorTypeSystem, actionPromptActivated, stringPtr(entityTypePrompt), &promptVersionID, &audit.EventDetails{
 			Metadata: map[string]interface{}{"agent_id": agentID},
 		}, audit.OutcomeSuccess)
 	}
@@ -368,7 +371,7 @@ func (s *PromptService) logPromptActivation(ctx context.Context, workspaceID, pr
 
 func (s *PromptService) logPromptRollback(ctx context.Context, workspaceID, promptVersionID, agentID string) {
 	if s.audit != nil {
-		_ = s.audit.LogWithDetails(ctx, workspaceID, systemActorID, audit.ActorTypeSystem, "prompt.rollback", stringPtr(entityTypePrompt), &promptVersionID, &audit.EventDetails{
+		_ = s.audit.LogWithDetails(ctx, workspaceID, systemActorID, audit.ActorTypeSystem, actionPromptRollback, stringPtr(entityTypePrompt), &promptVersionID, &audit.EventDetails{
 			Metadata: map[string]interface{}{"agent_id": agentID},
 		}, audit.OutcomeSuccess)
 	}
@@ -376,7 +379,7 @@ func (s *PromptService) logPromptRollback(ctx context.Context, workspaceID, prom
 
 func (s *PromptService) logPromptBlockedAudit(ctx context.Context, workspaceID, promptVersionID, agentID string, reason error) {
 	if s.audit != nil {
-		_ = s.audit.LogWithDetails(ctx, workspaceID, systemActorID, audit.ActorTypeSystem, "prompt.promote_blocked", stringPtr(entityTypePrompt), &promptVersionID, &audit.EventDetails{
+		_ = s.audit.LogWithDetails(ctx, workspaceID, systemActorID, audit.ActorTypeSystem, actionPromptPromoteBlocked, stringPtr(entityTypePrompt), &promptVersionID, &audit.EventDetails{
 			Metadata: map[string]interface{}{
 				"agent_id": agentID,
 				"reason":   reason.Error(),
