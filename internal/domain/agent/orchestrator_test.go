@@ -4,6 +4,8 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"testing"
 )
 
@@ -218,6 +220,251 @@ func TestUpdateAgentRunStatus_Success(t *testing.T) {
 	}
 	if updated.CompletedAt == nil {
 		t.Error("expected completed_at to be set")
+	}
+}
+
+// TestTriggerAgent_CreatesInitialPendingStep verifies the runtime creates the first pending step.
+// Traces: FR-230
+func TestTriggerAgent_CreatesInitialPendingStep(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('agent-steps', 'ws-steps', 'Steps', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert definition: %v", err)
+	}
+
+	orch := NewOrchestrator(db)
+	run, err := orch.TriggerAgent(ctx, TriggerAgentInput{
+		AgentID:     "agent-steps",
+		WorkspaceID: "ws-steps",
+		TriggerType: TriggerTypeManual,
+	})
+	if err != nil {
+		t.Fatalf("TriggerAgent: %v", err)
+	}
+
+	steps, err := orch.ListRunSteps(ctx, "ws-steps", run.ID)
+	if err != nil {
+		t.Fatalf("ListRunSteps: %v", err)
+	}
+	if len(steps) != 1 {
+		t.Fatalf("expected 1 step, got %d", len(steps))
+	}
+	if steps[0].StepType != StepTypeRetrieveEvidence {
+		t.Fatalf("expected retrieve_evidence, got %s", steps[0].StepType)
+	}
+	if steps[0].Status != StepStatusPending {
+		t.Fatalf("expected pending, got %s", steps[0].Status)
+	}
+}
+
+// TestUpdateAgentRunStatus_InvalidTerminalTransition rejects changes after completion.
+// Traces: FR-230
+func TestUpdateAgentRunStatus_InvalidTerminalTransition(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('agent-term', 'ws-term', 'Terminal', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert definition: %v", err)
+	}
+
+	orch := NewOrchestrator(db)
+	run, err := orch.TriggerAgent(ctx, TriggerAgentInput{
+		AgentID:     "agent-term",
+		WorkspaceID: "ws-term",
+		TriggerType: TriggerTypeManual,
+	})
+	if err != nil {
+		t.Fatalf("TriggerAgent: %v", err)
+	}
+
+	if _, err := orch.UpdateAgentRunStatus(ctx, "ws-term", run.ID, StatusSuccess); err != nil {
+		t.Fatalf("UpdateAgentRunStatus(success): %v", err)
+	}
+	_, err = orch.UpdateAgentRunStatus(ctx, "ws-term", run.ID, StatusFailed)
+	if !errors.Is(err, ErrInvalidRunTransition) {
+		t.Fatalf("expected ErrInvalidRunTransition, got %v", err)
+	}
+}
+
+// TestUpdateAgentRun_SynthesizesStepsForCompletedRun verifies compatibility path materializes runtime steps.
+// Traces: FR-230
+func TestUpdateAgentRun_SynthesizesStepsForCompletedRun(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('agent-sync', 'ws-sync', 'Synthesize', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert definition: %v", err)
+	}
+
+	orch := NewOrchestrator(db)
+	run, err := orch.TriggerAgent(ctx, TriggerAgentInput{
+		AgentID:     "agent-sync",
+		WorkspaceID: "ws-sync",
+		TriggerType: TriggerTypeManual,
+	})
+	if err != nil {
+		t.Fatalf("TriggerAgent: %v", err)
+	}
+
+	updated, err := orch.UpdateAgentRun(ctx, "ws-sync", run.ID, RunUpdates{
+		Status:               StatusSuccess,
+		Inputs:               json.RawMessage(`{"case_id":"case-1"}`),
+		RetrievalQueries:     json.RawMessage(`["case status"]`),
+		RetrievedEvidenceIDs: json.RawMessage(`["evidence-1"]`),
+		ReasoningTrace:       json.RawMessage(`["reasoned over evidence"]`),
+		ToolCalls:            json.RawMessage(`[{"tool_name":"create_task"}]`),
+		Output:               json.RawMessage(`{"summary":"done"}`),
+		Completed:            true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateAgentRun: %v", err)
+	}
+	if updated.CompletedAt == nil {
+		t.Fatal("expected completed_at")
+	}
+	if updated.LatencyMs == nil {
+		t.Fatal("expected latency_ms to be synthesized")
+	}
+
+	steps, err := orch.ListRunSteps(ctx, "ws-sync", run.ID)
+	if err != nil {
+		t.Fatalf("ListRunSteps: %v", err)
+	}
+	if len(steps) != 4 {
+		t.Fatalf("expected 4 steps, got %d", len(steps))
+	}
+	if steps[0].Status != StepStatusSuccess {
+		t.Fatalf("expected retrieval success, got %s", steps[0].Status)
+	}
+	if steps[1].StepType != StepTypeReason || steps[1].Status != StepStatusSuccess {
+		t.Fatalf("expected reason success, got %s/%s", steps[1].StepType, steps[1].Status)
+	}
+	if steps[2].StepType != StepTypeToolCall || steps[2].Status != StepStatusSuccess {
+		t.Fatalf("expected tool_call success, got %s/%s", steps[2].StepType, steps[2].Status)
+	}
+	if steps[3].StepType != StepTypeFinalize || steps[3].Status != StepStatusSuccess {
+		t.Fatalf("expected finalize success, got %s/%s", steps[3].StepType, steps[3].Status)
+	}
+}
+
+// TestRecoverRun_RetryableRunningStepCreatesRetryAttempt verifies retry orchestration for retryable steps.
+// Traces: FR-230
+func TestRecoverRun_RetryableRunningStepCreatesRetryAttempt(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('agent-retry', 'ws-retry', 'Retry', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert definition: %v", err)
+	}
+
+	orch := NewOrchestrator(db)
+	run, err := orch.TriggerAgent(ctx, TriggerAgentInput{
+		AgentID:     "agent-retry",
+		WorkspaceID: "ws-retry",
+		TriggerType: TriggerTypeManual,
+	})
+	if err != nil {
+		t.Fatalf("TriggerAgent: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO agent_run_step (
+			id, workspace_id, agent_run_id, step_index, step_type, status, attempt, created_at, updated_at
+		) VALUES ('step-tool-1', 'ws-retry', ?, 1, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, run.ID, StepTypeToolCall, StepStatusRunning)
+	if err != nil {
+		t.Fatalf("insert step: %v", err)
+	}
+
+	if _, err := orch.RecoverRun(ctx, "ws-retry", run.ID); err != nil {
+		t.Fatalf("RecoverRun: %v", err)
+	}
+
+	steps, err := orch.ListRunSteps(ctx, "ws-retry", run.ID)
+	if err != nil {
+		t.Fatalf("ListRunSteps: %v", err)
+	}
+	if len(steps) != 3 {
+		t.Fatalf("expected 3 steps after retry, got %d", len(steps))
+	}
+	if steps[1].Status != StepStatusRetrying {
+		t.Fatalf("expected original step retrying, got %s", steps[1].Status)
+	}
+	if steps[2].Status != StepStatusPending || steps[2].Attempt != 2 {
+		t.Fatalf("expected new pending retry attempt, got %s/%d", steps[2].Status, steps[2].Attempt)
+	}
+}
+
+// TestRecoverRun_NonRetryableRunningStepFailsRun verifies exhausted or non-retryable steps fail the run.
+// Traces: FR-230
+func TestRecoverRun_NonRetryableRunningStepFailsRun(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('agent-fail', 'ws-fail', 'Fail', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert definition: %v", err)
+	}
+
+	orch := NewOrchestrator(db)
+	run, err := orch.TriggerAgent(ctx, TriggerAgentInput{
+		AgentID:     "agent-fail",
+		WorkspaceID: "ws-fail",
+		TriggerType: TriggerTypeManual,
+	})
+	if err != nil {
+		t.Fatalf("TriggerAgent: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO agent_run_step (
+			id, workspace_id, agent_run_id, step_index, step_type, status, attempt, created_at, updated_at
+		) VALUES ('step-reason-1', 'ws-fail', ?, 1, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, run.ID, StepTypeReason, StepStatusRunning)
+	if err != nil {
+		t.Fatalf("insert step: %v", err)
+	}
+
+	recovered, err := orch.RecoverRun(ctx, "ws-fail", run.ID)
+	if err != nil {
+		t.Fatalf("RecoverRun: %v", err)
+	}
+	if recovered.Status != StatusFailed {
+		t.Fatalf("expected failed run, got %s", recovered.Status)
+	}
+
+	steps, err := orch.ListRunSteps(ctx, "ws-fail", run.ID)
+	if err != nil {
+		t.Fatalf("ListRunSteps: %v", err)
+	}
+	if len(steps) != 3 {
+		t.Fatalf("expected 3 steps, got %d", len(steps))
+	}
+	if steps[1].Status != StepStatusFailed {
+		t.Fatalf("expected failing step to be failed, got %s", steps[1].Status)
+	}
+	if steps[2].StepType != StepTypeFinalize || steps[2].Status != StepStatusFailed {
+		t.Fatalf("expected failed finalize step, got %s/%s", steps[2].StepType, steps[2].Status)
 	}
 }
 

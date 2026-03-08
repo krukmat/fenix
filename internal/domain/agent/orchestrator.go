@@ -200,6 +200,10 @@ func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (
 		return nil, err
 	}
 
+	if err := o.createInitialRunStep(ctx, run); err != nil {
+		return nil, err
+	}
+
 	return run, nil
 }
 
@@ -275,13 +279,31 @@ func (o *Orchestrator) ListAgentRuns(ctx context.Context, workspaceID string, li
 
 // UpdateAgentRunStatus updates the status of an agent run
 func (o *Orchestrator) UpdateAgentRunStatus(ctx context.Context, workspaceID, runID, status string) (*Run, error) {
-	now := time.Now().UTC()
-	_, err := o.db.ExecContext(ctx, `
-		UPDATE agent_run
-		SET status = ?, completed_at = ?, updated_at = ?
-		WHERE id = ? AND workspace_id = ?
-	`, status, now, now, runID, workspaceID)
+	run, err := o.GetAgentRun(ctx, workspaceID, runID)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateRunTransition(run.Status, status); err != nil {
+		return nil, err
+	}
+
+	latencyMs := calculateRunLatency(run.StartedAt)
+	tx, err := o.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	if err := finalizeRunStatusTx(ctx, tx, workspaceID, runID, status, latencyMs); err != nil {
+		return nil, err
+	}
+	if err := reconcileOpenStepsTx(ctx, tx, workspaceID, runID, stepStatusForRun(status)); err != nil {
+		return nil, err
+	}
+	if err := ensureFinalizeStepTx(ctx, tx, run, status, nil); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 
@@ -290,13 +312,31 @@ func (o *Orchestrator) UpdateAgentRunStatus(ctx context.Context, workspaceID, ru
 
 // UpdateAgentRun updates an agent run with full data
 func (o *Orchestrator) UpdateAgentRun(ctx context.Context, workspaceID, runID string, updates RunUpdates) (*Run, error) {
+	run, err := o.GetAgentRun(ctx, workspaceID, runID)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateRunTransition(run.Status, updates.Status); err != nil {
+		return nil, err
+	}
+
 	now := time.Now().UTC()
 	var completedAt *time.Time
 	if updates.Completed {
 		completedAt = &now
 	}
 
-	_, err := o.db.ExecContext(ctx, `
+	if updates.Completed && updates.LatencyMs == nil {
+		updates.LatencyMs = calculateRunLatency(run.StartedAt)
+	}
+
+	tx, err := o.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx, `
 		UPDATE agent_run
 		SET status = ?, inputs = ?, retrieval_queries = ?, retrieved_evidence_ids = ?,
 		    reasoning_trace = ?, tool_calls = ?, output = ?, abstention_reason = ?,
@@ -321,6 +361,24 @@ func (o *Orchestrator) UpdateAgentRun(ctx context.Context, workspaceID, runID st
 		workspaceID,
 	)
 	if err != nil {
+		return nil, err
+	}
+
+	run.Status = updates.Status
+	run.Inputs = updates.Inputs
+	run.RetrievalQueries = updates.RetrievalQueries
+	run.RetrievedEvidenceIDs = updates.RetrievedEvidenceIDs
+	run.ReasoningTrace = updates.ReasoningTrace
+	run.ToolCalls = updates.ToolCalls
+	run.Output = updates.Output
+	if updates.Completed {
+		run.CompletedAt = completedAt
+	}
+
+	if err := synthesizeRunSteps(ctx, tx, run, updates); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 
