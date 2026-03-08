@@ -161,7 +161,7 @@ func (s *PromptService) GetPromptVersionByID(ctx context.Context, workspaceID, p
 		WorkspaceID: workspaceID,
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrPromptVersionNotFound
 		}
 		return nil, fmt.Errorf("get by id: %w", err)
@@ -208,7 +208,7 @@ func (s *PromptService) getPromptVersionRow(
 		WorkspaceID: workspaceID,
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrPromptVersionNotFound
 		}
 		return nil, fmt.Errorf("get version: %w", err)
@@ -398,7 +398,7 @@ func (s *PromptService) getNextVersionNumber(ctx context.Context, queries sqlcge
 		AgentDefinitionID: agentID,
 		WorkspaceID:       workspaceID,
 	})
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return 0, fmt.Errorf("get latest version: %w", err)
 	}
 

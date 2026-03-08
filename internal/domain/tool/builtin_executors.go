@@ -402,7 +402,7 @@ func (e *CreateKnowledgeItemExecutor) createKnowledgeItem(
 		RawContent:  in.Content,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("%w: create knowledge item: %v", ErrBuiltinExecutionFailed, err)
+		return nil, fmt.Errorf("%w: create knowledge item: %w", ErrBuiltinExecutionFailed, err)
 	}
 	return item, nil
 }
@@ -464,7 +464,7 @@ func (e *UpdateKnowledgeItemExecutor) updateKnowledgeItem(ctx context.Context, w
 		WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL
 	`, in.Title, in.Content, strings.TrimSpace(in.Content), time.Now().UTC(), in.ID, workspaceID)
 	if err != nil {
-		return fmt.Errorf("%w: update knowledge item: %v", ErrBuiltinExecutionFailed, err)
+		return fmt.Errorf("%w: update knowledge item: %w", ErrBuiltinExecutionFailed, err)
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
@@ -598,13 +598,13 @@ func (e *QueryMetricsExecutor) queryMetric(ctx context.Context, workspaceID stri
 func (e *QueryMetricsExecutor) queryRowsAsMaps(ctx context.Context, query string, args ...any) ([]map[string]any, error) {
 	rows, err := e.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("%w: query metrics: %v", ErrBuiltinExecutionFailed, err)
+		return nil, fmt.Errorf("%w: query metrics: %w", ErrBuiltinExecutionFailed, err)
 	}
 	defer rows.Close()
 
 	cols, err := rows.Columns()
 	if err != nil {
-		return nil, fmt.Errorf("%w: read columns: %v", ErrBuiltinExecutionFailed, err)
+		return nil, fmt.Errorf("%w: read columns: %w", ErrBuiltinExecutionFailed, err)
 	}
 
 	out := make([]map[string]any, 0)
@@ -617,7 +617,7 @@ func (e *QueryMetricsExecutor) queryRowsAsMaps(ctx context.Context, query string
 	}
 	iterErr := rows.Err()
 	if iterErr != nil {
-		return nil, fmt.Errorf("%w: iterate metrics rows: %v", ErrBuiltinExecutionFailed, iterErr)
+		return nil, fmt.Errorf("%w: iterate metrics rows: %w", ErrBuiltinExecutionFailed, iterErr)
 	}
 	return out, nil
 }
@@ -629,7 +629,7 @@ func scanMetricRow(rows *sql.Rows, cols []string) (map[string]any, error) {
 		scanTargets[i] = &vals[i]
 	}
 	if err := rows.Scan(scanTargets...); err != nil {
-		return nil, fmt.Errorf("%w: scan metrics row: %v", ErrBuiltinExecutionFailed, err)
+		return nil, fmt.Errorf("%w: scan metrics row: %w", ErrBuiltinExecutionFailed, err)
 	}
 	item := make(map[string]any, len(cols))
 	for i, c := range cols {
