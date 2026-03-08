@@ -232,7 +232,7 @@ func synthesizeRunSteps(ctx context.Context, tx *sql.Tx, run *Run, updates RunUp
 	if err != nil {
 		return err
 	}
-	nextIndex, err = maybeInsertRunStepTx(ctx, tx, run, nextIndex, StepTypeToolCall, updates.ToolCalls, nil)
+	_, err = maybeInsertRunStepTx(ctx, tx, run, nextIndex, StepTypeToolCall, updates.ToolCalls, nil)
 	if err != nil {
 		return err
 	}
@@ -288,7 +288,7 @@ func maybeInsertRunStepTx(ctx context.Context, tx *sql.Tx, run *Run, stepIndex i
 	if existing != nil {
 		return stepIndex, nil
 	}
-	if err := insertRunStepTx(ctx, tx, &RunStep{
+	err = insertRunStepTx(ctx, tx, &RunStep{
 		ID:          uuid.NewV7().String(),
 		WorkspaceID: run.WorkspaceID,
 		RunID:       run.ID,
@@ -302,7 +302,8 @@ func maybeInsertRunStepTx(ctx context.Context, tx *sql.Tx, run *Run, stepIndex i
 		CompletedAt: timePtr(time.Now().UTC()),
 		CreatedAt:   time.Now().UTC(),
 		UpdatedAt:   time.Now().UTC(),
-	}); err != nil {
+	})
+	if err != nil {
 		return stepIndex, err
 	}
 	return stepIndex + 1, nil
@@ -476,7 +477,8 @@ func updateRunStepStateTx(ctx context.Context, tx *sql.Tx, stepID, workspaceID, 
 	if step == nil {
 		return ErrInvalidStepTransition
 	}
-	if err := validateStepTransition(step.Status, status); err != nil {
+	err = validateStepTransition(step.Status, status)
+	if err != nil {
 		return err
 	}
 
@@ -524,9 +526,10 @@ func (o *Orchestrator) recoverRunningRun(ctx context.Context, run *Run) (*Run, e
 		return nil, err
 	}
 	if current == nil {
+		_ = tx.Rollback()
 		return run, nil
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	if shouldFailRecovery(current) {
 		return o.failRecoveredRun(ctx, tx, run, current)
@@ -542,7 +545,7 @@ func (o *Orchestrator) loadRecoverableStep(ctx context.Context, workspaceID, run
 
 	steps, err := listRunStepsTx(ctx, tx, workspaceID, runID)
 	if err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return nil, nil, err
 	}
 	return tx, findRunningRunStep(steps), nil

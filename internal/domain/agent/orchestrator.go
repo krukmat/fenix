@@ -200,7 +200,8 @@ func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (
 		return nil, err
 	}
 
-	if err := o.createInitialRunStep(ctx, run); err != nil {
+	err = o.createInitialRunStep(ctx, run)
+	if err != nil {
 		return nil, err
 	}
 
@@ -283,7 +284,8 @@ func (o *Orchestrator) UpdateAgentRunStatus(ctx context.Context, workspaceID, ru
 	if err != nil {
 		return nil, err
 	}
-	if err := o.persistTerminalRunStatus(ctx, run, status); err != nil {
+	err = o.persistTerminalRunStatus(ctx, run, status)
+	if err != nil {
 		return nil, err
 	}
 	return o.GetAgentRun(ctx, workspaceID, runID)
@@ -303,17 +305,20 @@ func (o *Orchestrator) UpdateAgentRun(ctx context.Context, workspaceID, runID st
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
-	if err := persistRunUpdatesTx(ctx, tx, workspaceID, runID, updates, completedAt, now); err != nil {
+	err = persistRunUpdatesTx(ctx, tx, workspaceID, runID, updates, completedAt, now)
+	if err != nil {
 		return nil, err
 	}
 	applyRunUpdates(run, updates, completedAt)
 
-	if err := synthesizeRunSteps(ctx, tx, run, updates); err != nil {
+	err = synthesizeRunSteps(ctx, tx, run, updates)
+	if err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(); err != nil {
+	err = tx.Commit()
+	if err != nil {
 		return nil, err
 	}
 
@@ -325,7 +330,8 @@ func (o *Orchestrator) loadUpdatableRun(ctx context.Context, workspaceID, runID,
 	if err != nil {
 		return nil, err
 	}
-	if err := validateRunTransition(run.Status, nextStatus); err != nil {
+	err = validateRunTransition(run.Status, nextStatus)
+	if err != nil {
 		return nil, err
 	}
 	return run, nil
@@ -336,15 +342,18 @@ func (o *Orchestrator) persistTerminalRunStatus(ctx context.Context, run *Run, s
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
-	if err := finalizeRunStatusTx(ctx, tx, run.WorkspaceID, run.ID, status, calculateRunLatency(run.StartedAt)); err != nil {
+	err = finalizeRunStatusTx(ctx, tx, run.WorkspaceID, run.ID, status, calculateRunLatency(run.StartedAt))
+	if err != nil {
 		return err
 	}
-	if err := reconcileOpenStepsTx(ctx, tx, run.WorkspaceID, run.ID, stepStatusForRun(status)); err != nil {
+	err = reconcileOpenStepsTx(ctx, tx, run.WorkspaceID, run.ID, stepStatusForRun(status))
+	if err != nil {
 		return err
 	}
-	if err := ensureFinalizeStepTx(ctx, tx, run, status, nil); err != nil {
+	err = ensureFinalizeStepTx(ctx, tx, run, status, nil)
+	if err != nil {
 		return err
 	}
 	return tx.Commit()
