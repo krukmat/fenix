@@ -28,6 +28,8 @@ const (
 	ConfidenceLevelLow    ConfidenceLevel = "low"
 	ConfidenceLevelMedium ConfidenceLevel = "medium"
 	ConfidenceLevelHigh   ConfidenceLevel = "high"
+	entityTypeCase        string          = "case"
+	entityTypeLead        string          = "lead"
 )
 
 var allowedActionTools = map[string]struct{}{
@@ -445,7 +447,7 @@ func eligibilityDiscardReason(action SuggestedAction, entityType, entityID strin
 }
 
 func validateCreateTaskEligibility(params map[string]any, entityType, entityID string) string {
-	if entityType != "case" && entityType != "lead" {
+	if entityType != entityTypeCase && entityType != entityTypeLead {
 		return "entity_not_supported"
 	}
 	if !matchesStringParam(params, "entity_type", entityType) {
@@ -458,7 +460,7 @@ func validateCreateTaskEligibility(params map[string]any, entityType, entityID s
 }
 
 func validateUpdateCaseEligibility(params map[string]any, entityType, entityID string) string {
-	if entityType != "case" {
+	if entityType != entityTypeCase {
 		return "tool_entity_mismatch"
 	}
 	if !matchesStringParam(params, "case_id", entityID) {
@@ -468,7 +470,7 @@ func validateUpdateCaseEligibility(params map[string]any, entityType, entityID s
 }
 
 func validateSendReplyEligibility(params map[string]any, entityType, entityID string) string {
-	if entityType != "case" {
+	if entityType != entityTypeCase {
 		return "tool_entity_mismatch"
 	}
 	if !matchesStringParam(params, "case_id", entityID) {
@@ -534,10 +536,7 @@ func hasTraceableActionEvidence(pack *knowledge.EvidencePack) bool {
 		return false
 	}
 	for _, source := range pack.Sources {
-		if source.ID != "" {
-			return true
-		}
-		if source.Snippet != nil && strings.TrimSpace(*source.Snippet) != "" {
+		if source.ID != "" || (source.Snippet != nil && strings.TrimSpace(*source.Snippet) != "") {
 			return true
 		}
 	}
