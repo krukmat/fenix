@@ -72,7 +72,8 @@ func (s *HandoffService) InitiateHandoff(ctx context.Context, workspaceID, runID
 		return nil, err
 	}
 	reason = resolveHandoffReason(reason, run)
-	if err := s.persistHandoffReason(ctx, workspaceID, runID, reason); err != nil {
+	err = s.persistHandoffReason(ctx, workspaceID, runID, reason)
+	if err != nil {
 		return nil, err
 	}
 	run.AbstentionReason = stringPtr(reason)
