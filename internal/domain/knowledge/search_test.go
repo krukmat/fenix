@@ -462,6 +462,45 @@ func TestSearchService_LLMEmbedFails_FallbackToBM25(t *testing.T) {
 	}
 }
 
+func TestSearchService_VectorSearch_IgnoresMalformedPersistedEmbeddings(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	stub := newStubEmbedder(3)
+	wsID := createWorkspace(t, db)
+
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	embedder := NewEmbedderService(db, stub)
+	svc := NewSearchService(db, stub)
+
+	item := ingestAndEmbedDoc(t, ingest, embedder, wsID, "Malformed Vector Doc", "content for malformed vector test")
+
+	_, err := db.ExecContext(context.Background(), `
+		UPDATE vec_embedding
+		SET embedding = 'not-json'
+		WHERE id IN (
+			SELECT id FROM embedding_document
+			WHERE knowledge_item_id = ? AND workspace_id = ?
+		)
+	`, item.ID, wsID)
+	if err != nil {
+		t.Fatalf("corrupt vec_embedding: %v", err)
+	}
+
+	results, err := svc.HybridSearch(context.Background(), SearchInput{
+		Query:       "malformed vector",
+		WorkspaceID: wsID,
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("HybridSearch should not fail with malformed persisted vectors: %v", err)
+	}
+	if len(results.Items) == 0 {
+		t.Fatal("expected BM25 fallback results even with malformed persisted vectors")
+	}
+}
+
 // ============================================================================
 // Performance smoke test — Task 2.5 audit, Item 3
 // Validates that HybridSearch overhead (excluding Ollama RTT) is negligible.

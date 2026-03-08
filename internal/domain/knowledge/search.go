@@ -165,40 +165,42 @@ type vectorRow struct {
 	similarity      float32 // cosine similarity [0, 1]
 }
 
-// vectorSearch fetches all embedded vectors for the workspace, computes cosine
-// similarity in-memory, and returns the top-limit results.
+// vectorSearch executes similarity ranking inside SQLite using the persisted
+// vector store. This removes the previous Go-side full scan over all vectors.
 func (s *SearchService) vectorSearch(ctx context.Context, wsID string, queryVec []float32, limit int) ([]vectorRow, error) {
-	rows, err := s.q.GetAllEmbeddedVectorsByWorkspace(ctx, wsID)
+	queryJSON, err := encodeEmbedding(queryVec)
 	if err != nil {
-		return nil, fmt.Errorf("vectorSearch fetch: %w", err)
+		return nil, fmt.Errorf("vectorSearch encode query: %w", err)
 	}
 
-	type scoredRow struct {
-		row        sqlcgen.GetAllEmbeddedVectorsByWorkspaceRow
-		similarity float32
-	}
+	const vectorQuery = `
+		SELECT v.id, ed.knowledge_item_id,
+		       cosine_similarity_json(v.embedding, ?) AS similarity
+		FROM vec_embedding v
+		JOIN embedding_document ed ON v.id = ed.id
+		WHERE ed.workspace_id = ?
+		  AND ed.embedding_status = 'embedded'
+		  AND json_valid(v.embedding)
+		  AND json_array_length(v.embedding) = json_array_length(?)
+		ORDER BY similarity DESC, ed.knowledge_item_id ASC
+		LIMIT ?`
 
-	scored := make([]scoredRow, 0, len(rows))
-	for _, row := range rows {
-		vec, decodeErr := decodeEmbedding(row.Embedding)
-		if decodeErr != nil {
-			continue // skip malformed vectors
+	rows, err := s.db.QueryContext(ctx, vectorQuery, queryJSON, wsID, queryJSON, limit)
+	if err != nil {
+		return nil, fmt.Errorf("vectorSearch query: %w", err)
+	}
+	defer rows.Close()
+
+	results := make([]vectorRow, 0, limit)
+	for rows.Next() {
+		var result vectorRow
+		if scanErr := rows.Scan(&result.id, &result.knowledgeItemID, &result.similarity); scanErr != nil {
+			return nil, fmt.Errorf("vectorSearch scan: %w", scanErr)
 		}
-		sim := cosineSimilarity(queryVec, vec)
-		scored = append(scored, scoredRow{row: row, similarity: sim})
+		results = append(results, result)
 	}
-
-	sort.Slice(scored, func(i, j int) bool {
-		return scored[i].similarity > scored[j].similarity
-	})
-
-	results := make([]vectorRow, 0, min(limit, len(scored)))
-	for i := 0; i < len(scored) && i < limit; i++ {
-		results = append(results, vectorRow{
-			id:              scored[i].row.ID,
-			knowledgeItemID: scored[i].row.KnowledgeItemID,
-			similarity:      scored[i].similarity,
-		})
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("vectorSearch rows: %w", err)
 	}
 	return results, nil
 }
