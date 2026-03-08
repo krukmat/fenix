@@ -5,6 +5,7 @@ package agent
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
@@ -34,12 +35,14 @@ func insertHandoffTestRun(t *testing.T, db *sql.DB, runID, workspaceID, agentDef
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO agent_run (
 			id, workspace_id, agent_definition_id, trigger_type, status,
-			retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls,
-			output, started_at, created_at
+			trigger_context, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls,
+			output, abstention_reason, started_at, created_at
 		) VALUES (
 			?, ?, ?, 'manual', 'escalated',
+			'{"source":"support-agent","caseId":"case-ref-1"}',
 			'["q1"]', '["ev1"]', '[{"step":"think"}]', '[{"tool":"search"}]',
-			'{}', datetime('now'), datetime('now')
+			'{"summary":"Need human review"}', 'insufficient evidence',
+			datetime('now'), datetime('now')
 		)`, runID, workspaceID, agentDefID)
 	if err != nil {
 		t.Fatalf("insertHandoffTestRun: %v", err)
@@ -110,6 +113,20 @@ func TestInitiateHandoff_Success(t *testing.T) {
 	if pkg.Reason != "no solution found" {
 		t.Errorf("Reason: got %q, want %q", pkg.Reason, "no solution found")
 	}
+	if pkg.ContractVersion != handoffContractVersion {
+		t.Errorf("ContractVersion: got %q, want %q", pkg.ContractVersion, handoffContractVersion)
+	}
+	if pkg.AbstentionReason == nil || *pkg.AbstentionReason != "no solution found" {
+		t.Errorf("AbstentionReason: got %v, want no solution found", pkg.AbstentionReason)
+	}
+	if pkg.CasePriority != "medium" {
+		t.Errorf("CasePriority: got %q, want medium", pkg.CasePriority)
+	}
+	if pkg.CaseOwnerID != "user-1" {
+		t.Errorf("CaseOwnerID: got %q, want user-1", pkg.CaseOwnerID)
+	}
+	assertJSONField(t, pkg.TriggerContext, "source", "support-agent")
+	assertJSONField(t, pkg.FinalOutput, "summary", "Need human review")
 }
 
 // TestInitiateHandoff_RunNotFound returns ErrAgentRunNotFound for unknown run.
@@ -187,6 +204,49 @@ func TestGetHandoffPackage_ContainsAllContext(t *testing.T) {
 	if pkg.CaseSubject != "Test Case Subject" {
 		t.Errorf("CaseSubject: got %q, want %q", pkg.CaseSubject, "Test Case Subject")
 	}
+	if pkg.ContractVersion != handoffContractVersion {
+		t.Errorf("ContractVersion: got %q, want %q", pkg.ContractVersion, handoffContractVersion)
+	}
+	if pkg.AbstentionReason == nil || *pkg.AbstentionReason != "insufficient evidence" {
+		t.Errorf("AbstentionReason: got %v, want insufficient evidence", pkg.AbstentionReason)
+	}
+	assertJSONField(t, pkg.TriggerContext, "source", "support-agent")
+	assertJSONField(t, pkg.FinalOutput, "summary", "Need human review")
+}
+
+// TestGetHandoffPackage_UsesPersistedReason verifies GetHandoffPackage returns the
+// same reason persisted by InitiateHandoff when no explicit reason is provided.
+// Traces: FR-232
+func TestGetHandoffPackage_UsesPersistedReason(t *testing.T) {
+	svc, db := newHandoffSvc(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	const wsID = "ws-handoff-5"
+	const runID = "run-handoff-5"
+	const agentDefID = "agent-handoff-5"
+	const caseID = "case-handoff-5"
+
+	insertHandoffTestAgentDef(t, db, agentDefID, wsID)
+	insertHandoffTestRun(t, db, runID, wsID, agentDefID)
+	insertHandoffTestCase(t, db, caseID, wsID)
+
+	initiated, err := svc.InitiateHandoff(ctx, wsID, runID, caseID, "awaiting specialist review")
+	if err != nil {
+		t.Fatalf("InitiateHandoff: %v", err)
+	}
+
+	got, err := svc.GetHandoffPackage(ctx, wsID, runID, caseID)
+	if err != nil {
+		t.Fatalf("GetHandoffPackage: %v", err)
+	}
+
+	if got.Reason != initiated.Reason {
+		t.Errorf("Reason: got %q, want %q", got.Reason, initiated.Reason)
+	}
+	if got.AbstentionReason == nil || initiated.AbstentionReason == nil || *got.AbstentionReason != *initiated.AbstentionReason {
+		t.Errorf("AbstentionReason: got %v, want %v", got.AbstentionReason, initiated.AbstentionReason)
+	}
 }
 
 // TestInitiateHandoff_EmitsEvent verifies the agent.handoff event is published.
@@ -224,5 +284,17 @@ func TestInitiateHandoff_EmitsEvent(t *testing.T) {
 		}
 	default:
 		t.Error("expected agent.handoff event to be published, but channel was empty")
+	}
+}
+
+func assertJSONField(t *testing.T, payload json.RawMessage, key, want string) {
+	t.Helper()
+
+	var got map[string]any
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatalf("unmarshal json field: %v", err)
+	}
+	if got[key] != want {
+		t.Errorf("%s: got %v, want %s", key, got[key], want)
 	}
 }

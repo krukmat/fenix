@@ -18,6 +18,7 @@ var ErrHandoffCaseNotFound = errors.New("case not found for handoff")
 
 // topicHandoff is the event bus topic published when a handoff is initiated.
 const topicHandoff = "agent.handoff"
+const handoffContractVersion = "v1"
 
 // CaseServiceInterface allows HandoffService to load and update cases
 // without creating a circular import between domain/agent and domain/crm.
@@ -30,14 +31,20 @@ type CaseServiceInterface interface {
 // HandoffPackage is the structured context delivered to a human agent
 // when an AI agent cannot resolve a case and escalates.
 type HandoffPackage struct {
+	ContractVersion   string          `json:"contractVersion"`
 	RunID             string          `json:"runId"`
 	WorkspaceID       string          `json:"workspaceId"`
 	AgentDefinitionID string          `json:"agentDefinitionId"`
 	Status            string          `json:"status"`
 	Reason            string          `json:"reason"`
+	AbstentionReason  *string         `json:"abstentionReason,omitempty"`
 	CaseID            string          `json:"caseId"`
 	CaseSubject       string          `json:"caseSubject"`
 	CaseStatus        string          `json:"caseStatus"`
+	CasePriority      string          `json:"casePriority"`
+	CaseOwnerID       string          `json:"caseOwnerId"`
+	TriggerContext    json.RawMessage `json:"triggerContext"`
+	FinalOutput       json.RawMessage `json:"finalOutput"`
 	ReasoningTrace    json.RawMessage `json:"reasoningTrace"`
 	ToolCalls         json.RawMessage `json:"toolCalls"`
 	EvidenceIDs       json.RawMessage `json:"evidenceIds"`
@@ -64,6 +71,11 @@ func (s *HandoffService) InitiateHandoff(ctx context.Context, workspaceID, runID
 	if err != nil {
 		return nil, err
 	}
+	reason = resolveHandoffReason(reason, run)
+	if err := s.persistHandoffReason(ctx, workspaceID, runID, reason); err != nil {
+		return nil, err
+	}
+	run.AbstentionReason = stringPtr(reason)
 
 	cs, err := s.loadAndEscalateCase(ctx, workspaceID, caseID, run)
 	if err != nil {
@@ -87,7 +99,7 @@ func (s *HandoffService) GetHandoffPackage(ctx context.Context, workspaceID, run
 		return nil, ErrHandoffCaseNotFound
 	}
 
-	return buildHandoffPackage(run, cs, ""), nil
+	return buildHandoffPackage(run, cs, resolveHandoffReason("", run)), nil
 }
 
 // ── Private helpers ──────────────────────────────────────────────────────────
@@ -139,19 +151,51 @@ func (s *HandoffService) publishHandoffEvent(pkg *HandoffPackage) {
 	s.bus.Publish(topicHandoff, pkg)
 }
 
+func (s *HandoffService) persistHandoffReason(ctx context.Context, workspaceID, runID, reason string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE agent_run
+		SET abstention_reason = COALESCE(?, abstention_reason), updated_at = datetime('now')
+		WHERE id = ? AND workspace_id = ?
+	`, nullableHandoffReason(reason), runID, workspaceID)
+	return err
+}
+
+func resolveHandoffReason(requested string, run *Run) string {
+	if requested != "" {
+		return requested
+	}
+	if run.AbstentionReason != nil && *run.AbstentionReason != "" {
+		return *run.AbstentionReason
+	}
+	return ""
+}
+
+func nullableHandoffReason(reason string) any {
+	if reason == "" {
+		return nil
+	}
+	return reason
+}
+
 // buildHandoffPackage assembles a HandoffPackage from a Run and a CaseTicket.
 // Extracted as a standalone helper to keep InitiateHandoff and GetHandoffPackage
 // within cyclomatic complexity ≤ 4 each.
 func buildHandoffPackage(run *Run, cs *crm.CaseTicket, reason string) *HandoffPackage {
 	return &HandoffPackage{
+		ContractVersion:   handoffContractVersion,
 		RunID:             run.ID,
 		WorkspaceID:       run.WorkspaceID,
 		AgentDefinitionID: run.DefinitionID,
 		Status:            run.Status,
 		Reason:            reason,
+		AbstentionReason:  run.AbstentionReason,
 		CaseID:            cs.ID,
 		CaseSubject:       cs.Subject,
 		CaseStatus:        cs.Status,
+		CasePriority:      cs.Priority,
+		CaseOwnerID:       cs.OwnerID,
+		TriggerContext:    run.TriggerContext,
+		FinalOutput:       run.Output,
 		ReasoningTrace:    run.ReasoningTrace,
 		ToolCalls:         run.ToolCalls,
 		EvidenceIDs:       run.RetrievedEvidenceIDs,
