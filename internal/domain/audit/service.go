@@ -480,25 +480,13 @@ func optionalStructFieldValue(value reflect.Value, fieldName string) *string {
 		return nil
 	}
 
-	switch field.Kind() {
-	case reflect.String:
-		raw := field.String()
-		if raw == "" {
-			return nil
-		}
-		return &raw
-	case reflect.Pointer:
-		if field.IsNil() || field.Elem().Kind() != reflect.String {
-			return nil
-		}
-		raw := field.Elem().String()
-		if raw == "" {
-			return nil
-		}
-		return &raw
-	default:
+	if field.Kind() == reflect.String {
+		return nonEmptyStringPtr(field.String())
+	}
+	if field.Kind() != reflect.Pointer {
 		return nil
 	}
+	return pointerStringFieldValue(field)
 }
 
 func resolveAuditAction(topic string, payload any) string {
@@ -521,28 +509,57 @@ func resolveAuditAction(topic string, payload any) string {
 
 func extractPayloadDecision(payload any) string {
 	if obj, ok := payload.(map[string]any); ok {
-		for _, key := range []string{"decision", "status", "outcome"} {
-			if value, ok := obj[key].(string); ok {
-				return value
-			}
-		}
-		return ""
+		return decisionFromMap(obj)
 	}
 
+	value, ok := structPayloadValue(payload)
+	if !ok {
+		return ""
+	}
+	return decisionFromStruct(value)
+}
+
+func pointerStringFieldValue(field reflect.Value) *string {
+	if field.IsNil() || field.Elem().Kind() != reflect.String {
+		return nil
+	}
+	return nonEmptyStringPtr(field.Elem().String())
+}
+
+func nonEmptyStringPtr(raw string) *string {
+	if raw == "" {
+		return nil
+	}
+	return &raw
+}
+
+func decisionFromMap(obj map[string]any) string {
+	for _, key := range []string{"decision", "status", "outcome"} {
+		if value, ok := obj[key].(string); ok {
+			return value
+		}
+	}
+	return ""
+}
+
+func structPayloadValue(payload any) (reflect.Value, bool) {
 	value := reflect.ValueOf(payload)
 	if !value.IsValid() {
-		return ""
+		return reflect.Value{}, false
 	}
 	if value.Kind() == reflect.Pointer {
 		if value.IsNil() {
-			return ""
+			return reflect.Value{}, false
 		}
 		value = value.Elem()
 	}
 	if value.Kind() != reflect.Struct {
-		return ""
+		return reflect.Value{}, false
 	}
+	return value, true
+}
 
+func decisionFromStruct(value reflect.Value) string {
 	for _, fieldName := range []string{"Decision", "Status", "Outcome"} {
 		if decision := stringFieldValue(value, fieldName); decision != "" {
 			return decision
