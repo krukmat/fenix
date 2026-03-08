@@ -6,9 +6,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
+	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 )
@@ -30,6 +33,13 @@ type SupportAgentConfig struct {
 }
 
 const supportActionUpdateCase = "update_case"
+const supportActionAbstain = "abstain"
+const supportActionEscalate = "escalate"
+
+const (
+	supportResolveThreshold  = 0.85
+	supportEscalateThreshold = 0.55
+)
 
 // SupportAgent handles customer support case resolution
 // UC-C1: Resolver casos de soporte de clientes
@@ -106,6 +116,9 @@ func (a *SupportAgent) Run(ctx context.Context, config SupportAgentConfig) (*age
 	if config.CaseID == "" {
 		return nil, ErrCaseIDRequired
 	}
+	if config.WorkspaceID == "" {
+		return nil, ErrWorkspaceIDRequired
+	}
 
 	triggerContext, _ := json.Marshal(map[string]any{
 		"case_id":         config.CaseID,
@@ -132,7 +145,7 @@ func (a *SupportAgent) Run(ctx context.Context, config SupportAgentConfig) (*age
 		return nil, err
 	}
 
-	result, err := a.executeSupportFlow(ctx, config)
+	result, err := a.executeSupportFlow(ctx, run.ID, config)
 	if err != nil {
 		_, updateErr := a.orchestrator.UpdateAgentRunStatus(ctx, run.WorkspaceID, run.ID, agent.StatusFailed)
 		if updateErr != nil {
@@ -170,12 +183,15 @@ type SupportResult struct {
 }
 
 // executeSupportFlow runs the main support logic
-func (a *SupportAgent) executeSupportFlow(ctx context.Context, config SupportAgentConfig) (*SupportResult, error) {
+func (a *SupportAgent) executeSupportFlow(ctx context.Context, runID string, config SupportAgentConfig) (*SupportResult, error) {
 	startTime := time.Now()
 	var totalTokens int64
 	var totalCost float64
 
-	caseContext, _ := a.getCaseContext(ctx, config.CaseID)
+	caseContext, err := a.getCaseContext(ctx, config.WorkspaceID, config.CaseID)
+	if err != nil {
+		return nil, err
+	}
 
 	evidence, err := a.knowledgeSearch.HybridSearch(ctx, knowledge.SearchInput{
 		WorkspaceID: caseContext.WorkspaceID,
@@ -187,7 +203,7 @@ func (a *SupportAgent) executeSupportFlow(ctx context.Context, config SupportAge
 	}
 
 	action := a.determineAction(config, caseContext, evidence)
-	if action.Type == supportActionUpdateCase && isHighSensitivityMetadata(nilIfEmpty(action.Metadata)) {
+	if actionRequiresApproval(action) {
 		approvalID, approvalErr := a.requestSupportApproval(ctx, caseContext, action)
 		if approvalErr != nil {
 			return nil, approvalErr
@@ -213,11 +229,18 @@ func (a *SupportAgent) executeSupportFlow(ctx context.Context, config SupportAge
 		}, nil
 	}
 
-	toolCalls, _ := a.executeAction(action, caseContext)
+	toolCalls, handoffReason, err := a.executeAction(ctx, runID, action, caseContext)
+	if err != nil {
+		return nil, err
+	}
+	if handoffReason != "" {
+		action.NextSteps = append(action.NextSteps, "handoff_created")
+	}
+	resultStatus := supportResultStatus(action.Type)
 
 	elapsed := time.Since(startTime).Milliseconds()
 	return &SupportResult{
-		Status:         agent.StatusSuccess,
+		Status:         resultStatus,
 		Output:         action.toJSON(),
 		ToolCalls:      toolCalls,
 		ReasoningTrace: buildReasoningTrace(config, evidence, action),
@@ -229,25 +252,51 @@ func (a *SupportAgent) executeSupportFlow(ctx context.Context, config SupportAge
 
 // CaseContext holds the context of a support case
 type CaseContext struct {
-	ID          string
-	WorkspaceID string
-	Subject     string
-	Description string
-	Status      string
-	Priority    string
-	AccountID   string
-	ContactID   string
+	ID           string
+	WorkspaceID  string
+	Subject      string
+	Description  string
+	Status       string
+	Priority     string
+	AccountID    string
+	ContactID    string
+	OwnerID      string
+	ContactName  string
+	ContactEmail string
 }
 
-func (a *SupportAgent) getCaseContext(_ context.Context, caseID string) (*CaseContext, error) {
-	return &CaseContext{
-		ID:          caseID,
-		WorkspaceID: "",
-		Subject:     "Customer Issue",
-		Description: "Customer reported an issue",
-		Status:      "open",
-		Priority:    "medium",
-	}, nil
+func (a *SupportAgent) getCaseContext(ctx context.Context, workspaceID, caseID string) (*CaseContext, error) {
+	if a.db == nil {
+		return nil, ErrSupportDBNotConfigured
+	}
+
+	caseTicket, err := crm.NewCaseService(a.db).Get(ctx, workspaceID, caseID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrSupportCaseContextLoadFailed, err)
+	}
+
+	ctxOut := &CaseContext{
+		ID:          caseTicket.ID,
+		WorkspaceID: caseTicket.WorkspaceID,
+		Subject:     caseTicket.Subject,
+		Description: derefSupportString(caseTicket.Description),
+		Status:      caseTicket.Status,
+		Priority:    caseTicket.Priority,
+		AccountID:   derefSupportString(caseTicket.AccountID),
+		ContactID:   derefSupportString(caseTicket.ContactID),
+		OwnerID:     caseTicket.OwnerID,
+	}
+	if caseTicket.ContactID == nil || *caseTicket.ContactID == "" {
+		return ctxOut, nil
+	}
+
+	contact, contactErr := crm.NewContactService(a.db).Get(ctx, workspaceID, *caseTicket.ContactID)
+	if contactErr != nil {
+		return ctxOut, nil
+	}
+	ctxOut.ContactName = supportContactName(contact)
+	ctxOut.ContactEmail = derefSupportString(contact.Email)
+	return ctxOut, nil
 }
 
 // Action represents an action to take for a support case
@@ -262,84 +311,116 @@ type Action struct {
 	Metadata   string
 }
 
-func (a *SupportAgent) determineAction(config SupportAgentConfig, _ *CaseContext, evidence *knowledge.SearchResults) *Action {
-	if len(evidence.Items) == 0 {
-		return &Action{
-			Type:       "escalate",
-			Details:    "No solution found in knowledge base",
-			CaseID:     config.CaseID,
-			Status:     "escalated",
-			Confidence: 30,
-			NextSteps:  []string{"notify_support_lead"},
-		}
-	}
-
-	if len(evidence.Items) > 0 && evidence.Items[0].Score > 0.8 {
+func (a *SupportAgent) determineAction(config SupportAgentConfig, caseContext *CaseContext, evidence *knowledge.SearchResults) *Action {
+	score := topEvidenceScore(evidence)
+	if score >= supportResolveThreshold {
 		return &Action{
 			Type:       supportActionUpdateCase,
 			Details:    "Applied solution from knowledge base",
 			CaseID:     config.CaseID,
 			Status:     "resolved",
-			Confidence: 85,
+			Confidence: 90,
 			NextSteps:  []string{"send_resolution_email"},
 			Metadata:   config.Priority,
 		}
 	}
 
+	if shouldEscalateSupportAction(score, config, caseContext) {
+		return &Action{
+			Type:       supportActionEscalate,
+			Details:    "Insufficient confidence for autonomous resolution",
+			CaseID:     config.CaseID,
+			Status:     "escalated",
+			Confidence: 30,
+			NextSteps:  []string{"create_support_handoff"},
+		}
+	}
+
 	return &Action{
-		Type:       "create_task",
-		Details:    "Solution found but requires verification",
+		Type:       supportActionAbstain,
+		Details:    "Evidence is not strong enough to resolve the case automatically",
 		CaseID:     config.CaseID,
-		Status:     "pending",
+		Status:     "open",
 		Confidence: 50,
-		NextSteps:  []string{"review_knowledge_article"},
+		NextSteps:  []string{"await_human_review_if_customer_replies"},
 	}
 }
 
-func (a *SupportAgent) executeAction(action *Action, caseContext *CaseContext) (json.RawMessage, error) {
+func (a *SupportAgent) executeAction(ctx context.Context, runID string, action *Action, caseContext *CaseContext) (json.RawMessage, string, error) {
+	toolCtx := supportToolContext(ctx, caseContext)
 	toolCalls := []map[string]any{}
 
 	switch action.Type {
 	case supportActionUpdateCase:
+		updateOut, err := a.executeTool(toolCtx, caseContext.WorkspaceID, tool.BuiltinUpdateCase, map[string]any{
+			"case_id":  action.CaseID,
+			"status":   action.Status,
+			"priority": caseContext.Priority,
+		})
+		if err != nil {
+			return nil, "", err
+		}
 		toolCall := map[string]any{
-			"tool_name": "update_case",
-			"params": map[string]any{
-				"case_id": action.CaseID,
-				"status":  action.Status,
-				"notes":   action.Details,
-			},
+			"tool_name":   tool.BuiltinUpdateCase,
+			"result":      rawJSONMap(updateOut),
 			"executed_at": time.Now().UTC().Format(time.RFC3339),
 		}
 		toolCalls = append(toolCalls, toolCall)
 
-	case "escalate":
-		toolCall := map[string]any{
-			"tool_name": "create_task",
-			"params": map[string]any{
-				"title":       "Escalated: " + caseContext.Subject,
-				"description": action.Details,
-				"assignee":    "support_lead",
-				"priority":    "high",
-			},
-			"executed_at": time.Now().UTC().Format(time.RFC3339),
+		replyOut, err := a.executeTool(toolCtx, caseContext.WorkspaceID, tool.BuiltinSendReply, map[string]any{
+			"case_id":     action.CaseID,
+			"body":        buildSupportReply(caseContext, action),
+			"is_internal": false,
+		})
+		if err != nil {
+			return nil, "", err
 		}
-		toolCalls = append(toolCalls, toolCall)
+		toolCalls = append(toolCalls, map[string]any{
+			"tool_name":   tool.BuiltinSendReply,
+			"result":      rawJSONMap(replyOut),
+			"executed_at": time.Now().UTC().Format(time.RFC3339),
+		})
 
-	case "create_task":
-		toolCall := map[string]any{
-			"tool_name": "create_task",
-			"params": map[string]any{
-				"title":       "Review required: " + caseContext.Subject,
-				"description": action.Details,
-				"assignee":    "support_agent",
-				"priority":    action.Status,
-			},
-			"executed_at": time.Now().UTC().Format(time.RFC3339),
+	case supportActionAbstain:
+		replyOut, err := a.executeTool(toolCtx, caseContext.WorkspaceID, tool.BuiltinSendReply, map[string]any{
+			"case_id":     action.CaseID,
+			"body":        buildSupportReply(caseContext, action),
+			"is_internal": false,
+		})
+		if err != nil {
+			return nil, "", err
 		}
-		toolCalls = append(toolCalls, toolCall)
+		toolCalls = append(toolCalls, map[string]any{
+			"tool_name":   tool.BuiltinSendReply,
+			"result":      rawJSONMap(replyOut),
+			"executed_at": time.Now().UTC().Format(time.RFC3339),
+		})
+
+	case supportActionEscalate:
+		taskOut, err := a.executeTool(toolCtx, caseContext.WorkspaceID, tool.BuiltinCreateTask, map[string]any{
+			"owner_id":    caseContext.OwnerID,
+			"title":       "Escalated support case: " + caseContext.Subject,
+			"entity_type": "case",
+			"entity_id":   caseContext.ID,
+		})
+		if err != nil {
+			return nil, "", err
+		}
+		toolCalls = append(toolCalls, map[string]any{
+			"tool_name":   tool.BuiltinCreateTask,
+			"result":      rawJSONMap(taskOut),
+			"executed_at": time.Now().UTC().Format(time.RFC3339),
+		})
+
+		if err := a.initiateSupportHandoff(toolCtx, runID, caseContext, action); err != nil {
+			return nil, "", err
+		}
+		raw, err := json.Marshal(toolCalls)
+		return raw, action.Details, err
 	}
 
-	return json.Marshal(toolCalls)
+	raw, err := json.Marshal(toolCalls)
+	return raw, "", err
 }
 
 func (a *Action) toJSON() json.RawMessage {
@@ -408,7 +489,10 @@ func buildReasoningTrace(_ SupportAgentConfig, evidence *knowledge.SearchResults
 // Errors
 
 var ErrCaseIDRequired = &SupportError{message: "case_id is required"}
+var ErrWorkspaceIDRequired = &SupportError{message: "workspace_id is required"}
+var ErrSupportDBNotConfigured = &SupportError{message: "support agent db is required"}
 var ErrSupportApprovalCreationFailed = &SupportError{message: "failed to create approval request"}
+var ErrSupportCaseContextLoadFailed = &SupportError{message: "failed to load support case context"}
 
 type SupportError struct {
 	message string
@@ -416,4 +500,110 @@ type SupportError struct {
 
 func (e *SupportError) Error() string {
 	return e.message
+}
+
+func supportResultStatus(actionType string) string {
+	switch actionType {
+	case supportActionEscalate:
+		return agent.StatusEscalated
+	case supportActionAbstain:
+		return agent.StatusAbstained
+	default:
+		return agent.StatusSuccess
+	}
+}
+
+func actionRequiresApproval(action *Action) bool {
+	return action.Type == supportActionUpdateCase && isHighSensitivityMetadata(nilIfEmpty(action.Metadata))
+}
+
+func topEvidenceScore(evidence *knowledge.SearchResults) float64 {
+	if evidence == nil || len(evidence.Items) == 0 {
+		return 0
+	}
+	return evidence.Items[0].Score
+}
+
+func shouldEscalateSupportAction(score float64, config SupportAgentConfig, caseContext *CaseContext) bool {
+	if score < supportEscalateThreshold {
+		return isHighPrioritySupportCase(firstNonEmptySupport(config.Priority, caseContext.Priority)) || caseContext.Status == agent.StatusEscalated
+	}
+	return false
+}
+
+func supportToolContext(ctx context.Context, caseContext *CaseContext) context.Context {
+	toolCtx := context.WithValue(ctx, ctxkeys.WorkspaceID, caseContext.WorkspaceID)
+	if caseContext.OwnerID == "" {
+		return toolCtx
+	}
+	return context.WithValue(toolCtx, ctxkeys.UserID, caseContext.OwnerID)
+}
+
+func (a *SupportAgent) executeTool(ctx context.Context, workspaceID, toolName string, payload map[string]any) (json.RawMessage, error) {
+	raw, _ := json.Marshal(payload)
+	return a.toolRegistry.Execute(ctx, workspaceID, toolName, raw)
+}
+
+func buildSupportReply(caseContext *CaseContext, action *Action) string {
+	if action.Type == supportActionUpdateCase {
+		if caseContext.ContactName != "" {
+			return "Hola " + caseContext.ContactName + ", hemos aplicado una solucion y marcado el caso como resuelto."
+		}
+		return "Hemos aplicado una solucion y marcado el caso como resuelto."
+	}
+	return "No tengo evidencia suficiente para resolver el caso automaticamente. Un agente revisara el caso si necesitas mas ayuda."
+}
+
+func rawJSONMap(raw json.RawMessage) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var out any
+	if json.Unmarshal(raw, &out) != nil {
+		return string(raw)
+	}
+	return out
+}
+
+func derefSupportString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+func supportContactName(contact *crm.Contact) string {
+	name := contact.FirstName
+	if contact.LastName != "" {
+		if name != "" {
+			name += " "
+		}
+		name += contact.LastName
+	}
+	return name
+}
+
+func firstNonEmptySupport(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func isHighPrioritySupportCase(priority string) bool {
+	return priority == "high" || priority == "urgent"
+}
+
+func (a *SupportAgent) initiateSupportHandoff(ctx context.Context, runID string, caseContext *CaseContext, action *Action) error {
+	if a.db == nil {
+		return ErrSupportDBNotConfigured
+	}
+	handoffSvc := agent.NewHandoffService(a.db, crm.NewCaseService(a.db), nil)
+	_, err := handoffSvc.InitiateHandoff(ctx, caseContext.WorkspaceID, runID, caseContext.ID, action.Details)
+	if err != nil {
+		return err
+	}
+	return nil
 }
