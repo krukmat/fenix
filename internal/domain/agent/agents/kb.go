@@ -186,7 +186,7 @@ func (a *KBAgent) executeKBFlow(ctx context.Context, toolCtx context.Context, co
 		output, _ := json.Marshal(map[string]any{
 			"action":      "pending_approval",
 			"article_id":  "",
-			"reason":      "high_sensitivity",
+			"reason":      sensitivityHighReason,
 			"approval_id": approvalID,
 		})
 		calls, _ := json.Marshal([]map[string]any{{"tool_name": "approval.requested"}})
@@ -243,7 +243,7 @@ func (a *KBAgent) requestKBApproval(
 		Action:       "kb.article.mutation",
 		ResourceType: "case_ticket",
 		ResourceID:   caseTicket.ID,
-		Reason:       "high_sensitivity",
+		Reason:       sensitivityHighReason,
 		Payload: map[string]any{
 			"candidate_article_id": topID,
 			"candidate_score":      topScore,
@@ -342,7 +342,7 @@ func (a *KBAgent) updateKnowledgeArticle(ctx context.Context, articleID, subject
 		"content": content,
 	}))
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrKBArticleUpdateFailed, err)
+		return "", fmt.Errorf(errWrapWithCause, ErrKBArticleUpdateFailed, err)
 	}
 	var parsed struct {
 		KnowledgeItemID string `json:"knowledge_item_id"`
@@ -364,7 +364,7 @@ func (a *KBAgent) createKnowledgeArticle(ctx context.Context, workspaceID, subje
 		"content":      content,
 	}))
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrKBArticleCreationFailed, err)
+		return "", fmt.Errorf(errWrapWithCause, ErrKBArticleCreationFailed, err)
 	}
 	var parsed struct {
 		KnowledgeItemID string `json:"knowledge_item_id"`

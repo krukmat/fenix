@@ -307,12 +307,12 @@ func extractEvidenceIDs(results *knowledge.SearchResults) []string {
 
 func confidenceFromScore(score float64) string {
 	if score > 0.8 {
-		return "high"
+		return confidenceHigh
 	}
 	if score > 0.5 {
-		return "medium"
+		return confidenceMedium
 	}
-	return "low"
+	return confidenceLow
 }
 
 func (a *InsightsAgent) checkDailyLimits(ctx context.Context, workspaceID string) error {

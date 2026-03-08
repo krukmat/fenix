@@ -68,5 +68,5 @@ func isHighSensitivityMetadata(metadata *string) bool {
 	if err := json.Unmarshal([]byte(*metadata), &m); err != nil {
 		return false
 	}
-	return m["sensitivity"] == "high"
+	return m["sensitivity"] == sensitivityHigh
 }

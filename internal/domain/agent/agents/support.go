@@ -127,7 +127,8 @@ func (a *SupportAgent) Run(ctx context.Context, config SupportAgentConfig) (*age
 		return run, a.failSupportRun(ctx, run, err)
 	}
 
-	if err := a.completeSupportRun(ctx, run, result); err != nil {
+	err = a.completeSupportRun(ctx, run, result)
+	if err != nil {
 		return run, err
 	}
 
