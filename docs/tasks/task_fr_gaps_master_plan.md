@@ -64,46 +64,44 @@
 - FR-060
 - FR-061
 - FR-071
-- FR-202
-- FR-211
-- FR-231
-- FR-232
-
-### Pendientes
-- FR-001
-- FR-070
 - FR-090
 - FR-091
 - FR-200
 - FR-201
+- FR-202
+- FR-211
 - FR-230
+- FR-231
+- FR-232
 - FR-240
+
+### Pendientes
+- FR-001
+- FR-070
 
 ### Lectura por bloques
 1. **Governance/Auth**
    - Cerradas: FR-060, FR-061, FR-071, FR-202, FR-211
    - Pendientes: ninguna
-   - Siguiente tarea desbloqueada: FR-200
+   - Siguiente tarea desbloqueada: ninguna
 2. **AI runtime quality/safety**
-   - Pendientes: FR-200, FR-201, FR-230
+   - Cerradas: FR-200, FR-201, FR-230, FR-231, FR-232
+   - Pendientes: ninguna
 3. **Knowledge reliability**
-   - Pendientes: FR-090, FR-091
+   - Cerradas: FR-090, FR-091
+   - Pendientes: ninguna
 4. **Prompt lifecycle**
-   - Pendiente: FR-240
-   - Estado actual: implementacion en curso, pendiente de validacion final en CI
+   - Cerrada: FR-240
 5. **CRM consistency hardening**
    - Pendientes: FR-001, FR-070
 
 ### Dependencias que marcan el siguiente paso
 - FR-202 y FR-211 quedaron cerradas en `main` con validacion final de CI verde.
-- FR-200 pasa a ser la siguiente tarea desbloqueada del frente AI runtime quality/safety.
-- FR-201 depende de FR-200; la base de `FR-202/211` ya quedo satisfecha.
-- FR-230 depende de FR-200; la base de `FR-202/211` ya quedo satisfecha.
-- FR-231 queda cerrada operativamente sobre la base de FR-230.
-- FR-232 queda cerrada operativamente con CI verde.
-- FR-240 pasa a ser la tarea activa del frente Prompt lifecycle.
-- FR-091 depende de FR-090.
+- FR-200, FR-201, FR-230, FR-231 y FR-232 quedaron cerradas en `main` con validacion final de CI verde.
+- FR-090 y FR-091 quedaron cerradas en `main` con validacion final de CI verde.
+- FR-240 quedo cerrada en `main` con validacion final de CI verde.
 - FR-001 depende de FR-070.
+- `FR-070` pasa a ser la siguiente tarea desbloqueada del frente CRM consistency hardening.
 
 ---
 

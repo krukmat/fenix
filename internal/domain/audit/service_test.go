@@ -122,6 +122,45 @@ func TestCreateAuditEvent_Success(t *testing.T) {
 	}
 }
 
+func TestAuditEvent_AppendOnly_UpdateAndDeleteBlocked(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	service := NewAuditService(db)
+	ctx := context.Background()
+
+	workspaceID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, workspaceID)
+
+	event := &AuditEvent{
+		ID:          uuid.NewV7().String(),
+		WorkspaceID: workspaceID,
+		ActorID:     uuid.NewV7().String(),
+		ActorType:   ActorTypeUser,
+		Action:      "tool.executed",
+		Outcome:     OutcomeSuccess,
+		CreatedAt:   time.Now(),
+	}
+	if err := service.Log(ctx, event); err != nil {
+		t.Fatalf("Log failed: %v", err)
+	}
+
+	if _, err := db.ExecContext(ctx, `UPDATE audit_event SET action = 'mutated' WHERE id = ?`, event.ID); err == nil {
+		t.Fatal("expected UPDATE on audit_event to fail")
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM audit_event WHERE id = ?`, event.ID); err == nil {
+		t.Fatal("expected DELETE on audit_event to fail")
+	}
+
+	stored, err := service.GetByID(ctx, event.ID)
+	if err != nil {
+		t.Fatalf("GetByID failed: %v", err)
+	}
+	if stored.Action != "tool.executed" {
+		t.Fatalf("unexpected action after blocked mutation: %s", stored.Action)
+	}
+}
+
 // TestLogWithDetails_Success tests the helper method
 func TestLogWithDetails_Success(t *testing.T) {
 	db := setupTestDB(t)
@@ -1083,6 +1122,79 @@ func TestRegisterEventSubscribers_ConsumesEvents(t *testing.T) {
 	}
 }
 
+type typedAuditPayload struct {
+	WorkspaceID string
+	ActorID     string
+	EntityType  string
+	EntityID    string
+	Status      string
+}
+
+func TestRegisterEventSubscribers_ConsumesTypedPayloadsAndNormalizesActions(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	svc := NewAuditService(db)
+	ctx := context.Background()
+
+	wsID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+	actorID := uuid.NewV7().String()
+
+	bus := eventbus.New()
+	svc.RegisterEventSubscribers(bus)
+
+	bus.Publish("approval.decided", typedAuditPayload{
+		WorkspaceID: wsID,
+		ActorID:     actorID,
+		EntityType:  "approval_request",
+		EntityID:    uuid.NewV7().String(),
+		Status:      "approved",
+	})
+	bus.Publish("tool.executed", typedAuditPayload{
+		WorkspaceID: wsID,
+		ActorID:     actorID,
+		EntityType:  "tool",
+		EntityID:    "create_task",
+	})
+
+	var events []*AuditEvent
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		items, _, err := svc.ListByWorkspace(ctx, wsID, 20, 0)
+		if err != nil {
+			t.Fatalf("ListByWorkspace failed: %v", err)
+		}
+		events = items
+		if len(events) >= 2 {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	if len(events) < 2 {
+		t.Fatalf("expected typed payload audit events, got %d", len(events))
+	}
+
+	foundApproved := false
+	for _, ev := range events {
+		if ev.Action != "approval.approved" {
+			continue
+		}
+		foundApproved = true
+		if ev.ActorType != ActorTypeSystem {
+			t.Fatalf("approval.approved ActorType = %s; want %s", ev.ActorType, ActorTypeSystem)
+		}
+		if ev.Outcome != OutcomeSuccess {
+			t.Fatalf("approval.approved Outcome = %s; want %s", ev.Outcome, OutcomeSuccess)
+		}
+	}
+
+	if !foundApproved {
+		t.Fatal("expected normalized approval.approved audit event")
+	}
+}
+
 func TestServiceHelpers_UtilityFunctions(t *testing.T) {
 	if got := resolveQueryLimit(0); got != 25 {
 		t.Fatalf("resolveQueryLimit(0) = %d; want 25", got)
@@ -1163,5 +1275,29 @@ func TestServiceHelpers_UtilityFunctions(t *testing.T) {
 	}
 	if eid == nil || *eid != "c-1" {
 		t.Fatalf("extractEventContext entity_id mismatch: %v", eid)
+	}
+
+	typed := typedAuditPayload{
+		WorkspaceID: "ws-typed",
+		ActorID:     "u-typed",
+		EntityType:  "approval_request",
+		EntityID:    "apr-1",
+		Status:      "denied",
+	}
+	ws, actor, et, eid = extractEventContext(typed)
+	if ws != "ws-typed" || actor != "u-typed" {
+		t.Fatalf("extractEventContext(typed) ids mismatch: ws=%q actor=%q", ws, actor)
+	}
+	if et == nil || *et != "approval_request" {
+		t.Fatalf("extractEventContext(typed) entity_type mismatch: %v", et)
+	}
+	if eid == nil || *eid != "apr-1" {
+		t.Fatalf("extractEventContext(typed) entity_id mismatch: %v", eid)
+	}
+	if got := resolveAuditAction("approval.decided", typed); got != "approval.denied" {
+		t.Fatalf("resolveAuditAction(typed approval) = %q; want approval.denied", got)
+	}
+	if got := resolveAuditAction("tool.executed", typed); got != "tool.executed" {
+		t.Fatalf("resolveAuditAction(non-approval) = %q; want tool.executed", got)
 	}
 }

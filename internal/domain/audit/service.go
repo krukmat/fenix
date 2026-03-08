@@ -6,6 +6,8 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"io"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
@@ -386,7 +388,7 @@ func (s *AuditService) consumeEvents(topic string, ch <-chan eventbus.Event) {
 			workspaceID,
 			actorID,
 			resolveActorType(topic),
-			topic,
+			resolveAuditAction(topic, ev.Payload),
 			entityType,
 			entityID,
 			&EventDetails{Metadata: map[string]any{"topic": topic, "payload": ev.Payload}},
@@ -421,15 +423,14 @@ func derefString(v *string) string {
 }
 
 func extractEventContext(payload any) (string, string, *string, *string) {
-	obj, ok := payload.(map[string]any)
-	if !ok {
-		return "", "", nil, nil
+	if obj, ok := payload.(map[string]any); ok {
+		workspaceID, _ := obj["workspace_id"].(string)
+		actorID, _ := obj["actor_id"].(string)
+		entityType := optionalString(obj, "entity_type")
+		entityID := optionalString(obj, "entity_id")
+		return workspaceID, actorID, entityType, entityID
 	}
-	workspaceID, _ := obj["workspace_id"].(string)
-	actorID, _ := obj["actor_id"].(string)
-	entityType := optionalString(obj, "entity_type")
-	entityID := optionalString(obj, "entity_id")
-	return workspaceID, actorID, entityType, entityID
+	return extractStructEventContext(payload)
 }
 
 func optionalString(obj map[string]any, key string) *string {
@@ -438,6 +439,116 @@ func optionalString(obj map[string]any, key string) *string {
 		return nil
 	}
 	return &v
+}
+
+func extractStructEventContext(payload any) (string, string, *string, *string) {
+	value := reflect.ValueOf(payload)
+	if !value.IsValid() {
+		return "", "", nil, nil
+	}
+	if value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return "", "", nil, nil
+		}
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return "", "", nil, nil
+	}
+
+	workspaceID := stringFieldValue(value, "WorkspaceID")
+	actorID := stringFieldValue(value, "ActorID")
+	entityType := optionalStructFieldValue(value, "EntityType")
+	entityID := optionalStructFieldValue(value, "EntityID")
+	return workspaceID, actorID, entityType, entityID
+}
+
+func stringFieldValue(value reflect.Value, fieldName string) string {
+	field := value.FieldByName(fieldName)
+	if !field.IsValid() || !field.CanInterface() {
+		return ""
+	}
+	if field.Kind() == reflect.String {
+		return field.String()
+	}
+	return ""
+}
+
+func optionalStructFieldValue(value reflect.Value, fieldName string) *string {
+	field := value.FieldByName(fieldName)
+	if !field.IsValid() || !field.CanInterface() {
+		return nil
+	}
+
+	switch field.Kind() {
+	case reflect.String:
+		raw := field.String()
+		if raw == "" {
+			return nil
+		}
+		return &raw
+	case reflect.Pointer:
+		if field.IsNil() || field.Elem().Kind() != reflect.String {
+			return nil
+		}
+		raw := field.Elem().String()
+		if raw == "" {
+			return nil
+		}
+		return &raw
+	default:
+		return nil
+	}
+}
+
+func resolveAuditAction(topic string, payload any) string {
+	if topic != topicApprovalDecided {
+		return topic
+	}
+
+	decision := strings.ToLower(extractPayloadDecision(payload))
+	switch decision {
+	case "approve", "approved":
+		return "approval.approved"
+	case "deny", "denied":
+		return "approval.denied"
+	case "expire", "expired":
+		return "approval.expired"
+	default:
+		return topicApprovalDecided
+	}
+}
+
+func extractPayloadDecision(payload any) string {
+	if obj, ok := payload.(map[string]any); ok {
+		for _, key := range []string{"decision", "status", "outcome"} {
+			if value, ok := obj[key].(string); ok {
+				return value
+			}
+		}
+		return ""
+	}
+
+	value := reflect.ValueOf(payload)
+	if !value.IsValid() {
+		return ""
+	}
+	if value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return ""
+		}
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return ""
+	}
+
+	for _, fieldName := range []string{"Decision", "Status", "Outcome"} {
+		if decision := stringFieldValue(value, fieldName); decision != "" {
+			return decision
+		}
+	}
+	return ""
 }
 
 func resolveActorType(topic string) ActorType {
