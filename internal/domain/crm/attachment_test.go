@@ -3,14 +3,13 @@ package crm_test
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 )
 
-func TestAttachmentService_Create_ReturnsTimelineConstraintError(t *testing.T) {
+func TestAttachmentService_Create_Success(t *testing.T) {
 	t.Parallel()
 
 	db := mustOpenDBWithMigrations(t)
@@ -18,7 +17,7 @@ func TestAttachmentService_Create_ReturnsTimelineConstraintError(t *testing.T) {
 	wsID, ownerID := setupWorkspaceAndOwner(t, db)
 	size := int64(123)
 
-	_, err := svc.Create(context.Background(), crm.CreateAttachmentInput{
+	att, err := svc.Create(context.Background(), crm.CreateAttachmentInput{
 		WorkspaceID: wsID,
 		EntityType:  "account",
 		EntityID:    "acc-1",
@@ -28,11 +27,11 @@ func TestAttachmentService_Create_ReturnsTimelineConstraintError(t *testing.T) {
 		SizeBytes:   &size,
 		StoragePath: "/tmp/doc.txt",
 	})
-	if err == nil {
-		t.Fatalf("expected timeline constraint error, got nil")
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
 	}
-	if !strings.Contains(err.Error(), "create attachment timeline") {
-		t.Fatalf("expected create attachment timeline error, got %v", err)
+	if att.Filename != "doc.txt" {
+		t.Fatalf("expected filename doc.txt, got %q", att.Filename)
 	}
 }
 
@@ -71,7 +70,7 @@ func TestAttachmentService_GetAndList_WithSeededRows(t *testing.T) {
 	}
 }
 
-func TestAttachmentService_Delete_Existing_ReturnsTimelineConstraintErrorButDeletesRow(t *testing.T) {
+func TestAttachmentService_Delete_Existing_Success(t *testing.T) {
 	t.Parallel()
 
 	db := mustOpenDBWithMigrations(t)
@@ -89,12 +88,8 @@ func TestAttachmentService_Delete_Existing_ReturnsTimelineConstraintErrorButDele
 		t.Fatalf("seed attachment insert error = %v", err)
 	}
 
-	err = svc.Delete(context.Background(), wsID, "att-del-1")
-	if err == nil {
-		t.Fatalf("expected delete attachment timeline error, got nil")
-	}
-	if !strings.Contains(err.Error(), "delete attachment timeline") {
-		t.Fatalf("expected delete attachment timeline error, got %v", err)
+	if err = svc.Delete(context.Background(), wsID, "att-del-1"); err != nil {
+		t.Fatalf("Delete() error = %v", err)
 	}
 
 	_, getErr := svc.Get(context.Background(), wsID, "att-del-1")

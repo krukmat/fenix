@@ -244,7 +244,7 @@ func TestNoteHandler_UpdateNote_InvalidJSON_Returns400(t *testing.T) {
 	}
 }
 
-func TestNoteHandler_UpdateNote_TimelineError_Returns500(t *testing.T) {
+func TestNoteHandler_UpdateNote_Success(t *testing.T) {
 	t.Parallel()
 
 	db := mustOpenDBWithMigrations(t)
@@ -253,26 +253,51 @@ func TestNoteHandler_UpdateNote_TimelineError_Returns500(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	_, err := db.Exec(`INSERT INTO note (id, workspace_id, entity_type, entity_id, author_id, content, is_internal, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-		"note-upd-500", wsID, "account", "acc-1", ownerID, "seed note", now, now)
+		"note-upd-ok", wsID, "account", "acc-1", ownerID, "seed note", now, now)
 	if err != nil {
 		t.Fatalf("seed note error=%v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/notes/note-upd-500", bytes.NewBufferString(`{"content":"updated"}`))
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/notes/note-upd-ok", bytes.NewBufferString(`{"content":"updated"}`))
 	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
 	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "note-upd-500")
+	rctx.URLParams.Add("id", "note-upd-ok")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 	rr := httptest.NewRecorder()
 	handler.UpdateNote(rr, req)
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d", rr.Code)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
 	}
 }
 
-func TestNoteHandler_DeleteNote_TimelineError_Returns500(t *testing.T) {
+func TestNoteHandler_CreateNote_Success(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	handler := NewNoteHandler(crm.NewNoteService(db))
+
+	body, _ := json.Marshal(map[string]any{
+		"entityType": "account",
+		"entityId":   "acc-create-1",
+		"authorId":   ownerID,
+		"content":    "test note content",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/notes", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+
+	rr := httptest.NewRecorder()
+	handler.CreateNote(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestNoteHandler_DeleteNote_Success(t *testing.T) {
 	t.Parallel()
 
 	db := mustOpenDBWithMigrations(t)
@@ -281,21 +306,21 @@ func TestNoteHandler_DeleteNote_TimelineError_Returns500(t *testing.T) {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	_, err := db.Exec(`INSERT INTO note (id, workspace_id, entity_type, entity_id, author_id, content, is_internal, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-		"note-del-500", wsID, "account", "acc-1", ownerID, "seed note", now, now)
+		"note-del-ok", wsID, "account", "acc-1", ownerID, "seed note", now, now)
 	if err != nil {
 		t.Fatalf("seed note error=%v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/notes/note-del-500", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/notes/note-del-ok", nil)
 	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
 	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "note-del-500")
+	rctx.URLParams.Add("id", "note-del-ok")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 	rr := httptest.NewRecorder()
 	handler.DeleteNote(rr, req)
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d", rr.Code)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d body=%s", rr.Code, rr.Body.String())
 	}
 }

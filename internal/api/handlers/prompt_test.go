@@ -4,6 +4,7 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -520,6 +521,111 @@ func TestCreatePromptHandler_ForbiddenByAuthorizer(t *testing.T) {
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", w.Code)
 	}
+}
+
+// TestIsPromptNotFoundError covers isPromptNotFoundError for various inputs.
+func TestIsPromptNotFoundError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("sql.ErrNoRows", func(t *testing.T) {
+		if !isPromptNotFoundError(sql.ErrNoRows) {
+			t.Fatal("expected true for sql.ErrNoRows")
+		}
+	})
+
+	t.Run("message contains no rows", func(t *testing.T) {
+		if !isPromptNotFoundError(fmt.Errorf("no rows in result set")) {
+			t.Fatal("expected true for 'no rows' message")
+		}
+	})
+
+	t.Run("message contains not found", func(t *testing.T) {
+		if !isPromptNotFoundError(fmt.Errorf("record not found")) {
+			t.Fatal("expected true for 'not found' message")
+		}
+	})
+
+	t.Run("generic error", func(t *testing.T) {
+		if isPromptNotFoundError(fmt.Errorf("internal failure")) {
+			t.Fatal("expected false for generic error")
+		}
+	})
+}
+
+// TestWritePromoteError_NotFound tests writePromoteError maps not-found errors → 404.
+func TestWritePromoteError_NotFound(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	writePromoteError(rr, sql.ErrNoRows)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+// TestWritePromoteError_Internal tests writePromoteError maps other errors → 500.
+func TestWritePromoteError_Internal(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	writePromoteError(rr, fmt.Errorf("unexpected db failure"))
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+// TestPromotePromptHandler_PromoteError_NotFound verifies Promote returns 404 when service returns not-found error.
+func TestPromotePromptHandler_PromoteError_NotFound(t *testing.T) {
+	t.Parallel()
+
+	mockSvc := &mockPromoteNotFoundService{}
+	handler := NewPromptHandler(mockSvc)
+
+	r := chi.NewRouter()
+	r.Route("/admin/prompts", func(r chi.Router) {
+		r.Put("/{id}/promote", handler.Promote)
+	})
+
+	req := httptest.NewRequest("PUT", "/admin/prompts/pv_missing/promote", nil)
+	ctx := req.Context()
+	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
+	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+type mockPromoteNotFoundService struct{}
+
+func (m *mockPromoteNotFoundService) CreatePromptVersion(_ context.Context, _ agent.CreatePromptVersionInput) (*agent.PromptVersion, error) {
+	return nil, nil
+}
+
+func (m *mockPromoteNotFoundService) GetActivePrompt(_ context.Context, _, _ string) (*agent.PromptVersion, error) {
+	return nil, nil
+}
+
+func (m *mockPromoteNotFoundService) ListPromptVersions(_ context.Context, _, _ string) ([]*agent.PromptVersion, error) {
+	return nil, nil
+}
+
+func (m *mockPromoteNotFoundService) GetPromptVersionByID(_ context.Context, _, _ string) (*agent.PromptVersion, error) {
+	return nil, nil
+}
+
+func (m *mockPromoteNotFoundService) PromotePrompt(_ context.Context, _, _ string) error {
+	return sql.ErrNoRows
+}
+
+func (m *mockPromoteNotFoundService) RollbackPrompt(_ context.Context, _, _ string) error {
+	return nil
 }
 
 func TestListPromptsHandler_MissingUserIDWithAuthorizer(t *testing.T) {

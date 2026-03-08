@@ -3,7 +3,7 @@ package crm_test
 
 import (
 	"context"
-	"strings"
+	"fmt"
 	"testing"
 	"time"
 
@@ -312,29 +312,24 @@ func TestCaseService_List_FilterByPriority(t *testing.T) {
 	}
 }
 
-func TestNoteService_TimelineConstraintAndReadPaths(t *testing.T) {
+func TestNoteService_CRUDAndReadPaths(t *testing.T) {
 	t.Parallel()
 
 	db := mustOpenDBWithMigrations(t)
 	wsID, authorID := setupWorkspaceAndOwner(t, db)
 	svc := crm.NewNoteService(db)
 
-	_, err := svc.Create(context.Background(), crm.CreateNoteInput{
+	created, err := svc.Create(context.Background(), crm.CreateNoteInput{
 		WorkspaceID: wsID,
 		EntityType:  "account",
 		EntityID:    "acc-1",
 		AuthorID:    authorID,
 		Content:     "hello",
 	})
-	if err == nil || !strings.Contains(err.Error(), "create note timeline") {
-		t.Fatalf("expected create note timeline error, got %v", err)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
 	}
-
-	now := time.Now().UTC().Format(time.RFC3339)
-	noteID := "note-" + randID()
-	if _, err := db.Exec(`INSERT INTO note (id, workspace_id, entity_type, entity_id, author_id, content, is_internal, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`, noteID, wsID, "account", "acc-1", authorID, "seeded", now, now); err != nil {
-		t.Fatalf("seed note error = %v", err)
-	}
+	noteID := created.ID
 
 	if _, err := svc.Get(context.Background(), wsID, noteID); err != nil {
 		t.Fatalf("Get() error = %v", err)
@@ -348,14 +343,12 @@ func TestNoteService_TimelineConstraintAndReadPaths(t *testing.T) {
 		t.Fatalf("expected notes, total=%d len=%d", total, len(items))
 	}
 
-	_, err = svc.Update(context.Background(), wsID, noteID, crm.UpdateNoteInput{Content: "updated", IsInternal: true})
-	if err == nil || !strings.Contains(err.Error(), "update note timeline") {
-		t.Fatalf("expected update note timeline error, got %v", err)
+	if _, err = svc.Update(context.Background(), wsID, noteID, crm.UpdateNoteInput{Content: "updated", IsInternal: true}); err != nil {
+		t.Fatalf("Update() error = %v", err)
 	}
 
-	err = svc.Delete(context.Background(), wsID, noteID)
-	if err == nil || !strings.Contains(err.Error(), "delete note timeline") {
-		t.Fatalf("expected delete note timeline error, got %v", err)
+	if err = svc.Delete(context.Background(), wsID, noteID); err != nil {
+		t.Fatalf("Delete() error = %v", err)
 	}
 }
 
@@ -391,5 +384,188 @@ func TestTimelineService_CreateGetListByEntity(t *testing.T) {
 	}
 	if len(items) < 1 {
 		t.Fatalf("expected at least one timeline item")
+	}
+}
+
+func TestDealService_List_FilterByStage(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	accountID := "acc-fs-" + randID()
+	if _, err := db.Exec(`INSERT INTO account (id, workspace_id, name, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, accountID, wsID, "Acme", ownerID, now, now); err != nil {
+		t.Fatalf("seed account: %v", err)
+	}
+	pipelineID := "pl-fs-" + randID()
+	if _, err := db.Exec(`INSERT INTO pipeline (id, workspace_id, name, entity_type, created_at, updated_at) VALUES (?, ?, ?, 'deal', ?, ?)`, pipelineID, wsID, "Sales", now, now); err != nil {
+		t.Fatalf("seed pipeline: %v", err)
+	}
+	stageID := "st-fs-" + randID()
+	if _, err := db.Exec(`INSERT INTO pipeline_stage (id, pipeline_id, name, position, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`, stageID, pipelineID, "Discovery", now, now); err != nil {
+		t.Fatalf("seed stage: %v", err)
+	}
+
+	svc := crm.NewDealService(db)
+	if _, err := svc.Create(context.Background(), crm.CreateDealInput{WorkspaceID: wsID, AccountID: accountID, PipelineID: pipelineID, StageID: stageID, OwnerID: ownerID, Title: "Staged Deal"}); err != nil {
+		t.Fatalf("seed deal: %v", err)
+	}
+
+	items, total, err := svc.List(context.Background(), wsID, crm.ListDealsInput{Limit: 10, StageID: stageID})
+	if err != nil {
+		t.Fatalf("List by stage error = %v", err)
+	}
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("expected 1 deal, got total=%d len=%d", total, len(items))
+	}
+}
+
+func TestDealService_List_FilterByOwner(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	accountID := "acc-fo-" + randID()
+	if _, err := db.Exec(`INSERT INTO account (id, workspace_id, name, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, accountID, wsID, "Acme", ownerID, now, now); err != nil {
+		t.Fatalf("seed account: %v", err)
+	}
+	pipelineID := "pl-fo-" + randID()
+	if _, err := db.Exec(`INSERT INTO pipeline (id, workspace_id, name, entity_type, created_at, updated_at) VALUES (?, ?, ?, 'deal', ?, ?)`, pipelineID, wsID, "Sales", now, now); err != nil {
+		t.Fatalf("seed pipeline: %v", err)
+	}
+	stageID := "st-fo-" + randID()
+	if _, err := db.Exec(`INSERT INTO pipeline_stage (id, pipeline_id, name, position, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`, stageID, pipelineID, "Discovery", now, now); err != nil {
+		t.Fatalf("seed stage: %v", err)
+	}
+
+	svc := crm.NewDealService(db)
+	if _, err := svc.Create(context.Background(), crm.CreateDealInput{WorkspaceID: wsID, AccountID: accountID, PipelineID: pipelineID, StageID: stageID, OwnerID: ownerID, Title: "Owner Deal"}); err != nil {
+		t.Fatalf("seed deal: %v", err)
+	}
+
+	items, _, err := svc.List(context.Background(), wsID, crm.ListDealsInput{Limit: 10, OwnerID: ownerID})
+	if err != nil {
+		t.Fatalf("List by owner error = %v", err)
+	}
+	if len(items) < 1 {
+		t.Fatalf("expected at least 1 deal by owner")
+	}
+}
+
+func TestDealService_List_FilterByStatus(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	accountID := "acc-fst-" + randID()
+	if _, err := db.Exec(`INSERT INTO account (id, workspace_id, name, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, accountID, wsID, "Acme", ownerID, now, now); err != nil {
+		t.Fatalf("seed account: %v", err)
+	}
+	pipelineID := "pl-fst-" + randID()
+	if _, err := db.Exec(`INSERT INTO pipeline (id, workspace_id, name, entity_type, created_at, updated_at) VALUES (?, ?, ?, 'deal', ?, ?)`, pipelineID, wsID, "Sales", now, now); err != nil {
+		t.Fatalf("seed pipeline: %v", err)
+	}
+	stageID := "st-fst-" + randID()
+	if _, err := db.Exec(`INSERT INTO pipeline_stage (id, pipeline_id, name, position, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`, stageID, pipelineID, "Discovery", now, now); err != nil {
+		t.Fatalf("seed stage: %v", err)
+	}
+
+	svc := crm.NewDealService(db)
+	if _, err := svc.Create(context.Background(), crm.CreateDealInput{WorkspaceID: wsID, AccountID: accountID, PipelineID: pipelineID, StageID: stageID, OwnerID: ownerID, Title: "Open Deal"}); err != nil {
+		t.Fatalf("seed deal: %v", err)
+	}
+
+	items, _, err := svc.List(context.Background(), wsID, crm.ListDealsInput{Limit: 10, Status: "open"})
+	if err != nil {
+		t.Fatalf("List by status error = %v", err)
+	}
+	if len(items) < 1 {
+		t.Fatalf("expected at least 1 open deal")
+	}
+}
+
+func TestDealService_List_SortAscending(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	accountID := "acc-sort-" + randID()
+	if _, err := db.Exec(`INSERT INTO account (id, workspace_id, name, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, accountID, wsID, "Acme", ownerID, now, now); err != nil {
+		t.Fatalf("seed account: %v", err)
+	}
+	pipelineID := "pl-sort-" + randID()
+	if _, err := db.Exec(`INSERT INTO pipeline (id, workspace_id, name, entity_type, created_at, updated_at) VALUES (?, ?, ?, 'deal', ?, ?)`, pipelineID, wsID, "Sales", now, now); err != nil {
+		t.Fatalf("seed pipeline: %v", err)
+	}
+	stageID := "st-sort-" + randID()
+	if _, err := db.Exec(`INSERT INTO pipeline_stage (id, pipeline_id, name, position, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`, stageID, pipelineID, "Discovery", now, now); err != nil {
+		t.Fatalf("seed stage: %v", err)
+	}
+
+	svc := crm.NewDealService(db)
+	for _, title := range []string{"Alpha", "Beta"} {
+		if _, err := svc.Create(context.Background(), crm.CreateDealInput{WorkspaceID: wsID, AccountID: accountID, PipelineID: pipelineID, StageID: stageID, OwnerID: ownerID, Title: title}); err != nil {
+			t.Fatalf("seed deal %s: %v", title, err)
+		}
+	}
+
+	items, _, err := svc.List(context.Background(), wsID, crm.ListDealsInput{Limit: 10, Sort: "created_at"})
+	if err != nil {
+		t.Fatalf("List ascending error = %v", err)
+	}
+	if len(items) < 2 {
+		t.Fatalf("expected 2 deals, got %d", len(items))
+	}
+	if !items[0].CreatedAt.Before(items[1].CreatedAt) && items[0].CreatedAt != items[1].CreatedAt {
+		t.Fatalf("expected ascending order")
+	}
+}
+
+func TestCaseService_List_SortAscending(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	svc := crm.NewCaseService(db)
+
+	for i := range 3 {
+		if _, err := svc.Create(context.Background(), crm.CreateCaseInput{WorkspaceID: wsID, OwnerID: ownerID, Subject: fmt.Sprintf("Case %d", i), Priority: "medium"}); err != nil {
+			t.Fatalf("seed case %d: %v", i, err)
+		}
+	}
+
+	items, _, err := svc.List(context.Background(), wsID, crm.ListCasesInput{Limit: 10, Sort: "created_at"})
+	if err != nil {
+		t.Fatalf("List ascending error = %v", err)
+	}
+	if len(items) < 2 {
+		t.Fatalf("expected at least 2 cases, got %d", len(items))
+	}
+}
+
+func TestCaseService_List_FilterByOwner(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	svc := crm.NewCaseService(db)
+
+	if _, err := svc.Create(context.Background(), crm.CreateCaseInput{WorkspaceID: wsID, OwnerID: ownerID, Subject: "Owned Case", Priority: "high"}); err != nil {
+		t.Fatalf("seed case: %v", err)
+	}
+
+	items, _, err := svc.List(context.Background(), wsID, crm.ListCasesInput{Limit: 10, OwnerID: ownerID})
+	if err != nil {
+		t.Fatalf("List by owner error = %v", err)
+	}
+	if len(items) < 1 {
+		t.Fatalf("expected at least 1 case")
 	}
 }

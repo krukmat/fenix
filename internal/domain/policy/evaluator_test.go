@@ -401,6 +401,87 @@ func TestCheckActionPermission(t *testing.T) {
 	})
 }
 
+func seedToolDefinition(t *testing.T, db *sql.DB, workspaceID, toolID, name, requiredPermissionsJSON string) {
+	t.Helper()
+	now := time.Now().UTC().Format(time.RFC3339)
+	if _, err := db.Exec(`
+		INSERT INTO tool_definition (id, workspace_id, name, input_schema, required_permissions, created_at, updated_at)
+		VALUES (?, ?, ?, '{}', ?, ?, ?)
+	`, toolID, workspaceID, name, requiredPermissionsJSON, now, now); err != nil {
+		t.Fatalf("insert tool_definition: %v", err)
+	}
+}
+
+func TestCheckToolPermission_WithToolDefinitionRequiredPermissions(t *testing.T) {
+	t.Run("role satisfies required_permissions from tool_definition", func(t *testing.T) {
+		db := setupPolicyTestDB(t)
+		workspaceID, userID := seedWorkspaceUserRole(t, db, `{"tools":["create_task"]}`)
+		toolID := uuid.NewV7().String()
+		seedToolDefinition(t, db, workspaceID, toolID, "create-task-tool", `["tools:create_task"]`)
+
+		engine := NewPolicyEngine(db, nil, nil)
+		ok, err := engine.CheckToolPermission(context.Background(), userID, toolID)
+		if err != nil {
+			t.Fatalf("CheckToolPermission error: %v", err)
+		}
+		if !ok {
+			t.Fatal("expected granted via tool_definition required_permissions")
+		}
+	})
+
+	t.Run("role does not satisfy required_permissions from tool_definition", func(t *testing.T) {
+		db := setupPolicyTestDB(t)
+		workspaceID, userID := seedWorkspaceUserRole(t, db, `{"tools":["read_own"]}`)
+		toolID := uuid.NewV7().String()
+		seedToolDefinition(t, db, workspaceID, toolID, "admin-tool", `["tools:admin_action"]`)
+
+		engine := NewPolicyEngine(db, nil, nil)
+		ok, err := engine.CheckToolPermission(context.Background(), userID, toolID)
+		if err != nil {
+			t.Fatalf("CheckToolPermission error: %v", err)
+		}
+		if ok {
+			t.Fatal("expected denied when role lacks required_permissions")
+		}
+	})
+
+	t.Run("tool_definition not found falls back to toolID as permission", func(t *testing.T) {
+		db := setupPolicyTestDB(t)
+		_, userID := seedWorkspaceUserRole(t, db, `{"tools":["known_tool"]}`)
+
+		engine := NewPolicyEngine(db, nil, nil)
+		ok, err := engine.CheckToolPermission(context.Background(), userID, "known_tool")
+		if err != nil {
+			t.Fatalf("CheckToolPermission error: %v", err)
+		}
+		if !ok {
+			t.Fatal("expected granted via fallback to toolID as permission string")
+		}
+	})
+}
+
+func TestEvaluatePolicyDecision_WildcardResource(t *testing.T) {
+	db := setupPolicyTestDB(t)
+	workspaceID, userID := seedWorkspaceUserRole(t, db, `{}`)
+
+	policyJSON := `{"rules":[
+		{"id":"deny_all","resource":"*","action":"*","effect":"deny","priority":1}
+	]}`
+	seedActivePolicyVersion(t, db, workspaceID, 1, policyJSON)
+
+	engine := NewPolicyEngine(db, nil, nil)
+	decision, err := engine.EvaluatePolicyDecision(context.Background(), workspaceID, userID, "tools", "any_action", nil)
+	if err != nil {
+		t.Fatalf("EvaluatePolicyDecision error: %v", err)
+	}
+	if decision.Allow {
+		t.Fatal("expected deny from wildcard resource rule")
+	}
+	if decision.Trace == nil || decision.Trace.MatchedRuleID != "deny_all" {
+		t.Fatalf("expected matched rule deny_all, got %+v", decision.Trace)
+	}
+}
+
 func TestParseRequiredPermissions(t *testing.T) {
 	t.Parallel()
 

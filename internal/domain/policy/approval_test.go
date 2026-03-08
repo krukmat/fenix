@@ -148,6 +148,139 @@ func TestApprovalService_ForbiddenApprover(t *testing.T) {
 	}
 }
 
+func TestApprovalService_DecideExpiredRequest_ReturnsExpiredError(t *testing.T) {
+	db := setupPolicyTestDB(t)
+	workspaceID, requesterID := seedWorkspaceUserRole(t, db, `{}`)
+	approverID := seedUserInWorkspace(t, db, workspaceID)
+	svc := NewApprovalService(db, audit.NewAuditService(db))
+
+	req, err := svc.CreateApprovalRequest(context.Background(), CreateApprovalRequestInput{
+		WorkspaceID: workspaceID,
+		RequestedBy: requesterID,
+		ApproverID:  approverID,
+		Action:      "tool.execute",
+		ExpiresAt:   time.Now().Add(-5 * time.Minute), // already expired
+	})
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+
+	err = svc.DecideApprovalRequest(context.Background(), req.ID, "approve", approverID)
+	if !errors.Is(err, ErrApprovalExpired) {
+		t.Fatalf("expected ErrApprovalExpired, got %v", err)
+	}
+}
+
+func TestApprovalService_DecideAlreadyClosed_ReturnsAlreadyClosedError(t *testing.T) {
+	db := setupPolicyTestDB(t)
+	workspaceID, requesterID := seedWorkspaceUserRole(t, db, `{}`)
+	approverID := seedUserInWorkspace(t, db, workspaceID)
+	svc := NewApprovalService(db, audit.NewAuditService(db))
+
+	req, err := svc.CreateApprovalRequest(context.Background(), CreateApprovalRequestInput{
+		WorkspaceID: workspaceID,
+		RequestedBy: requesterID,
+		ApproverID:  approverID,
+		Action:      "tool.execute",
+		ExpiresAt:   time.Now().Add(1 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+
+	if err := svc.DecideApprovalRequest(context.Background(), req.ID, "approve", approverID); err != nil {
+		t.Fatalf("first approve error: %v", err)
+	}
+
+	// Second decision on already-closed request
+	err = svc.DecideApprovalRequest(context.Background(), req.ID, "deny", approverID)
+	if !errors.Is(err, ErrApprovalAlreadyClosed) {
+		t.Fatalf("expected ErrApprovalAlreadyClosed, got %v", err)
+	}
+}
+
+func TestApprovalService_GetPendingApprovals_ReturnsPending(t *testing.T) {
+	db := setupPolicyTestDB(t)
+	workspaceID, requesterID := seedWorkspaceUserRole(t, db, `{}`)
+	approverID := seedUserInWorkspace(t, db, workspaceID)
+	svc := NewApprovalService(db, audit.NewAuditService(db))
+
+	_, err := svc.CreateApprovalRequest(context.Background(), CreateApprovalRequestInput{
+		WorkspaceID: workspaceID,
+		RequestedBy: requesterID,
+		ApproverID:  approverID,
+		Action:      "tool.execute",
+		ExpiresAt:   time.Now().Add(1 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+
+	pending, err := svc.GetPendingApprovals(context.Background(), approverID)
+	if err != nil {
+		t.Fatalf("GetPendingApprovals error: %v", err)
+	}
+	if len(pending) != 1 {
+		t.Fatalf("expected 1 pending approval, got %d", len(pending))
+	}
+	if pending[0].Status != ApprovalStatusPending {
+		t.Fatalf("expected pending status, got %s", pending[0].Status)
+	}
+}
+
+func TestApprovalService_GetApprovalByID_NotFound(t *testing.T) {
+	db := setupPolicyTestDB(t)
+	svc := NewApprovalService(db, audit.NewAuditService(db))
+
+	_, err := svc.getApprovalByID(context.Background(), "nonexistent-id")
+	if err == nil {
+		t.Fatal("expected error for non-existent approval ID")
+	}
+}
+
+func TestApprovalService_DecideApprovalRequest_InvalidDecision(t *testing.T) {
+	db := setupPolicyTestDB(t)
+	workspaceID, requesterID := seedWorkspaceUserRole(t, db, `{}`)
+	approverID := seedUserInWorkspace(t, db, workspaceID)
+	svc := NewApprovalService(db, audit.NewAuditService(db))
+
+	req, err := svc.CreateApprovalRequest(context.Background(), CreateApprovalRequestInput{
+		WorkspaceID: workspaceID,
+		RequestedBy: requesterID,
+		ApproverID:  approverID,
+		Action:      "tool.execute",
+		ExpiresAt:   time.Now().Add(1 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("create error: %v", err)
+	}
+
+	err = svc.DecideApprovalRequest(context.Background(), req.ID, "invalid_decision", approverID)
+	if err == nil {
+		t.Fatal("expected error for invalid decision value")
+	}
+}
+
+func TestDecisionToStatus(t *testing.T) {
+	tests := []struct {
+		input string
+		want  ApprovalStatus
+	}{
+		{"approve", ApprovalStatusApproved},
+		{"approved", ApprovalStatusApproved},
+		{"deny", ApprovalStatusDenied},
+		{"denied", ApprovalStatusDenied},
+		{"unknown", ""},
+		{"", ""},
+	}
+	for _, tc := range tests {
+		got := decisionToStatus(tc.input)
+		if got != tc.want {
+			t.Errorf("decisionToStatus(%q) = %q; want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
 func seedUserInWorkspace(t *testing.T, db *sql.DB, workspaceID string) string {
 	t.Helper()
 	now := time.Now().UTC().Format(time.RFC3339)

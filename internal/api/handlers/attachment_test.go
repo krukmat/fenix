@@ -162,6 +162,32 @@ func TestAttachmentHandler_ListAttachments_MissingWorkspace_Returns400(t *testin
 	}
 }
 
+func TestAttachmentHandler_CreateAttachment_Success(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	h := NewAttachmentHandler(crm.NewAttachmentService(db))
+
+	body, _ := json.Marshal(map[string]any{
+		"entityType":  "account",
+		"entityId":    "acc-att-1",
+		"uploaderId":  ownerID,
+		"filename":    "report.pdf",
+		"storagePath": "/uploads/report.pdf",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/attachments", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+
+	rr := httptest.NewRecorder()
+	h.CreateAttachment(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestAttachmentHandler_DeleteAttachment_MissingWorkspace_Returns400(t *testing.T) {
 	t.Parallel()
 

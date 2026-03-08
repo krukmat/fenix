@@ -224,6 +224,143 @@ func TestToolHandler_UpdateTool_InvalidSchema(t *testing.T) {
 	}
 }
 
+// TestToolHandler_DecodeToolRequest_InvalidJSON verifies decodeToolRequest returns false on bad JSON.
+func TestToolHandler_DecodeToolRequest_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	userID := createUser(t, db, wsID)
+	h := NewToolHandler(tool.NewToolRegistry(db))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/tools", bytes.NewBufferString("not-json"))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), ctxkeys.UserID, userID))
+
+	rr := httptest.NewRecorder()
+	h.CreateTool(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d body=%s", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+}
+
+// TestToolHandler_DecodeToolRequest_MissingName verifies decodeToolRequest returns false when name is absent.
+func TestToolHandler_DecodeToolRequest_MissingName(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	userID := createUser(t, db, wsID)
+	h := NewToolHandler(tool.NewToolRegistry(db))
+
+	body, _ := json.Marshal(map[string]any{
+		"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/tools", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), ctxkeys.UserID, userID))
+
+	rr := httptest.NewRecorder()
+	h.CreateTool(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d body=%s", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+}
+
+// TestToolHandler_SetToolActive_NotFound verifies setToolActive returns 404 for unknown tool.
+func TestToolHandler_SetToolActive_NotFound(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	userID := createUser(t, db, wsID)
+	h := NewToolHandler(tool.NewToolRegistry(db))
+
+	req := toolRequestWithBody(t, http.MethodPut, "/api/v1/admin/tools/nonexistent/activate", wsID, userID, nil)
+	req = withRouteParam(req, "id", "nonexistent")
+	rr := httptest.NewRecorder()
+	h.ActivateTool(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status=%d want=%d body=%s", rr.Code, http.StatusNotFound, rr.Body.String())
+	}
+}
+
+// TestWriteToolError_NotFound verifies writeToolError maps ErrToolDefinitionNotFound → 404.
+func TestWriteToolError_NotFound(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	writeToolError(rr, tool.ErrToolDefinitionNotFound)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status=%d want=%d", rr.Code, http.StatusNotFound)
+	}
+}
+
+// TestWriteToolError_Invalid verifies writeToolError maps ErrToolDefinitionInvalid → 400.
+func TestWriteToolError_Invalid(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	writeToolError(rr, tool.ErrToolDefinitionInvalid)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", rr.Code, http.StatusBadRequest)
+	}
+}
+
+// TestWriteToolError_Generic verifies writeToolError maps unknown errors → 400.
+func TestWriteToolError_Generic(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	writeToolError(rr, errors.New("some generic error"))
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", rr.Code, http.StatusBadRequest)
+	}
+}
+
+// TestToolHandler_DeleteTool_NotFound verifies DeleteTool returns 404 for unknown tool.
+func TestToolHandler_DeleteTool_NotFound(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	userID := createUser(t, db, wsID)
+	h := NewToolHandler(tool.NewToolRegistry(db))
+
+	req := toolRequestWithBody(t, http.MethodDelete, "/api/v1/admin/tools/nonexistent", wsID, userID, nil)
+	req = withRouteParam(req, "id", "nonexistent")
+	rr := httptest.NewRecorder()
+	h.DeleteTool(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status=%d want=%d body=%s", rr.Code, http.StatusNotFound, rr.Body.String())
+	}
+}
+
+// TestToolHandler_DeleteTool_MissingID verifies DeleteTool returns 400 when ID param is absent.
+func TestToolHandler_DeleteTool_MissingID(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	userID := createUser(t, db, wsID)
+	h := NewToolHandler(tool.NewToolRegistry(db))
+
+	req := toolRequestWithBody(t, http.MethodDelete, "/api/v1/admin/tools/", wsID, userID, nil)
+	rr := httptest.NewRecorder()
+	h.DeleteTool(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d body=%s", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+}
+
 func toolRequestWithBody(t *testing.T, method, target, wsID, userID string, body any) *http.Request {
 	t.Helper()
 

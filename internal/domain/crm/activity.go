@@ -99,7 +99,7 @@ func (s *ActivityService) Create(ctx context.Context, input CreateActivityInput)
 	if err != nil {
 		return nil, fmt.Errorf("create activity: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, input.EntityType, input.EntityID, input.OwnerID, "activity_created"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, input.EntityType, input.EntityID, input.OwnerID, "created"); timelineErr != nil {
 		return nil, fmt.Errorf("create activity timeline: %w", timelineErr)
 	}
 
@@ -151,7 +151,7 @@ func (s *ActivityService) Update(ctx context.Context, workspaceID, activityID st
 	if err != nil {
 		return nil, fmt.Errorf("update activity: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, input.EntityType, input.EntityID, input.OwnerID, "activity_updated"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, input.EntityType, input.EntityID, input.OwnerID, "updated"); timelineErr != nil {
 		return nil, fmt.Errorf("update activity timeline: %w", timelineErr)
 	}
 

@@ -71,7 +71,7 @@ func (s *NoteService) Create(ctx context.Context, input CreateNoteInput) (*Note,
 	if err != nil {
 		return nil, fmt.Errorf("create note: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, input.EntityType, input.EntityID, input.AuthorID, "note_created"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, input.EntityType, input.EntityID, input.AuthorID, "note_added"); timelineErr != nil {
 		return nil, fmt.Errorf("create note timeline: %w", timelineErr)
 	}
 	return s.Get(ctx, input.WorkspaceID, id)
@@ -116,7 +116,7 @@ func (s *NoteService) Update(ctx context.Context, workspaceID, noteID string, in
 	}
 	existing, getErr := s.Get(ctx, workspaceID, noteID)
 	if getErr == nil {
-		if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, existing.EntityType, existing.EntityID, existing.AuthorID, "note_updated"); timelineErr != nil {
+		if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, existing.EntityType, existing.EntityID, existing.AuthorID, "updated"); timelineErr != nil {
 			return nil, fmt.Errorf("update note timeline: %w", timelineErr)
 		}
 	}
@@ -130,7 +130,7 @@ func (s *NoteService) Delete(ctx context.Context, workspaceID, noteID string) er
 		return fmt.Errorf("delete note: %w", err)
 	}
 	if existing != nil {
-		if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, existing.EntityType, existing.EntityID, existing.AuthorID, "note_deleted"); timelineErr != nil {
+		if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, existing.EntityType, existing.EntityID, existing.AuthorID, "deleted"); timelineErr != nil {
 			return fmt.Errorf("delete note timeline: %w", timelineErr)
 		}
 	}

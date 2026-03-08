@@ -297,6 +297,69 @@ func TestCaseHandler_ListCases_FilterByPriority(t *testing.T) {
 	}
 }
 
+// TestCaseHandler_CreateCase_MissingWorkspace_Returns400 verifies CreateCase returns 400 without workspace context.
+func TestCaseHandler_CreateCase_MissingWorkspace_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	h := NewCaseHandler(crm.NewCaseService(db))
+
+	body, _ := json.Marshal(map[string]any{"ownerId": "u1", "subject": "test"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/cases", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.CreateCase(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+// TestCaseHandler_CreateCase_InvalidJSON_Returns400 verifies CreateCase returns 400 on bad JSON.
+func TestCaseHandler_CreateCase_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewCaseHandler(crm.NewCaseService(db))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/cases", bytes.NewBufferString("not-json"))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+	h.CreateCase(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+// TestCaseHandler_GetCase_Success verifies GetCase returns 200 with existing case.
+func TestCaseHandler_GetCase_Success(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	svc := crm.NewCaseService(db)
+	h := NewCaseHandler(svc)
+
+	created, err := svc.Create(t.Context(), crm.CreateCaseInput{WorkspaceID: wsID, OwnerID: ownerID, Subject: "Get me"})
+	if err != nil {
+		t.Fatalf("seed case: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/cases/"+created.ID, nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", created.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.GetCase(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestCaseHandler_ListCases_MultipleFilters_Returns400(t *testing.T) {
 	t.Parallel()
 

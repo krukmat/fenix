@@ -6,9 +6,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
@@ -556,6 +558,50 @@ func TestAgentHandler_GetAgentRun_Success(t *testing.T) {
 	}
 }
 
+// TestAgentHandler_GetAgentRun_WithCompletedAt verifies agentRunToResponse covers the non-nil CompletedAt branch.
+func TestAgentHandler_GetAgentRun_WithCompletedAt(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	insertTestAgentDef(t, db, "agent-completed", wsID)
+
+	runID := uuid.NewV7().String()
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := db.ExecContext(context.Background(), `
+		INSERT INTO agent_run (id, workspace_id, agent_definition_id, trigger_type, status, started_at, completed_at, created_at)
+		VALUES (?, ?, 'agent-completed', 'manual', 'success', ?, ?, ?)
+	`, runID, wsID, now, now, now)
+	if err != nil {
+		t.Fatalf("insert agent_run: %v", err)
+	}
+
+	orch := agent.NewOrchestrator(db)
+	h := NewAgentHandler(orch)
+	r := chi.NewRouter()
+	r.Get("/agents/runs/{id}", h.GetAgentRun)
+
+	req := httptest.NewRequest(http.MethodGet, "/agents/runs/"+runID, nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	data, ok := resp["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected data object, got %T: %v", resp["data"], resp)
+	}
+	if data["completedAt"] == nil {
+		t.Fatalf("expected completedAt in response data, got nil; data=%v", data)
+	}
+}
+
 // TestSupportAgentHandler_TriggerSupportAgent_MissingWorkspace returns 401.
 // Traces: FR-230, FR-231
 func TestSupportAgentHandler_TriggerSupportAgent_MissingWorkspace(t *testing.T) {
@@ -875,6 +921,299 @@ func TestInsightsAgentHandler_TriggerInsights_MissingQuery(t *testing.T) {
 	}
 }
 
+// TestHandleProspectingRunError_LeadNotFound verifies handleProspectingRunError maps ErrLeadNotFound → 404.
+func TestHandleProspectingRunError_LeadNotFound(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleProspectingRunError(rr, agents.ErrLeadNotFound)
+	if !handled {
+		t.Fatal("expected handled=true for ErrLeadNotFound")
+	}
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+// TestHandleProspectingRunError_LeadIDRequired verifies handleProspectingRunError maps ErrLeadIDRequired → 400.
+func TestHandleProspectingRunError_LeadIDRequired(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleProspectingRunError(rr, agents.ErrLeadIDRequired)
+	if !handled {
+		t.Fatal("expected handled=true for ErrLeadIDRequired")
+	}
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+// TestHandleProspectingRunError_DailyLeadLimit verifies handleProspectingRunError maps limit exceeded → 429.
+func TestHandleProspectingRunError_DailyLeadLimit(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleProspectingRunError(rr, agents.ErrProspectingDailyLeadLimitExceeded)
+	if !handled {
+		t.Fatal("expected handled=true for ErrProspectingDailyLeadLimitExceeded")
+	}
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", rr.Code)
+	}
+}
+
+// TestHandleProspectingRunError_DailyCostLimit verifies handleProspectingRunError maps cost limit exceeded → 429.
+func TestHandleProspectingRunError_DailyCostLimit(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleProspectingRunError(rr, agents.ErrProspectingDailyCostLimitExceeded)
+	if !handled {
+		t.Fatal("expected handled=true for ErrProspectingDailyCostLimitExceeded")
+	}
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", rr.Code)
+	}
+}
+
+// TestHandleProspectingRunError_Unknown verifies handleProspectingRunError returns false for unknown errors.
+func TestHandleProspectingRunError_Unknown(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleProspectingRunError(rr, errors.New("unexpected error"))
+	if handled {
+		t.Fatal("expected handled=false for unknown error")
+	}
+}
+
+// TestHandleKBRunError_CaseNotFound verifies handleKBRunError maps ErrCaseNotFound → 404.
+func TestHandleKBRunError_CaseNotFound(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleKBRunError(rr, agents.ErrCaseNotFound)
+	if !handled {
+		t.Fatal("expected handled=true for ErrCaseNotFound")
+	}
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+// TestHandleKBRunError_CaseIDRequired verifies handleKBRunError maps ErrKBCaseIDRequired → 400.
+func TestHandleKBRunError_CaseIDRequired(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleKBRunError(rr, agents.ErrKBCaseIDRequired)
+	if !handled {
+		t.Fatal("expected handled=true for ErrKBCaseIDRequired")
+	}
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+// TestHandleKBRunError_CaseNotResolved verifies handleKBRunError maps ErrCaseNotResolved → 422.
+func TestHandleKBRunError_CaseNotResolved(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleKBRunError(rr, agents.ErrCaseNotResolved)
+	if !handled {
+		t.Fatal("expected handled=true for ErrCaseNotResolved")
+	}
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", rr.Code)
+	}
+}
+
+// TestHandleKBRunError_DailyLimit verifies handleKBRunError maps ErrKBDailyLimitExceeded → 429.
+func TestHandleKBRunError_DailyLimit(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleKBRunError(rr, agents.ErrKBDailyLimitExceeded)
+	if !handled {
+		t.Fatal("expected handled=true for ErrKBDailyLimitExceeded")
+	}
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", rr.Code)
+	}
+}
+
+// TestHandleKBRunError_Unknown verifies handleKBRunError returns false for unknown errors.
+func TestHandleKBRunError_Unknown(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleKBRunError(rr, errors.New("unexpected error"))
+	if handled {
+		t.Fatal("expected handled=false for unknown error")
+	}
+}
+
+// TestHandleInsightsRunError_QueryRequired verifies handleInsightsRunError maps ErrInsightsQueryRequired → 400.
+func TestHandleInsightsRunError_QueryRequired(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleInsightsRunError(rr, agents.ErrInsightsQueryRequired)
+	if !handled {
+		t.Fatal("expected handled=true for ErrInsightsQueryRequired")
+	}
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+// TestHandleInsightsRunError_DailyLimit verifies handleInsightsRunError maps ErrInsightsDailyLimitExceeded → 429.
+func TestHandleInsightsRunError_DailyLimit(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleInsightsRunError(rr, agents.ErrInsightsDailyLimitExceeded)
+	if !handled {
+		t.Fatal("expected handled=true for ErrInsightsDailyLimitExceeded")
+	}
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", rr.Code)
+	}
+}
+
+// TestInsightsAgentHandler_TriggerInsights_WithUserID verifies withInsightsTriggeredBy is exercised.
+func TestInsightsAgentHandler_TriggerInsights_WithUserID(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	ownerID := createUser(t, db, wsID)
+	h := newTestInsightsAgentHandler(t, db, wsID)
+
+	body, _ := json.Marshal(map[string]any{"query": "cuántos deals"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	ctx := contextWithWorkspaceID(req.Context(), wsID)
+	// NO userID set — exercises withInsightsTriggeredBy empty-userID branch
+	_ = ownerID
+	req = req.WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerInsightsAgent(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+// TestInsightsAgentHandler_TriggerInsights_WithNonEmptyUserID exercises the non-empty userID branch of withInsightsTriggeredBy.
+func TestInsightsAgentHandler_TriggerInsights_WithNonEmptyUserID(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	ownerID := createUser(t, db, wsID)
+	h := newTestInsightsAgentHandler(t, db, wsID)
+
+	body, _ := json.Marshal(map[string]any{"query": "cuántos deals"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	ctx := contextWithWorkspaceID(req.Context(), wsID)
+	ctx = context.WithValue(ctx, ctxkeys.UserID, ownerID)
+	req = req.WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerInsightsAgent(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+// TestHandleInsightsRunError_Unknown verifies handleInsightsRunError returns false for unknown errors.
+func TestHandleInsightsRunError_Unknown(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	handled := handleInsightsRunError(rr, errors.New("some error"))
+	if handled {
+		t.Fatal("expected handled=false for unknown error")
+	}
+}
+
+// TestParseDateTimeValue_Valid verifies parseDateTimeValue parses a valid RFC3339 string.
+func TestParseDateTimeValue_Valid(t *testing.T) {
+	t.Parallel()
+
+	result, err := parseDateTimeValue("2026-01-01T00:00:00Z")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Year() != 2026 {
+		t.Fatalf("expected year 2026, got %d", result.Year())
+	}
+}
+
+// TestParseDateTimeValue_Invalid verifies parseDateTimeValue returns error for bad input.
+func TestParseDateTimeValue_Invalid(t *testing.T) {
+	t.Parallel()
+
+	result, err := parseDateTimeValue("not-a-date")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if result != nil {
+		t.Fatalf("expected nil result, got %v", result)
+	}
+}
+
+// TestInsightsAgentHandler_TriggerInsights_InvalidDateFrom verifies date_from parsing error → 400.
+func TestInsightsAgentHandler_TriggerInsights_InvalidDateFrom(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestInsightsAgentHandler(t, db, wsID)
+
+	body, _ := json.Marshal(map[string]any{"query": "cuántos deals", "date_from": "not-a-date"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerInsightsAgent(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bad date_from, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+// TestInsightsAgentHandler_TriggerInsights_InvalidDateTo verifies date_to parsing error → 400.
+func TestInsightsAgentHandler_TriggerInsights_InvalidDateTo(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestInsightsAgentHandler(t, db, wsID)
+
+	body, _ := json.Marshal(map[string]any{"query": "cuántos deals", "date_to": "bad"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerInsightsAgent(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bad date_to, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestInsightsAgentHandler_TriggerInsights_DailyLimitExceeded(t *testing.T) {
 	t.Parallel()
 
@@ -905,5 +1244,25 @@ func TestInsightsAgentHandler_TriggerInsights_DailyLimitExceeded(t *testing.T) {
 
 	if rr.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected 429, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+// TestSupportAgentHandler_TriggerSupportAgent_RunError verifies 500 when agent.Run fails.
+func TestSupportAgentHandler_TriggerSupportAgent_RunError(t *testing.T) {
+	t.Parallel()
+
+	h := newTestSupportAgentHandler(t)
+
+	body, _ := json.Marshal(map[string]any{"case_id": "case-1", "customer_query": "how do I reset my password?"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/support/trigger", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	// Use a workspace that doesn't exist so the agent.Run fails with a DB error.
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), "ws-nonexistent"))
+	rr := httptest.NewRecorder()
+
+	h.TriggerSupportAgent(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d: %s", rr.Code, rr.Body.String())
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,6 +60,55 @@ func TestCopilotChatHandler_SSE_OK(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "\"answer_type\":\"grounded_answer\"") {
 		t.Fatalf("expected done metadata to be preserved, got %q", rr.Body.String())
+	}
+}
+
+// TestChatRequestError_Error covers the Error() method on chatRequestError.
+func TestChatRequestError_Error(t *testing.T) {
+	t.Parallel()
+
+	e := chatRequestError{status: 400, message: "bad request"}
+	if got := e.Error(); got != "bad request" {
+		t.Fatalf("expected %q, got %q", "bad request", got)
+	}
+}
+
+// TestCopilotChatHandler_Chat_ServiceError returns 500 when chat service fails.
+func TestCopilotChatHandler_Chat_ServiceError(t *testing.T) {
+	t.Parallel()
+
+	h := NewCopilotChatHandler(&copilotChatServiceStub{err: errors.New("provider down")})
+
+	body, _ := json.Marshal(map[string]any{"query": "help"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/copilot/chat", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(req.Context(), ctxkeys.WorkspaceID, "ws_1")
+	ctx = context.WithValue(ctx, ctxkeys.UserID, "u_1")
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	h.Chat(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+// TestCopilotChatHandler_Chat_MissingUser returns 401 when user context is absent.
+func TestCopilotChatHandler_Chat_MissingUser(t *testing.T) {
+	t.Parallel()
+
+	h := NewCopilotChatHandler(&copilotChatServiceStub{})
+
+	body, _ := json.Marshal(map[string]any{"query": "help"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/copilot/chat", bytes.NewReader(body))
+	req = req.WithContext(context.WithValue(req.Context(), ctxkeys.WorkspaceID, "ws_1"))
+
+	rr := httptest.NewRecorder()
+	h.Chat(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
 	}
 }
 

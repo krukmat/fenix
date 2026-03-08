@@ -363,6 +363,114 @@ func TestContactHandler_UpdateContact_InvalidJSON_Returns400(t *testing.T) {
 	}
 }
 
+// TestContactHandler_GetContactForUpdate_NotFound verifies getContactForUpdate path via UpdateContact returns 404.
+func TestContactHandler_GetContactForUpdate_NotFound(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewContactHandler(crm.NewContactService(db))
+
+	body, _ := json.Marshal(map[string]any{"firstName": "New"})
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/contacts/nonexistent", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "nonexistent")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	handler.UpdateContact(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusNotFound)
+	}
+}
+
+// TestContactHandler_GetContactForUpdate_MissingID verifies getContactForUpdate path with empty ID returns 400.
+func TestContactHandler_GetContactForUpdate_MissingID(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewContactHandler(crm.NewContactService(db))
+
+	body, _ := json.Marshal(map[string]any{"firstName": "New"})
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/contacts/", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	handler.UpdateContact(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+// TestContactHandler_ListContactsByAccount_MissingWorkspace returns 400 without workspace context.
+func TestContactHandler_ListContactsByAccount_MissingWorkspace(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	handler := NewContactHandler(crm.NewContactService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/accounts/acc-1/contacts", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("account_id", "acc-1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	handler.ListContactsByAccount(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+// TestContactHandler_ListContactsByAccount_MissingAccountID returns 400 when account_id param is absent.
+func TestContactHandler_ListContactsByAccount_MissingAccountID(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewContactHandler(crm.NewContactService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/accounts//contacts", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	handler.ListContactsByAccount(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+// TestContactHandler_GetContact_NotFound returns 404 for unknown contact.
+func TestContactHandler_GetContact_NotFound(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	handler := NewContactHandler(crm.NewContactService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/contacts/nonexistent", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "nonexistent")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	handler.GetContact(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status=%d want=%d", w.Code, http.StatusNotFound)
+	}
+}
+
 func TestContactHandler_DeleteContact_MissingID_Returns400(t *testing.T) {
 	t.Parallel()
 

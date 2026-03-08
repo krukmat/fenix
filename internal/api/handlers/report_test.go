@@ -152,6 +152,130 @@ func TestReportHandler_ExportSupportBacklogCSV_200(t *testing.T) {
 	}
 }
 
+func TestReportHandler_GetDealAging_MissingWorkspace_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	h := NewReportHandler(crm.NewReportService(db))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/reports/sales/aging", nil)
+	rr := httptest.NewRecorder()
+
+	h.GetDealAging(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestReportHandler_GetSupportBacklog_200(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	seedReportCaseData(t, db, wsID, ownerID)
+
+	h := NewReportHandler(crm.NewReportService(db))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/reports/support/backlog?aging_days=30", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	h.GetSupportBacklog(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestReportHandler_GetSupportBacklog_MissingWorkspace_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	h := NewReportHandler(crm.NewReportService(db))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/reports/support/backlog", nil)
+	rr := httptest.NewRecorder()
+
+	h.GetSupportBacklog(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestReportHandler_GetSupportVolume_MissingWorkspace_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	h := NewReportHandler(crm.NewReportService(db))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/reports/support/volume", nil)
+	rr := httptest.NewRecorder()
+
+	h.GetSupportVolume(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestReportHandler_ExportSalesFunnelCSV_MissingFormat_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewReportHandler(crm.NewReportService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/reports/sales/funnel/export", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	h.ExportSalesFunnelCSV(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestReportHandler_ExportSalesFunnelCSV_MissingWorkspace_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	h := NewReportHandler(crm.NewReportService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/reports/sales/funnel/export?format=csv", nil)
+	rr := httptest.NewRecorder()
+
+	h.ExportSalesFunnelCSV(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestReportHandler_ExportSupportBacklogCSV_MissingFormat_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewReportHandler(crm.NewReportService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/reports/support/backlog/export", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	h.ExportSupportBacklogCSV(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestReportHandler_ExportSupportBacklogCSV_MissingWorkspace_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	h := NewReportHandler(crm.NewReportService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/reports/support/backlog/export?format=csv", nil)
+	rr := httptest.NewRecorder()
+
+	h.ExportSupportBacklogCSV(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func seedReportDealData(t *testing.T, db *sql.DB, wsID, ownerID string) {
 	t.Helper()
 	accountID := "acc-r-" + randID()

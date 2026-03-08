@@ -285,6 +285,32 @@ func TestActivityHandler_DeleteActivity_Success_Returns204(t *testing.T) {
 	}
 }
 
+func TestActivityHandler_CreateActivity_Success_Returns201(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	h := NewActivityHandler(crm.NewActivityService(db))
+
+	body, _ := json.Marshal(map[string]any{
+		"activityType": "task",
+		"entityType":   "account",
+		"entityId":     "acc-1",
+		"ownerId":      ownerID,
+		"subject":      "Follow up call",
+		"status":       "pending",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/activities", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+
+	rr := httptest.NewRecorder()
+	h.CreateActivity(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestBuildUpdateActivityInput_UsesExistingValues(t *testing.T) {
 	t.Parallel()
 

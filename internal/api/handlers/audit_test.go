@@ -177,6 +177,65 @@ func TestAuditHandler_Query_MissingWorkspaceID_400(t *testing.T) {
 	}
 }
 
+func TestAuditHandler_GetByID_MissingWorkspace_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	h := NewAuditHandler(domainaudit.NewAuditService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/audit/events/some-id", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "some-id")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+
+	h.GetByID(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestAuditHandler_GetByID_MissingID_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewAuditHandler(domainaudit.NewAuditService(db))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/audit/events/", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+
+	h.GetByID(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestAuditHandler_GetByID_WrongWorkspace_404(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	wsID2 := createWorkspace(t, db)
+	h := NewAuditHandler(domainaudit.NewAuditService(db))
+	e := seedAuditEvent(t, h.auditService, wsID, "tool.executed", domainaudit.OutcomeSuccess, time.Now())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/audit/events/"+e.ID, nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID2))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", e.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+
+	h.GetByID(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func seedAuditEvent(
 	t *testing.T,
 	svc *domainaudit.AuditService,
