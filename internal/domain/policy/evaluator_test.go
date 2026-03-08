@@ -462,7 +462,7 @@ func TestCheckToolPermission_WithToolDefinitionRequiredPermissions(t *testing.T)
 
 func TestEvaluatePolicyDecision_WildcardResource(t *testing.T) {
 	db := setupPolicyTestDB(t)
-	workspaceID, userID := seedWorkspaceUserRole(t, db, `{}`)
+	workspaceID, userID := seedWorkspaceUserRole(t, db, emptyJSONPayload)
 
 	policyJSON := `{"rules":[
 		{"id":"deny_all","resource":"*","action":"*","effect":"deny","priority":1}

@@ -150,7 +150,7 @@ func TestApprovalService_ForbiddenApprover(t *testing.T) {
 
 func TestApprovalService_DecideExpiredRequest_ReturnsExpiredError(t *testing.T) {
 	db := setupPolicyTestDB(t)
-	workspaceID, requesterID := seedWorkspaceUserRole(t, db, `{}`)
+	workspaceID, requesterID := seedWorkspaceUserRole(t, db, emptyJSONPayload)
 	approverID := seedUserInWorkspace(t, db, workspaceID)
 	svc := NewApprovalService(db, audit.NewAuditService(db))
 
@@ -173,7 +173,7 @@ func TestApprovalService_DecideExpiredRequest_ReturnsExpiredError(t *testing.T) 
 
 func TestApprovalService_DecideAlreadyClosed_ReturnsAlreadyClosedError(t *testing.T) {
 	db := setupPolicyTestDB(t)
-	workspaceID, requesterID := seedWorkspaceUserRole(t, db, `{}`)
+	workspaceID, requesterID := seedWorkspaceUserRole(t, db, emptyJSONPayload)
 	approverID := seedUserInWorkspace(t, db, workspaceID)
 	svc := NewApprovalService(db, audit.NewAuditService(db))
 
@@ -201,7 +201,7 @@ func TestApprovalService_DecideAlreadyClosed_ReturnsAlreadyClosedError(t *testin
 
 func TestApprovalService_GetPendingApprovals_ReturnsPending(t *testing.T) {
 	db := setupPolicyTestDB(t)
-	workspaceID, requesterID := seedWorkspaceUserRole(t, db, `{}`)
+	workspaceID, requesterID := seedWorkspaceUserRole(t, db, emptyJSONPayload)
 	approverID := seedUserInWorkspace(t, db, workspaceID)
 	svc := NewApprovalService(db, audit.NewAuditService(db))
 
@@ -240,7 +240,7 @@ func TestApprovalService_GetApprovalByID_NotFound(t *testing.T) {
 
 func TestApprovalService_DecideApprovalRequest_InvalidDecision(t *testing.T) {
 	db := setupPolicyTestDB(t)
-	workspaceID, requesterID := seedWorkspaceUserRole(t, db, `{}`)
+	workspaceID, requesterID := seedWorkspaceUserRole(t, db, emptyJSONPayload)
 	approverID := seedUserInWorkspace(t, db, workspaceID)
 	svc := NewApprovalService(db, audit.NewAuditService(db))
 

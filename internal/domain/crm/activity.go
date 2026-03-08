@@ -151,7 +151,7 @@ func (s *ActivityService) Update(ctx context.Context, workspaceID, activityID st
 	if err != nil {
 		return nil, fmt.Errorf("update activity: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, input.EntityType, input.EntityID, input.OwnerID, "updated"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, input.EntityType, input.EntityID, input.OwnerID, timelineActionUpdated); timelineErr != nil {
 		return nil, fmt.Errorf("update activity timeline: %w", timelineErr)
 	}
 

@@ -175,7 +175,7 @@ func TestCandidateToolActions_ToolsPrefixOnly(t *testing.T) {
 	// Input is trimmed before processing: "tools:  " → "tools:"
 	// After stripping prefix: "" (empty) → no second element appended
 	got := candidateToolActions("tools:  ")
-	if len(got) != 1 || got[0] != "tools:" {
+	if len(got) != 1 || got[0] != toolsPrefix {
 		t.Fatalf("unexpected candidates for tools-prefix-only: %v", got)
 	}
 }
@@ -200,7 +200,7 @@ func TestResolvePolicyOutcome_Deny(t *testing.T) {
 
 func TestEvaluatePolicyDecision_ConditionMatch_Allows(t *testing.T) {
 	db := setupPolicyTestDB(t)
-	workspaceID, userID := seedWorkspaceUserRole(t, db, `{}`)
+	workspaceID, userID := seedWorkspaceUserRole(t, db, emptyJSONPayload)
 
 	policyJSON := `{"rules":[
 		{"id":"allow_prod","resource":"tools","action":"*","effect":"allow","priority":1,
@@ -223,7 +223,7 @@ func TestEvaluatePolicyDecision_ConditionMatch_Allows(t *testing.T) {
 
 func TestEvaluatePolicyDecision_ConditionMismatch_Denies(t *testing.T) {
 	db := setupPolicyTestDB(t)
-	workspaceID, userID := seedWorkspaceUserRole(t, db, `{}`)
+	workspaceID, userID := seedWorkspaceUserRole(t, db, emptyJSONPayload)
 
 	policyJSON := `{"rules":[
 		{"id":"allow_prod","resource":"tools","action":"*","effect":"allow","priority":1,

@@ -122,6 +122,8 @@ const (
 	permTools  = "tools"
 
 	auditActionPolicyEvaluated = "policy.evaluated"
+
+	toolsPrefix = "tools:"
 )
 
 // RedactPII (EP2): redacts PII in evidence snippets.
@@ -448,8 +450,8 @@ func candidateToolActions(required string) []string {
 		return nil
 	}
 	out := []string{required}
-	if strings.HasPrefix(required, "tools:") {
-		trimmed := strings.TrimSpace(strings.TrimPrefix(required, "tools:"))
+	if strings.HasPrefix(required, toolsPrefix) {
+		trimmed := strings.TrimSpace(strings.TrimPrefix(required, toolsPrefix))
 		if trimmed != "" {
 			out = append(out, trimmed)
 		}

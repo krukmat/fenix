@@ -197,7 +197,7 @@ func (h *ContactHandler) ListContactsByAccount(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	accountID := chi.URLParam(r, "account_id")
+	accountID := chi.URLParam(r, queryAccountID)
 	if accountID == "" {
 		writeError(w, http.StatusBadRequest, "account_id is required")
 		return

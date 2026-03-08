@@ -26,6 +26,8 @@ const (
 	decisionApproved = "approved"
 	decisionDeny     = "deny"
 	decisionDenied   = "denied"
+
+	emptyJSONPayload = "{}"
 )
 
 var (
@@ -80,7 +82,7 @@ func NewApprovalService(db *sql.DB, auditService *audit.AuditService) *ApprovalS
 
 func (s *ApprovalService) CreateApprovalRequest(ctx context.Context, input CreateApprovalRequestInput) (*ApprovalRequest, error) {
 	if len(input.Payload) == 0 {
-		input.Payload = json.RawMessage(`{}`)
+		input.Payload = json.RawMessage(emptyJSONPayload)
 	}
 
 	now := time.Now().UTC()
