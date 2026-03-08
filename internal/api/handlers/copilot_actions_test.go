@@ -33,14 +33,25 @@ func (s *copilotActionsServiceStub) Summarize(_ context.Context, _ copilot.Summa
 	return s.summary, nil
 }
 
+func TestActionRequestError_Error(t *testing.T) {
+	t.Parallel()
+
+	e := actionRequestError{status: 401, message: "unauthorized"}
+	if got := e.Error(); got != "unauthorized" {
+		t.Fatalf("expected %q, got %q", "unauthorized", got)
+	}
+}
+
 func TestCopilotActionsHandler_SuggestActions_OK(t *testing.T) {
 	t.Parallel()
 
 	h := NewCopilotActionsHandler(&copilotActionsServiceStub{actions: []copilot.SuggestedAction{{
-		Title:       "Crear seguimiento",
-		Description: "Coordinar próximo paso",
-		Tool:        "create_task",
-		Params:      map[string]any{"entity_id": "c1"},
+		Title:           "Crear seguimiento",
+		Description:     "Coordinar proximo paso",
+		Tool:            "create_task",
+		Params:          map[string]any{"entity_type": "case", "entity_id": "c1"},
+		ConfidenceScore: 0.8,
+		ConfidenceLevel: copilot.ConfidenceLevelHigh,
 	}}})
 
 	body, _ := json.Marshal(map[string]any{"entityType": "case", "entityId": "c1"})
@@ -67,6 +78,12 @@ func TestCopilotActionsHandler_SuggestActions_OK(t *testing.T) {
 	}
 	if len(resp.Data.Actions) != 1 {
 		t.Fatalf("expected 1 action, got %d", len(resp.Data.Actions))
+	}
+	if resp.Data.Actions[0].ConfidenceScore <= 0 {
+		t.Fatalf("expected confidence score, got %f", resp.Data.Actions[0].ConfidenceScore)
+	}
+	if resp.Data.Actions[0].ConfidenceLevel == "" {
+		t.Fatal("expected confidence level")
 	}
 }
 

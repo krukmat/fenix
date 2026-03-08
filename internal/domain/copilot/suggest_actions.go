@@ -22,6 +22,14 @@ var (
 	jsonFenceRe                  = regexp.MustCompile("(?s)```(?:json)?\\s*(.*?)\\s*```")
 )
 
+type ConfidenceLevel string
+
+const (
+	ConfidenceLevelLow    ConfidenceLevel = "low"
+	ConfidenceLevelMedium ConfidenceLevel = "medium"
+	ConfidenceLevelHigh   ConfidenceLevel = "high"
+)
+
 var allowedActionTools = map[string]struct{}{
 	tool.BuiltinCreateTask: {},
 	tool.BuiltinUpdateCase: {},
@@ -29,10 +37,12 @@ var allowedActionTools = map[string]struct{}{
 }
 
 type SuggestedAction struct {
-	Title       string         `json:"title"`
-	Description string         `json:"description"`
-	Tool        string         `json:"tool"`
-	Params      map[string]any `json:"params"`
+	Title           string          `json:"title"`
+	Description     string          `json:"description"`
+	Tool            string          `json:"tool"`
+	Params          map[string]any  `json:"params"`
+	ConfidenceScore float64         `json:"confidence_score"`
+	ConfidenceLevel ConfidenceLevel `json:"confidence_level"`
 }
 
 type SuggestActionsInput struct {
@@ -56,6 +66,18 @@ type ActionService struct {
 	audit    AuditLogger
 }
 
+type suggestActionsContext struct {
+	filter          policy.Filter
+	evidencePack    *knowledge.EvidencePack
+	redactedSources []knowledge.Evidence
+}
+
+type suggestActionsMetrics struct {
+	generated      int
+	returned       int
+	discardReasons map[string]int
+}
+
 func NewActionService(e EvidencePackBuilder, l llm.LLMProvider, p PolicyEnforcer, a AuditLogger) *ActionService {
 	return &ActionService{evidence: e, llm: l, policy: p, audit: a}
 }
@@ -70,19 +92,13 @@ func (s *ActionService) SuggestActions(ctx context.Context, in SuggestActionsInp
 		return nil, err
 	}
 
-	actions, err := s.generateSuggestedActions(ctx, in.EntityType, in.EntityID, prepared.redactedSources)
+	actions, metrics, err := s.generateSuggestedActions(ctx, in.EntityType, in.EntityID, prepared.evidencePack, prepared.redactedSources)
 	if err != nil {
 		return nil, err
 	}
-	s.logSuggestActionsAudit(ctx, in, prepared, len(actions))
 
+	s.logSuggestActionsAudit(ctx, in, prepared, metrics)
 	return actions, nil
-}
-
-type suggestActionsContext struct {
-	filter          policy.Filter
-	evidencePack    *knowledge.EvidencePack
-	redactedSources []knowledge.Evidence
 }
 
 func (s *ActionService) prepareSuggestActionsContext(ctx context.Context, in SuggestActionsInput) (*suggestActionsContext, error) {
@@ -105,14 +121,19 @@ func (s *ActionService) prepareSuggestActionsContext(ctx context.Context, in Sug
 		return nil, err
 	}
 
-	return &suggestActionsContext{filter: filter, evidencePack: pack, redactedSources: redacted}, nil
+	return &suggestActionsContext{
+		filter:          filter,
+		evidencePack:    pack,
+		redactedSources: redacted,
+	}, nil
 }
 
 func (s *ActionService) generateSuggestedActions(
 	ctx context.Context,
 	entityType, entityID string,
+	pack *knowledge.EvidencePack,
 	sources []knowledge.Evidence,
-) ([]SuggestedAction, error) {
+) ([]SuggestedAction, suggestActionsMetrics, error) {
 	prompt := buildSuggestActionsPrompt(entityType, entityID, sources)
 	resp, err := s.llm.ChatCompletion(ctx, llm.ChatRequest{
 		Messages: []llm.Message{
@@ -123,30 +144,41 @@ func (s *ActionService) generateSuggestedActions(
 		MaxTokens:   600,
 	})
 	if err != nil {
-		return nil, err
+		return nil, suggestActionsMetrics{}, err
 	}
 
 	actions, err := parseSuggestedActions(resp.Content)
 	if err != nil {
-		return nil, err
+		return nil, suggestActionsMetrics{}, err
 	}
+
 	actions = normalizeActions(actions, 3)
 	if len(actions) == 0 {
-		return nil, errSuggestedActionsParseFail
+		return nil, suggestActionsMetrics{}, errSuggestedActionsParseFail
 	}
-	return actions, nil
+
+	filtered, metrics := scoreAndFilterSuggestedActions(actions, entityType, entityID, pack)
+	return filtered, metrics, nil
 }
 
-func (s *ActionService) logSuggestActionsAudit(ctx context.Context, in SuggestActionsInput, prepared *suggestActionsContext, actionCount int) {
+func (s *ActionService) logSuggestActionsAudit(
+	ctx context.Context,
+	in SuggestActionsInput,
+	prepared *suggestActionsContext,
+	metrics suggestActionsMetrics,
+) {
 	entityType := in.EntityType
 	entityID := in.EntityID
 
 	_ = s.audit.LogWithDetails(ctx, in.WorkspaceID, in.UserID, audit.ActorTypeUser, "copilot.suggest_actions", &entityType, &entityID, &audit.EventDetails{
 		Metadata: map[string]any{
-			"permissionWhere":   prepared.filter.Where,
-			"filteredCount":     prepared.evidencePack.FilteredCount,
-			"confidence":        string(prepared.evidencePack.Confidence),
-			"generated_actions": actionCount,
+			"permissionWhere":    prepared.filter.Where,
+			"filteredCount":      prepared.evidencePack.FilteredCount,
+			"confidence":         string(prepared.evidencePack.Confidence),
+			"generated_actions":  metrics.generated,
+			"returned_actions":   metrics.returned,
+			"discarded_actions":  metrics.generated - metrics.returned,
+			"discard_categories": metrics.discardReasons,
 		},
 	}, audit.OutcomeSuccess)
 }
@@ -371,6 +403,156 @@ func normalizeActions(actions []SuggestedAction, limit int) []SuggestedAction {
 		out = append(out, action)
 	}
 	return out
+}
+
+func scoreAndFilterSuggestedActions(
+	actions []SuggestedAction,
+	entityType, entityID string,
+	pack *knowledge.EvidencePack,
+) ([]SuggestedAction, suggestActionsMetrics) {
+	metrics := suggestActionsMetrics{
+		generated:      len(actions),
+		discardReasons: map[string]int{},
+	}
+	filtered := make([]SuggestedAction, 0, len(actions))
+
+	for _, action := range actions {
+		reason := eligibilityDiscardReason(action, entityType, entityID)
+		if reason != "" {
+			metrics.discardReasons[reason]++
+			continue
+		}
+		action.ConfidenceScore = scoreSuggestedAction(pack, action)
+		action.ConfidenceLevel = scoreToConfidenceLevel(action.ConfidenceScore)
+		filtered = append(filtered, action)
+	}
+
+	metrics.returned = len(filtered)
+	return filtered, metrics
+}
+
+func eligibilityDiscardReason(action SuggestedAction, entityType, entityID string) string {
+	switch action.Tool {
+	case tool.BuiltinCreateTask:
+		return validateCreateTaskEligibility(action.Params, entityType, entityID)
+	case tool.BuiltinUpdateCase:
+		return validateUpdateCaseEligibility(action.Params, entityType, entityID)
+	case tool.BuiltinSendReply:
+		return validateSendReplyEligibility(action.Params, entityType, entityID)
+	default:
+		return "tool_not_allowed"
+	}
+}
+
+func validateCreateTaskEligibility(params map[string]any, entityType, entityID string) string {
+	if entityType != "case" && entityType != "lead" {
+		return "entity_not_supported"
+	}
+	if !matchesStringParam(params, "entity_type", entityType) {
+		return "missing_or_mismatched_entity_type"
+	}
+	if !matchesStringParam(params, "entity_id", entityID) {
+		return "missing_or_mismatched_entity_id"
+	}
+	return ""
+}
+
+func validateUpdateCaseEligibility(params map[string]any, entityType, entityID string) string {
+	if entityType != "case" {
+		return "tool_entity_mismatch"
+	}
+	if !matchesStringParam(params, "case_id", entityID) {
+		return "missing_or_mismatched_case_id"
+	}
+	return ""
+}
+
+func validateSendReplyEligibility(params map[string]any, entityType, entityID string) string {
+	if entityType != "case" {
+		return "tool_entity_mismatch"
+	}
+	if !matchesStringParam(params, "case_id", entityID) {
+		return "missing_or_mismatched_case_id"
+	}
+	if !hasRequiredStringParam(params, "body") {
+		return "missing_reply_body"
+	}
+	return ""
+}
+
+func matchesStringParam(params map[string]any, key, expected string) bool {
+	value, ok := params[key]
+	if !ok {
+		return false
+	}
+	asString, ok := value.(string)
+	return ok && strings.TrimSpace(asString) == expected
+}
+
+func hasRequiredStringParam(params map[string]any, key string) bool {
+	value, ok := params[key]
+	if !ok {
+		return false
+	}
+	asString, ok := value.(string)
+	return ok && strings.TrimSpace(asString) != ""
+}
+
+func scoreSuggestedAction(pack *knowledge.EvidencePack, action SuggestedAction) float64 {
+	score := baseScoreFromConfidence(pack)
+	if hasTraceableActionEvidence(pack) {
+		score += 0.15
+	}
+	if len(action.Params) > 0 {
+		score += 0.10
+	}
+	if action.Description != "" {
+		score += 0.05
+	}
+	if score > 1 {
+		return 1
+	}
+	return score
+}
+
+func baseScoreFromConfidence(pack *knowledge.EvidencePack) float64 {
+	if pack == nil {
+		return 0.2
+	}
+	switch pack.Confidence {
+	case knowledge.ConfidenceHigh:
+		return 0.75
+	case knowledge.ConfidenceMedium:
+		return 0.55
+	default:
+		return 0.35
+	}
+}
+
+func hasTraceableActionEvidence(pack *knowledge.EvidencePack) bool {
+	if pack == nil {
+		return false
+	}
+	for _, source := range pack.Sources {
+		if source.ID != "" {
+			return true
+		}
+		if source.Snippet != nil && strings.TrimSpace(*source.Snippet) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func scoreToConfidenceLevel(score float64) ConfidenceLevel {
+	switch {
+	case score >= 0.75:
+		return ConfidenceLevelHigh
+	case score >= 0.5:
+		return ConfidenceLevelMedium
+	default:
+		return ConfidenceLevelLow
+	}
 }
 
 func dedupeStrings(values []string) []string {
