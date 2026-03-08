@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 type stubEmbedder struct {
 	// embedFunc is called by Embed(). Override per test.
 	embedFunc func(ctx context.Context, req llm.EmbedRequest) (*llm.EmbedResponse, error)
-	callCount int
+	callCount int32
 }
 
 func newStubEmbedder(dims int) *stubEmbedder {
@@ -41,7 +42,7 @@ func newStubEmbedder(dims int) *stubEmbedder {
 }
 
 func (s *stubEmbedder) Embed(ctx context.Context, req llm.EmbedRequest) (*llm.EmbedResponse, error) {
-	s.callCount++
+	atomic.AddInt32(&s.callCount, 1)
 	return s.embedFunc(ctx, req)
 }
 
@@ -124,8 +125,8 @@ func TestEmbedderService_EmbedChunks_Success(t *testing.T) {
 	}
 
 	// Verify stub was called once (batch)
-	if stub.callCount != 1 {
-		t.Errorf("expected 1 LLM call (batch), got %d", stub.callCount)
+	if got := atomic.LoadInt32(&stub.callCount); got != 1 {
+		t.Errorf("expected 1 LLM call (batch), got %d", got)
 	}
 }
 
@@ -156,8 +157,8 @@ func TestEmbedderService_EmbedChunks_NoChunks_Noop(t *testing.T) {
 		t.Fatalf("EmbedChunks should succeed for empty content: %v", err)
 	}
 
-	if stub.callCount != 0 {
-		t.Errorf("expected 0 LLM calls for empty doc, got %d", stub.callCount)
+	if got := atomic.LoadInt32(&stub.callCount); got != 0 {
+		t.Errorf("expected 0 LLM calls for empty doc, got %d", got)
 	}
 }
 
