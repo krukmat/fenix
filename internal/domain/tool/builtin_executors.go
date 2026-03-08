@@ -75,7 +75,7 @@ func (e *CreateTaskExecutor) insertTaskActivity(ctx context.Context, workspaceID
 		) VALUES (?, ?, 'task', ?, ?, ?, ?, 'pending', ?, ?, ?)
 	`, taskID, workspaceID, in.EntityType, in.EntityID, in.OwnerID, in.Title, nullableString(in.DueDate), now, now)
 	if err != nil {
-		return "", "", fmt.Errorf("%w: create activity: %v", ErrBuiltinExecutionFailed, err)
+		return "", "", fmt.Errorf("%w: create activity: %w", ErrBuiltinExecutionFailed, err)
 	}
 	return taskID, now, nil
 }
@@ -135,7 +135,7 @@ func (e *UpdateCaseExecutor) updateCase(ctx context.Context, workspaceID string,
 	}
 	updated, err := e.cases.Update(ctx, workspaceID, in.CaseID, buildUpdateCaseInput(existing, in))
 	if err != nil {
-		return nil, fmt.Errorf("%w: update case: %v", ErrBuiltinExecutionFailed, err)
+		return nil, fmt.Errorf("%w: update case: %w", ErrBuiltinExecutionFailed, err)
 	}
 	return updated, nil
 }
@@ -231,7 +231,7 @@ func (e *SendReplyExecutor) insertReplyNote(ctx context.Context, workspaceID str
 		) VALUES (?, ?, 'case', ?, ?, ?, ?, ?, ?)
 	`, noteID, workspaceID, in.CaseID, authorID, in.Body, in.IsInternal, now, now)
 	if err != nil {
-		return "", "", fmt.Errorf("%w: create note: %v", ErrBuiltinExecutionFailed, err)
+		return "", "", fmt.Errorf("%w: create note: %w", ErrBuiltinExecutionFailed, err)
 	}
 	return noteID, now, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
@@ -97,7 +98,7 @@ func (r *ToolRegistry) EnsureBuiltInToolDefinitions(ctx context.Context, workspa
 	for _, def := range builtinDefinitions() {
 		if _, err := r.getToolDefinitionByName(ctx, workspaceID, def.Name); err == nil {
 			continue
-		} else if err != ErrToolDefinitionNotFound {
+		} else if !errors.Is(err, ErrToolDefinitionNotFound) {
 			return err
 		}
 
@@ -187,14 +188,14 @@ func RegisterBuiltInExecutors(registry *ToolRegistry, services BuiltinServices) 
 }
 
 func registerBuiltinExecutor(registry *ToolRegistry, name string, executor ToolExecutor) error {
-	if err := registry.Register(name, executor); err != nil && err != ErrToolExecutorAlreadyRegistered {
+	if err := registry.Register(name, executor); err != nil && !errors.Is(err, ErrToolExecutorAlreadyRegistered) {
 		return err
 	}
 	return nil
 }
 
 func isUniqueConstraintError(err error) bool {
-	if err == nil || err == sql.ErrNoRows {
+	if err == nil || errors.Is(err, sql.ErrNoRows) {
 		return false
 	}
 	return strings.Contains(err.Error(), "UNIQUE constraint failed")

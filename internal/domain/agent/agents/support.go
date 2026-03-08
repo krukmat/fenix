@@ -232,7 +232,7 @@ func (a *SupportAgent) executeAction(ctx context.Context, runID string, action *
 func (a *SupportAgent) loadSupportCase(ctx context.Context, workspaceID, caseID string) (*crm.CaseTicket, error) {
 	caseTicket, err := crm.NewCaseService(a.db).Get(ctx, workspaceID, caseID)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrSupportCaseContextLoadFailed, err)
+		return nil, fmt.Errorf("%w: %w", ErrSupportCaseContextLoadFailed, err)
 	}
 	return caseTicket, nil
 }
