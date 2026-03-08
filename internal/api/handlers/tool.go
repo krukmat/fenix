@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -215,9 +216,9 @@ func writeToolError(w http.ResponseWriter, err error) {
 	switch {
 	case err == nil:
 		return
-	case err == tool.ErrToolDefinitionNotFound:
+	case errors.Is(err, tool.ErrToolDefinitionNotFound):
 		writeError(w, http.StatusNotFound, "tool definition not found")
-	case err == tool.ErrToolDefinitionInvalid:
+	case errors.Is(err, tool.ErrToolDefinitionInvalid):
 		writeError(w, http.StatusBadRequest, err.Error())
 	default:
 		writeError(w, http.StatusBadRequest, err.Error())

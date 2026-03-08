@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -122,10 +123,5 @@ func writeCopilotChatError(w http.ResponseWriter, err error) {
 }
 
 func errorAs(err error, target *chatRequestError) bool {
-	reqErr, ok := err.(chatRequestError)
-	if !ok {
-		return false
-	}
-	*target = reqErr
-	return true
+	return errors.As(err, target)
 }

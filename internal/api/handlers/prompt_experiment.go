@@ -102,7 +102,7 @@ func buildStartExperimentInput(w http.ResponseWriter, r *http.Request) (agent.St
 	}
 	req, err := decodeStartExperimentRequest(r)
 	if err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, errInvalidBody, http.StatusBadRequest)
 		return agent.StartPromptExperimentInput{}, false
 	}
 	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
@@ -136,7 +136,7 @@ func buildStopExperimentInput(w http.ResponseWriter, r *http.Request) (agent.Sto
 	}
 	req, err := decodeStopExperimentRequest(r)
 	if err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, errInvalidBody, http.StatusBadRequest)
 		return agent.StopPromptExperimentInput{}, false
 	}
 	return agent.StopPromptExperimentInput{

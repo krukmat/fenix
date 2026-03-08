@@ -125,7 +125,7 @@ func (h *PromptHandler) Create(w http.ResponseWriter, r *http.Request) {
 func decodeCreatePromptRequest(r *http.Request) (CreatePromptVersionRequest, error) {
 	var req CreatePromptVersionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return req, fmt.Errorf("invalid request body")
+		return req, errors.New(errInvalidBody)
 	}
 	if req.AgentDefinitionID == "" || req.SystemPrompt == "" {
 		return req, fmt.Errorf("missing required fields")
@@ -192,7 +192,7 @@ func writePromoteError(w http.ResponseWriter, err error) {
 }
 
 func isPromptNotFoundError(err error) bool {
-	if err == sql.ErrNoRows || errors.Is(err, agent.ErrPromptVersionNotFound) {
+	if errors.Is(err, sql.ErrNoRows) || errors.Is(err, agent.ErrPromptVersionNotFound) {
 		return true
 	}
 	msg := err.Error()

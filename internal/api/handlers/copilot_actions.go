@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
@@ -154,10 +155,5 @@ func writeCopilotActionsError(w http.ResponseWriter, err error) {
 }
 
 func errorAsAction(err error, target *actionRequestError) bool {
-	reqErr, ok := err.(actionRequestError)
-	if !ok {
-		return false
-	}
-	*target = reqErr
-	return true
+	return errors.As(err, target)
 }

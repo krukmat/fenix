@@ -124,7 +124,7 @@ func (s *PromptService) GetActivePrompt(ctx context.Context, workspaceID, agentI
 		WorkspaceID:       workspaceID,
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("no active prompt for agent %s", agentID)
 		}
 		return nil, fmt.Errorf("get active: %w", err)
