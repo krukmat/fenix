@@ -95,29 +95,10 @@ func (o *Orchestrator) RecoverRun(ctx context.Context, workspaceID, runID string
 	if err != nil {
 		return nil, err
 	}
-	if run.Status != StatusRunning {
+	if !runNeedsRecovery(run) {
 		return run, nil
 	}
-
-	tx, current, err := o.loadRecoverableStep(ctx, workspaceID, runID)
-	if err != nil || current == nil {
-		if err == nil && current == nil {
-			return run, nil
-		}
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	if shouldFailRecovery(current) {
-		return o.failRecoveredRun(ctx, tx, run, current)
-	}
-	if err := queueRetryStepTx(ctx, tx, workspaceID, runID, current); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return o.GetAgentRun(ctx, workspaceID, runID)
+	return o.recoverRunningRun(ctx, run)
 }
 
 func (o *Orchestrator) createInitialRunStep(ctx context.Context, run *Run) error {
@@ -533,6 +514,26 @@ func calculateRunLatency(startedAt time.Time) *int64 {
 	return &latency
 }
 
+func runNeedsRecovery(run *Run) bool {
+	return run.Status == StatusRunning
+}
+
+func (o *Orchestrator) recoverRunningRun(ctx context.Context, run *Run) (*Run, error) {
+	tx, current, err := o.loadRecoverableStep(ctx, run.WorkspaceID, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	if current == nil {
+		return run, nil
+	}
+	defer tx.Rollback()
+
+	if shouldFailRecovery(current) {
+		return o.failRecoveredRun(ctx, tx, run, current)
+	}
+	return o.retryRecoveredRun(ctx, tx, run, current)
+}
+
 func (o *Orchestrator) loadRecoverableStep(ctx context.Context, workspaceID, runID string) (*sql.Tx, *RunStep, error) {
 	tx, err := o.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -579,6 +580,16 @@ func queueRetryStepTx(ctx context.Context, tx *sql.Tx, workspaceID, runID string
 		return err
 	}
 	return insertRunStepTx(ctx, tx, retryStepFromCurrent(workspaceID, runID, current))
+}
+
+func (o *Orchestrator) retryRecoveredRun(ctx context.Context, tx *sql.Tx, run *Run, current *RunStep) (*Run, error) {
+	if err := queueRetryStepTx(ctx, tx, run.WorkspaceID, run.ID, current); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return o.GetAgentRun(ctx, run.WorkspaceID, run.ID)
 }
 
 func retryStepFromCurrent(workspaceID, runID string, current *RunStep) *RunStep {
