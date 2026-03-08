@@ -210,7 +210,7 @@ func (s *ReindexService) HandleRecordChange(ctx context.Context, evt RecordChang
 	}
 
 	start := eventStartTime(evt)
-	opErr, attemptCount, retriesExhausted := s.processRecordChange(ctx, evt, item)
+	attemptCount, retriesExhausted, opErr := s.processRecordChange(ctx, evt, item)
 	s.logReindexAudit(ctx, evt, opErr, time.Since(start), attemptCount, retriesExhausted)
 	return opErr
 }
@@ -237,20 +237,20 @@ func (s *ReindexService) processRecordChange(
 	ctx context.Context,
 	evt RecordChangedEvent,
 	item *sqlcgen.KnowledgeItem,
-) (error, int, bool) {
+) (int, bool, error) {
 	for attempt := 1; attempt <= reindexMaxAttempts; attempt++ {
 		opErr := s.applyChange(ctx, evt, item)
 		if opErr == nil {
-			return nil, attempt, false
+			return attempt, false, nil
 		}
 		if !shouldRetryReindex(opErr) || attempt == reindexMaxAttempts {
-			return opErr, attempt, shouldRetryReindex(opErr)
+			return attempt, shouldRetryReindex(opErr), opErr
 		}
 		if waitErr := s.sleepFn(ctx, retryDelay(attempt)); waitErr != nil {
-			return waitErr, attempt, false
+			return attempt, false, waitErr
 		}
 	}
-	return nil, 0, false
+	return 0, false, nil
 }
 
 func (s *ReindexService) getLinkedKnowledgeItem(ctx context.Context, evt RecordChangedEvent) (*sqlcgen.KnowledgeItem, error) {
