@@ -170,12 +170,6 @@ jobs:
           echo "Installed linters (filtered):"
           golangci-lint linters | grep -Ei "gocognit|maintidx"
 
-      - name: Gate gocognit (explicit)
-        run: golangci-lint run --enable-only=gocognit ./...
-
-      - name: Gate maintidx (explicit)
-        run: golangci-lint run --enable-only=maintidx ./...
-
       - name: Run linter
         run: golangci-lint run ./...
 
@@ -183,16 +177,13 @@ jobs:
         run: make test
 
       - name: Race stability gate
-        run: make race-stability
+        run: RACE_STABILITY_COUNT=3 make race-stability
 
-      - name: Global coverage gate
-        run: COVERAGE_MIN=79 make coverage-gate
-
-      - name: App coverage gate
-        run: COVERAGE_APP_MIN=79 make coverage-app-gate
+      - name: Coverage gate
+        run: COVERAGE_MIN=83 make coverage-gate
 
       - name: TDD coverage gate
-        run: TDD_COVERAGE_MIN=79 make coverage-tdd
+        run: TDD_COVERAGE_MIN=83 make coverage-tdd
 
       - name: Build binary
         run: make build
@@ -202,6 +193,35 @@ jobs:
         with:
           files: ./coverage.out
           fail_ci_if_error: false
+
+      - name: Agent attribution
+        id: attribution
+        run: |
+          AGENTS=$(git log -1 --format="%B" | grep "^AI-Agent:" | sed 's/^AI-Agent: //' | paste -sd ',' || echo "human")
+          if [ -z "$AGENTS" ]; then AGENTS="human"; fi
+          echo "agents=$AGENTS" >> $GITHUB_OUTPUT
+          echo "Commit attributed to: $AGENTS"
+
+      - name: Save quality snapshot
+        run: |
+          AGENTS="${{ steps.attribution.outputs.agents }}"
+          COMMIT=$(git rev-parse --short HEAD)
+          COVERAGE=$(go tool cover -func=coverage_app.out 2>/dev/null | awk '/^total:/ {gsub("%","",$$3); print $$3}' || echo "0")
+          cat > quality-snapshot.json <<EOF
+          {
+            "commit": "$COMMIT",
+            "agents": "$AGENTS",
+            "coverage": $COVERAGE,
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          cat quality-snapshot.json
+
+      - name: Upload quality snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-snapshot-${{ github.sha }}
+          path: quality-snapshot.json
 
   contract:
     name: API Contract Tests

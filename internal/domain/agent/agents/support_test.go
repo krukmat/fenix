@@ -327,3 +327,31 @@ func supportRunContext(ctx context.Context, workspaceID, ownerID string) context
 	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, workspaceID)
 	return context.WithValue(ctx, ctxkeys.UserID, ownerID)
 }
+
+func TestSupportAgent_NewSupportAgent_Constructor(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+	orch := agent.NewOrchestrator(db)
+	registry := tool.NewToolRegistry(db)
+	sa := NewSupportAgent(orch, registry, &mockKnowledgeSearch{results: emptyResults()})
+	if sa == nil {
+		t.Fatal("NewSupportAgent returned nil")
+	}
+}
+
+func TestSupportAgent_Objective_ReturnsJSON(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+	obj := sa.Objective()
+	if len(obj) == 0 {
+		t.Fatal("Objective() returned empty")
+	}
+}
+
+func TestSupportError_Error_ReturnsMessage(t *testing.T) {
+	err := ErrSupportDBNotConfigured
+	if err.Error() == "" {
+		t.Fatal("SupportError.Error() should not be empty")
+	}
+}

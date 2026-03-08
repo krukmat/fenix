@@ -421,3 +421,74 @@ func TestEvalHandler_ListSuites_MissingUserIDWithAuthorizer_401(t *testing.T) {
 		t.Errorf("expected status 401, got %d", rr.Code)
 	}
 }
+
+func TestEvalHandler_RunEval_MissingWorkspace_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	h := NewEvalHandler(eval.NewSuiteService(db), eval.NewRunnerService(db))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/run", bytes.NewBufferString(`{"eval_suite_id":"x"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.RunEval(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestEvalHandler_RunEval_MissingSuiteID_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
+	h := NewEvalHandler(eval.NewSuiteService(db), eval.NewRunnerService(db))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/run", bytes.NewBufferString(`{}`))
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.RunEval(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestEvalHandler_RunEval_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
+	h := NewEvalHandler(eval.NewSuiteService(db), eval.NewRunnerService(db))
+	db.Close()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/run", bytes.NewBufferString(`{"eval_suite_id":"nonexistent"}`))
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.RunEval(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestEvalHandler_ListRuns_MissingWorkspace_400(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	h := NewEvalHandler(eval.NewSuiteService(db), eval.NewRunnerService(db))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/eval/runs", nil)
+	rr := httptest.NewRecorder()
+	h.ListRuns(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestEvalHandler_ListRuns_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
+	h := NewEvalHandler(eval.NewSuiteService(db), eval.NewRunnerService(db))
+	db.Close()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/eval/runs", nil)
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+	h.ListRuns(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}

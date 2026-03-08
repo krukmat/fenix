@@ -398,3 +398,73 @@ func TestCaseHandler_UpdateCase_NotFound_Returns404(t *testing.T) {
 		t.Fatalf("expected 404, got %d body=%s", rr.Code, rr.Body.String())
 	}
 }
+
+func TestCaseHandler_GetCase_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewCaseHandler(crm.NewCaseService(db))
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "case-1")
+	req := httptest.NewRequest(http.MethodGet, "/cases/case-1", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.GetCase(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestCaseHandler_ListCases_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewCaseHandler(crm.NewCaseService(db))
+	db.Close()
+	req := httptest.NewRequest(http.MethodGet, "/cases", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+	h.ListCases(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestCaseHandler_UpdateCase_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewCaseHandler(crm.NewCaseService(db))
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "case-1")
+	req := httptest.NewRequest(http.MethodPut, "/cases/case-1", bytes.NewBufferString(`{"subject":"x"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.UpdateCase(rr, req)
+	if rr.Code != http.StatusInternalServerError && rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 or 500, got %d", rr.Code)
+	}
+}
+
+func TestCaseHandler_DeleteCase_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewCaseHandler(crm.NewCaseService(db))
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "case-1")
+	req := httptest.NewRequest(http.MethodDelete, "/cases/case-1", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.DeleteCase(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}

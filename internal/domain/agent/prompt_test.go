@@ -329,3 +329,41 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 	return db
 }
+
+func TestListPromptVersions_Success(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	svc := newTestPromptService(t, db)
+	ctx := context.Background()
+
+	// Create a version to list
+	_, err := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: "agent_support",
+		SystemPrompt:      "List test prompt.",
+		Config:            `{}`,
+	})
+	if err != nil {
+		t.Fatalf("CreatePromptVersion: %v", err)
+	}
+
+	versions, err := svc.ListPromptVersions(ctx, "ws_test", "agent_support")
+	if err != nil {
+		t.Fatalf("ListPromptVersions: %v", err)
+	}
+	if len(versions) == 0 {
+		t.Fatal("expected at least one prompt version")
+	}
+}
+
+func TestGetPromptVersionByID_NotFound(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	svc := newTestPromptService(t, db)
+	_, err := svc.GetPromptVersionByID(context.Background(), "ws_test", "nonexistent-id")
+	if err == nil {
+		t.Fatal("expected error for nonexistent ID")
+	}
+}

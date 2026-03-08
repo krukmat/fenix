@@ -568,3 +568,55 @@ func randID() string {
 	n := atomic.AddInt64(&randIDCounter, 1)
 	return time.Now().Format("20060102150405") + "-" + fmt.Sprintf("%d", n)
 }
+
+func TestAccountHandler_ListAccounts_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewAccountHandler(crm.NewAccountService(db))
+	db.Close()
+	req := httptest.NewRequest("GET", "/accounts", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+	h.ListAccounts(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestAccountHandler_UpdateAccount_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewAccountHandler(crm.NewAccountService(db))
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "acc-1")
+	req := httptest.NewRequest("PUT", "/accounts/acc-1", bytes.NewBufferString(`{"name":"X"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.UpdateAccount(rr, req)
+	if rr.Code != http.StatusInternalServerError && rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 or 500, got %d", rr.Code)
+	}
+}
+
+func TestAccountHandler_DeleteAccount_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewAccountHandler(crm.NewAccountService(db))
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "acc-1")
+	req := httptest.NewRequest("DELETE", "/accounts/acc-1", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.DeleteAccount(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}

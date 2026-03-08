@@ -206,3 +206,54 @@ func TestAttachmentHandler_DeleteAttachment_MissingWorkspace_Returns400(t *testi
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 }
+
+func TestAttachmentHandler_GetAttachment_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewAttachmentHandler(crm.NewAttachmentService(db))
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "att-1")
+	req := httptest.NewRequest("GET", "/attachments/att-1", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.GetAttachment(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestAttachmentHandler_ListAttachments_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewAttachmentHandler(crm.NewAttachmentService(db))
+	db.Close()
+	req := httptest.NewRequest("GET", "/attachments", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+	h.ListAttachments(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestAttachmentHandler_DeleteAttachment_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewAttachmentHandler(crm.NewAttachmentService(db))
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "att-1")
+	req := httptest.NewRequest("DELETE", "/attachments/att-1", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.DeleteAttachment(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}

@@ -369,3 +369,24 @@ func TestProspectingAgent_Run_HighSensitivity_CreatesApprovalAndBlocks(t *testin
 }
 
 func contains(s, sub string) bool { return strings.Contains(s, sub) }
+
+func TestProspectingAgent_Objective_ReturnsJSON(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+	a := newTestProspectingAgent(t, db, &mockKnowledgeSearch{results: emptyResults()}, &mockLLMProvider{}, &mockLeadGetter{}, &mockAccountGetter{})
+	obj := a.Objective()
+	if len(obj) == 0 {
+		t.Fatal("Objective() returned empty")
+	}
+	var m map[string]any
+	if err := json.Unmarshal(obj, &m); err != nil {
+		t.Fatalf("Objective() not valid JSON: %v", err)
+	}
+}
+
+func TestProspectingError_Error_ReturnsMessage(t *testing.T) {
+	err := ErrProspectingDailyLeadLimitExceeded
+	if err.Error() == "" {
+		t.Fatal("ProspectingError.Error() should not be empty")
+	}
+}

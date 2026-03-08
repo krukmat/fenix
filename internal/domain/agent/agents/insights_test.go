@@ -244,3 +244,46 @@ func TestParseQueryIntent_BacklogPriorityOverCaseVolume(t *testing.T) {
 		})
 	}
 }
+
+func TestInsightsAgent_Objective_ReturnsJSON(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+	a := newTestInsightsAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+	obj := a.Objective()
+	if len(obj) == 0 {
+		t.Fatal("Objective() returned empty")
+	}
+	var m map[string]any
+	if err := json.Unmarshal(obj, &m); err != nil {
+		t.Fatalf("Objective() not valid JSON: %v", err)
+	}
+}
+
+func TestInsightsError_Error_ReturnsMessage(t *testing.T) {
+	err := ErrInsightsQueryRequired
+	if err.Error() != "query is required" {
+		t.Fatalf("unexpected message: %q", err.Error())
+	}
+}
+
+func TestInsightsAgent_MarkRunFailed(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+	workspaceID := "ws-insights-markfailed"
+	insertInsightsAgentDefinition(t, db, workspaceID)
+	_ = insertProspectingTestUser(t, db, workspaceID)
+	a := newTestInsightsAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+
+	orch := agent.NewOrchestrator(db)
+	run, err := orch.TriggerAgent(context.Background(), agent.TriggerAgentInput{
+		AgentID:     "insights-agent",
+		WorkspaceID: workspaceID,
+		TriggerType: agent.TriggerTypeManual,
+	})
+	if err != nil {
+		t.Fatalf("TriggerAgent: %v", err)
+	}
+	if err := a.markRunFailed(context.Background(), run); err != nil {
+		t.Fatalf("markRunFailed: %v", err)
+	}
+}

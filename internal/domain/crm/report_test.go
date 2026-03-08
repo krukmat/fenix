@@ -148,3 +148,19 @@ func seedCaseForReports(t *testing.T, db DBTX, wsID, ownerID string) {
 type DBTX interface {
 	Exec(query string, args ...any) (sql.Result, error)
 }
+
+
+func TestReportService_GetSupportBacklog_EmptyMTTR(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	// No closed cases → AvgResolutionDays is NULL → safeFloat64Ptr(nil) path
+	svc := crm.NewReportService(db)
+	report, err := svc.GetSupportBacklog(context.Background(), wsID, 30)
+	if err != nil {
+		t.Fatalf("GetSupportBacklog: %v", err)
+	}
+	if report == nil {
+		t.Fatal("expected non-nil report")
+	}
+}

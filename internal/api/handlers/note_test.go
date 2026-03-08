@@ -324,3 +324,55 @@ func TestNoteHandler_DeleteNote_Success(t *testing.T) {
 		t.Fatalf("expected 204, got %d body=%s", rr.Code, rr.Body.String())
 	}
 }
+
+func TestNoteHandler_ListNotes_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewNoteHandler(crm.NewNoteService(db))
+	db.Close()
+	req := httptest.NewRequest("GET", "/notes", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+	h.ListNotes(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestNoteHandler_UpdateNote_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewNoteHandler(crm.NewNoteService(db))
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "note-1")
+	req := httptest.NewRequest("PUT", "/notes/note-1", bytes.NewBufferString(`{"content":"x"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.UpdateNote(rr, req)
+	if rr.Code != http.StatusInternalServerError && rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 or 500, got %d", rr.Code)
+	}
+}
+
+func TestNoteHandler_DeleteNote_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewNoteHandler(crm.NewNoteService(db))
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "note-1")
+	req := httptest.NewRequest("DELETE", "/notes/note-1", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.DeleteNote(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}

@@ -2,7 +2,7 @@
 # Task 1.1: Project Setup
 # Following implementation plan exactly
 
-.PHONY: all test build run lint fmt complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-app-gate coverage-tdd check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check contract-test contract-test-strict trace-report
+.PHONY: all test build run lint fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check _ci-traceability contract-test contract-test-strict trace-report install-hooks
 
 # Variables
 BINARY_NAME=fenix
@@ -106,67 +106,48 @@ pattern-refactor-gate:
 # Alias semántico para oportunidades de refactor con patrones (dupl + jscpd + evidencia)
 pattern-opportunities-gate: pattern-refactor-gate
 
-# Re-run race-sensitive test package multiple times to catch flaky data races
+# Re-run race-sensitive packages multiple times to catch flaky data races.
+# Covers handlers (HTTP), copilot (SSE streaming), agent (orchestrator concurrency),
+# and tool (execution pipeline).
 RACE_STABILITY_COUNT?=3
 race-stability:
 	@echo "Running race stability checks (count: $(RACE_STABILITY_COUNT))..."
-	go test -race -count=$(RACE_STABILITY_COUNT) ./internal/api/handlers
-
-# Coverage gate over app-relevant profile generated from `coverage.out`.
-# Excludes generated/sqlc and bootstrap wiring to avoid penalizing quality gate
-# with non-business code that is intentionally not unit tested.
-# Task 2.6 baby-steps phase 3 target.
-COVERAGE_MIN?=79
-coverage-gate:
-	@echo "Checking global coverage threshold ($(COVERAGE_MIN)%)..."
-	@awk 'NR==1{print; next} \
-		$$0 !~ /internal\/infra\/sqlite\/sqlcgen\// && \
-		$$0 !~ /cmd\/fenix\/main.go/ && \
-		$$0 !~ /cmd\/frtrace\/main.go/ && \
-		$$0 !~ /internal\/version\// && \
-		$$0 !~ /ruleguard\// {print}' coverage.out > coverage_gate.out; \
-	total=$$(go tool cover -func=coverage_gate.out | awk '/^total:/ {gsub("%", "", $$3); print $$3}'); \
-	if [ -z "$$total" ]; then \
-		echo "FAILED: could not read total coverage from coverage_gate.out"; \
-		exit 1; \
-	fi; \
-	echo "Total coverage (gate scope): $$total%"; \
-	awk -v cov="$$total" -v min="$(COVERAGE_MIN)" 'BEGIN { if (cov+0 < min+0) { exit 1 } }' || { \
-		echo "FAILED: total coverage $$total% is below threshold $(COVERAGE_MIN)%"; \
-		exit 1; \
-	}; \
-	echo "PASSED: coverage gate met"
+	go test -race -count=$(RACE_STABILITY_COUNT) \
+		./internal/api/handlers \
+		./internal/domain/copilot \
+		./internal/domain/agent \
+		./internal/domain/tool
 
 # Coverage over application code (excluding generated/sqlc and bootstrap wiring)
-# Baby step phase 3 target towards 80%.
-COVERAGE_APP_MIN?=79
+COVERAGE_APP_MIN?=83
 coverage-app:
 	@echo "Generating app-only coverage profile (excluding generated/bootstrap code)..."
 	@awk 'NR==1{print; next} \
 		$$0 !~ /internal\/infra\/sqlite\/sqlcgen\// && \
+		$$0 !~ /internal\/server\// && \
 		$$0 !~ /cmd\/fenix\/main.go/ && \
 		$$0 !~ /cmd\/frtrace\/main.go/ && \
 		$$0 !~ /internal\/version\// && \
 		$$0 !~ /ruleguard\// {print}' coverage.out > coverage_app.out
 	@go tool cover -func=coverage_app.out | tail -n 1
 
-coverage-app-gate: coverage-app
-	@echo "Checking app coverage threshold ($(COVERAGE_APP_MIN)%)..."
+COVERAGE_MIN?=83
+coverage-gate: coverage-app
+	@echo "Checking coverage threshold ($(COVERAGE_MIN)%)..."
 	@total=$$(go tool cover -func=coverage_app.out | awk '/^total:/ {gsub("%", "", $$3); print $$3}'); \
 	if [ -z "$$total" ]; then \
 		echo "FAILED: could not read total coverage from coverage_app.out"; \
 		exit 1; \
 	fi; \
-	echo "App coverage: $$total%"; \
-	awk -v cov="$$total" -v min="$(COVERAGE_APP_MIN)" 'BEGIN { if (cov+0 < min+0) { exit 1 } }' || { \
-		echo "FAILED: app coverage $$total% is below threshold $(COVERAGE_APP_MIN)%"; \
+	echo "Coverage (gate scope): $$total%"; \
+	awk -v cov="$$total" -v min="$(COVERAGE_MIN)" 'BEGIN { if (cov+0 < min+0) { exit 1 } }' || { \
+		echo "FAILED: coverage $$total% is below threshold $(COVERAGE_MIN)%"; \
 		exit 1; \
 	}; \
-	echo "PASSED: app coverage gate met"
+	echo "PASSED: coverage gate met"
 
 # Additional gate focused on TDD-heavy packages
-# Baby step phase 3 target towards 80%.
-TDD_COVERAGE_MIN?=79
+TDD_COVERAGE_MIN?=83
 coverage-tdd:
 	@echo "Checking TDD package coverage threshold ($(TDD_COVERAGE_MIN)%)..."
 	go test -coverprofile=coverage_tdd.out ./internal/api ./internal/api/handlers ./internal/domain/knowledge ./pkg/auth >/tmp/tdd_coverage.log 2>&1
@@ -187,6 +168,16 @@ coverage-tdd:
 fmt:
 	@echo "Formatting code..."
 	go fmt ./...
+
+# Verify formatting without modifying files (used in make ci)
+fmt-check:
+	@echo "Checking formatting..."
+	@test -z "$$(gofmt -l ./internal ./cmd ./pkg)" || { \
+		echo "FAILED: unformatted files found — run 'make fmt' first"; \
+		gofmt -l ./internal ./cmd ./pkg; \
+		exit 1; \
+	}
+	@echo "PASSED: all files correctly formatted"
 
 # Apply pending migrations
 migrate-up:
@@ -243,6 +234,30 @@ install-tools:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
 	@echo "Note: gocognit + maintidx are bundled with golangci-lint (no separate install needed)"
+	@$(MAKE) install-hooks
+
+# Install git hooks for agent attribution
+install-hooks:
+	@echo "Installing git hooks..."
+	@mkdir -p .git/hooks
+	@cp scripts/hooks/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@cp scripts/hooks/prepare-commit-msg .git/hooks/prepare-commit-msg
+	@chmod +x .git/hooks/prepare-commit-msg
+	@echo "DONE: git hooks installed"
+	@echo "      AI_AGENT must be set before every commit:"
+	@echo "      export AI_AGENT=claude-sonnet-4-6   # agente"
+	@echo "      export AI_AGENT=human               # commit humano"
+
+# Guard for traceability tools that require a Python venv with Doorstop installed.
+# Fails with a clear setup message if the venv is missing.
+_ci-traceability:
+	@test -f .venv/bin/doorstop || { \
+		echo "ERROR: Doorstop not found in .venv"; \
+		echo "Run: python -m venv .venv && .venv/bin/pip install doorstop"; \
+		exit 1; \
+	}
+	$(MAKE) doorstop-check trace-check
 
 # CI target - runs all checks (complexity/race/coverage gates before build)
 doorstop-check:
@@ -264,7 +279,7 @@ contract-test-strict: build
 trace-report:
 	@./.venv/bin/doorstop publish all ./docs/trace-report
 
-ci: fmt complexity pattern-refactor-gate doorstop-check trace-check lint test race-stability coverage-gate coverage-app-gate coverage-tdd build contract-test
+ci: fmt-check complexity pattern-refactor-gate _ci-traceability lint test race-stability coverage-gate coverage-tdd build contract-test-strict
 	@echo "All CI checks passed!"
 
 # Version info
@@ -290,15 +305,15 @@ help:
 	@echo "  make pattern-refactor-gate - Check evidence/signals for design-pattern refactors"
 	@echo "  make pattern-opportunities-gate - Alias for pattern-refactor-gate"
 	@echo "  make race-stability    - Run race checks repeatedly on handler tests"
-	@echo "  make coverage-gate     - Enforce global coverage threshold"
-	@echo "  make coverage-app-gate - Enforce app-only coverage threshold"
-	@echo "  make coverage-tdd      - Enforce TDD package coverage threshold"
+	@echo "  make coverage-gate     - Enforce coverage threshold (85%)"
+	@echo "  make coverage-tdd      - Enforce TDD package coverage threshold (85%)"
 	@echo "  make doorstop-check    - Validate Doorstop requirement integrity"
 	@echo "  make trace-check       - Check FR-to-test traceability (Go scanner)"
 	@echo "  make contract-test     - Run API contract tests (Schemathesis)"
 	@echo "  make trace-report      - Publish traceability HTML report"
 	@echo "  make check             - Run all quality gates (complexity + lint + tests)"
 	@echo "  make fmt               - Format code"
+	@echo "  make fmt-check         - Verify formatting without modifying files"
 	@echo "  make migrate-up        - Apply migrations"
 	@echo "  make migrate-down      - Rollback migration"
 	@echo "  make migrate-create    - Create new migration"
@@ -306,7 +321,8 @@ help:
 	@echo "  make docker-build      - Build Docker image"
 	@echo "  make docker-run        - Run Docker container"
 	@echo "  make clean             - Clean build artifacts"
-	@echo "  make install-tools     - Install dev dependencies"
+	@echo "  make install-tools     - Install dev dependencies + git hooks"
+	@echo "  make install-hooks     - Install git hooks (agent attribution)"
 	@echo "  make ci                - Run all CI checks"
 	@echo "  make version           - Show version info"
 	@echo "  make help              - Show this help"

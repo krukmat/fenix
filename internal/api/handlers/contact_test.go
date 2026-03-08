@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -501,4 +502,75 @@ func createAccountForHandler(t *testing.T, db *sql.DB, workspaceID, ownerID stri
 		t.Fatalf("createAccountForHandler error = %v", err)
 	}
 	return id
+}
+
+func TestContactHandler_ListContacts_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := &ContactHandler{contactService: crm.NewContactService(db)}
+	db.Close()
+	req := httptest.NewRequest(http.MethodGet, "/contacts", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+	h.ListContacts(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestContactHandler_GetContact_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := &ContactHandler{contactService: crm.NewContactService(db)}
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "contact-1")
+	req := httptest.NewRequest(http.MethodGet, "/contacts/contact-1", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.GetContact(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestContactHandler_UpdateContact_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := &ContactHandler{contactService: crm.NewContactService(db)}
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "contact-1")
+	body := `{"firstName":"X"}`
+	req := httptest.NewRequest(http.MethodPut, "/contacts/contact-1", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.UpdateContact(rr, req)
+	if rr.Code != http.StatusInternalServerError && rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 or 500, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestContactHandler_DeleteContact_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := &ContactHandler{contactService: crm.NewContactService(db)}
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "contact-1")
+	req := httptest.NewRequest(http.MethodDelete, "/contacts/contact-1", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.DeleteContact(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
 }

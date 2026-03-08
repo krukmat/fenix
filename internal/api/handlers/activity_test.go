@@ -324,3 +324,36 @@ func TestBuildUpdateActivityInput_UsesExistingValues(t *testing.T) {
 		t.Fatalf("expected updated subject, got %q", got.Subject)
 	}
 }
+
+func TestActivityHandler_ListActivities_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewActivityHandler(crm.NewActivityService(db))
+	db.Close()
+	req := httptest.NewRequest("GET", "/activities", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+	h.ListActivities(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestActivityHandler_DeleteActivity_ServiceError_500(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewActivityHandler(crm.NewActivityService(db))
+	db.Close()
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "act-1")
+	req := httptest.NewRequest("DELETE", "/activities/act-1", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.DeleteActivity(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}

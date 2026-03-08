@@ -333,3 +333,37 @@ func TestRunnerService_ListRuns_ReturnsPaginated(t *testing.T) {
 		t.Errorf("expected 2 runs, got %d", len(runs))
 	}
 }
+
+func TestRunnerService_GetRun_Success(t *testing.T) {
+	db := mustOpenDB(t)
+	wsID := mustCreateWorkspace(t, db, "getrun")
+	suiteSvc := eval.NewSuiteService(db)
+	runnerSvc := eval.NewRunnerService(db)
+
+	suite, err := suiteSvc.Create(context.Background(), eval.CreateSuiteInput{
+		WorkspaceID: wsID,
+		Name:        "GetRun Suite",
+		Domain:      "general",
+		TestCases:   []eval.TestCase{{Input: "q", ExpectedKeywords: []string{"q"}, ShouldAbstain: false}},
+		Thresholds:  eval.Thresholds{},
+	})
+	if err != nil {
+		t.Fatalf("Create suite: %v", err)
+	}
+
+	run, err := runnerSvc.Run(context.Background(), eval.RunInput{
+		WorkspaceID: wsID,
+		EvalSuiteID: suite.ID,
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	got, err := runnerSvc.GetRun(context.Background(), wsID, run.ID)
+	if err != nil {
+		t.Fatalf("GetRun: %v", err)
+	}
+	if got.ID != run.ID {
+		t.Fatalf("expected ID=%s, got=%s", run.ID, got.ID)
+	}
+}

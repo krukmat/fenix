@@ -254,3 +254,24 @@ func TestKBAgent_Run_HighSensitivity_CreatesApprovalAndBlocksMutation(t *testing
 		t.Fatalf("approval action=%s want=kb.article.mutation", action)
 	}
 }
+
+func TestKBAgent_Objective_ReturnsJSON(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+	a := newTestKBAgent(t, db, &mockKnowledgeSearch{results: emptyResults()}, &mockKBCaseGetter{}, nil, nil)
+	obj := a.Objective()
+	if len(obj) == 0 {
+		t.Fatal("Objective() returned empty")
+	}
+	var m map[string]any
+	if err := json.Unmarshal(obj, &m); err != nil {
+		t.Fatalf("Objective() not valid JSON: %v", err)
+	}
+}
+
+func TestKBError_Error_ReturnsMessage(t *testing.T) {
+	err := ErrKBCaseIDRequired
+	if err.Error() == "" {
+		t.Fatal("KBError.Error() should not be empty")
+	}
+}

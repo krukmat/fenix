@@ -482,3 +482,19 @@ func randID() string {
 	n := atomic.AddInt64(&toolRandCounter, 1)
 	return time.Now().Format("20060102150405") + "-" + fmt.Sprintf("%d", n)
 }
+
+func TestExecutionError_Error_Format(t *testing.T) {
+	underlying := errors.New("underlying")
+	err := &ExecutionError{
+		ToolName: "my_tool",
+		Code:     ToolErrorInternal,
+		Err:      underlying,
+	}
+	msg := err.Error()
+	if msg == "" {
+		t.Fatal("Error() should not be empty")
+	}
+	if err.Unwrap() != underlying {
+		t.Fatal("Unwrap() should return underlying error")
+	}
+}
