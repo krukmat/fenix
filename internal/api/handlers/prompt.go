@@ -1,10 +1,10 @@
-// Task 3.9: Prompt Versioning
 package handlers
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -15,23 +15,23 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 )
 
-// PromptVersionService interface para inyección de dependencias
 type PromptVersionService interface {
 	CreatePromptVersion(ctx context.Context, input agent.CreatePromptVersionInput) (*agent.PromptVersion, error)
 	GetActivePrompt(ctx context.Context, workspaceID, agentID string) (*agent.PromptVersion, error)
 	ListPromptVersions(ctx context.Context, workspaceID, agentID string) ([]*agent.PromptVersion, error)
 	GetPromptVersionByID(ctx context.Context, workspaceID, promptVersionID string) (*agent.PromptVersion, error)
 	PromotePrompt(ctx context.Context, workspaceID, promptVersionID string) error
-	RollbackPrompt(ctx context.Context, workspaceID, agentID string) error
+	RollbackPrompt(ctx context.Context, workspaceID, promptVersionID string) error
+	StartPromptExperiment(ctx context.Context, input agent.StartPromptExperimentInput) (*agent.PromptExperiment, error)
+	ListPromptExperiments(ctx context.Context, workspaceID, agentID string) ([]*agent.PromptExperiment, error)
+	StopPromptExperiment(ctx context.Context, input agent.StopPromptExperimentInput) (*agent.PromptExperiment, error)
 }
 
-// PromptHandler gestiona endpoints de prompts
 type PromptHandler struct {
 	service PromptVersionService
 	authz   ActionAuthorizer
 }
 
-// NewPromptHandler crea un nuevo handler
 func NewPromptHandler(service PromptVersionService) *PromptHandler {
 	return &PromptHandler{service: service}
 }
@@ -40,7 +40,6 @@ func NewPromptHandlerWithAuthorizer(service PromptVersionService, authz ActionAu
 	return &PromptHandler{service: service, authz: authz}
 }
 
-// CreatePromptVersionRequest es el body para crear versión
 type CreatePromptVersionRequest struct {
 	AgentDefinitionID  string  `json:"agent_definition_id"`
 	SystemPrompt       string  `json:"system_prompt"`
@@ -48,7 +47,6 @@ type CreatePromptVersionRequest struct {
 	Config             *string `json:"config,omitempty"`
 }
 
-// PromptVersionResponse representa una versión en respuesta
 type PromptVersionResponse struct {
 	ID                 string                 `json:"id"`
 	AgentDefinitionID  string                 `json:"agent_definition_id"`
@@ -60,53 +58,44 @@ type PromptVersionResponse struct {
 	CreatedAt          string                 `json:"created_at"`
 }
 
-// List lista todas las versiones de un agente
-// GET /api/v1/admin/prompts?agent_id={id}
 func (h *PromptHandler) List(w http.ResponseWriter, r *http.Request) {
 	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.list") {
 		return
 	}
 
-	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
-	if !ok || workspaceID == "" {
+	workspaceID, ok := requirePromptWorkspaceID(r)
+	if !ok {
 		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
 		return
 	}
-
 	agentID := r.URL.Query().Get("agent_id")
 	if agentID == "" {
 		http.Error(w, "missing agent_id query param", http.StatusBadRequest)
 		return
 	}
 
-	versions, listErr := h.service.ListPromptVersions(r.Context(), workspaceID, agentID)
-	if listErr != nil {
-		http.Error(w, listErr.Error(), http.StatusInternalServerError)
+	versions, err := h.service.ListPromptVersions(r.Context(), workspaceID, agentID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	resp := map[string]interface{}{
-		"data": toPromptVersionResponses(versions),
-	}
 	w.Header().Set(headerContentType, mimeJSON)
-	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
+	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": toPromptVersionResponses(versions)}); encodeErr != nil {
 		http.Error(w, errFailedToEncode, http.StatusInternalServerError)
 	}
 }
 
-// Create crea una nueva versión de prompt
-// POST /api/v1/admin/prompts
 func (h *PromptHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.create") {
 		return
 	}
 
-	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
-	if !ok || workspaceID == "" {
+	workspaceID, ok := requirePromptWorkspaceID(r)
+	if !ok {
 		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
 		return
 	}
-
 	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
 
 	req, err := decodeCreatePromptRequest(r)
@@ -128,15 +117,11 @@ func (h *PromptHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := map[string]interface{}{
-		"data": toPromptVersionResponse(pv),
-	}
 	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(resp) // header already sent, error unrecoverable
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": toPromptVersionResponse(pv)})
 }
 
-// decodeCreatePromptRequest decodifica y valida el body del request de creación
 func decodeCreatePromptRequest(r *http.Request) (CreatePromptVersionRequest, error) {
 	var req CreatePromptVersionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -148,7 +133,6 @@ func decodeCreatePromptRequest(r *http.Request) (CreatePromptVersionRequest, err
 	return req, nil
 }
 
-// resolvePromptConfig retorna el config o '{}' si es nil
 func resolvePromptConfig(config *string) string {
 	if config == nil {
 		return errEmptyJSON
@@ -156,32 +140,30 @@ func resolvePromptConfig(config *string) string {
 	return *config
 }
 
-// Promote activa una versión
-// PUT /api/v1/admin/prompts/{id}/promote
 func (h *PromptHandler) Promote(w http.ResponseWriter, r *http.Request) {
 	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.promote") {
 		return
 	}
 
-	workspaceID, ok := getWorkspaceIDFromContext(r)
+	workspaceID, ok := requirePromptWorkspaceID(r)
 	if !ok {
 		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
 		return
 	}
-
 	promptVersionID, ok := getPromptVersionIDParam(w, r)
 	if !ok {
 		return
 	}
 
-	if !h.promotePromptVersion(w, r, workspaceID, promptVersionID) {
+	err := h.service.PromotePrompt(r.Context(), workspaceID, promptVersionID)
+	if err != nil {
+		writePromoteError(w, err)
 		return
 	}
-
 	h.respondWithPromptVersion(w, r, workspaceID, promptVersionID)
 }
 
-func getWorkspaceIDFromContext(r *http.Request) (string, bool) {
+func requirePromptWorkspaceID(r *http.Request) (string, bool) {
 	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
 	if !ok || workspaceID == "" {
 		return "", false
@@ -198,25 +180,19 @@ func getPromptVersionIDParam(w http.ResponseWriter, r *http.Request) (string, bo
 	return promptVersionID, true
 }
 
-func (h *PromptHandler) promotePromptVersion(w http.ResponseWriter, r *http.Request, workspaceID, promptVersionID string) bool {
-	promErr := h.service.PromotePrompt(r.Context(), workspaceID, promptVersionID)
-	if promErr == nil {
-		return true
-	}
-	writePromoteError(w, promErr)
-	return false
-}
-
 func writePromoteError(w http.ResponseWriter, err error) {
-	if isPromptNotFoundError(err) {
+	switch {
+	case isPromptNotFoundError(err):
 		http.Error(w, "prompt version not found", http.StatusNotFound)
-		return
+	case errors.Is(err, agent.ErrPromptPromotionEvalMissing), errors.Is(err, agent.ErrPromptPromotionEvalFailed):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
 func isPromptNotFoundError(err error) bool {
-	if err == sql.ErrNoRows {
+	if err == sql.ErrNoRows || errors.Is(err, agent.ErrPromptVersionNotFound) {
 		return true
 	}
 	msg := err.Error()
@@ -224,70 +200,52 @@ func isPromptNotFoundError(err error) bool {
 }
 
 func (h *PromptHandler) respondWithPromptVersion(w http.ResponseWriter, r *http.Request, workspaceID, promptVersionID string) {
-	pv, getErr := h.service.GetPromptVersionByID(r.Context(), workspaceID, promptVersionID)
-	if getErr != nil {
-		http.Error(w, getErr.Error(), http.StatusInternalServerError)
+	pv, err := h.service.GetPromptVersionByID(r.Context(), workspaceID, promptVersionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	resp := map[string]interface{}{
-		"data": toPromptVersionResponse(pv),
-	}
 	w.Header().Set(headerContentType, mimeJSON)
-	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
+	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": toPromptVersionResponse(pv)}); encodeErr != nil {
 		http.Error(w, errFailedToEncode, http.StatusInternalServerError)
 	}
 }
 
-// Rollback reactiva la versión anterior
-// PUT /api/v1/admin/prompts/{id}/rollback (nota: {id} aquí es agent_id, no prompt_version_id)
 func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.rollback") {
 		return
 	}
 
-	workspaceID, ok := getWorkspaceIDFromContext(r)
+	workspaceID, ok := requirePromptWorkspaceID(r)
 	if !ok {
 		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
 		return
 	}
-
-	agentID, ok := getPromptVersionIDParam(w, r)
+	promptVersionID, ok := getPromptVersionIDParam(w, r)
 	if !ok {
 		return
 	}
 
-	if rollErr := h.service.RollbackPrompt(r.Context(), workspaceID, agentID); rollErr != nil {
-		writeRollbackError(w, rollErr)
+	err := h.service.RollbackPrompt(r.Context(), workspaceID, promptVersionID)
+	if err != nil {
+		writeRollbackError(w, err)
 		return
 	}
-
-	// Obtén la versión reactivada
-	pv, getErr := h.service.GetActivePrompt(r.Context(), workspaceID, agentID)
-	if getErr != nil {
-		http.Error(w, getErr.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	resp := map[string]interface{}{
-		"data": toPromptVersionResponse(pv),
-	}
-	w.Header().Set(headerContentType, mimeJSON)
-	if encodeErr := json.NewEncoder(w).Encode(resp); encodeErr != nil {
-		http.Error(w, errFailedToEncode, http.StatusInternalServerError)
-	}
+	h.respondWithPromptVersion(w, r, workspaceID, promptVersionID)
 }
 
-// writeRollbackError escribe el error HTTP apropiado para un rollback fallido
 func writeRollbackError(w http.ResponseWriter, err error) {
-	if strings.Contains(err.Error(), "no archived prompt") {
+	if errors.Is(err, agent.ErrPromptRollbackInvalid) {
 		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	if isPromptNotFoundError(err) {
+		http.Error(w, "prompt version not found", http.StatusNotFound)
 		return
 	}
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
-
-// Helpers
 
 func toPromptVersionResponse(pv *agent.PromptVersion) *PromptVersionResponse {
 	if pv == nil {
@@ -315,7 +273,7 @@ func toPromptVersionResponse(pv *agent.PromptVersion) *PromptVersionResponse {
 }
 
 func toPromptVersionResponses(pvs []*agent.PromptVersion) []*PromptVersionResponse {
-	var responses []*PromptVersionResponse
+	responses := make([]*PromptVersionResponse, 0, len(pvs))
 	for _, pv := range pvs {
 		responses = append(responses, toPromptVersionResponse(pv))
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -41,6 +42,20 @@ const (
 	PromptStatusTesting  PromptStatus = "testing"
 	PromptStatusActive   PromptStatus = "active"
 	PromptStatusArchived PromptStatus = "archived"
+)
+
+const (
+	evalStatusPassed = "passed"
+	systemActorID    = "system"
+	entityTypePrompt = "prompt_version"
+)
+
+var (
+	ErrPromptVersionNotFound      = errors.New("prompt version not found")
+	ErrPromptVersionArchived      = errors.New("cannot promote archived prompt")
+	ErrPromptRollbackInvalid      = errors.New("rollback requires an archived prompt version")
+	ErrPromptPromotionEvalMissing = errors.New("prompt promotion requires a passing eval")
+	ErrPromptPromotionEvalFailed  = errors.New("prompt promotion blocked by failed eval")
 )
 
 // CreatePromptVersionInput es la entrada para crear una versión
@@ -147,7 +162,7 @@ func (s *PromptService) GetPromptVersionByID(ctx context.Context, workspaceID, p
 	})
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("prompt version not found")
+			return nil, ErrPromptVersionNotFound
 		}
 		return nil, fmt.Errorf("get by id: %w", err)
 	}
@@ -158,96 +173,214 @@ func (s *PromptService) GetPromptVersionByID(ctx context.Context, workspaceID, p
 // PromotePrompt activa una versión (status=active), archiva la anterior activa
 func (s *PromptService) PromotePrompt(ctx context.Context, workspaceID, promptVersionID string) error {
 	queries := sqlcgen.New(s.db)
+	pv, err := s.getPromptVersionRow(ctx, queries, workspaceID, promptVersionID)
+	if err != nil {
+		return err
+	}
+	if err = validatePromotionStatus(pv.Status); err != nil {
+		return err
+	}
+	if err = s.requirePassingEval(ctx, workspaceID, promptVersionID); err != nil {
+		s.logPromptBlockedAudit(ctx, workspaceID, promptVersionID, pv.AgentDefinitionID, err)
+		return err
+	}
+
+	tx, err := s.beginPromptTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	qtx := queries.WithTx(tx)
+	err = archiveOtherActivePrompts(ctx, qtx, pv.AgentDefinitionID, workspaceID, promptVersionID)
+	if err != nil {
+		return err
+	}
+	err = setPromptVersionStatus(ctx, qtx, promptVersionID, workspaceID, PromptStatusActive)
+	if err != nil {
+		return err
+	}
+	err = s.syncActivePromptVersion(ctx, tx, workspaceID, pv.AgentDefinitionID, promptVersionID)
+	if err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	s.logPromptActivation(ctx, workspaceID, promptVersionID, pv.AgentDefinitionID)
+	return nil
+}
+
+// RollbackPrompt reactiva la versión archivada más reciente del agente
+func (s *PromptService) RollbackPrompt(ctx context.Context, workspaceID, promptVersionID string) error {
+	queries := sqlcgen.New(s.db)
+	pv, err := s.getPromptVersionRow(ctx, queries, workspaceID, promptVersionID)
+	if err != nil {
+		return err
+	}
+	if PromptStatus(pv.Status) != PromptStatusArchived {
+		return ErrPromptRollbackInvalid
+	}
+
+	tx, err := s.beginPromptTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	qtx := queries.WithTx(tx)
+	err = archiveOtherActivePrompts(ctx, qtx, pv.AgentDefinitionID, workspaceID, promptVersionID)
+	if err != nil {
+		return err
+	}
+	err = setPromptVersionStatus(ctx, qtx, promptVersionID, workspaceID, PromptStatusActive)
+	if err != nil {
+		return err
+	}
+	err = s.syncActivePromptVersion(ctx, tx, workspaceID, pv.AgentDefinitionID, promptVersionID)
+	if err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	s.logPromptRollback(ctx, workspaceID, promptVersionID, pv.AgentDefinitionID)
+	return nil
+}
+
+// Helper functions to reduce complexity
+
+func (s *PromptService) getPromptVersionRow(
+	ctx context.Context,
+	queries sqlcgen.Querier,
+	workspaceID, promptVersionID string,
+) (*sqlcgen.PromptVersion, error) {
 	pv, err := queries.GetPromptVersionByID(ctx, sqlcgen.GetPromptVersionByIDParams{
 		ID:          promptVersionID,
 		WorkspaceID: workspaceID,
 	})
 	if err != nil {
-		return fmt.Errorf("get version: %w", err)
+		if err == sql.ErrNoRows {
+			return nil, ErrPromptVersionNotFound
+		}
+		return nil, fmt.Errorf("get version: %w", err)
 	}
-	if pv.Status == string(PromptStatusArchived) {
-		return fmt.Errorf("cannot promote archived prompt")
+	return &pv, nil
+}
+
+func validatePromotionStatus(status string) error {
+	if status == string(PromptStatusArchived) {
+		return ErrPromptVersionArchived
 	}
+	return nil
+}
+
+func (s *PromptService) requirePassingEval(ctx context.Context, workspaceID, promptVersionID string) error {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT status
+		FROM eval_run
+		WHERE workspace_id = ? AND prompt_version_id = ?
+		ORDER BY COALESCE(completed_at, created_at) DESC, created_at DESC
+		LIMIT 1
+	`, workspaceID, promptVersionID)
+
+	var status string
+	err := row.Scan(&status)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ErrPromptPromotionEvalMissing
+		}
+		return fmt.Errorf("get latest eval result: %w", err)
+	}
+	if status != evalStatusPassed {
+		return ErrPromptPromotionEvalFailed
+	}
+	return nil
+}
+
+func (s *PromptService) beginPromptTx(ctx context.Context) (*sql.Tx, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+		return nil, fmt.Errorf("begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
-	qtx := queries.WithTx(tx)
-	err = qtx.ArchivePreviousActivePrompts(ctx, sqlcgen.ArchivePreviousActivePromptsParams{
-		AgentDefinitionID: pv.AgentDefinitionID,
+	return tx, nil
+}
+
+func archiveOtherActivePrompts(
+	ctx context.Context,
+	qtx *sqlcgen.Queries,
+	agentDefinitionID, workspaceID, promptVersionID string,
+) error {
+	err := qtx.ArchivePreviousActivePrompts(ctx, sqlcgen.ArchivePreviousActivePromptsParams{
+		AgentDefinitionID: agentDefinitionID,
 		WorkspaceID:       workspaceID,
 		ID:                promptVersionID,
 	})
 	if err != nil {
 		return fmt.Errorf("archive previous: %w", err)
 	}
-	err = qtx.SetPromptStatus(ctx, sqlcgen.SetPromptStatusParams{
-		Status:      string(PromptStatusActive),
+	return nil
+}
+
+func setPromptVersionStatus(
+	ctx context.Context,
+	qtx *sqlcgen.Queries,
+	promptVersionID, workspaceID string,
+	status PromptStatus,
+) error {
+	err := qtx.SetPromptStatus(ctx, sqlcgen.SetPromptStatusParams{
+		Status:      string(status),
 		ID:          promptVersionID,
 		WorkspaceID: workspaceID,
 	})
 	if err != nil {
 		return fmt.Errorf("set status: %w", err)
 	}
-	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("commit: %w", err)
-	}
-	s.logSystemAudit(ctx, workspaceID, promptVersionID, pv.AgentDefinitionID)
 	return nil
 }
 
-// RollbackPrompt reactiva la versión archivada más reciente del agente
-func (s *PromptService) RollbackPrompt(ctx context.Context, workspaceID, agentID string) error {
-	queries := sqlcgen.New(s.db)
-	prev, err := queries.GetPreviousArchivedPrompt(ctx, sqlcgen.GetPreviousArchivedPromptParams{
-		AgentDefinitionID: agentID,
-		WorkspaceID:       workspaceID,
-	})
+func (s *PromptService) syncActivePromptVersion(
+	ctx context.Context,
+	tx *sql.Tx,
+	workspaceID, agentDefinitionID, promptVersionID string,
+) error {
+	_, err := tx.ExecContext(ctx, `
+		UPDATE agent_definition
+		SET active_prompt_version_id = ?, updated_at = datetime('now')
+		WHERE id = ? AND workspace_id = ?
+	`, promptVersionID, agentDefinitionID, workspaceID)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return fmt.Errorf("no archived prompt to rollback to")
-		}
-		return fmt.Errorf("get previous: %w", err)
+		return fmt.Errorf("sync active prompt version: %w", err)
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	qtx := queries.WithTx(tx)
-	err = qtx.ArchivePreviousActivePrompts(ctx, sqlcgen.ArchivePreviousActivePromptsParams{
-		AgentDefinitionID: agentID,
-		WorkspaceID:       workspaceID,
-		ID:                prev.ID,
-	})
-	if err != nil {
-		return fmt.Errorf("archive current: %w", err)
-	}
-	err = qtx.SetPromptStatus(ctx, sqlcgen.SetPromptStatusParams{
-		Status:      string(PromptStatusActive),
-		ID:          prev.ID,
-		WorkspaceID: workspaceID,
-	})
-	if err != nil {
-		return fmt.Errorf("set status: %w", err)
-	}
-	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("commit: %w", err)
-	}
-	s.logSystemAudit(ctx, workspaceID, prev.ID, agentID)
 	return nil
 }
 
-// Helper functions to reduce complexity
-
-func (s *PromptService) logSystemAudit(ctx context.Context, workspaceID, promptVersionID, agentID string) {
+func (s *PromptService) logPromptActivation(ctx context.Context, workspaceID, promptVersionID, agentID string) {
 	if s.audit != nil {
-		systemActor := "system"
-		entityType := "prompt_version"
-		_ = s.audit.LogWithDetails(ctx, workspaceID, systemActor, audit.ActorTypeSystem, "prompt.activated", &entityType, &promptVersionID, &audit.EventDetails{
+		_ = s.audit.LogWithDetails(ctx, workspaceID, systemActorID, audit.ActorTypeSystem, "prompt.activated", stringPtr(entityTypePrompt), &promptVersionID, &audit.EventDetails{
 			Metadata: map[string]interface{}{"agent_id": agentID},
 		}, audit.OutcomeSuccess)
+	}
+}
+
+func (s *PromptService) logPromptRollback(ctx context.Context, workspaceID, promptVersionID, agentID string) {
+	if s.audit != nil {
+		_ = s.audit.LogWithDetails(ctx, workspaceID, systemActorID, audit.ActorTypeSystem, "prompt.rollback", stringPtr(entityTypePrompt), &promptVersionID, &audit.EventDetails{
+			Metadata: map[string]interface{}{"agent_id": agentID},
+		}, audit.OutcomeSuccess)
+	}
+}
+
+func (s *PromptService) logPromptBlockedAudit(ctx context.Context, workspaceID, promptVersionID, agentID string, reason error) {
+	if s.audit != nil {
+		_ = s.audit.LogWithDetails(ctx, workspaceID, systemActorID, audit.ActorTypeSystem, "prompt.promote_blocked", stringPtr(entityTypePrompt), &promptVersionID, &audit.EventDetails{
+			Metadata: map[string]interface{}{
+				"agent_id": agentID,
+				"reason":   reason.Error(),
+			},
+		}, audit.OutcomeDenied)
 	}
 }
 
@@ -281,8 +414,7 @@ func (s *PromptService) getNextVersionNumber(ctx context.Context, queries sqlcge
 
 func (s *PromptService) logPromptAudit(ctx context.Context, workspaceID, userID, action, resourceID string, metadata map[string]interface{}) {
 	if s.audit != nil {
-		entityType := "prompt_version"
-		_ = s.audit.LogWithDetails(ctx, workspaceID, userID, audit.ActorTypeUser, action, &entityType, &resourceID, &audit.EventDetails{
+		_ = s.audit.LogWithDetails(ctx, workspaceID, userID, audit.ActorTypeUser, action, stringPtr(entityTypePrompt), &resourceID, &audit.EventDetails{
 			Metadata: metadata,
 		}, audit.OutcomeSuccess)
 	}

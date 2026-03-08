@@ -67,6 +67,7 @@
 - FR-202
 - FR-211
 - FR-231
+- FR-232
 
 ### Pendientes
 - FR-001
@@ -76,7 +77,6 @@
 - FR-200
 - FR-201
 - FR-230
-- FR-232
 - FR-240
 
 ### Lectura por bloques
@@ -85,11 +85,12 @@
    - Pendientes: ninguna
    - Siguiente tarea desbloqueada: FR-200
 2. **AI runtime quality/safety**
-   - Pendientes: FR-200, FR-201, FR-230, FR-232
+   - Pendientes: FR-200, FR-201, FR-230
 3. **Knowledge reliability**
    - Pendientes: FR-090, FR-091
 4. **Prompt lifecycle**
    - Pendiente: FR-240
+   - Estado actual: implementacion en curso, pendiente de validacion final en CI
 5. **CRM consistency hardening**
    - Pendientes: FR-001, FR-070
 
@@ -99,7 +100,8 @@
 - FR-201 depende de FR-200; la base de `FR-202/211` ya quedo satisfecha.
 - FR-230 depende de FR-200; la base de `FR-202/211` ya quedo satisfecha.
 - FR-231 queda cerrada operativamente sobre la base de FR-230.
-- FR-232 pasa a ser la siguiente tarea del frente de handoff/continuidad operacional.
+- FR-232 queda cerrada operativamente con CI verde.
+- FR-240 pasa a ser la tarea activa del frente Prompt lifecycle.
 - FR-091 depende de FR-090.
 - FR-001 depende de FR-070.
 

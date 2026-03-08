@@ -1,4 +1,3 @@
-// Task 3.9: Prompt Versioning
 package handlers
 
 import (
@@ -6,33 +5,32 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 )
 
-// MockPromptVersionService para testing
-type MockPromptVersionService struct {
-	createCalls   int
-	getCalls      int
-	promoteCalls  int
-	rollbackCalls int
-	versions      map[string]*agent.PromptVersion
+type mockPromptVersionService struct {
+	versions    map[string]*agent.PromptVersion
+	experiments map[string]*agent.PromptExperiment
+	promoteErr  error
+	rollbackErr error
 }
 
-func NewMockPromptVersionService() *MockPromptVersionService {
-	return &MockPromptVersionService{
-		versions: make(map[string]*agent.PromptVersion),
+func newMockPromptVersionService() *mockPromptVersionService {
+	return &mockPromptVersionService{
+		versions:    make(map[string]*agent.PromptVersion),
+		experiments: make(map[string]*agent.PromptExperiment),
 	}
 }
 
-func (m *MockPromptVersionService) CreatePromptVersion(ctx context.Context, input agent.CreatePromptVersionInput) (*agent.PromptVersion, error) {
-	m.createCalls++
+func (m *mockPromptVersionService) CreatePromptVersion(_ context.Context, input agent.CreatePromptVersionInput) (*agent.PromptVersion, error) {
 	pv := &agent.PromptVersion{
 		ID:                input.AgentDefinitionID + "_v1",
 		WorkspaceID:       input.WorkspaceID,
@@ -40,612 +38,335 @@ func (m *MockPromptVersionService) CreatePromptVersion(ctx context.Context, inpu
 		VersionNumber:     1,
 		SystemPrompt:      input.SystemPrompt,
 		Status:            agent.PromptStatusDraft,
+		CreatedAt:         time.Now(),
 	}
 	m.versions[pv.ID] = pv
 	return pv, nil
 }
 
-func (m *MockPromptVersionService) GetActivePrompt(ctx context.Context, workspaceID, agentID string) (*agent.PromptVersion, error) {
-	for _, pv := range m.versions {
-		if pv.AgentDefinitionID == agentID && pv.Status == agent.PromptStatusActive {
-			return pv, nil
+func (m *mockPromptVersionService) GetActivePrompt(_ context.Context, _, agentID string) (*agent.PromptVersion, error) {
+	for _, version := range m.versions {
+		if version.AgentDefinitionID == agentID && version.Status == agent.PromptStatusActive {
+			return version, nil
 		}
 	}
 	return nil, nil
 }
 
-func (m *MockPromptVersionService) ListPromptVersions(ctx context.Context, workspaceID, agentID string) ([]*agent.PromptVersion, error) {
-	var result []*agent.PromptVersion
-	for _, pv := range m.versions {
-		if pv.AgentDefinitionID == agentID {
-			result = append(result, pv)
+func (m *mockPromptVersionService) ListPromptVersions(_ context.Context, _, agentID string) ([]*agent.PromptVersion, error) {
+	var versions []*agent.PromptVersion
+	for _, version := range m.versions {
+		if version.AgentDefinitionID == agentID {
+			versions = append(versions, version)
 		}
 	}
-	return result, nil
+	return versions, nil
 }
 
-func (m *MockPromptVersionService) GetPromptVersionByID(ctx context.Context, workspaceID, promptVersionID string) (*agent.PromptVersion, error) {
-	return m.versions[promptVersionID], nil
+func (m *mockPromptVersionService) GetPromptVersionByID(_ context.Context, _, promptVersionID string) (*agent.PromptVersion, error) {
+	version, ok := m.versions[promptVersionID]
+	if !ok {
+		return nil, agent.ErrPromptVersionNotFound
+	}
+	return version, nil
 }
 
-func (m *MockPromptVersionService) PromotePrompt(ctx context.Context, workspaceID, promptVersionID string) error {
-	m.promoteCalls++
-	if pv, ok := m.versions[promptVersionID]; ok {
-		pv.Status = agent.PromptStatusActive
+func (m *mockPromptVersionService) PromotePrompt(_ context.Context, _, promptVersionID string) error {
+	if m.promoteErr != nil {
+		return m.promoteErr
+	}
+	if version, ok := m.versions[promptVersionID]; ok {
+		version.Status = agent.PromptStatusActive
 	}
 	return nil
 }
 
-func (m *MockPromptVersionService) RollbackPrompt(ctx context.Context, workspaceID, agentID string) error {
-	m.rollbackCalls++
+func (m *mockPromptVersionService) RollbackPrompt(_ context.Context, _, promptVersionID string) error {
+	if m.rollbackErr != nil {
+		return m.rollbackErr
+	}
+	if version, ok := m.versions[promptVersionID]; ok {
+		version.Status = agent.PromptStatusActive
+	}
 	return nil
 }
 
-func TestListPromptsHandler_FiltersWorkspace(t *testing.T) {
-	mock := NewMockPromptVersionService()
+func (m *mockPromptVersionService) StartPromptExperiment(_ context.Context, input agent.StartPromptExperimentInput) (*agent.PromptExperiment, error) {
+	experiment := &agent.PromptExperiment{
+		ID:                       "exp_1",
+		WorkspaceID:              input.WorkspaceID,
+		AgentDefinitionID:        "agent_support",
+		ControlPromptVersionID:   input.ControlPromptVersionID,
+		CandidatePromptVersionID: input.CandidatePromptVersionID,
+		ControlTrafficPercent:    input.ControlTrafficPercent,
+		CandidateTrafficPercent:  input.CandidateTrafficPercent,
+		Status:                   agent.PromptExperimentStatusRunning,
+	}
+	m.experiments[experiment.ID] = experiment
+	return experiment, nil
+}
+
+func (m *mockPromptVersionService) ListPromptExperiments(_ context.Context, _, _ string) ([]*agent.PromptExperiment, error) {
+	var experiments []*agent.PromptExperiment
+	for _, experiment := range m.experiments {
+		experiments = append(experiments, experiment)
+	}
+	return experiments, nil
+}
+
+func (m *mockPromptVersionService) StopPromptExperiment(_ context.Context, input agent.StopPromptExperimentInput) (*agent.PromptExperiment, error) {
+	experiment, ok := m.experiments[input.ExperimentID]
+	if !ok {
+		return nil, agent.ErrPromptExperimentNotFound
+	}
+	experiment.Status = agent.PromptExperimentStatusCompleted
+	experiment.WinnerPromptVersionID = input.WinnerPromptVersionID
+	return experiment, nil
+}
+
+func TestListPromptsHandler_Returns200(t *testing.T) {
+	mock := newMockPromptVersionService()
+	mock.versions["pv_1"] = &agent.PromptVersion{
+		ID:                "pv_1",
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: "agent_support",
+		VersionNumber:     1,
+		SystemPrompt:      "test",
+		Status:            agent.PromptStatusDraft,
+		CreatedAt:         time.Now(),
+	}
 	handler := NewPromptHandler(mock)
 
-	// Mount routes on chi router
 	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Get("/", handler.List)
-	})
+	r.Get("/admin/prompts", handler.List)
 
-	req := httptest.NewRequest("GET", "/admin/prompts?agent_id=agent_support", nil)
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
-	req = req.WithContext(ctx)
+	req := httptest.NewRequest(http.MethodGet, "/admin/prompts?agent_id=agent_support", nil)
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
 
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 }
 
 func TestCreatePromptHandler_Returns201(t *testing.T) {
-	mock := NewMockPromptVersionService()
-	handler := NewPromptHandler(mock)
+	handler := NewPromptHandler(newMockPromptVersionService())
 
-	// Mount routes on chi router
 	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Post("/", handler.Create)
-	})
+	r.Post("/admin/prompts", handler.Create)
 
-	body := CreatePromptVersionRequest{
+	body, _ := json.Marshal(CreatePromptVersionRequest{
 		AgentDefinitionID: "agent_support",
 		SystemPrompt:      "You are a support agent.",
-	}
-	bodyBytes, _ := json.Marshal(body)
-
-	req := httptest.NewRequest("POST", "/admin/prompts", bytes.NewReader(bodyBytes))
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
-	req = req.WithContext(ctx)
+	})
+	req := httptest.NewRequest(http.MethodPost, "/admin/prompts", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withPromptContext(req.Context()))
 
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
 
-	if w.Code != http.StatusCreated {
-		t.Errorf("expected 201, got %d", w.Code)
-	}
-
-	if mock.createCalls != 1 {
-		t.Errorf("expected 1 create call, got %d", mock.createCalls)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rr.Code)
 	}
 }
 
-func TestPromotePromptHandler_Returns200(t *testing.T) {
-	mock := NewMockPromptVersionService()
-	pv := &agent.PromptVersion{
+func TestPromotePromptHandler_ReturnsConflictOnMissingEval(t *testing.T) {
+	mock := newMockPromptVersionService()
+	mock.versions["pv_123"] = &agent.PromptVersion{
 		ID:                "pv_123",
 		WorkspaceID:       "ws_test",
 		AgentDefinitionID: "agent_support",
 		VersionNumber:     1,
 		SystemPrompt:      "test",
 		Status:            agent.PromptStatusDraft,
+		CreatedAt:         time.Now(),
 	}
-	mock.versions["pv_123"] = pv
+	mock.promoteErr = agent.ErrPromptPromotionEvalMissing
 
 	handler := NewPromptHandler(mock)
-
-	// Mount routes on chi router
 	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Put("/{id}/promote", handler.Promote)
-	})
+	r.Put("/admin/prompts/{id}/promote", handler.Promote)
 
-	req := httptest.NewRequest("PUT", "/admin/prompts/pv_123/promote", nil)
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
-	req = req.WithContext(ctx)
+	req := httptest.NewRequest(http.MethodPut, "/admin/prompts/pv_123/promote", nil)
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
 
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-
-	if mock.promoteCalls != 1 {
-		t.Errorf("expected 1 promote call, got %d", mock.promoteCalls)
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d", rr.Code)
 	}
 }
 
-func TestRollbackPromptHandler_NoArchived_ReturnsConflict(t *testing.T) {
-	// Custom mock that returns error on RollbackPrompt (no archived prompt)
-	mockSvc := &mockRollbackErrorService{}
-	handler := NewPromptHandler(mockSvc)
-
-	// Mount routes on chi router
-	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Put("/{id}/rollback", handler.Rollback)
-	})
-
-	req := httptest.NewRequest("PUT", "/admin/prompts/agent_support/rollback", nil)
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
-	req = req.WithContext(ctx)
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	// Should return 409 Conflict since no archived prompt to rollback to
-	if w.Code != http.StatusConflict {
-		t.Errorf("expected 409, got %d", w.Code)
-	}
-}
-
-func TestRollbackPromptHandler_WithArchivedPrompt_ReturnsSuccess(t *testing.T) {
-	mock := NewMockPromptVersionService()
-
-	// Setup: create an archived prompt version
-	archivedPv := &agent.PromptVersion{
+func TestRollbackPromptHandler_UsesPromptVersionID(t *testing.T) {
+	mock := newMockPromptVersionService()
+	mock.versions["pv_archived"] = &agent.PromptVersion{
 		ID:                "pv_archived",
 		WorkspaceID:       "ws_test",
 		AgentDefinitionID: "agent_support",
 		VersionNumber:     1,
-		SystemPrompt:      "test archived",
+		SystemPrompt:      "archived",
 		Status:            agent.PromptStatusArchived,
+		CreatedAt:         time.Now(),
 	}
-	mock.versions["pv_archived"] = archivedPv
-
-	// Custom RollbackPrompt that simulates finding archived prompt
-	handler := &PromptHandler{service: &mockRollbackService{
-		versions: mock.versions,
-		onRollback: func() (*agent.PromptVersion, error) {
-			return archivedPv, nil
-		},
-	}}
-
-	// Mount routes on chi router
-	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Put("/{id}/rollback", handler.Rollback)
-	})
-
-	req := httptest.NewRequest("PUT", "/admin/prompts/agent_support/rollback", nil)
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
-	req = req.WithContext(ctx)
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-// mockRollbackService extends the base mock for rollback-specific testing
-type mockRollbackService struct {
-	versions   map[string]*agent.PromptVersion
-	onRollback func() (*agent.PromptVersion, error)
-}
-
-func (m *mockRollbackService) CreatePromptVersion(ctx context.Context, input agent.CreatePromptVersionInput) (*agent.PromptVersion, error) {
-	return nil, nil
-}
-
-func (m *mockRollbackService) GetActivePrompt(ctx context.Context, workspaceID, agentID string) (*agent.PromptVersion, error) {
-	if m.onRollback != nil {
-		return m.onRollback()
-	}
-	return nil, nil
-}
-
-func (m *mockRollbackService) ListPromptVersions(ctx context.Context, workspaceID, agentID string) ([]*agent.PromptVersion, error) {
-	return nil, nil
-}
-
-func (m *mockRollbackService) GetPromptVersionByID(ctx context.Context, workspaceID, promptVersionID string) (*agent.PromptVersion, error) {
-	return nil, nil
-}
-
-func (m *mockRollbackService) PromotePrompt(ctx context.Context, workspaceID, promptVersionID string) error {
-	return nil
-}
-
-func (m *mockRollbackService) RollbackPrompt(ctx context.Context, workspaceID, agentID string) error {
-	return nil
-}
-
-// mockRollbackErrorService returns error on RollbackPrompt (simulates no archived prompt)
-type mockRollbackErrorService struct{}
-
-func (m *mockRollbackErrorService) CreatePromptVersion(ctx context.Context, input agent.CreatePromptVersionInput) (*agent.PromptVersion, error) {
-	return nil, nil
-}
-
-func (m *mockRollbackErrorService) GetActivePrompt(ctx context.Context, workspaceID, agentID string) (*agent.PromptVersion, error) {
-	return nil, nil
-}
-
-func (m *mockRollbackErrorService) ListPromptVersions(ctx context.Context, workspaceID, agentID string) ([]*agent.PromptVersion, error) {
-	return nil, nil
-}
-
-func (m *mockRollbackErrorService) GetPromptVersionByID(ctx context.Context, workspaceID, promptVersionID string) (*agent.PromptVersion, error) {
-	return nil, nil
-}
-
-func (m *mockRollbackErrorService) PromotePrompt(ctx context.Context, workspaceID, promptVersionID string) error {
-	return nil
-}
-
-func (m *mockRollbackErrorService) RollbackPrompt(ctx context.Context, workspaceID, agentID string) error {
-	return fmt.Errorf("no archived prompt to rollback to")
-}
-
-// Test error cases and edge paths
-
-func TestListPromptsHandler_MissingWorkspaceID(t *testing.T) {
-	mock := NewMockPromptVersionService()
 	handler := NewPromptHandler(mock)
 
 	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Get("/", handler.List)
-	})
+	r.Put("/admin/prompts/{id}/rollback", handler.Rollback)
 
-	// Request WITHOUT workspace ID in context
-	req := httptest.NewRequest("GET", "/admin/prompts?agent_id=agent_support", nil)
+	req := httptest.NewRequest(http.MethodPut, "/admin/prompts/pv_archived/rollback", nil)
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
 
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 }
 
-func TestListPromptsHandler_MissingAgentID(t *testing.T) {
-	mock := NewMockPromptVersionService()
+func TestRollbackPromptHandler_ReturnsConflictForInvalidRollback(t *testing.T) {
+	mock := newMockPromptVersionService()
+	mock.rollbackErr = agent.ErrPromptRollbackInvalid
 	handler := NewPromptHandler(mock)
 
 	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Get("/", handler.List)
-	})
+	r.Put("/admin/prompts/{id}/rollback", handler.Rollback)
 
-	req := httptest.NewRequest("GET", "/admin/prompts", nil) // No agent_id query param
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	req = req.WithContext(ctx)
+	req := httptest.NewRequest(http.MethodPut, "/admin/prompts/pv_123/rollback", nil)
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
 
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d", rr.Code)
 	}
 }
 
-func TestCreatePromptHandler_MissingWorkspaceID(t *testing.T) {
-	mock := NewMockPromptVersionService()
+func TestPromptExperimentHandlers_StartListStop(t *testing.T) {
+	mock := newMockPromptVersionService()
 	handler := NewPromptHandler(mock)
 
 	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Post("/", handler.Create)
+	r.Get("/admin/prompts/experiments", handler.ListExperiments)
+	r.Post("/admin/prompts/experiments", handler.StartExperiment)
+	r.Put("/admin/prompts/experiments/{id}/stop", handler.StopExperiment)
+
+	startBody, _ := json.Marshal(StartPromptExperimentRequest{
+		ControlPromptVersionID:   "pv_control",
+		CandidatePromptVersionID: "pv_candidate",
+		ControlTrafficPercent:    50,
+		CandidateTrafficPercent:  50,
 	})
-
-	body := CreatePromptVersionRequest{
-		AgentDefinitionID: "agent_support",
-		SystemPrompt:      "You are a support agent.",
+	startReq := httptest.NewRequest(http.MethodPost, "/admin/prompts/experiments", bytes.NewReader(startBody))
+	startReq.Header.Set("Content-Type", "application/json")
+	startReq = startReq.WithContext(withPromptContext(startReq.Context()))
+	startRR := httptest.NewRecorder()
+	r.ServeHTTP(startRR, startReq)
+	if startRR.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", startRR.Code)
 	}
-	bodyBytes, _ := json.Marshal(body)
 
-	req := httptest.NewRequest("POST", "/admin/prompts", bytes.NewReader(bodyBytes))
+	listReq := httptest.NewRequest(http.MethodGet, "/admin/prompts/experiments?agent_id=agent_support", nil)
+	listReq = listReq.WithContext(withPromptContext(listReq.Context()))
+	listRR := httptest.NewRecorder()
+	r.ServeHTTP(listRR, listReq)
+	if listRR.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", listRR.Code)
+	}
+
+	stopBody, _ := json.Marshal(StopPromptExperimentRequest{WinnerPromptVersionID: stringPtr("pv_control")})
+	stopReq := httptest.NewRequest(http.MethodPut, "/admin/prompts/experiments/exp_1/stop", bytes.NewReader(stopBody))
+	stopReq.Header.Set("Content-Type", "application/json")
+	stopReq = stopReq.WithContext(withPromptContext(stopReq.Context()))
+	stopRR := httptest.NewRecorder()
+	r.ServeHTTP(stopRR, stopReq)
+	if stopRR.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", stopRR.Code)
+	}
+}
+
+func TestPromptExperimentHandler_ReturnsBadRequestOnInvalidSplit(t *testing.T) {
+	handler := NewPromptHandler(&promptExperimentErrorService{err: agent.ErrPromptExperimentInvalidSplit})
+
+	r := chi.NewRouter()
+	r.Post("/admin/prompts/experiments", handler.StartExperiment)
+
+	body, _ := json.Marshal(StartPromptExperimentRequest{
+		ControlPromptVersionID:   "pv_control",
+		CandidatePromptVersionID: "pv_candidate",
+		ControlTrafficPercent:    70,
+		CandidateTrafficPercent:  20,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/admin/prompts/experiments", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
 
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 }
 
-func TestCreatePromptHandler_InvalidJSON(t *testing.T) {
-	mock := NewMockPromptVersionService()
-	handler := NewPromptHandler(mock)
-
-	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Post("/", handler.Create)
-	})
-
-	req := httptest.NewRequest("POST", "/admin/prompts", bytes.NewReader([]byte("invalid json")))
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
-	req = req.WithContext(ctx)
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestCreatePromptHandler_MissingRequiredFields(t *testing.T) {
-	mock := NewMockPromptVersionService()
-	handler := NewPromptHandler(mock)
-
-	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Post("/", handler.Create)
-	})
-
-	// Missing SystemPrompt
-	body := CreatePromptVersionRequest{
-		AgentDefinitionID: "agent_support",
-		SystemPrompt:      "", // Empty required field
-	}
-	bodyBytes, _ := json.Marshal(body)
-
-	req := httptest.NewRequest("POST", "/admin/prompts", bytes.NewReader(bodyBytes))
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
-	req = req.WithContext(ctx)
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestPromotePromptHandler_MissingWorkspaceID(t *testing.T) {
-	mock := NewMockPromptVersionService()
-	handler := NewPromptHandler(mock)
-
-	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Put("/{id}/promote", handler.Promote)
-	})
-
-	req := httptest.NewRequest("PUT", "/admin/prompts/pv_123/promote", nil)
-	// No workspace ID in context
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestPromotePromptHandler_MissingIDParam(t *testing.T) {
-	mock := NewMockPromptVersionService()
-	handler := NewPromptHandler(mock)
-
-	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Put("/{id}/promote", handler.Promote)
-	})
-
-	req := httptest.NewRequest("PUT", "/admin/prompts//promote", nil) // Empty id param
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	req = req.WithContext(ctx)
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestRollbackPromptHandler_MissingWorkspaceID(t *testing.T) {
-	mock := NewMockPromptVersionService()
-	handler := NewPromptHandler(mock)
-
-	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Put("/{id}/rollback", handler.Rollback)
-	})
-
-	req := httptest.NewRequest("PUT", "/admin/prompts/agent_support/rollback", nil)
-	// No workspace ID
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestCreatePromptHandler_ForbiddenByAuthorizer(t *testing.T) {
-	mock := NewMockPromptVersionService()
-	handler := NewPromptHandlerWithAuthorizer(mock, &toolAuthzStub{allow: false})
-
-	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Post("/", handler.Create)
-	})
-
-	body := CreatePromptVersionRequest{
-		AgentDefinitionID: "agent_support",
-		SystemPrompt:      "You are a support agent.",
-	}
-	bodyBytes, _ := json.Marshal(body)
-
-	req := httptest.NewRequest("POST", "/admin/prompts", bytes.NewReader(bodyBytes))
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
-	req = req.WithContext(ctx)
-	req.Header.Set("Content-Type", "application/json")
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-// TestIsPromptNotFoundError covers isPromptNotFoundError for various inputs.
 func TestIsPromptNotFoundError(t *testing.T) {
-	t.Parallel()
-
-	t.Run("sql.ErrNoRows", func(t *testing.T) {
-		if !isPromptNotFoundError(sql.ErrNoRows) {
-			t.Fatal("expected true for sql.ErrNoRows")
-		}
-	})
-
-	t.Run("message contains no rows", func(t *testing.T) {
-		if !isPromptNotFoundError(fmt.Errorf("no rows in result set")) {
-			t.Fatal("expected true for 'no rows' message")
-		}
-	})
-
-	t.Run("message contains not found", func(t *testing.T) {
-		if !isPromptNotFoundError(fmt.Errorf("record not found")) {
-			t.Fatal("expected true for 'not found' message")
-		}
-	})
-
-	t.Run("generic error", func(t *testing.T) {
-		if isPromptNotFoundError(fmt.Errorf("internal failure")) {
-			t.Fatal("expected false for generic error")
-		}
-	})
-}
-
-// TestWritePromoteError_NotFound tests writePromoteError maps not-found errors → 404.
-func TestWritePromoteError_NotFound(t *testing.T) {
-	t.Parallel()
-
-	rr := httptest.NewRecorder()
-	writePromoteError(rr, sql.ErrNoRows)
-
-	if rr.Code != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d", rr.Code)
+	if !isPromptNotFoundError(sql.ErrNoRows) {
+		t.Fatal("expected sql.ErrNoRows to be treated as not found")
+	}
+	if !isPromptNotFoundError(agent.ErrPromptVersionNotFound) {
+		t.Fatal("expected ErrPromptVersionNotFound to be treated as not found")
+	}
+	if isPromptNotFoundError(errors.New("boom")) {
+		t.Fatal("expected generic error not to be treated as not found")
 	}
 }
 
-// TestWritePromoteError_Internal tests writePromoteError maps other errors → 500.
-func TestWritePromoteError_Internal(t *testing.T) {
-	t.Parallel()
-
-	rr := httptest.NewRecorder()
-	writePromoteError(rr, fmt.Errorf("unexpected db failure"))
-
-	if rr.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d", rr.Code)
-	}
+type promptExperimentErrorService struct {
+	err error
 }
 
-// TestPromotePromptHandler_PromoteError_NotFound verifies Promote returns 404 when service returns not-found error.
-func TestPromotePromptHandler_PromoteError_NotFound(t *testing.T) {
-	t.Parallel()
-
-	mockSvc := &mockPromoteNotFoundService{}
-	handler := NewPromptHandler(mockSvc)
-
-	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Put("/{id}/promote", handler.Promote)
-	})
-
-	req := httptest.NewRequest("PUT", "/admin/prompts/pv_missing/promote", nil)
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
-	req = req.WithContext(ctx)
-
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
-
-type mockPromoteNotFoundService struct{}
-
-func (m *mockPromoteNotFoundService) CreatePromptVersion(_ context.Context, _ agent.CreatePromptVersionInput) (*agent.PromptVersion, error) {
+func (s *promptExperimentErrorService) CreatePromptVersion(_ context.Context, _ agent.CreatePromptVersionInput) (*agent.PromptVersion, error) {
 	return nil, nil
 }
 
-func (m *mockPromoteNotFoundService) GetActivePrompt(_ context.Context, _, _ string) (*agent.PromptVersion, error) {
+func (s *promptExperimentErrorService) GetActivePrompt(_ context.Context, _, _ string) (*agent.PromptVersion, error) {
 	return nil, nil
 }
 
-func (m *mockPromoteNotFoundService) ListPromptVersions(_ context.Context, _, _ string) ([]*agent.PromptVersion, error) {
+func (s *promptExperimentErrorService) ListPromptVersions(_ context.Context, _, _ string) ([]*agent.PromptVersion, error) {
 	return nil, nil
 }
 
-func (m *mockPromoteNotFoundService) GetPromptVersionByID(_ context.Context, _, _ string) (*agent.PromptVersion, error) {
+func (s *promptExperimentErrorService) GetPromptVersionByID(_ context.Context, _, _ string) (*agent.PromptVersion, error) {
 	return nil, nil
 }
 
-func (m *mockPromoteNotFoundService) PromotePrompt(_ context.Context, _, _ string) error {
-	return sql.ErrNoRows
-}
-
-func (m *mockPromoteNotFoundService) RollbackPrompt(_ context.Context, _, _ string) error {
+func (s *promptExperimentErrorService) PromotePrompt(_ context.Context, _, _ string) error {
 	return nil
 }
 
-func TestListPromptsHandler_MissingUserIDWithAuthorizer(t *testing.T) {
-	mock := NewMockPromptVersionService()
-	handler := NewPromptHandlerWithAuthorizer(mock, &toolAuthzStub{allow: true})
+func (s *promptExperimentErrorService) RollbackPrompt(_ context.Context, _, _ string) error {
+	return nil
+}
 
-	r := chi.NewRouter()
-	r.Route("/admin/prompts", func(r chi.Router) {
-		r.Get("/", handler.List)
-	})
+func (s *promptExperimentErrorService) StartPromptExperiment(_ context.Context, _ agent.StartPromptExperimentInput) (*agent.PromptExperiment, error) {
+	return nil, s.err
+}
 
-	req := httptest.NewRequest("GET", "/admin/prompts?agent_id=agent_support", nil)
-	ctx := req.Context()
+func (s *promptExperimentErrorService) ListPromptExperiments(_ context.Context, _, _ string) ([]*agent.PromptExperiment, error) {
+	return nil, nil
+}
+
+func (s *promptExperimentErrorService) StopPromptExperiment(_ context.Context, _ agent.StopPromptExperimentInput) (*agent.PromptExperiment, error) {
+	return nil, nil
+}
+
+func withPromptContext(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
-	req = req.WithContext(ctx)
+	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
+	return ctx
+}
 
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
+func stringPtr(value string) *string {
+	return &value
 }

@@ -13,6 +13,9 @@ linters:
     - ineffassign
     - reassign
     - goconst
+    - gosec       # hardcoded secrets, SQL injection, weak crypto — crítico para policy engine y RBAC
+    - exhaustive  # enum switches completos — evita cases sin cubrir en policy/RBAC
+    - errorlint   # manejo correcto de errors wrapping (errors.Is/As)
   disable:
     - gocyclo
 
@@ -54,6 +57,14 @@ linters-settings:
         strict: true
 
   # go-critic settings (algunos ejemplos de thresholds configurables)
+  exhaustive:
+    # Permite default en switches que manejan casos desconocidos explícitamente
+    default-signifies-exhaustive: true
+
+  gosec:
+    excludes:
+      - G115  # integer overflow — demasiado ruidoso en conversiones numéricas normales
+
   gocritic:
     enabled-checks:
       - nestingReduce

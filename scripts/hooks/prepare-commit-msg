@@ -1,0 +1,38 @@
+#!/bin/bash
+# prepare-commit-msg hook — appends AI agent attribution trailers to commit messages.
+#
+# Single agent:
+#   export AI_AGENT="claude-sonnet-4-6"
+#
+# Multiple agents (role:model, comma-separated):
+#   export AI_AGENTS="orchestrator:claude-opus-4-6,coder:claude-sonnet-4-6"
+#
+# AI_AGENTS takes precedence over AI_AGENT when both are set.
+#
+# Valid models: claude-opus-4-6 | claude-sonnet-4-6 | claude-haiku-4-5 | human
+# Valid roles:  orchestrator | coder | reviewer | worker | (any string)
+#
+# If neither variable is set, no trailers are added (fully opt-in).
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+
+# Skip merges and squashes
+if [ "$COMMIT_SOURCE" = "merge" ] || [ "$COMMIT_SOURCE" = "squash" ]; then
+  exit 0
+fi
+
+if [ -n "$AI_AGENTS" ]; then
+  echo "" >> "$COMMIT_MSG_FILE"
+  # Split by comma and emit one trailer per agent
+  IFS=',' read -ra AGENTS <<< "$AI_AGENTS"
+  for entry in "${AGENTS[@]}"; do
+    entry="$(echo "$entry" | xargs)"  # trim whitespace
+    echo "AI-Agent: $entry" >> "$COMMIT_MSG_FILE"
+  done
+  echo "AI-Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$COMMIT_MSG_FILE"
+elif [ -n "$AI_AGENT" ]; then
+  echo "" >> "$COMMIT_MSG_FILE"
+  echo "AI-Agent: $AI_AGENT" >> "$COMMIT_MSG_FILE"
+  echo "AI-Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$COMMIT_MSG_FILE"
+fi

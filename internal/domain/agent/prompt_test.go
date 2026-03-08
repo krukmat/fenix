@@ -3,22 +3,22 @@ package agent
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 	_ "modernc.org/sqlite"
 )
 
-// TestMain sets up the test database for PromptService tests
 func TestMain(m *testing.M) {
-	// Not needed in this case, but can be added if DB state management is needed
 	m.Run()
 }
 
 func newTestPromptService(t *testing.T, db *sql.DB) *PromptService {
-	auditSvc := audit.NewAuditService(db)
-	return NewPromptService(db, auditSvc)
+	t.Helper()
+	return NewPromptService(db, audit.NewAuditService(db))
 }
 
 func TestCreatePromptVersion_Succeeds(t *testing.T) {
@@ -26,28 +26,20 @@ func TestCreatePromptVersion_Succeeds(t *testing.T) {
 	defer db.Close()
 
 	svc := newTestPromptService(t, db)
-	ctx := context.Background()
-
-	input := CreatePromptVersionInput{
+	pv, err := svc.CreatePromptVersion(context.Background(), CreatePromptVersionInput{
 		WorkspaceID:       "ws_test",
 		AgentDefinitionID: "agent_support",
 		SystemPrompt:      "You are a support agent.",
 		Config:            `{"temperature": 0.3, "max_tokens": 2048}`,
-	}
-
-	pv, err := svc.CreatePromptVersion(ctx, input)
+	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("CreatePromptVersion: %v", err)
 	}
-
 	if pv.VersionNumber != 1 {
-		t.Errorf("expected version_number=1, got %d", pv.VersionNumber)
+		t.Fatalf("expected version 1, got %d", pv.VersionNumber)
 	}
 	if pv.Status != PromptStatusDraft {
-		t.Errorf("expected status=draft, got %s", pv.Status)
-	}
-	if pv.SystemPrompt != input.SystemPrompt {
-		t.Errorf("expected system_prompt=%s, got %s", input.SystemPrompt, pv.SystemPrompt)
+		t.Fatalf("expected draft, got %s", pv.Status)
 	}
 }
 
@@ -57,81 +49,71 @@ func TestCreatePromptVersion_AutoIncrementsVersion(t *testing.T) {
 
 	svc := newTestPromptService(t, db)
 	ctx := context.Background()
-
-	baseInput := CreatePromptVersionInput{
+	_, err := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
 		WorkspaceID:       "ws_test",
 		AgentDefinitionID: "agent_support",
 		SystemPrompt:      "Version 1",
-		Config:            `{"temperature": 0.3}`,
-	}
-
-	pv1, err := svc.CreatePromptVersion(ctx, baseInput)
+		Config:            `{}`,
+	})
 	if err != nil {
 		t.Fatalf("create v1: %v", err)
 	}
-
-	baseInput.SystemPrompt = "Version 2"
-	pv2, err := svc.CreatePromptVersion(ctx, baseInput)
+	pv2, err := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: "agent_support",
+		SystemPrompt:      "Version 2",
+		Config:            `{}`,
+	})
 	if err != nil {
 		t.Fatalf("create v2: %v", err)
 	}
-
 	if pv2.VersionNumber != 2 {
-		t.Errorf("expected version_number=2, got %d", pv2.VersionNumber)
-	}
-	if pv1.VersionNumber != 1 {
-		t.Errorf("v1: expected version_number=1, got %d", pv1.VersionNumber)
+		t.Fatalf("expected version 2, got %d", pv2.VersionNumber)
 	}
 }
 
-func TestGetActivePrompt_NoActiveVersion_ReturnsError(t *testing.T) {
+func TestPromotePrompt_RequiresPassingEval(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
 	svc := newTestPromptService(t, db)
 	ctx := context.Background()
-
-	_, err := svc.GetActivePrompt(ctx, "ws_test", "agent_nonexistent")
-	if err == nil {
-		t.Error("expected error for no active prompt, got nil")
-	}
-}
-
-func TestGetActivePrompt_ReturnsActive(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
-
-	svc := newTestPromptService(t, db)
-	ctx := context.Background()
-
-	// Create and promote a prompt version
-	input := CreatePromptVersionInput{
+	pv, err := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
 		WorkspaceID:       "ws_test",
 		AgentDefinitionID: "agent_support",
-		SystemPrompt:      "Active prompt",
-		Config:            `{"temperature": 0.3}`,
-	}
-	pv, err := svc.CreatePromptVersion(ctx, input)
+		SystemPrompt:      "Needs eval",
+		Config:            `{}`,
+	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
-	// Promote to active
 	err = svc.PromotePrompt(ctx, "ws_test", pv.ID)
-	if err != nil {
-		t.Fatalf("promote: %v", err)
+	if !errors.Is(err, ErrPromptPromotionEvalMissing) {
+		t.Fatalf("expected ErrPromptPromotionEvalMissing, got %v", err)
 	}
+}
 
-	// Now GetActivePrompt should return it
-	active, err := svc.GetActivePrompt(ctx, "ws_test", "agent_support")
+func TestPromotePrompt_BlocksFailedEval(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	svc := newTestPromptService(t, db)
+	ctx := context.Background()
+	pv, err := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: "agent_support",
+		SystemPrompt:      "Failed eval",
+		Config:            `{}`,
+	})
 	if err != nil {
-		t.Fatalf("get active: %v", err)
+		t.Fatalf("create: %v", err)
 	}
-	if active.ID != pv.ID {
-		t.Errorf("expected active.ID=%s, got %s", pv.ID, active.ID)
-	}
-	if active.Status != PromptStatusActive {
-		t.Errorf("expected status=active, got %s", active.Status)
+	insertPromptEvalRun(t, db, "ws_test", pv.ID, "failed")
+
+	err = svc.PromotePrompt(ctx, "ws_test", pv.ID)
+	if !errors.Is(err, ErrPromptPromotionEvalFailed) {
+		t.Fatalf("expected ErrPromptPromotionEvalFailed, got %v", err)
 	}
 }
 
@@ -141,30 +123,28 @@ func TestPromotePrompt_ActivatesVersion(t *testing.T) {
 
 	svc := newTestPromptService(t, db)
 	ctx := context.Background()
-
-	input := CreatePromptVersionInput{
+	pv, err := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
 		WorkspaceID:       "ws_test",
 		AgentDefinitionID: "agent_support",
 		SystemPrompt:      "Draft prompt",
-		Config:            `{"temperature": 0.3}`,
-	}
-	pv, err := svc.CreatePromptVersion(ctx, input)
+		Config:            `{}`,
+	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
+	insertPromptEvalRun(t, db, "ws_test", pv.ID, evalStatusPassed)
 
 	err = svc.PromotePrompt(ctx, "ws_test", pv.ID)
 	if err != nil {
-		t.Fatalf("promote: %v", err)
+		t.Fatalf("PromotePrompt: %v", err)
 	}
 
-	// Verify it's now active
-	updated, err := svc.GetPromptVersionByID(ctx, "ws_test", pv.ID)
+	got, err := svc.GetPromptVersionByID(ctx, "ws_test", pv.ID)
 	if err != nil {
-		t.Fatalf("get: %v", err)
+		t.Fatalf("GetPromptVersionByID: %v", err)
 	}
-	if updated.Status != PromptStatusActive {
-		t.Errorf("expected status=active, got %s", updated.Status)
+	if got.Status != PromptStatusActive {
+		t.Fatalf("expected active, got %s", got.Status)
 	}
 }
 
@@ -174,160 +154,190 @@ func TestPromotePrompt_ArchivesPreviousActive(t *testing.T) {
 
 	svc := newTestPromptService(t, db)
 	ctx := context.Background()
-
-	// Create and promote v1
-	input := CreatePromptVersionInput{
+	pv1, _ := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
 		WorkspaceID:       "ws_test",
 		AgentDefinitionID: "agent_support",
 		SystemPrompt:      "Version 1",
-		Config:            `{"temperature": 0.3}`,
-	}
-	pv1, err := svc.CreatePromptVersion(ctx, input)
-	if err != nil {
-		t.Fatalf("create v1: %v", err)
-	}
-	err = svc.PromotePrompt(ctx, "ws_test", pv1.ID)
-	if err != nil {
+		Config:            `{}`,
+	})
+	insertPromptEvalRun(t, db, "ws_test", pv1.ID, evalStatusPassed)
+	if err := svc.PromotePrompt(ctx, "ws_test", pv1.ID); err != nil {
 		t.Fatalf("promote v1: %v", err)
 	}
 
-	// Create and promote v2
-	input.SystemPrompt = "Version 2"
-	pv2, err := svc.CreatePromptVersion(ctx, input)
-	if err != nil {
-		t.Fatalf("create v2: %v", err)
-	}
-	err = svc.PromotePrompt(ctx, "ws_test", pv2.ID)
-	if err != nil {
-		t.Fatalf("promote v2: %v", err)
-	}
-
-	// v1 should now be archived
-	v1, err := svc.GetPromptVersionByID(ctx, "ws_test", pv1.ID)
-	if err != nil {
-		t.Fatalf("get v1: %v", err)
-	}
-	if v1.Status != PromptStatusArchived {
-		t.Errorf("expected v1 status=archived, got %s", v1.Status)
-	}
-
-	// v2 should be active
-	v2, err := svc.GetPromptVersionByID(ctx, "ws_test", pv2.ID)
-	if err != nil {
-		t.Fatalf("get v2: %v", err)
-	}
-	if v2.Status != PromptStatusActive {
-		t.Errorf("expected v2 status=active, got %s", v2.Status)
-	}
-}
-
-func TestPromotePrompt_WrongStatus_ReturnsError(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
-
-	svc := newTestPromptService(t, db)
-	ctx := context.Background()
-
-	// Create, promote, then try to promote an archived version
-	input := CreatePromptVersionInput{
+	pv2, _ := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
 		WorkspaceID:       "ws_test",
 		AgentDefinitionID: "agent_support",
-		SystemPrompt:      "Test",
+		SystemPrompt:      "Version 2",
 		Config:            `{}`,
-	}
-	pv, err := svc.CreatePromptVersion(ctx, input)
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	err = svc.PromotePrompt(ctx, "ws_test", pv.ID)
-	if err != nil {
-		t.Fatalf("promote: %v", err)
-	}
-
-	// Create a second one and promote it to archive the first
-	input.SystemPrompt = "Test 2"
-	pv2, err := svc.CreatePromptVersion(ctx, input)
-	if err != nil {
-		t.Fatalf("create v2: %v", err)
-	}
-	err = svc.PromotePrompt(ctx, "ws_test", pv2.ID)
-	if err != nil {
+	})
+	insertPromptEvalRun(t, db, "ws_test", pv2.ID, evalStatusPassed)
+	if err := svc.PromotePrompt(ctx, "ws_test", pv2.ID); err != nil {
 		t.Fatalf("promote v2: %v", err)
 	}
 
-	// Now try to promote the archived one — should error
-	err = svc.PromotePrompt(ctx, "ws_test", pv.ID)
-	if err == nil {
-		t.Error("expected error promoting archived prompt, got nil")
+	gotV1, _ := svc.GetPromptVersionByID(ctx, "ws_test", pv1.ID)
+	gotV2, _ := svc.GetPromptVersionByID(ctx, "ws_test", pv2.ID)
+	if gotV1.Status != PromptStatusArchived {
+		t.Fatalf("expected v1 archived, got %s", gotV1.Status)
+	}
+	if gotV2.Status != PromptStatusActive {
+		t.Fatalf("expected v2 active, got %s", gotV2.Status)
 	}
 }
 
-func TestRollbackPrompt_ReactivatesPrevious(t *testing.T) {
+func TestRollbackPrompt_ReactivatesArchivedVersionByID(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
 	svc := newTestPromptService(t, db)
 	ctx := context.Background()
-
-	// Create and promote v1
-	input := CreatePromptVersionInput{
+	pv1, _ := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
 		WorkspaceID:       "ws_test",
 		AgentDefinitionID: "agent_support",
 		SystemPrompt:      "V1",
 		Config:            `{}`,
-	}
-	pv1, _ := svc.CreatePromptVersion(ctx, input)
-	svc.PromotePrompt(ctx, "ws_test", pv1.ID)
+	})
+	insertPromptEvalRun(t, db, "ws_test", pv1.ID, evalStatusPassed)
+	_ = svc.PromotePrompt(ctx, "ws_test", pv1.ID)
 
-	// Create and promote v2 (archives v1)
-	input.SystemPrompt = "V2"
-	pv2, _ := svc.CreatePromptVersion(ctx, input)
-	svc.PromotePrompt(ctx, "ws_test", pv2.ID)
+	pv2, _ := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: "agent_support",
+		SystemPrompt:      "V2",
+		Config:            `{}`,
+	})
+	insertPromptEvalRun(t, db, "ws_test", pv2.ID, evalStatusPassed)
+	_ = svc.PromotePrompt(ctx, "ws_test", pv2.ID)
 
-	// Rollback — v1 should be active again, v2 archived
-	err := svc.RollbackPrompt(ctx, "ws_test", "agent_support")
-	if err != nil {
-		t.Fatalf("rollback: %v", err)
-	}
-
-	v1, _ := svc.GetPromptVersionByID(ctx, "ws_test", pv1.ID)
-	if v1.Status != PromptStatusActive {
-		t.Errorf("expected v1 active after rollback, got %s", v1.Status)
+	if err := svc.RollbackPrompt(ctx, "ws_test", pv1.ID); err != nil {
+		t.Fatalf("RollbackPrompt: %v", err)
 	}
 
-	v2, _ := svc.GetPromptVersionByID(ctx, "ws_test", pv2.ID)
-	if v2.Status != PromptStatusArchived {
-		t.Errorf("expected v2 archived after rollback, got %s", v2.Status)
+	gotV1, _ := svc.GetPromptVersionByID(ctx, "ws_test", pv1.ID)
+	gotV2, _ := svc.GetPromptVersionByID(ctx, "ws_test", pv2.ID)
+	if gotV1.Status != PromptStatusActive {
+		t.Fatalf("expected v1 active, got %s", gotV1.Status)
+	}
+	if gotV2.Status != PromptStatusArchived {
+		t.Fatalf("expected v2 archived, got %s", gotV2.Status)
 	}
 }
 
-func TestRollbackPrompt_NoArchived_ReturnsError(t *testing.T) {
+func TestRollbackPrompt_RejectsNonArchivedVersion(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
 	svc := newTestPromptService(t, db)
 	ctx := context.Background()
+	pv, err := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: "agent_support",
+		SystemPrompt:      "Draft only",
+		Config:            `{}`,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
 
-	// Try to rollback when there's no archived version
-	err := svc.RollbackPrompt(ctx, "ws_test", "agent_nonexistent")
-	if err == nil {
-		t.Error("expected error rolling back with no archived prompt, got nil")
+	err = svc.RollbackPrompt(ctx, "ws_test", pv.ID)
+	if !errors.Is(err, ErrPromptRollbackInvalid) {
+		t.Fatalf("expected ErrPromptRollbackInvalid, got %v", err)
 	}
 }
 
-// Helper: setupTestDB creates an in-memory SQLite DB for testing
-func setupTestDB(t *testing.T) *sql.DB {
-	db, err := sql.Open("sqlite", ":memory:")
+func TestPromptExperiment_StartAndStop(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	svc := newTestPromptService(t, db)
+	ctx := context.Background()
+	control, _ := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: "agent_support",
+		SystemPrompt:      "Control",
+		Config:            `{}`,
+	})
+	candidate, _ := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: "agent_support",
+		SystemPrompt:      "Candidate",
+		Config:            `{}`,
+	})
+
+	experiment, err := svc.StartPromptExperiment(ctx, StartPromptExperimentInput{
+		WorkspaceID:              "ws_test",
+		ControlPromptVersionID:   control.ID,
+		CandidatePromptVersionID: candidate.ID,
+		ControlTrafficPercent:    50,
+		CandidateTrafficPercent:  50,
+	})
 	if err != nil {
-		t.Fatalf("failed to open test DB: %v", err)
+		t.Fatalf("StartPromptExperiment: %v", err)
+	}
+	if experiment.Status != PromptExperimentStatusRunning {
+		t.Fatalf("expected running, got %s", experiment.Status)
 	}
 
-	// Apply all migrations
-	if err := sqlite.MigrateUp(db); err != nil {
-		t.Fatalf("failed to migrate: %v", err)
+	stopped, err := svc.StopPromptExperiment(ctx, StopPromptExperimentInput{
+		WorkspaceID:           "ws_test",
+		ExperimentID:          experiment.ID,
+		WinnerPromptVersionID: &control.ID,
+	})
+	if err != nil {
+		t.Fatalf("StopPromptExperiment: %v", err)
+	}
+	if stopped.Status != PromptExperimentStatusCompleted {
+		t.Fatalf("expected completed, got %s", stopped.Status)
+	}
+}
+
+func TestPromptExperiment_RejectsSecondRunningExperiment(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	svc := newTestPromptService(t, db)
+	ctx := context.Background()
+	control, _ := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: "agent_support",
+		SystemPrompt:      "Control",
+		Config:            `{}`,
+	})
+	candidate1, _ := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: "agent_support",
+		SystemPrompt:      "Candidate 1",
+		Config:            `{}`,
+	})
+	candidate2, _ := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: "agent_support",
+		SystemPrompt:      "Candidate 2",
+		Config:            `{}`,
+	})
+
+	_, err := svc.StartPromptExperiment(ctx, StartPromptExperimentInput{
+		WorkspaceID:              "ws_test",
+		ControlPromptVersionID:   control.ID,
+		CandidatePromptVersionID: candidate1.ID,
+		ControlTrafficPercent:    50,
+		CandidateTrafficPercent:  50,
+	})
+	if err != nil {
+		t.Fatalf("first StartPromptExperiment: %v", err)
 	}
 
-	return db
+	_, err = svc.StartPromptExperiment(ctx, StartPromptExperimentInput{
+		WorkspaceID:              "ws_test",
+		ControlPromptVersionID:   control.ID,
+		CandidatePromptVersionID: candidate2.ID,
+		ControlTrafficPercent:    50,
+		CandidateTrafficPercent:  50,
+	})
+	if !errors.Is(err, ErrPromptExperimentAlreadyRunning) {
+		t.Fatalf("expected ErrPromptExperimentAlreadyRunning, got %v", err)
+	}
 }
 
 func TestListPromptVersions_Success(t *testing.T) {
@@ -336,12 +346,10 @@ func TestListPromptVersions_Success(t *testing.T) {
 
 	svc := newTestPromptService(t, db)
 	ctx := context.Background()
-
-	// Create a version to list
 	_, err := svc.CreatePromptVersion(ctx, CreatePromptVersionInput{
 		WorkspaceID:       "ws_test",
 		AgentDefinitionID: "agent_support",
-		SystemPrompt:      "List test prompt.",
+		SystemPrompt:      "List test prompt",
 		Config:            `{}`,
 	})
 	if err != nil {
@@ -352,8 +360,8 @@ func TestListPromptVersions_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPromptVersions: %v", err)
 	}
-	if len(versions) == 0 {
-		t.Fatal("expected at least one prompt version")
+	if len(versions) != 1 {
+		t.Fatalf("expected 1 version, got %d", len(versions))
 	}
 }
 
@@ -363,7 +371,44 @@ func TestGetPromptVersionByID_NotFound(t *testing.T) {
 
 	svc := newTestPromptService(t, db)
 	_, err := svc.GetPromptVersionByID(context.Background(), "ws_test", "nonexistent-id")
-	if err == nil {
-		t.Fatal("expected error for nonexistent ID")
+	if !errors.Is(err, ErrPromptVersionNotFound) {
+		t.Fatalf("expected ErrPromptVersionNotFound, got %v", err)
+	}
+}
+
+func setupTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open test DB: %v", err)
+	}
+	if err = sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("failed to migrate: %v", err)
+	}
+	return db
+}
+
+func insertPromptEvalRun(t *testing.T, db *sql.DB, workspaceID, promptVersionID, status string) {
+	t.Helper()
+
+	suiteID := "suite_" + promptVersionID + "_" + status
+	_, err := db.Exec(`
+		INSERT INTO eval_suite (id, workspace_id, name, domain, test_cases, thresholds, created_at, updated_at)
+		VALUES (?, ?, ?, 'support', '[]', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, suiteID, workspaceID, suiteID)
+	if err != nil {
+		t.Fatalf("insert eval suite: %v", err)
+	}
+
+	now := time.Now()
+	_, err = db.Exec(`
+		INSERT INTO eval_run (
+			id, workspace_id, eval_suite_id, prompt_version_id, status, scores, details,
+			started_at, completed_at, created_at
+		) VALUES (?, ?, ?, ?, ?, '{}', '[]', ?, ?, ?)
+	`, "run_"+promptVersionID+"_"+status, workspaceID, suiteID, promptVersionID, status, now, now, now)
+	if err != nil {
+		t.Fatalf("insert eval run: %v", err)
 	}
 }

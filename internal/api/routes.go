@@ -255,6 +255,9 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			r.Post("/", promptHandler.Create)               // POST /api/v1/admin/prompts
 			r.Put("/{id}/promote", promptHandler.Promote)   // PUT /api/v1/admin/prompts/{id}/promote
 			r.Put("/{id}/rollback", promptHandler.Rollback) // PUT /api/v1/admin/prompts/{id}/rollback
+			r.Get("/experiments", promptHandler.ListExperiments)
+			r.Post("/experiments", promptHandler.StartExperiment)
+			r.Put("/experiments/{id}/stop", promptHandler.StopExperiment)
 		})
 
 		// Task 4.7 — FR-242: Eval Service Basic routes
