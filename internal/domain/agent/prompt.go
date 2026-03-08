@@ -172,80 +172,26 @@ func (s *PromptService) GetPromptVersionByID(ctx context.Context, workspaceID, p
 
 // PromotePrompt activa una versión (status=active), archiva la anterior activa
 func (s *PromptService) PromotePrompt(ctx context.Context, workspaceID, promptVersionID string) error {
-	queries := sqlcgen.New(s.db)
-	pv, err := s.getPromptVersionRow(ctx, queries, workspaceID, promptVersionID)
+	pv, err := s.preparePromptPromotion(ctx, workspaceID, promptVersionID)
 	if err != nil {
 		return err
 	}
-	if err = validatePromotionStatus(pv.Status); err != nil {
+	if err = s.activatePromptVersion(ctx, workspaceID, pv.AgentDefinitionID, promptVersionID); err != nil {
 		return err
 	}
-	if err = s.requirePassingEval(ctx, workspaceID, promptVersionID); err != nil {
-		s.logPromptBlockedAudit(ctx, workspaceID, promptVersionID, pv.AgentDefinitionID, err)
-		return err
-	}
-
-	tx, err := s.beginPromptTx(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	qtx := queries.WithTx(tx)
-	err = archiveOtherActivePrompts(ctx, qtx, pv.AgentDefinitionID, workspaceID, promptVersionID)
-	if err != nil {
-		return err
-	}
-	err = setPromptVersionStatus(ctx, qtx, promptVersionID, workspaceID, PromptStatusActive)
-	if err != nil {
-		return err
-	}
-	err = s.syncActivePromptVersion(ctx, tx, workspaceID, pv.AgentDefinitionID, promptVersionID)
-	if err != nil {
-		return err
-	}
-	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("commit: %w", err)
-	}
-
 	s.logPromptActivation(ctx, workspaceID, promptVersionID, pv.AgentDefinitionID)
 	return nil
 }
 
 // RollbackPrompt reactiva la versión archivada más reciente del agente
 func (s *PromptService) RollbackPrompt(ctx context.Context, workspaceID, promptVersionID string) error {
-	queries := sqlcgen.New(s.db)
-	pv, err := s.getPromptVersionRow(ctx, queries, workspaceID, promptVersionID)
+	pv, err := s.preparePromptRollback(ctx, workspaceID, promptVersionID)
 	if err != nil {
 		return err
 	}
-	if PromptStatus(pv.Status) != PromptStatusArchived {
-		return ErrPromptRollbackInvalid
-	}
-
-	tx, err := s.beginPromptTx(ctx)
-	if err != nil {
+	if err = s.activatePromptVersion(ctx, workspaceID, pv.AgentDefinitionID, promptVersionID); err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }()
-
-	qtx := queries.WithTx(tx)
-	err = archiveOtherActivePrompts(ctx, qtx, pv.AgentDefinitionID, workspaceID, promptVersionID)
-	if err != nil {
-		return err
-	}
-	err = setPromptVersionStatus(ctx, qtx, promptVersionID, workspaceID, PromptStatusActive)
-	if err != nil {
-		return err
-	}
-	err = s.syncActivePromptVersion(ctx, tx, workspaceID, pv.AgentDefinitionID, promptVersionID)
-	if err != nil {
-		return err
-	}
-	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("commit: %w", err)
-	}
-
 	s.logPromptRollback(ctx, workspaceID, promptVersionID, pv.AgentDefinitionID)
 	return nil
 }
@@ -300,12 +246,67 @@ func (s *PromptService) requirePassingEval(ctx context.Context, workspaceID, pro
 	return nil
 }
 
+func (s *PromptService) preparePromptPromotion(ctx context.Context, workspaceID, promptVersionID string) (*sqlcgen.PromptVersion, error) {
+	queries := sqlcgen.New(s.db)
+	pv, err := s.getPromptVersionRow(ctx, queries, workspaceID, promptVersionID)
+	if err != nil {
+		return nil, err
+	}
+	if err = validatePromotionStatus(pv.Status); err != nil {
+		return nil, err
+	}
+	if err = s.requirePassingEval(ctx, workspaceID, promptVersionID); err != nil {
+		s.logPromptBlockedAudit(ctx, workspaceID, promptVersionID, pv.AgentDefinitionID, err)
+		return nil, err
+	}
+	return pv, nil
+}
+
+func (s *PromptService) preparePromptRollback(ctx context.Context, workspaceID, promptVersionID string) (*sqlcgen.PromptVersion, error) {
+	queries := sqlcgen.New(s.db)
+	pv, err := s.getPromptVersionRow(ctx, queries, workspaceID, promptVersionID)
+	if err != nil {
+		return nil, err
+	}
+	if PromptStatus(pv.Status) != PromptStatusArchived {
+		return nil, ErrPromptRollbackInvalid
+	}
+	return pv, nil
+}
+
 func (s *PromptService) beginPromptTx(ctx context.Context) (*sql.Tx, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
 	return tx, nil
+}
+
+func (s *PromptService) activatePromptVersion(
+	ctx context.Context,
+	workspaceID, agentDefinitionID, promptVersionID string,
+) error {
+	tx, err := s.beginPromptTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	queries := sqlcgen.New(s.db)
+	qtx := queries.WithTx(tx)
+	if err = archiveOtherActivePrompts(ctx, qtx, agentDefinitionID, workspaceID, promptVersionID); err != nil {
+		return err
+	}
+	if err = setPromptVersionStatus(ctx, qtx, promptVersionID, workspaceID, PromptStatusActive); err != nil {
+		return err
+	}
+	if err = s.syncActivePromptVersion(ctx, tx, workspaceID, agentDefinitionID, promptVersionID); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
 }
 
 func archiveOtherActivePrompts(
