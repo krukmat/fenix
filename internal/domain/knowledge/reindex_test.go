@@ -585,6 +585,7 @@ func TestReindexService_FreshnessSLA_AccountVisibleInHybridSearch(t *testing.T) 
 	defer cancel()
 	go embedder.Start(ctx, bus)
 	go reindex.Start(ctx)
+	time.Sleep(25 * time.Millisecond)
 
 	start := time.Now()
 	accountID := newID()
