@@ -61,65 +61,18 @@ type StopPromptExperimentInput struct {
 }
 
 func (s *PromptService) StartPromptExperiment(ctx context.Context, input StartPromptExperimentInput) (*PromptExperiment, error) {
-	if err := validatePromptExperimentSplit(input.ControlTrafficPercent, input.CandidateTrafficPercent); err != nil {
-		return nil, err
-	}
-	if input.ControlPromptVersionID == input.CandidatePromptVersionID {
-		return nil, ErrPromptExperimentSameVersion
-	}
-
-	queries := sqlcgen.New(s.db)
-	control, err := s.getPromptVersionRow(ctx, queries, input.WorkspaceID, input.ControlPromptVersionID)
+	control, candidate, err := s.loadStartExperimentVersions(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-	candidate, err := s.getPromptVersionRow(ctx, queries, input.WorkspaceID, input.CandidatePromptVersionID)
+	experiment, err := s.createPromptExperiment(ctx, input, control.AgentDefinitionID)
 	if err != nil {
 		return nil, err
 	}
-	if control.AgentDefinitionID != candidate.AgentDefinitionID {
-		return nil, ErrPromptExperimentAgentMismatch
-	}
-	if err := s.ensureNoRunningExperiment(ctx, input.WorkspaceID, control.AgentDefinitionID); err != nil {
+	if err = s.markCandidateTestingIfNeeded(ctx, input.WorkspaceID, input.CandidatePromptVersionID, candidate.Status); err != nil {
 		return nil, err
 	}
-
-	experimentID := uuid.NewV7().String()
-	row := s.db.QueryRowContext(ctx, `
-		INSERT INTO prompt_experiment (
-			id, workspace_id, agent_definition_id, control_prompt_version_id, candidate_prompt_version_id,
-			control_traffic_percent, candidate_traffic_percent, status, created_by, started_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-		RETURNING id, workspace_id, agent_definition_id, control_prompt_version_id, candidate_prompt_version_id,
-		          control_traffic_percent, candidate_traffic_percent, status, winner_prompt_version_id,
-		          created_by, started_at, completed_at, created_at
-	`,
-		experimentID,
-		input.WorkspaceID,
-		control.AgentDefinitionID,
-		input.ControlPromptVersionID,
-		input.CandidatePromptVersionID,
-		input.ControlTrafficPercent,
-		input.CandidateTrafficPercent,
-		PromptExperimentStatusRunning,
-		input.CreatedBy,
-	)
-
-	experiment, err := scanPromptExperiment(row)
-	if err != nil {
-		return nil, fmt.Errorf("create prompt experiment: %w", err)
-	}
-	if PromptStatus(candidate.Status) == PromptStatusDraft {
-		if err := s.setPromptStatus(ctx, input.WorkspaceID, input.CandidatePromptVersionID, PromptStatusTesting); err != nil {
-			return nil, err
-		}
-	}
-	s.logPromptExperimentAudit(ctx, input.WorkspaceID, "prompt.experiment_started", experiment.ID, control.AgentDefinitionID, map[string]interface{}{
-		"control_prompt_version_id":   experiment.ControlPromptVersionID,
-		"candidate_prompt_version_id": experiment.CandidatePromptVersionID,
-		"control_traffic_percent":     experiment.ControlTrafficPercent,
-		"candidate_traffic_percent":   experiment.CandidateTrafficPercent,
-	})
+	s.logPromptExperimentStarted(ctx, input.WorkspaceID, experiment, control.AgentDefinitionID)
 	return experiment, nil
 }
 
@@ -157,34 +110,149 @@ func (s *PromptService) StopPromptExperiment(ctx context.Context, input StopProm
 		return nil, err
 	}
 
-	status := PromptExperimentStatusCancelled
-	if input.WinnerPromptVersionID != nil {
-		status = PromptExperimentStatusCompleted
+	if err = s.persistStoppedExperiment(ctx, input); err != nil {
+		return nil, err
 	}
-	_, err = s.db.ExecContext(ctx, `
-		UPDATE prompt_experiment
-		SET status = ?, winner_prompt_version_id = ?, completed_at = CURRENT_TIMESTAMP
-		WHERE id = ? AND workspace_id = ?
-	`, status, input.WinnerPromptVersionID, input.ExperimentID, input.WorkspaceID)
-	if err != nil {
-		return nil, fmt.Errorf("stop prompt experiment: %w", err)
-	}
-
-	if shouldResetCandidateToDraft(experiment, input.WinnerPromptVersionID) {
-		if err = s.setPromptStatus(ctx, input.WorkspaceID, experiment.CandidatePromptVersionID, PromptStatusDraft); err != nil {
-			return nil, err
-		}
+	if err = s.resetCandidateAfterExperiment(ctx, input.WorkspaceID, experiment, input.WinnerPromptVersionID); err != nil {
+		return nil, err
 	}
 
 	updated, err := s.getPromptExperimentByID(ctx, input.WorkspaceID, input.ExperimentID)
 	if err != nil {
 		return nil, err
 	}
-	s.logPromptExperimentAudit(ctx, input.WorkspaceID, "prompt.experiment_stopped", updated.ID, updated.AgentDefinitionID, map[string]interface{}{
-		"winner_prompt_version_id": updated.WinnerPromptVersionID,
-		"status":                   updated.Status,
-	})
+	s.logPromptExperimentStopped(ctx, input.WorkspaceID, updated)
 	return updated, nil
+}
+
+func (s *PromptService) loadStartExperimentVersions(
+	ctx context.Context,
+	input StartPromptExperimentInput,
+) (*sqlcgen.PromptVersion, *sqlcgen.PromptVersion, error) {
+	if err := validateStartExperimentInput(input); err != nil {
+		return nil, nil, err
+	}
+
+	queries := sqlcgen.New(s.db)
+	control, err := s.getPromptVersionRow(ctx, queries, input.WorkspaceID, input.ControlPromptVersionID)
+	if err != nil {
+		return nil, nil, err
+	}
+	candidate, err := s.getPromptVersionRow(ctx, queries, input.WorkspaceID, input.CandidatePromptVersionID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if control.AgentDefinitionID != candidate.AgentDefinitionID {
+		return nil, nil, ErrPromptExperimentAgentMismatch
+	}
+	if err = s.ensureNoRunningExperiment(ctx, input.WorkspaceID, control.AgentDefinitionID); err != nil {
+		return nil, nil, err
+	}
+	return control, candidate, nil
+}
+
+func validateStartExperimentInput(input StartPromptExperimentInput) error {
+	if err := validatePromptExperimentSplit(input.ControlTrafficPercent, input.CandidateTrafficPercent); err != nil {
+		return err
+	}
+	if input.ControlPromptVersionID == input.CandidatePromptVersionID {
+		return ErrPromptExperimentSameVersion
+	}
+	return nil
+}
+
+func (s *PromptService) createPromptExperiment(
+	ctx context.Context,
+	input StartPromptExperimentInput,
+	agentDefinitionID string,
+) (*PromptExperiment, error) {
+	row := s.db.QueryRowContext(ctx, `
+		INSERT INTO prompt_experiment (
+			id, workspace_id, agent_definition_id, control_prompt_version_id, candidate_prompt_version_id,
+			control_traffic_percent, candidate_traffic_percent, status, created_by, started_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		RETURNING id, workspace_id, agent_definition_id, control_prompt_version_id, candidate_prompt_version_id,
+		          control_traffic_percent, candidate_traffic_percent, status, winner_prompt_version_id,
+		          created_by, started_at, completed_at, created_at
+	`,
+		uuid.NewV7().String(),
+		input.WorkspaceID,
+		agentDefinitionID,
+		input.ControlPromptVersionID,
+		input.CandidatePromptVersionID,
+		input.ControlTrafficPercent,
+		input.CandidateTrafficPercent,
+		PromptExperimentStatusRunning,
+		input.CreatedBy,
+	)
+	experiment, err := scanPromptExperiment(row)
+	if err != nil {
+		return nil, fmt.Errorf("create prompt experiment: %w", err)
+	}
+	return experiment, nil
+}
+
+func (s *PromptService) markCandidateTestingIfNeeded(
+	ctx context.Context,
+	workspaceID, promptVersionID, candidateStatus string,
+) error {
+	if PromptStatus(candidateStatus) != PromptStatusDraft {
+		return nil
+	}
+	return s.setPromptStatus(ctx, workspaceID, promptVersionID, PromptStatusTesting)
+}
+
+func (s *PromptService) logPromptExperimentStarted(
+	ctx context.Context,
+	workspaceID string,
+	experiment *PromptExperiment,
+	agentDefinitionID string,
+) {
+	s.logPromptExperimentAudit(ctx, workspaceID, "prompt.experiment_started", experiment.ID, agentDefinitionID, map[string]interface{}{
+		"control_prompt_version_id":   experiment.ControlPromptVersionID,
+		"candidate_prompt_version_id": experiment.CandidatePromptVersionID,
+		"control_traffic_percent":     experiment.ControlTrafficPercent,
+		"candidate_traffic_percent":   experiment.CandidateTrafficPercent,
+	})
+}
+
+func (s *PromptService) persistStoppedExperiment(ctx context.Context, input StopPromptExperimentInput) error {
+	status := resolveStoppedExperimentStatus(input.WinnerPromptVersionID)
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE prompt_experiment
+		SET status = ?, winner_prompt_version_id = ?, completed_at = CURRENT_TIMESTAMP
+		WHERE id = ? AND workspace_id = ?
+	`, status, input.WinnerPromptVersionID, input.ExperimentID, input.WorkspaceID)
+	if err != nil {
+		return fmt.Errorf("stop prompt experiment: %w", err)
+	}
+	return nil
+}
+
+func resolveStoppedExperimentStatus(winnerPromptVersionID *string) PromptExperimentStatus {
+	if winnerPromptVersionID != nil {
+		return PromptExperimentStatusCompleted
+	}
+	return PromptExperimentStatusCancelled
+}
+
+func (s *PromptService) resetCandidateAfterExperiment(
+	ctx context.Context,
+	workspaceID string,
+	experiment *PromptExperiment,
+	winnerPromptVersionID *string,
+) error {
+	if !shouldResetCandidateToDraft(experiment, winnerPromptVersionID) {
+		return nil
+	}
+	return s.setPromptStatus(ctx, workspaceID, experiment.CandidatePromptVersionID, PromptStatusDraft)
+}
+
+func (s *PromptService) logPromptExperimentStopped(ctx context.Context, workspaceID string, experiment *PromptExperiment) {
+	s.logPromptExperimentAudit(ctx, workspaceID, "prompt.experiment_stopped", experiment.ID, experiment.AgentDefinitionID, map[string]interface{}{
+		"winner_prompt_version_id": experiment.WinnerPromptVersionID,
+		"status":                   experiment.Status,
+	})
 }
 
 func validatePromptExperimentSplit(controlPercent, candidatePercent int) error {

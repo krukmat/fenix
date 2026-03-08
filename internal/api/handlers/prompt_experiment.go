@@ -61,26 +61,11 @@ func (h *PromptHandler) StartExperiment(w http.ResponseWriter, r *http.Request) 
 	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.experiments.create") {
 		return
 	}
-	workspaceID, ok := requirePromptWorkspaceID(r)
+	input, ok := buildStartExperimentInput(w, r)
 	if !ok {
-		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
 		return
 	}
-
-	var req StartPromptExperimentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
-	experiment, err := h.service.StartPromptExperiment(r.Context(), agent.StartPromptExperimentInput{
-		WorkspaceID:              workspaceID,
-		ControlPromptVersionID:   req.ControlPromptVersionID,
-		CandidatePromptVersionID: req.CandidatePromptVersionID,
-		ControlTrafficPercent:    req.ControlTrafficPercent,
-		CandidateTrafficPercent:  req.CandidateTrafficPercent,
-		CreatedBy:                &userID,
-	})
+	experiment, err := h.service.StartPromptExperiment(r.Context(), input)
 	if err != nil {
 		writePromptExperimentError(w, err)
 		return
@@ -95,29 +80,11 @@ func (h *PromptHandler) StopExperiment(w http.ResponseWriter, r *http.Request) {
 	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.experiments.stop") {
 		return
 	}
-	workspaceID, ok := requirePromptWorkspaceID(r)
-	if !ok {
-		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
-		return
-	}
-	experimentID, ok := getPromptVersionIDParam(w, r)
+	input, ok := buildStopExperimentInput(w, r)
 	if !ok {
 		return
 	}
-
-	var req StopPromptExperimentRequest
-	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return
-		}
-	}
-
-	experiment, err := h.service.StopPromptExperiment(r.Context(), agent.StopPromptExperimentInput{
-		WorkspaceID:           workspaceID,
-		ExperimentID:          experimentID,
-		WinnerPromptVersionID: req.WinnerPromptVersionID,
-	})
+	experiment, err := h.service.StopPromptExperiment(r.Context(), input)
 	if err != nil {
 		writePromptExperimentError(w, err)
 		return
@@ -125,6 +92,70 @@ func (h *PromptHandler) StopExperiment(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set(headerContentType, mimeJSON)
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": toPromptExperimentResponse(experiment)})
+}
+
+func buildStartExperimentInput(w http.ResponseWriter, r *http.Request) (agent.StartPromptExperimentInput, bool) {
+	workspaceID, ok := requirePromptWorkspaceID(r)
+	if !ok {
+		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
+		return agent.StartPromptExperimentInput{}, false
+	}
+	req, err := decodeStartExperimentRequest(r)
+	if err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return agent.StartPromptExperimentInput{}, false
+	}
+	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
+	return agent.StartPromptExperimentInput{
+		WorkspaceID:              workspaceID,
+		ControlPromptVersionID:   req.ControlPromptVersionID,
+		CandidatePromptVersionID: req.CandidatePromptVersionID,
+		ControlTrafficPercent:    req.ControlTrafficPercent,
+		CandidateTrafficPercent:  req.CandidateTrafficPercent,
+		CreatedBy:                &userID,
+	}, true
+}
+
+func decodeStartExperimentRequest(r *http.Request) (StartPromptExperimentRequest, error) {
+	var req StartPromptExperimentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return StartPromptExperimentRequest{}, err
+	}
+	return req, nil
+}
+
+func buildStopExperimentInput(w http.ResponseWriter, r *http.Request) (agent.StopPromptExperimentInput, bool) {
+	workspaceID, ok := requirePromptWorkspaceID(r)
+	if !ok {
+		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
+		return agent.StopPromptExperimentInput{}, false
+	}
+	experimentID, ok := getPromptVersionIDParam(w, r)
+	if !ok {
+		return agent.StopPromptExperimentInput{}, false
+	}
+	req, err := decodeStopExperimentRequest(r)
+	if err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return agent.StopPromptExperimentInput{}, false
+	}
+	return agent.StopPromptExperimentInput{
+		WorkspaceID:           workspaceID,
+		ExperimentID:          experimentID,
+		WinnerPromptVersionID: req.WinnerPromptVersionID,
+	}, true
+}
+
+func decodeStopExperimentRequest(r *http.Request) (StopPromptExperimentRequest, error) {
+	var req StopPromptExperimentRequest
+	if r.Body == nil {
+		return req, nil
+	}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return StopPromptExperimentRequest{}, err
+	}
+	return req, nil
 }
 
 func writePromptExperimentError(w http.ResponseWriter, err error) {
