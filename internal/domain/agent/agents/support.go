@@ -113,58 +113,21 @@ func (a *SupportAgent) Objective() json.RawMessage {
 // Run executes the Support Agent for a given case
 // Traces: FR-230, FR-231
 func (a *SupportAgent) Run(ctx context.Context, config SupportAgentConfig) (*agent.Run, error) {
-	if config.CaseID == "" {
-		return nil, ErrCaseIDRequired
-	}
-	if config.WorkspaceID == "" {
-		return nil, ErrWorkspaceIDRequired
+	if err := validateSupportConfig(config); err != nil {
+		return nil, err
 	}
 
-	triggerContext, _ := json.Marshal(map[string]any{
-		"case_id":         config.CaseID,
-		"customer_query":  config.CustomerQuery,
-		"context_account": config.ContextAccount,
-		"context_contact": config.ContextContact,
-		"language":        config.Language,
-		"priority":        config.Priority,
-		"agent_type":      "support",
-		"capabilities":    a.AllowedTools(),
-	})
-
-	inputs, _ := json.Marshal(config)
-
-	run, err := a.orchestrator.TriggerAgent(ctx, agent.TriggerAgentInput{
-		AgentID:        "support-agent",
-		WorkspaceID:    config.WorkspaceID,
-		TriggeredBy:    nil,
-		TriggerType:    agent.TriggerTypeManual,
-		TriggerContext: triggerContext,
-		Inputs:         inputs,
-	})
+	run, err := a.triggerSupportRun(ctx, config)
 	if err != nil {
 		return nil, err
 	}
 
 	result, err := a.executeSupportFlow(ctx, run.ID, config)
 	if err != nil {
-		_, updateErr := a.orchestrator.UpdateAgentRunStatus(ctx, run.WorkspaceID, run.ID, agent.StatusFailed)
-		if updateErr != nil {
-			return run, updateErr
-		}
-		return run, err
+		return run, a.failSupportRun(ctx, run, err)
 	}
 
-	_, err = a.orchestrator.UpdateAgentRun(ctx, run.WorkspaceID, run.ID, agent.RunUpdates{
-		Status:         result.Status,
-		Output:         result.Output,
-		ToolCalls:      result.ToolCalls,
-		ReasoningTrace: result.ReasoningTrace,
-		TotalTokens:    result.TotalTokens,
-		TotalCost:      result.TotalCost,
-		LatencyMs:      result.LatencyMs,
-		Completed:      true,
-	})
-	if err != nil {
+	if err := a.completeSupportRun(ctx, run, result); err != nil {
 		return run, err
 	}
 
@@ -193,40 +156,11 @@ func (a *SupportAgent) executeSupportFlow(ctx context.Context, runID string, con
 		return nil, err
 	}
 
-	evidence, err := a.knowledgeSearch.HybridSearch(ctx, knowledge.SearchInput{
-		WorkspaceID: caseContext.WorkspaceID,
-		Query:       config.CustomerQuery,
-		Limit:       5,
-	})
-	if err != nil {
-		evidence = &knowledge.SearchResults{Items: []knowledge.SearchResult{}}
-	}
+	evidence := a.loadSupportEvidence(ctx, caseContext.WorkspaceID, config.CustomerQuery)
 
 	action := a.determineAction(config, caseContext, evidence)
 	if actionRequiresApproval(action) {
-		approvalID, approvalErr := a.requestSupportApproval(ctx, caseContext, action)
-		if approvalErr != nil {
-			return nil, approvalErr
-		}
-		escalatedAction := &Action{
-			Type:       "pending_approval",
-			Details:    "Sensitive action requires human approval",
-			CaseID:     action.CaseID,
-			Status:     "pending_approval",
-			Confidence: action.Confidence,
-			ApprovalID: approvalID,
-		}
-		toolCalls, _ := json.Marshal([]map[string]any{{"tool_name": "approval.requested"}})
-		elapsed := time.Since(startTime).Milliseconds()
-		return &SupportResult{
-			Status:         agent.StatusEscalated,
-			Output:         escalatedAction.toJSON(),
-			ToolCalls:      toolCalls,
-			ReasoningTrace: buildReasoningTrace(config, evidence, escalatedAction),
-			TotalTokens:    &totalTokens,
-			TotalCost:      &totalCost,
-			LatencyMs:      &elapsed,
-		}, nil
+		return a.buildApprovalEscalationResult(ctx, startTime, config, caseContext, evidence, action, &totalTokens, &totalCost)
 	}
 
 	toolCalls, handoffReason, err := a.executeAction(ctx, runID, action, caseContext)
@@ -236,18 +170,7 @@ func (a *SupportAgent) executeSupportFlow(ctx context.Context, runID string, con
 	if handoffReason != "" {
 		action.NextSteps = append(action.NextSteps, "handoff_created")
 	}
-	resultStatus := supportResultStatus(action.Type)
-
-	elapsed := time.Since(startTime).Milliseconds()
-	return &SupportResult{
-		Status:         resultStatus,
-		Output:         action.toJSON(),
-		ToolCalls:      toolCalls,
-		ReasoningTrace: buildReasoningTrace(config, evidence, action),
-		TotalTokens:    &totalTokens,
-		TotalCost:      &totalCost,
-		LatencyMs:      &elapsed,
-	}, nil
+	return buildSupportResult(startTime, config, evidence, action, toolCalls, &totalTokens, &totalCost), nil
 }
 
 // CaseContext holds the context of a support case
@@ -270,12 +193,51 @@ func (a *SupportAgent) getCaseContext(ctx context.Context, workspaceID, caseID s
 		return nil, ErrSupportDBNotConfigured
 	}
 
+	caseTicket, err := a.loadSupportCase(ctx, workspaceID, caseID)
+	if err != nil {
+		return nil, err
+	}
+
+	ctxOut := buildCaseContext(caseTicket)
+	return a.enrichCaseContextWithContact(ctx, ctxOut)
+}
+
+func (a *SupportAgent) determineAction(config SupportAgentConfig, caseContext *CaseContext, evidence *knowledge.SearchResults) *Action {
+	score := topEvidenceScore(evidence)
+	if shouldResolveSupportAction(score) {
+		return supportResolvedAction(config)
+	}
+	if shouldEscalateSupportAction(score, config, caseContext) {
+		return supportEscalatedAction(config)
+	}
+	return supportAbstainedAction(config)
+}
+
+func (a *SupportAgent) executeAction(ctx context.Context, runID string, action *Action, caseContext *CaseContext) (json.RawMessage, string, error) {
+	toolCtx := supportToolContext(ctx, caseContext)
+	switch action.Type {
+	case supportActionUpdateCase:
+		return a.executeResolvedAction(toolCtx, action, caseContext)
+	case supportActionAbstain:
+		return a.executeAbstainedAction(toolCtx, action, caseContext)
+	case supportActionEscalate:
+		return a.executeEscalatedAction(toolCtx, runID, action, caseContext)
+	default:
+		raw, err := json.Marshal([]map[string]any{})
+		return raw, "", err
+	}
+}
+
+func (a *SupportAgent) loadSupportCase(ctx context.Context, workspaceID, caseID string) (*crm.CaseTicket, error) {
 	caseTicket, err := crm.NewCaseService(a.db).Get(ctx, workspaceID, caseID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSupportCaseContextLoadFailed, err)
 	}
+	return caseTicket, nil
+}
 
-	ctxOut := &CaseContext{
+func buildCaseContext(caseTicket *crm.CaseTicket) *CaseContext {
+	return &CaseContext{
 		ID:          caseTicket.ID,
 		WorkspaceID: caseTicket.WorkspaceID,
 		Subject:     caseTicket.Subject,
@@ -286,11 +248,14 @@ func (a *SupportAgent) getCaseContext(ctx context.Context, workspaceID, caseID s
 		ContactID:   derefSupportString(caseTicket.ContactID),
 		OwnerID:     caseTicket.OwnerID,
 	}
-	if caseTicket.ContactID == nil || *caseTicket.ContactID == "" {
+}
+
+func (a *SupportAgent) enrichCaseContextWithContact(ctx context.Context, ctxOut *CaseContext) (*CaseContext, error) {
+	if ctxOut.ContactID == "" {
 		return ctxOut, nil
 	}
 
-	contact, contactErr := crm.NewContactService(a.db).Get(ctx, workspaceID, *caseTicket.ContactID)
+	contact, contactErr := crm.NewContactService(a.db).Get(ctx, ctxOut.WorkspaceID, ctxOut.ContactID)
 	if contactErr != nil {
 		return ctxOut, nil
 	}
@@ -311,116 +276,37 @@ type Action struct {
 	Metadata   string
 }
 
-func (a *SupportAgent) determineAction(config SupportAgentConfig, caseContext *CaseContext, evidence *knowledge.SearchResults) *Action {
-	score := topEvidenceScore(evidence)
-	if score >= supportResolveThreshold {
-		return &Action{
-			Type:       supportActionUpdateCase,
-			Details:    "Applied solution from knowledge base",
-			CaseID:     config.CaseID,
-			Status:     "resolved",
-			Confidence: 90,
-			NextSteps:  []string{"send_resolution_email"},
-			Metadata:   config.Priority,
-		}
-	}
-
-	if shouldEscalateSupportAction(score, config, caseContext) {
-		return &Action{
-			Type:       supportActionEscalate,
-			Details:    "Insufficient confidence for autonomous resolution",
-			CaseID:     config.CaseID,
-			Status:     "escalated",
-			Confidence: 30,
-			NextSteps:  []string{"create_support_handoff"},
-		}
-	}
-
-	return &Action{
-		Type:       supportActionAbstain,
-		Details:    "Evidence is not strong enough to resolve the case automatically",
-		CaseID:     config.CaseID,
-		Status:     "open",
-		Confidence: 50,
-		NextSteps:  []string{"await_human_review_if_customer_replies"},
-	}
-}
-
-func (a *SupportAgent) executeAction(ctx context.Context, runID string, action *Action, caseContext *CaseContext) (json.RawMessage, string, error) {
-	toolCtx := supportToolContext(ctx, caseContext)
+func (a *SupportAgent) executeResolvedAction(toolCtx context.Context, action *Action, caseContext *CaseContext) (json.RawMessage, string, error) {
 	toolCalls := []map[string]any{}
-
-	switch action.Type {
-	case supportActionUpdateCase:
-		updateOut, err := a.executeTool(toolCtx, caseContext.WorkspaceID, tool.BuiltinUpdateCase, map[string]any{
-			"case_id":  action.CaseID,
-			"status":   action.Status,
-			"priority": caseContext.Priority,
-		})
-		if err != nil {
-			return nil, "", err
-		}
-		toolCall := map[string]any{
-			"tool_name":   tool.BuiltinUpdateCase,
-			"result":      rawJSONMap(updateOut),
-			"executed_at": time.Now().UTC().Format(time.RFC3339),
-		}
-		toolCalls = append(toolCalls, toolCall)
-
-		replyOut, err := a.executeTool(toolCtx, caseContext.WorkspaceID, tool.BuiltinSendReply, map[string]any{
-			"case_id":     action.CaseID,
-			"body":        buildSupportReply(caseContext, action),
-			"is_internal": false,
-		})
-		if err != nil {
-			return nil, "", err
-		}
-		toolCalls = append(toolCalls, map[string]any{
-			"tool_name":   tool.BuiltinSendReply,
-			"result":      rawJSONMap(replyOut),
-			"executed_at": time.Now().UTC().Format(time.RFC3339),
-		})
-
-	case supportActionAbstain:
-		replyOut, err := a.executeTool(toolCtx, caseContext.WorkspaceID, tool.BuiltinSendReply, map[string]any{
-			"case_id":     action.CaseID,
-			"body":        buildSupportReply(caseContext, action),
-			"is_internal": false,
-		})
-		if err != nil {
-			return nil, "", err
-		}
-		toolCalls = append(toolCalls, map[string]any{
-			"tool_name":   tool.BuiltinSendReply,
-			"result":      rawJSONMap(replyOut),
-			"executed_at": time.Now().UTC().Format(time.RFC3339),
-		})
-
-	case supportActionEscalate:
-		taskOut, err := a.executeTool(toolCtx, caseContext.WorkspaceID, tool.BuiltinCreateTask, map[string]any{
-			"owner_id":    caseContext.OwnerID,
-			"title":       "Escalated support case: " + caseContext.Subject,
-			"entity_type": "case",
-			"entity_id":   caseContext.ID,
-		})
-		if err != nil {
-			return nil, "", err
-		}
-		toolCalls = append(toolCalls, map[string]any{
-			"tool_name":   tool.BuiltinCreateTask,
-			"result":      rawJSONMap(taskOut),
-			"executed_at": time.Now().UTC().Format(time.RFC3339),
-		})
-
-		if err := a.initiateSupportHandoff(toolCtx, runID, caseContext, action); err != nil {
-			return nil, "", err
-		}
-		raw, err := json.Marshal(toolCalls)
-		return raw, action.Details, err
+	if err := a.appendCaseUpdateToolCall(toolCtx, &toolCalls, action, caseContext); err != nil {
+		return nil, "", err
 	}
-
+	if err := a.appendReplyToolCall(toolCtx, &toolCalls, action, caseContext); err != nil {
+		return nil, "", err
+	}
 	raw, err := json.Marshal(toolCalls)
 	return raw, "", err
+}
+
+func (a *SupportAgent) executeAbstainedAction(toolCtx context.Context, action *Action, caseContext *CaseContext) (json.RawMessage, string, error) {
+	toolCalls := []map[string]any{}
+	if err := a.appendReplyToolCall(toolCtx, &toolCalls, action, caseContext); err != nil {
+		return nil, "", err
+	}
+	raw, err := json.Marshal(toolCalls)
+	return raw, "", err
+}
+
+func (a *SupportAgent) executeEscalatedAction(toolCtx context.Context, runID string, action *Action, caseContext *CaseContext) (json.RawMessage, string, error) {
+	toolCalls := []map[string]any{}
+	if err := a.appendEscalationTaskToolCall(toolCtx, &toolCalls, caseContext); err != nil {
+		return nil, "", err
+	}
+	if err := a.initiateSupportHandoff(toolCtx, runID, caseContext, action); err != nil {
+		return nil, "", err
+	}
+	raw, err := json.Marshal(toolCalls)
+	return raw, action.Details, err
 }
 
 func (a *Action) toJSON() json.RawMessage {
@@ -484,6 +370,226 @@ func buildReasoningTrace(_ SupportAgentConfig, evidence *knowledge.SearchResults
 	}
 	data, _ := json.Marshal(trace)
 	return data
+}
+
+func validateSupportConfig(config SupportAgentConfig) error {
+	if config.CaseID == "" {
+		return ErrCaseIDRequired
+	}
+	if config.WorkspaceID == "" {
+		return ErrWorkspaceIDRequired
+	}
+	return nil
+}
+
+func (a *SupportAgent) triggerSupportRun(ctx context.Context, config SupportAgentConfig) (*agent.Run, error) {
+	triggerContext, inputs := supportRunPayloads(config, a.AllowedTools())
+	return a.orchestrator.TriggerAgent(ctx, agent.TriggerAgentInput{
+		AgentID:        "support-agent",
+		WorkspaceID:    config.WorkspaceID,
+		TriggeredBy:    nil,
+		TriggerType:    agent.TriggerTypeManual,
+		TriggerContext: triggerContext,
+		Inputs:         inputs,
+	})
+}
+
+func supportRunPayloads(config SupportAgentConfig, allowedTools []string) (json.RawMessage, json.RawMessage) {
+	triggerContext, _ := json.Marshal(map[string]any{
+		"case_id":         config.CaseID,
+		"customer_query":  config.CustomerQuery,
+		"context_account": config.ContextAccount,
+		"context_contact": config.ContextContact,
+		"language":        config.Language,
+		"priority":        config.Priority,
+		"agent_type":      "support",
+		"capabilities":    allowedTools,
+	})
+	inputs, _ := json.Marshal(config)
+	return triggerContext, inputs
+}
+
+func (a *SupportAgent) failSupportRun(ctx context.Context, run *agent.Run, cause error) error {
+	_, err := a.orchestrator.UpdateAgentRunStatus(ctx, run.WorkspaceID, run.ID, agent.StatusFailed)
+	if err != nil {
+		return err
+	}
+	return cause
+}
+
+func (a *SupportAgent) completeSupportRun(ctx context.Context, run *agent.Run, result *SupportResult) error {
+	_, err := a.orchestrator.UpdateAgentRun(ctx, run.WorkspaceID, run.ID, agent.RunUpdates{
+		Status:         result.Status,
+		Output:         result.Output,
+		ToolCalls:      result.ToolCalls,
+		ReasoningTrace: result.ReasoningTrace,
+		TotalTokens:    result.TotalTokens,
+		TotalCost:      result.TotalCost,
+		LatencyMs:      result.LatencyMs,
+		Completed:      true,
+	})
+	return err
+}
+
+func (a *SupportAgent) loadSupportEvidence(ctx context.Context, workspaceID, query string) *knowledge.SearchResults {
+	evidence, err := a.knowledgeSearch.HybridSearch(ctx, knowledge.SearchInput{
+		WorkspaceID: workspaceID,
+		Query:       query,
+		Limit:       5,
+	})
+	if err != nil {
+		return &knowledge.SearchResults{Items: []knowledge.SearchResult{}}
+	}
+	return evidence
+}
+
+func (a *SupportAgent) buildApprovalEscalationResult(
+	ctx context.Context,
+	startTime time.Time,
+	config SupportAgentConfig,
+	caseContext *CaseContext,
+	evidence *knowledge.SearchResults,
+	action *Action,
+	totalTokens *int64,
+	totalCost *float64,
+) (*SupportResult, error) {
+	approvalID, err := a.requestSupportApproval(ctx, caseContext, action)
+	if err != nil {
+		return nil, err
+	}
+	escalatedAction := &Action{
+		Type:       "pending_approval",
+		Details:    "Sensitive action requires human approval",
+		CaseID:     action.CaseID,
+		Status:     "pending_approval",
+		Confidence: action.Confidence,
+		ApprovalID: approvalID,
+	}
+	toolCalls, _ := json.Marshal([]map[string]any{{"tool_name": "approval.requested"}})
+	result := buildSupportResult(startTime, config, evidence, escalatedAction, toolCalls, totalTokens, totalCost)
+	result.Status = agent.StatusEscalated
+	return result, nil
+}
+
+func buildSupportResult(
+	startTime time.Time,
+	config SupportAgentConfig,
+	evidence *knowledge.SearchResults,
+	action *Action,
+	toolCalls json.RawMessage,
+	totalTokens *int64,
+	totalCost *float64,
+) *SupportResult {
+	elapsed := time.Since(startTime).Milliseconds()
+	return &SupportResult{
+		Status:         supportResultStatus(action.Type),
+		Output:         action.toJSON(),
+		ToolCalls:      toolCalls,
+		ReasoningTrace: buildReasoningTrace(config, evidence, action),
+		TotalTokens:    totalTokens,
+		TotalCost:      totalCost,
+		LatencyMs:      &elapsed,
+	}
+}
+
+func shouldResolveSupportAction(score float64) bool {
+	return score >= supportResolveThreshold
+}
+
+func supportResolvedAction(config SupportAgentConfig) *Action {
+	return &Action{
+		Type:       supportActionUpdateCase,
+		Details:    "Applied solution from knowledge base",
+		CaseID:     config.CaseID,
+		Status:     "resolved",
+		Confidence: 90,
+		NextSteps:  []string{"send_resolution_email"},
+		Metadata:   config.Priority,
+	}
+}
+
+func supportEscalatedAction(config SupportAgentConfig) *Action {
+	return &Action{
+		Type:       supportActionEscalate,
+		Details:    "Insufficient confidence for autonomous resolution",
+		CaseID:     config.CaseID,
+		Status:     "escalated",
+		Confidence: 30,
+		NextSteps:  []string{"create_support_handoff"},
+	}
+}
+
+func supportAbstainedAction(config SupportAgentConfig) *Action {
+	return &Action{
+		Type:       supportActionAbstain,
+		Details:    "Evidence is not strong enough to resolve the case automatically",
+		CaseID:     config.CaseID,
+		Status:     "open",
+		Confidence: 50,
+		NextSteps:  []string{"await_human_review_if_customer_replies"},
+	}
+}
+
+func (a *SupportAgent) appendCaseUpdateToolCall(
+	toolCtx context.Context,
+	toolCalls *[]map[string]any,
+	action *Action,
+	caseContext *CaseContext,
+) error {
+	updateOut, err := a.executeTool(toolCtx, caseContext.WorkspaceID, tool.BuiltinUpdateCase, map[string]any{
+		"case_id":  action.CaseID,
+		"status":   action.Status,
+		"priority": caseContext.Priority,
+	})
+	if err != nil {
+		return err
+	}
+	*toolCalls = append(*toolCalls, supportToolCall(tool.BuiltinUpdateCase, updateOut))
+	return nil
+}
+
+func (a *SupportAgent) appendReplyToolCall(
+	toolCtx context.Context,
+	toolCalls *[]map[string]any,
+	action *Action,
+	caseContext *CaseContext,
+) error {
+	replyOut, err := a.executeTool(toolCtx, caseContext.WorkspaceID, tool.BuiltinSendReply, map[string]any{
+		"case_id":     action.CaseID,
+		"body":        buildSupportReply(caseContext, action),
+		"is_internal": false,
+	})
+	if err != nil {
+		return err
+	}
+	*toolCalls = append(*toolCalls, supportToolCall(tool.BuiltinSendReply, replyOut))
+	return nil
+}
+
+func (a *SupportAgent) appendEscalationTaskToolCall(
+	toolCtx context.Context,
+	toolCalls *[]map[string]any,
+	caseContext *CaseContext,
+) error {
+	taskOut, err := a.executeTool(toolCtx, caseContext.WorkspaceID, tool.BuiltinCreateTask, map[string]any{
+		"owner_id":    caseContext.OwnerID,
+		"title":       "Escalated support case: " + caseContext.Subject,
+		"entity_type": "case",
+		"entity_id":   caseContext.ID,
+	})
+	if err != nil {
+		return err
+	}
+	*toolCalls = append(*toolCalls, supportToolCall(tool.BuiltinCreateTask, taskOut))
+	return nil
+}
+
+func supportToolCall(toolName string, result json.RawMessage) map[string]any {
+	return map[string]any{
+		"tool_name":   toolName,
+		"result":      rawJSONMap(result),
+		"executed_at": time.Now().UTC().Format(time.RFC3339),
+	}
 }
 
 // Errors
