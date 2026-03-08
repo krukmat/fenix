@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -172,6 +173,43 @@ func TestCreatePromptHandler_Returns201(t *testing.T) {
 	}
 }
 
+func TestCreatePromptHandler_ReturnsBadRequestOnInvalidBody(t *testing.T) {
+	handler := NewPromptHandler(newMockPromptVersionService())
+
+	r := chi.NewRouter()
+	r.Post("/admin/prompts", handler.Create)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/prompts", strings.NewReader("{"))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withPromptContext(req.Context()))
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestCreatePromptHandler_ReturnsBadRequestOnMissingFields(t *testing.T) {
+	handler := NewPromptHandler(newMockPromptVersionService())
+
+	r := chi.NewRouter()
+	r.Post("/admin/prompts", handler.Create)
+
+	body, _ := json.Marshal(CreatePromptVersionRequest{AgentDefinitionID: "agent_support"})
+	req := httptest.NewRequest(http.MethodPost, "/admin/prompts", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withPromptContext(req.Context()))
+
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
 func TestPromotePromptHandler_ReturnsConflictOnMissingEval(t *testing.T) {
 	mock := newMockPromptVersionService()
 	mock.versions["pv_123"] = &agent.PromptVersion{
@@ -196,6 +234,69 @@ func TestPromotePromptHandler_ReturnsConflictOnMissingEval(t *testing.T) {
 
 	if rr.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d", rr.Code)
+	}
+}
+
+func TestPromotePromptHandler_ReturnsUnauthorizedWithoutWorkspace(t *testing.T) {
+	handler := NewPromptHandler(newMockPromptVersionService())
+	r := chi.NewRouter()
+	r.Put("/admin/prompts/{id}/promote", handler.Promote)
+
+	req := httptest.NewRequest(http.MethodPut, "/admin/prompts/pv_123/promote", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestPromotePromptHandler_ReturnsBadRequestWithoutID(t *testing.T) {
+	handler := NewPromptHandler(newMockPromptVersionService())
+	r := chi.NewRouter()
+	r.Put("/admin/prompts/", handler.Promote)
+
+	req := httptest.NewRequest(http.MethodPut, "/admin/prompts/", nil)
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPromotePromptHandler_ReturnsNotFound(t *testing.T) {
+	mock := newMockPromptVersionService()
+	mock.promoteErr = agent.ErrPromptVersionNotFound
+	handler := NewPromptHandler(mock)
+	r := chi.NewRouter()
+	r.Put("/admin/prompts/{id}/promote", handler.Promote)
+
+	req := httptest.NewRequest(http.MethodPut, "/admin/prompts/pv_missing/promote", nil)
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestPromotePromptHandler_ReturnsInternalError(t *testing.T) {
+	mock := newMockPromptVersionService()
+	mock.promoteErr = errors.New("boom")
+	handler := NewPromptHandler(mock)
+	r := chi.NewRouter()
+	r.Put("/admin/prompts/{id}/promote", handler.Promote)
+
+	req := httptest.NewRequest(http.MethodPut, "/admin/prompts/pv_123/promote", nil)
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
 	}
 }
 
@@ -240,6 +341,42 @@ func TestRollbackPromptHandler_ReturnsConflictForInvalidRollback(t *testing.T) {
 
 	if rr.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d", rr.Code)
+	}
+}
+
+func TestRollbackPromptHandler_ReturnsNotFound(t *testing.T) {
+	mock := newMockPromptVersionService()
+	mock.rollbackErr = agent.ErrPromptVersionNotFound
+	handler := NewPromptHandler(mock)
+
+	r := chi.NewRouter()
+	r.Put("/admin/prompts/{id}/rollback", handler.Rollback)
+
+	req := httptest.NewRequest(http.MethodPut, "/admin/prompts/pv_missing/rollback", nil)
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestRollbackPromptHandler_ReturnsInternalError(t *testing.T) {
+	mock := newMockPromptVersionService()
+	mock.rollbackErr = errors.New("boom")
+	handler := NewPromptHandler(mock)
+
+	r := chi.NewRouter()
+	r.Put("/admin/prompts/{id}/rollback", handler.Rollback)
+
+	req := httptest.NewRequest(http.MethodPut, "/admin/prompts/pv_123/rollback", nil)
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", rr.Code)
 	}
 }
 
@@ -306,6 +443,75 @@ func TestPromptExperimentHandler_ReturnsBadRequestOnInvalidSplit(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPromptExperimentHandlers_ReturnBadRequestOnInvalidBodies(t *testing.T) {
+	handler := NewPromptHandler(newMockPromptVersionService())
+
+	r := chi.NewRouter()
+	r.Post("/admin/prompts/experiments", handler.StartExperiment)
+	r.Put("/admin/prompts/experiments/{id}/stop", handler.StopExperiment)
+
+	startReq := httptest.NewRequest(http.MethodPost, "/admin/prompts/experiments", strings.NewReader("{"))
+	startReq.Header.Set("Content-Type", "application/json")
+	startReq = startReq.WithContext(withPromptContext(startReq.Context()))
+	startRR := httptest.NewRecorder()
+	r.ServeHTTP(startRR, startReq)
+	if startRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected start 400, got %d", startRR.Code)
+	}
+
+	stopReq := httptest.NewRequest(http.MethodPut, "/admin/prompts/experiments/exp_1/stop", strings.NewReader("{"))
+	stopReq.Header.Set("Content-Type", "application/json")
+	stopReq = stopReq.WithContext(withPromptContext(stopReq.Context()))
+	stopRR := httptest.NewRecorder()
+	r.ServeHTTP(stopRR, stopReq)
+	if stopRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected stop 400, got %d", stopRR.Code)
+	}
+}
+
+func TestListExperimentsHandler_ReturnsBadRequestWithoutAgentID(t *testing.T) {
+	handler := NewPromptHandler(newMockPromptVersionService())
+	r := chi.NewRouter()
+	r.Get("/admin/prompts/experiments", handler.ListExperiments)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/prompts/experiments", nil)
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPromptExperimentHandlers_ReturnNotFoundOnStopMissingExperiment(t *testing.T) {
+	handler := NewPromptHandler(newMockPromptVersionService())
+	r := chi.NewRouter()
+	r.Put("/admin/prompts/experiments/{id}/stop", handler.StopExperiment)
+
+	req := httptest.NewRequest(http.MethodPut, "/admin/prompts/experiments/exp_missing/stop", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withPromptContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestResolvePromptConfig_NilReturnsEmptyObject(t *testing.T) {
+	if got := resolvePromptConfig(nil); got != errEmptyJSON {
+		t.Fatalf("expected %s, got %s", errEmptyJSON, got)
+	}
+}
+
+func TestToPromptVersionResponse_Nil(t *testing.T) {
+	if got := toPromptVersionResponse(nil); got != nil {
+		t.Fatalf("expected nil response, got %+v", got)
 	}
 }
 
