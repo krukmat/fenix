@@ -564,7 +564,7 @@ func TestReindexService_Start_ContinuesAfterPermanentFailure(t *testing.T) {
 		t.Fatal("expected worker to keep processing events after failure")
 	}
 
-	assertReindexAuditMetadata(t, db, wsID, "retries_exhausted", true)
+	assertReindexAuditFlagSeen(t, db, wsID, "retries_exhausted", true)
 }
 
 func TestReindexService_FreshnessSLA_AccountVisibleInHybridSearch(t *testing.T) {
@@ -661,6 +661,39 @@ func assertReindexAuditMetadata(t *testing.T, db *sql.DB, workspaceID, key strin
 	if payload[key] != expected {
 		t.Fatalf("expected audit[%s]=%v, got %#v", key, expected, payload[key])
 	}
+}
+
+func assertReindexAuditFlagSeen(t *testing.T, db *sql.DB, workspaceID, key string, expected bool) {
+	t.Helper()
+
+	rows, err := db.Query(`
+		SELECT details
+		FROM audit_event
+		WHERE workspace_id = ? AND action = 'knowledge.reindex'
+		ORDER BY created_at DESC
+	`, workspaceID)
+	if err != nil {
+		t.Fatalf("query reindex audits: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			t.Fatalf("scan reindex audit: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+			t.Fatalf("unmarshal reindex audit: %v", err)
+		}
+		if payload[key] == expected {
+			return
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate reindex audits: %v", err)
+	}
+	t.Fatalf("expected at least one audit with %s=%v", key, expected)
 }
 
 func containsKnowledgeResult(items []SearchResult, title string) bool {

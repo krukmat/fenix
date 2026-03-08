@@ -205,30 +205,13 @@ func (s *ReindexService) HandleRecordChange(ctx context.Context, evt RecordChang
 	if err != nil {
 		return err
 	}
-	if item == nil && evt.ChangeType != ChangeTypeCreated {
+	if shouldSkipRecordChange(evt, item) {
 		return nil
 	}
+
 	start := eventStartTime(evt)
-	var opErr error
-	attemptCount := 0
-
-	for attempt := 1; attempt <= reindexMaxAttempts; attempt++ {
-		attemptCount = attempt
-		opErr = s.applyChange(ctx, evt, item)
-		if opErr == nil {
-			s.logReindexAudit(ctx, evt, nil, time.Since(start), attemptCount, false)
-			return nil
-		}
-		if !shouldRetryReindex(opErr) || attempt == reindexMaxAttempts {
-			break
-		}
-		if waitErr := s.sleepFn(ctx, retryDelay(attempt)); waitErr != nil {
-			opErr = waitErr
-			break
-		}
-	}
-
-	s.logReindexAudit(ctx, evt, opErr, time.Since(start), attemptCount, shouldRetryReindex(opErr))
+	opErr, attemptCount, retriesExhausted := s.processRecordChange(ctx, evt, item)
+	s.logReindexAudit(ctx, evt, opErr, time.Since(start), attemptCount, retriesExhausted)
 	return opErr
 }
 
@@ -244,6 +227,30 @@ func eventStartTime(evt RecordChangedEvent) time.Time {
 		return time.Now()
 	}
 	return evt.OccurredAt
+}
+
+func shouldSkipRecordChange(evt RecordChangedEvent, item *sqlcgen.KnowledgeItem) bool {
+	return item == nil && evt.ChangeType != ChangeTypeCreated
+}
+
+func (s *ReindexService) processRecordChange(
+	ctx context.Context,
+	evt RecordChangedEvent,
+	item *sqlcgen.KnowledgeItem,
+) (error, int, bool) {
+	for attempt := 1; attempt <= reindexMaxAttempts; attempt++ {
+		opErr := s.applyChange(ctx, evt, item)
+		if opErr == nil {
+			return nil, attempt, false
+		}
+		if !shouldRetryReindex(opErr) || attempt == reindexMaxAttempts {
+			return opErr, attempt, shouldRetryReindex(opErr)
+		}
+		if waitErr := s.sleepFn(ctx, retryDelay(attempt)); waitErr != nil {
+			return waitErr, attempt, false
+		}
+	}
+	return nil, 0, false
 }
 
 func (s *ReindexService) getLinkedKnowledgeItem(ctx context.Context, evt RecordChangedEvent) (*sqlcgen.KnowledgeItem, error) {
