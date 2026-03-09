@@ -66,6 +66,10 @@ func (h *CaseHandler) CreateCase(w http.ResponseWriter, r *http.Request) {
 		Metadata:    req.Metadata,
 	})
 	if svcErr != nil {
+		if errors.Is(svcErr, crm.ErrInvalidCaseInput) {
+			writeError(w, http.StatusBadRequest, svcErr.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create case: %v", svcErr))
 		return
 	}
@@ -144,6 +148,10 @@ func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {
 	}
 	out, svcErr := h.service.Update(r.Context(), wsID, id, buildUpdateCaseInput(req, existing))
 	if svcErr != nil {
+		if errors.Is(svcErr, crm.ErrInvalidCaseInput) {
+			writeError(w, http.StatusBadRequest, svcErr.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update case: %v", svcErr))
 		return
 	}
@@ -158,6 +166,10 @@ func (h *CaseHandler) DeleteCase(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chi.URLParam(r, paramID)
 	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
+		if errors.Is(svcErr, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, errCaseNotFound)
+			return
+		}
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete case: %v", svcErr))
 		return
 	}

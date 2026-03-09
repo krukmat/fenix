@@ -78,10 +78,11 @@ const (
 type DealService struct {
 	db      *sql.DB
 	querier sqlcgen.Querier
+	audit   auditLogger
 }
 
 func NewDealService(db *sql.DB) *DealService {
-	return &DealService{db: db, querier: sqlcgen.New(db)}
+	return &DealService{db: db, querier: sqlcgen.New(db), audit: newCRMAuditService(db)}
 }
 
 func (s *DealService) Create(ctx context.Context, input CreateDealInput) (*Deal, error) {
@@ -90,6 +91,10 @@ func (s *DealService) Create(ctx context.Context, input CreateDealInput) (*Deal,
 	status := input.Status
 	if status == "" {
 		status = "open"
+	}
+	input.Status = status
+	if validationErr := validateDealInput(ctx, s.db, input.WorkspaceID, input); validationErr != nil {
+		return nil, validationErr
 	}
 
 	err := s.querier.CreateDeal(ctx, sqlcgen.CreateDealParams{
@@ -115,6 +120,7 @@ func (s *DealService) Create(ctx context.Context, input CreateDealInput) (*Deal,
 	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, timelineEntityDeal, id, input.OwnerID, timelineActionCreated); timelineErr != nil {
 		return nil, fmt.Errorf("create deal timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, input.WorkspaceID, input.OwnerID, actionDealCreated, timelineEntityDeal, id)
 
 	return s.Get(ctx, input.WorkspaceID, id)
 }
@@ -224,6 +230,23 @@ func paginateDeals(items []*Deal, offset, limit int) []*Deal {
 }
 
 func (s *DealService) Update(ctx context.Context, workspaceID, dealID string, input UpdateDealInput) (*Deal, error) {
+	if validationErr := validateDealInput(ctx, s.db, workspaceID, CreateDealInput{
+		WorkspaceID:   workspaceID,
+		AccountID:     input.AccountID,
+		ContactID:     input.ContactID,
+		PipelineID:    input.PipelineID,
+		StageID:       input.StageID,
+		OwnerID:       input.OwnerID,
+		Title:         input.Title,
+		Amount:        input.Amount,
+		Currency:      input.Currency,
+		ExpectedClose: input.ExpectedClose,
+		Status:        input.Status,
+		Metadata:      input.Metadata,
+	}); validationErr != nil {
+		return nil, validationErr
+	}
+
 	err := s.querier.UpdateDeal(ctx, sqlcgen.UpdateDealParams{
 		AccountID:     input.AccountID,
 		ContactID:     nullString(input.ContactID),
@@ -243,16 +266,22 @@ func (s *DealService) Update(ctx context.Context, workspaceID, dealID string, in
 	if err != nil {
 		return nil, fmt.Errorf("update deal: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityDeal, dealID, input.OwnerID, "updated"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityDeal, dealID, input.OwnerID, timelineActionUpdated); timelineErr != nil {
 		return nil, fmt.Errorf("update deal timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, input.OwnerID, actionDealUpdated, timelineEntityDeal, dealID)
 
 	return s.Get(ctx, workspaceID, dealID)
 }
 
 func (s *DealService) Delete(ctx context.Context, workspaceID, dealID string) error {
+	existing, err := s.Get(ctx, workspaceID, dealID)
+	if err != nil {
+		return err
+	}
+
 	now := nowRFC3339()
-	err := s.querier.SoftDeleteDeal(ctx, sqlcgen.SoftDeleteDealParams{
+	err = s.querier.SoftDeleteDeal(ctx, sqlcgen.SoftDeleteDealParams{
 		DeletedAt:   &now,
 		UpdatedAt:   now,
 		ID:          dealID,
@@ -261,9 +290,10 @@ func (s *DealService) Delete(ctx context.Context, workspaceID, dealID string) er
 	if err != nil {
 		return fmt.Errorf("soft delete deal: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityDeal, dealID, "", "deleted"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityDeal, dealID, existing.OwnerID, timelineActionDeleted); timelineErr != nil {
 		return fmt.Errorf("delete deal timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, existing.OwnerID, actionDealDeleted, timelineEntityDeal, dealID)
 	return nil
 }
 

@@ -86,14 +86,15 @@ type CaseService struct {
 	db      *sql.DB
 	querier sqlcgen.Querier
 	bus     eventbus.EventBus
+	audit   auditLogger
 }
 
 func NewCaseService(db *sql.DB) *CaseService {
-	return &CaseService{db: db, querier: sqlcgen.New(db)}
+	return &CaseService{db: db, querier: sqlcgen.New(db), audit: newCRMAuditService(db)}
 }
 
 func NewCaseServiceWithBus(db *sql.DB, bus eventbus.EventBus) *CaseService {
-	return &CaseService{db: db, querier: sqlcgen.New(db), bus: bus}
+	return &CaseService{db: db, querier: sqlcgen.New(db), bus: bus, audit: newCRMAuditService(db)}
 }
 
 func (s *CaseService) Create(ctx context.Context, input CreateCaseInput) (*CaseTicket, error) {
@@ -106,6 +107,11 @@ func (s *CaseService) Create(ctx context.Context, input CreateCaseInput) (*CaseT
 	status := input.Status
 	if status == "" {
 		status = "open"
+	}
+	input.Priority = priority
+	input.Status = status
+	if validationErr := validateCaseInput(ctx, s.db, input.WorkspaceID, input); validationErr != nil {
+		return nil, validationErr
 	}
 
 	err := s.querier.CreateCase(ctx, sqlcgen.CreateCaseParams{
@@ -133,6 +139,7 @@ func (s *CaseService) Create(ctx context.Context, input CreateCaseInput) (*CaseT
 	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, timelineEntityCase, id, input.OwnerID, timelineActionCreated); timelineErr != nil {
 		return nil, fmt.Errorf("create case timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, input.WorkspaceID, input.OwnerID, actionCaseCreated, timelineEntityCase, id)
 	s.publishRecordChanged(knowledge.ChangeTypeCreated, input.WorkspaceID, id)
 
 	return s.Get(ctx, input.WorkspaceID, id)
@@ -251,6 +258,25 @@ func paginateCases(items []*CaseTicket, offset, limit int) []*CaseTicket {
 }
 
 func (s *CaseService) Update(ctx context.Context, workspaceID, caseID string, input UpdateCaseInput) (*CaseTicket, error) {
+	if validationErr := validateCaseInput(ctx, s.db, workspaceID, CreateCaseInput{
+		WorkspaceID: workspaceID,
+		AccountID:   input.AccountID,
+		ContactID:   input.ContactID,
+		PipelineID:  input.PipelineID,
+		StageID:     input.StageID,
+		OwnerID:     input.OwnerID,
+		Subject:     input.Subject,
+		Description: input.Description,
+		Priority:    input.Priority,
+		Status:      input.Status,
+		Channel:     input.Channel,
+		SLAConfig:   input.SLAConfig,
+		SLADeadline: input.SLADeadline,
+		Metadata:    input.Metadata,
+	}); validationErr != nil {
+		return nil, validationErr
+	}
+
 	err := s.querier.UpdateCase(ctx, sqlcgen.UpdateCaseParams{
 		AccountID:   nullString(input.AccountID),
 		ContactID:   nullString(input.ContactID),
@@ -275,14 +301,20 @@ func (s *CaseService) Update(ctx context.Context, workspaceID, caseID string, in
 	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityCase, caseID, input.OwnerID, timelineActionUpdated); timelineErr != nil {
 		return nil, fmt.Errorf("update case timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, input.OwnerID, actionCaseUpdated, timelineEntityCase, caseID)
 	s.publishRecordChanged(knowledge.ChangeTypeUpdated, workspaceID, caseID)
 
 	return s.Get(ctx, workspaceID, caseID)
 }
 
 func (s *CaseService) Delete(ctx context.Context, workspaceID, caseID string) error {
+	existing, err := s.Get(ctx, workspaceID, caseID)
+	if err != nil {
+		return err
+	}
+
 	now := nowRFC3339()
-	err := s.querier.SoftDeleteCase(ctx, sqlcgen.SoftDeleteCaseParams{
+	err = s.querier.SoftDeleteCase(ctx, sqlcgen.SoftDeleteCaseParams{
 		DeletedAt:   &now,
 		UpdatedAt:   now,
 		ID:          caseID,
@@ -291,9 +323,10 @@ func (s *CaseService) Delete(ctx context.Context, workspaceID, caseID string) er
 	if err != nil {
 		return fmt.Errorf("soft delete case: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityCase, caseID, "", timelineActionDeleted); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityCase, caseID, existing.OwnerID, timelineActionDeleted); timelineErr != nil {
 		return fmt.Errorf("delete case timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, existing.OwnerID, actionCaseDeleted, timelineEntityCase, caseID)
 	s.publishRecordChanged(knowledge.ChangeTypeDeleted, workspaceID, caseID)
 	return nil
 }

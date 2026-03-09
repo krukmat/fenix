@@ -47,10 +47,11 @@ type ListNotesInput struct {
 type NoteService struct {
 	db      *sql.DB
 	querier sqlcgen.Querier
+	audit   auditLogger
 }
 
 func NewNoteService(db *sql.DB) *NoteService {
-	return &NoteService{db: db, querier: sqlcgen.New(db)}
+	return &NoteService{db: db, querier: sqlcgen.New(db), audit: newCRMAuditService(db)}
 }
 
 func (s *NoteService) Create(ctx context.Context, input CreateNoteInput) (*Note, error) {
@@ -74,6 +75,7 @@ func (s *NoteService) Create(ctx context.Context, input CreateNoteInput) (*Note,
 	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, input.EntityType, input.EntityID, input.AuthorID, "note_added"); timelineErr != nil {
 		return nil, fmt.Errorf("create note timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, input.WorkspaceID, input.AuthorID, actionNoteCreated, "note", id)
 	return s.Get(ctx, input.WorkspaceID, id)
 }
 
@@ -103,6 +105,11 @@ func (s *NoteService) List(ctx context.Context, workspaceID string, input ListNo
 }
 
 func (s *NoteService) Update(ctx context.Context, workspaceID, noteID string, input UpdateNoteInput) (*Note, error) {
+	existing, getErr := s.Get(ctx, workspaceID, noteID)
+	if getErr != nil {
+		return nil, getErr
+	}
+
 	err := s.querier.UpdateNote(ctx, sqlcgen.UpdateNoteParams{
 		Content:     input.Content,
 		IsInternal:  input.IsInternal,
@@ -114,26 +121,26 @@ func (s *NoteService) Update(ctx context.Context, workspaceID, noteID string, in
 	if err != nil {
 		return nil, fmt.Errorf("update note: %w", err)
 	}
-	existing, getErr := s.Get(ctx, workspaceID, noteID)
-	if getErr == nil {
-		if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, existing.EntityType, existing.EntityID, existing.AuthorID, timelineActionUpdated); timelineErr != nil {
-			return nil, fmt.Errorf("update note timeline: %w", timelineErr)
-		}
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, existing.EntityType, existing.EntityID, existing.AuthorID, timelineActionUpdated); timelineErr != nil {
+		return nil, fmt.Errorf("update note timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, existing.AuthorID, actionNoteUpdated, "note", noteID)
 	return s.Get(ctx, workspaceID, noteID)
 }
 
 func (s *NoteService) Delete(ctx context.Context, workspaceID, noteID string) error {
-	existing, _ := s.Get(ctx, workspaceID, noteID)
-	err := s.querier.DeleteNote(ctx, sqlcgen.DeleteNoteParams{ID: noteID, WorkspaceID: workspaceID})
+	existing, err := s.Get(ctx, workspaceID, noteID)
+	if err != nil {
+		return err
+	}
+	err = s.querier.DeleteNote(ctx, sqlcgen.DeleteNoteParams{ID: noteID, WorkspaceID: workspaceID})
 	if err != nil {
 		return fmt.Errorf("delete note: %w", err)
 	}
-	if existing != nil {
-		if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, existing.EntityType, existing.EntityID, existing.AuthorID, timelineActionDeleted); timelineErr != nil {
-			return fmt.Errorf("delete note timeline: %w", timelineErr)
-		}
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, existing.EntityType, existing.EntityID, existing.AuthorID, timelineActionDeleted); timelineErr != nil {
+		return fmt.Errorf("delete note timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, existing.AuthorID, actionNoteDeleted, "note", noteID)
 	return nil
 }
 

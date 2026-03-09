@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -57,6 +59,10 @@ func (h *DealHandler) CreateDeal(w http.ResponseWriter, r *http.Request) {
 		Metadata:      req.Metadata,
 	})
 	if svcErr != nil {
+		if errors.Is(svcErr, crm.ErrInvalidDealInput) {
+			writeError(w, http.StatusBadRequest, svcErr.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create deal: %v", svcErr))
 		return
 	}
@@ -147,21 +153,33 @@ func parseDealListInput(r *http.Request, page paginationParams) (crm.ListDealsIn
 }
 
 func (h *DealHandler) UpdateDeal(w http.ResponseWriter, r *http.Request) {
-	handleEntityUpdate[
-		crm.Deal,
-		UpdateDealRequest,
-		crm.UpdateDealInput,
-		crm.Deal,
-	](
-		w,
-		r,
-		"deal not found",
-		"failed to get deal: %v",
-		"failed to update deal: %v",
-		h.service.Get,
-		buildUpdateDealInput,
-		h.service.Update,
-	)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chiURLParamID(r)
+	existing, svcErr := h.service.Get(r.Context(), wsID, id)
+	if handleGetError(w, svcErr, "deal not found", "failed to get deal: %v") {
+		return
+	}
+
+	var req UpdateDealRequest
+	if !decodeBodyJSON(w, r, &req) {
+		return
+	}
+
+	out, upErr := h.service.Update(r.Context(), wsID, id, buildUpdateDealInput(req, existing))
+	if upErr != nil {
+		if errors.Is(upErr, crm.ErrInvalidDealInput) {
+			writeError(w, http.StatusBadRequest, upErr.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update deal: %v", upErr))
+		return
+	}
+
+	_ = writeJSONOr500(w, out)
 }
 
 // buildUpdateDealInput merges update request with existing deal values.
@@ -189,6 +207,10 @@ func (h *DealHandler) DeleteDeal(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chi.URLParam(r, paramID)
 	if delErr := h.service.Delete(r.Context(), wsID, id); delErr != nil {
+		if errors.Is(delErr, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "deal not found")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete deal: %v", delErr))
 		return
 	}

@@ -64,6 +64,7 @@ type AccountService struct {
 	db      *sql.DB
 	querier sqlcgen.Querier
 	bus     eventbus.EventBus
+	audit   auditLogger
 }
 
 // NewAccountService creates an AccountService instance.
@@ -71,6 +72,7 @@ func NewAccountService(db *sql.DB) *AccountService {
 	return &AccountService{
 		db:      db,
 		querier: sqlcgen.New(db),
+		audit:   newCRMAuditService(db),
 	}
 }
 
@@ -80,6 +82,7 @@ func NewAccountServiceWithBus(db *sql.DB, bus eventbus.EventBus) *AccountService
 		db:      db,
 		querier: sqlcgen.New(db),
 		bus:     bus,
+		audit:   newCRMAuditService(db),
 	}
 }
 
@@ -112,6 +115,7 @@ func (s *AccountService) Create(ctx context.Context, input CreateAccountInput) (
 	if err != nil {
 		return nil, fmt.Errorf("create account: %w", err)
 	}
+	logCRMAudit(ctx, s.audit, input.WorkspaceID, input.OwnerID, actionAccountCreated, timelineEntityAccount, accountID)
 	s.publishRecordChanged(knowledge.ChangeTypeCreated, input.WorkspaceID, accountID)
 
 	// Return the created account by fetching it
@@ -192,6 +196,7 @@ func (s *AccountService) Update(ctx context.Context, workspaceID, accountID stri
 	if err != nil {
 		return nil, fmt.Errorf("update account: %w", err)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, input.OwnerID, actionAccountUpdated, timelineEntityAccount, accountID)
 	s.publishRecordChanged(knowledge.ChangeTypeUpdated, workspaceID, accountID)
 
 	return s.Get(ctx, workspaceID, accountID)
@@ -199,10 +204,15 @@ func (s *AccountService) Update(ctx context.Context, workspaceID, accountID stri
 
 // Delete performs a soft delete (sets deleted_at).
 func (s *AccountService) Delete(ctx context.Context, workspaceID, accountID string) error {
+	existing, err := s.Get(ctx, workspaceID, accountID)
+	if err != nil {
+		return err
+	}
+
 	now := time.Now().UTC()
 	nowStr := now.Format(time.RFC3339)
 
-	err := s.querier.SoftDeleteAccount(ctx, sqlcgen.SoftDeleteAccountParams{
+	err = s.querier.SoftDeleteAccount(ctx, sqlcgen.SoftDeleteAccountParams{
 		DeletedAt:   &nowStr,
 		UpdatedAt:   nowStr,
 		ID:          accountID,
@@ -211,6 +221,7 @@ func (s *AccountService) Delete(ctx context.Context, workspaceID, accountID stri
 	if err != nil {
 		return fmt.Errorf("soft delete account: %w", err)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, existing.OwnerID, actionAccountDeleted, timelineEntityAccount, accountID)
 	s.publishRecordChanged(knowledge.ChangeTypeDeleted, workspaceID, accountID)
 
 	return nil

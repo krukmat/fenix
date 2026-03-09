@@ -54,10 +54,11 @@ type ListLeadsInput struct {
 type LeadService struct {
 	db      *sql.DB
 	querier sqlcgen.Querier
+	audit   auditLogger
 }
 
 func NewLeadService(db *sql.DB) *LeadService {
-	return &LeadService{db: db, querier: sqlcgen.New(db)}
+	return &LeadService{db: db, querier: sqlcgen.New(db), audit: newCRMAuditService(db)}
 }
 
 func (s *LeadService) Create(ctx context.Context, input CreateLeadInput) (*Lead, error) {
@@ -87,6 +88,7 @@ func (s *LeadService) Create(ctx context.Context, input CreateLeadInput) (*Lead,
 	if timelineErr := createTimelineEvent(ctx, s.querier, input.WorkspaceID, timelineEntityLead, id, input.OwnerID, timelineActionCreated); timelineErr != nil {
 		return nil, fmt.Errorf("create lead timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, input.WorkspaceID, input.OwnerID, actionLeadCreated, timelineEntityLead, id)
 
 	return s.Get(ctx, input.WorkspaceID, id)
 }
@@ -143,16 +145,22 @@ func (s *LeadService) Update(ctx context.Context, workspaceID, leadID string, in
 	if err != nil {
 		return nil, fmt.Errorf("update lead: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityLead, leadID, input.OwnerID, "updated"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityLead, leadID, input.OwnerID, timelineActionUpdated); timelineErr != nil {
 		return nil, fmt.Errorf("update lead timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, input.OwnerID, actionLeadUpdated, timelineEntityLead, leadID)
 
 	return s.Get(ctx, workspaceID, leadID)
 }
 
 func (s *LeadService) Delete(ctx context.Context, workspaceID, leadID string) error {
+	existing, err := s.Get(ctx, workspaceID, leadID)
+	if err != nil {
+		return err
+	}
+
 	now := nowRFC3339()
-	err := s.querier.SoftDeleteLead(ctx, sqlcgen.SoftDeleteLeadParams{
+	err = s.querier.SoftDeleteLead(ctx, sqlcgen.SoftDeleteLeadParams{
 		DeletedAt:   &now,
 		UpdatedAt:   now,
 		ID:          leadID,
@@ -161,9 +169,10 @@ func (s *LeadService) Delete(ctx context.Context, workspaceID, leadID string) er
 	if err != nil {
 		return fmt.Errorf("soft delete lead: %w", err)
 	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityLead, leadID, "", "deleted"); timelineErr != nil {
+	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityLead, leadID, existing.OwnerID, timelineActionDeleted); timelineErr != nil {
 		return fmt.Errorf("delete lead timeline: %w", timelineErr)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, existing.OwnerID, actionLeadDeleted, timelineEntityLead, leadID)
 	return nil
 }
 

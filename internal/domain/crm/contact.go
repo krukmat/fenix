@@ -67,6 +67,7 @@ type ListContactsInput struct {
 type ContactService struct {
 	db      *sql.DB
 	querier sqlcgen.Querier
+	audit   auditLogger
 }
 
 // NewContactService creates a ContactService instance.
@@ -74,6 +75,7 @@ func NewContactService(db *sql.DB) *ContactService {
 	return &ContactService{
 		db:      db,
 		querier: sqlcgen.New(db),
+		audit:   newCRMAuditService(db),
 	}
 }
 
@@ -104,6 +106,7 @@ func (s *ContactService) Create(ctx context.Context, input CreateContactInput) (
 	if err != nil {
 		return nil, fmt.Errorf("create contact: %w", err)
 	}
+	logCRMAudit(ctx, s.audit, input.WorkspaceID, input.OwnerID, actionContactCreated, timelineEntityContact, contactID)
 
 	return s.Get(ctx, input.WorkspaceID, contactID)
 }
@@ -174,16 +177,22 @@ func (s *ContactService) Update(ctx context.Context, workspaceID, contactID stri
 	if err != nil {
 		return nil, fmt.Errorf("update contact: %w", err)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, input.OwnerID, actionContactUpdated, timelineEntityContact, contactID)
 
 	return s.Get(ctx, workspaceID, contactID)
 }
 
 // Delete performs a soft delete (sets deleted_at).
 func (s *ContactService) Delete(ctx context.Context, workspaceID, contactID string) error {
+	existing, err := s.Get(ctx, workspaceID, contactID)
+	if err != nil {
+		return err
+	}
+
 	now := time.Now().UTC()
 	nowStr := now.Format(time.RFC3339)
 
-	err := s.querier.SoftDeleteContact(ctx, sqlcgen.SoftDeleteContactParams{
+	err = s.querier.SoftDeleteContact(ctx, sqlcgen.SoftDeleteContactParams{
 		DeletedAt:   &nowStr,
 		UpdatedAt:   nowStr,
 		ID:          contactID,
@@ -192,6 +201,7 @@ func (s *ContactService) Delete(ctx context.Context, workspaceID, contactID stri
 	if err != nil {
 		return fmt.Errorf("soft delete contact: %w", err)
 	}
+	logCRMAudit(ctx, s.audit, workspaceID, existing.OwnerID, actionContactDeleted, timelineEntityContact, contactID)
 
 	return nil
 }
