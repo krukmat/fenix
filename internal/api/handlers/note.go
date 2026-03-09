@@ -14,6 +14,8 @@ type NoteHandler struct{ service *crm.NoteService }
 
 func NewNoteHandler(service *crm.NoteService) *NoteHandler { return &NoteHandler{service: service} }
 
+const errNoteNotFound = "note not found"
+
 type CreateNoteRequest struct {
 	EntityType string `json:"entityType"`
 	EntityID   string `json:"entityId"`
@@ -68,7 +70,7 @@ func (h *NoteHandler) GetNote(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chi.URLParam(r, paramID)
 	out, svcErr := h.service.Get(r.Context(), wsID, id)
-	if handleGetError(w, svcErr, "note not found", "failed to get note: %v") {
+	if handleGetError(w, svcErr, errNoteNotFound, "failed to get note: %v") {
 		return
 	}
 	if !writeJSONOr500(w, out) {
@@ -99,7 +101,7 @@ func (h *NoteHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chi.URLParam(r, paramID)
 	_, svcErr := h.service.Get(r.Context(), wsID, id)
-	if handleGetError(w, svcErr, "note not found", "failed to get note: %v") {
+	if handleGetError(w, svcErr, errNoteNotFound, "failed to get note: %v") {
 		return
 	}
 	var req UpdateNoteRequest
@@ -124,7 +126,7 @@ func (h *NoteHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, paramID)
 	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
 		if errors.Is(svcErr, sql.ErrNoRows) {
-			writeError(w, http.StatusNotFound, "note not found")
+			writeError(w, http.StatusNotFound, errNoteNotFound)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete note: %v", svcErr))

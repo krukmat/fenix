@@ -193,13 +193,10 @@ func invalidCaseInput(reason string, err error) error {
 }
 
 func wrapValidationError(base error, reason string, err error) error {
-	if err == nil {
+	if err == nil || errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("%w: %s", base, reason)
 	}
-	if errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("%w: %s", base, reason)
-	}
-	return fmt.Errorf("%w: %s: %v", base, reason, err)
+	return fmt.Errorf("%w: %s: %w", base, reason, err)
 }
 
 func isValidEnum(value string, allowed map[string]struct{}) bool {

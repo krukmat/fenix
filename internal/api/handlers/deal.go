@@ -15,6 +15,8 @@ type DealHandler struct{ service *crm.DealService }
 
 func NewDealHandler(service *crm.DealService) *DealHandler { return &DealHandler{service: service} }
 
+const errDealNotFound = "deal not found"
+
 type CreateDealRequest struct {
 	AccountID     string   `json:"accountId"`
 	ContactID     string   `json:"contactId,omitempty"`
@@ -85,7 +87,7 @@ func (h *DealHandler) GetDeal(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chi.URLParam(r, paramID)
 	out, svcErr := h.service.Get(r.Context(), wsID, id)
-	if handleGetError(w, svcErr, "deal not found", "failed to get deal: %v") {
+	if handleGetError(w, svcErr, errDealNotFound, "failed to get deal: %v") {
 		return
 	}
 	if !writeJSONOr500(w, out) {
@@ -160,7 +162,7 @@ func (h *DealHandler) UpdateDeal(w http.ResponseWriter, r *http.Request) {
 
 	id := chiURLParamID(r)
 	existing, svcErr := h.service.Get(r.Context(), wsID, id)
-	if handleGetError(w, svcErr, "deal not found", "failed to get deal: %v") {
+	if handleGetError(w, svcErr, errDealNotFound, "failed to get deal: %v") {
 		return
 	}
 
@@ -208,7 +210,7 @@ func (h *DealHandler) DeleteDeal(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, paramID)
 	if delErr := h.service.Delete(r.Context(), wsID, id); delErr != nil {
 		if errors.Is(delErr, sql.ErrNoRows) {
-			writeError(w, http.StatusNotFound, "deal not found")
+			writeError(w, http.StatusNotFound, errDealNotFound)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete deal: %v", delErr))
