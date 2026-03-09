@@ -1,149 +1,219 @@
 # FenixCRM
 
-> **Agentic CRM OS** — A self-hosted, AI-native CRM platform combining operational CRM with evidence-based agents, RAG retrieval, and policy-driven governance.
+> CRM operativo con agentes, evidencia, governance y una capa declarativa en evolucion.
 
 ---
 
-## Overview
+## Que es
 
-FenixCRM closes the gap between traditional CRMs (no agentic layer) and enterprise suites (vendor lock-in). It enables teams to build trustworthy AI workflows with:
+FenixCRM combina dos cosas:
 
-- **Evidence-first AI**: No action without grounded evidence. Abstain when uncertain.
-- **Tools, not mutations**: AI executes via registered, allowlisted tools. Never direct data writes.
-- **Governance**: RBAC/ABAC, PII/no-cloud policies, approval chains, immutable audit logs.
-- **Model-agnostic**: Local (Ollama/vLLM) or cloud (OpenAI/Anthropic) LLMs.
+- un CRM operativo tradicional: cuentas, contactos, leads, deals, casos, actividades
+- una capa agentic: tools, policy, audit, evidence packs y agentes que actuan sobre el CRM
 
----
+La direccion actual del proyecto es evolucionar desde agentes Go hardcodeados hacia
+workflows declarativos verificados y ejecutables.
 
-## Quick Start
+La idea base es simple:
 
-### Prerequisites
-
-- Go 1.22+
-- SQLite (embedded)
-- Docker (optional, for Ollama)
-- Node.js 20+ (for frontend)
-
-### Installation
-
-```bash
-# Clone repository
-git clone https://github.com/matiasleandrokruk/fenix.git
-cd fenix
-
-# Install dev tools
-make install-tools
-
-# Build binary
-make build
-
-# Run tests
-make test
-
-# Start server
-make run
-```
-
-### Verify Installation
-
-```bash
-# Check version
-./fenix --version
-# Output: fenix version dev (built ...)
-```
+- hoy: agentes Go ejecutan logica de negocio
+- transicion: el orquestador se vuelve pluggable
+- futuro: workflows DSL + Judge + Runtime gobiernan la ejecucion
 
 ---
 
-## Development
+## Idea central
 
-### Project Structure
+El sistema quiere pasar de:
 
+- "el codigo Go define el workflow"
+
+a:
+
+- "el workflow declarativo define la ejecucion"
+
+Eso no implica reescribir todo. La estrategia es extender la infraestructura actual:
+
+- `ToolRegistry`
+- `PolicyEngine`
+- `ApprovalService`
+- `AuditTrail`
+- `EventBus`
+- `agent_run`
+
+---
+
+## Conceptos basicos
+
+### 1. Tools, no mutaciones directas
+
+Los agentes no deberian mutar datos del CRM directamente. Toda accion relevante debe pasar
+por herramientas registradas y auditables.
+
+### 2. Policy y approvals
+
+Antes de ejecutar una accion sensible, el sistema evalua permisos y puede requerir aprobacion
+humana.
+
+### 3. Audit
+
+Toda ejecucion importante debe dejar traza. Esto incluye decisiones, tool calls, approvals y
+resultados.
+
+### 4. Workflow
+
+Un workflow es la unidad declarativa que describe que debe pasar ante un evento o una condicion.
+
+### 5. Judge
+
+El Judge verifica que un workflow sea consistente antes de activarse.
+
+### 6. Signal
+
+Un signal representa una conclusion operativa con evidencia, por ejemplo una intencion alta o
+un riesgo.
+
+---
+
+## Estado arquitectonico
+
+Hoy el sistema funciona principalmente asi:
+
+```mermaid
+flowchart LR
+    API[HTTP API] --> ORC[Orchestrator]
+    ORC --> GO[Go Agents]
+    GO --> TOOLS[ToolRegistry]
+    TOOLS --> POLICY[PolicyEngine]
+    TOOLS --> AUDIT[Audit]
+    GO --> EVIDENCE[Knowledge and Evidence]
+    GO --> CRM[CRM State]
 ```
+
+La direccion objetivo es esta:
+
+```mermaid
+flowchart LR
+    INPUT[Human or Agent Input] --> DSL[Workflow DSL]
+    DSL --> JUDGE[Judge]
+    JUDGE --> RUNTIME[DSL Runtime]
+    RUNTIME --> TOOLS[ToolRegistry]
+    TOOLS --> POLICY[PolicyEngine]
+    TOOLS --> AUDIT[Audit]
+    RUNTIME --> SIGNALS[SignalService]
+    RUNTIME --> CRM[CRM State]
+```
+
+---
+
+## Estrategia de transicion
+
+La transicion se hace por fases.
+
+```mermaid
+flowchart LR
+    F1[Fase 1\nCompatibility Layer]
+    F2[Fase 2\nWorkflow Foundation]
+    F3[Fase 3\nDeclarative Bridge]
+    F4[Fase 4\nDSL Foundation]
+    F5[Fase 5\nJudge and Activate]
+    F6[Fase 6\nScheduler and WAIT]
+    F7[Fase 7\nMigration]
+    F8[Fase 8\nA2A and MCP]
+
+    F1 --> F2 --> F3 --> F4 --> F5 --> F6 --> F7 --> F8
+```
+
+Resumen rapido:
+
+- `Fase 1`: contrato comun de ejecucion para agentes
+- `Fase 2`: workflows y signals como entidades first-class
+- `Fase 3`: formato declarativo puente antes del DSL final
+- `Fase 4`: parser, runtime y runner DSL
+- `Fase 5`: verify y activate con Judge
+- `Fase 6`: `WAIT` y resume
+- `Fase 7`: migracion progresiva de agentes
+- `Fase 8`: interoperabilidad estandar
+
+---
+
+## Interoperabilidad
+
+La direccion actual del proyecto es:
+
+- **A2A-first** para delegacion entre agentes
+- **MCP-first** para tools, resources y contexto
+
+Esto significa:
+
+- `DISPATCH` externo debe alinearse con A2A
+- tools y contexto deben exponerse o consumirse alineados con MCP
+- no se busca inventar un protocolo propietario nuevo como contrato externo
+
+---
+
+## Estructura del proyecto
+
+```text
 fenix/
-├── cmd/fenix/           # Entry point
-├── internal/            # Private application code
-│   ├── domain/         # Business logic (CRM, Knowledge, Agent, etc.)
-│   ├── infra/          # Infrastructure adapters (SQLite, LLM, etc.)
-│   ├── api/            # HTTP handlers
-│   ├── config/         # Configuration
-│   ├── server/         # HTTP server setup
-│   └── version/        # Version info
-├── pkg/                # Public shared libraries
-├── tests/              # Integration and E2E tests
-└── docs/               # Documentation
+|-- cmd/                # entrypoints
+|-- internal/
+|   |-- api/            # handlers y middleware HTTP
+|   |-- domain/         # crm, agent, tool, policy, audit, knowledge
+|   |-- infra/          # sqlite, eventbus, llm, config
+|-- docs/               # arquitectura, planes y tareas
+|-- tests/              # contract y otros tests de integracion
+|-- mobile/             # app mobile
+|-- bff/                # backend for frontend
 ```
 
-### Available Commands
+---
+
+## Comandos utiles
 
 ```bash
-make test              # Run all tests
-make test-unit         # Run unit tests only
-make test-integration  # Run integration tests
-make build             # Build binary
-make run               # Run server (dev mode)
-make lint              # Run linter
-make fmt               # Format code
-make migrate-up        # Apply database migrations
-make migrate-down      # Rollback last migration
-make sqlc-generate     # Generate Go code from SQL
-make docker-build      # Build Docker image
-make docker-run        # Run Docker container
-make ci                # Run all CI checks
-make help              # Show all commands
+make test
+make build
+make run
+make lint
+make complexity
+make trace-check
 ```
 
----
+Nota importante:
 
-## Architecture
+- `make ci` esta pensado para entorno POSIX/Linux
+- la referencia local documentada hoy es CI remota o entorno compatible
 
-- **Stack**: Go 1.22+ / go-chi | SQLite (WAL) + sqlite-vec + FTS5 | React 19 + TypeScript + shadcn/ui
-- **LLM**: Ollama (local) + OpenAI/Anthropic (cloud)
-- **Deployment**: Single binary — `./fenix serve --port 8080`
-
-See `docs/architecture.md` for full technical design.
+Ver: [docs/ci.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/ci.md)
 
 ---
 
-## Implementation Plan
+## Documentacion recomendada
 
-- **Duration**: 13 weeks (3 months)
-- **Approach**: TDD (Test-Driven Development), incremental delivery
-- **Phases**:
-  1. Foundation (Weeks 1-3): CRM CRUD, Auth, Audit
-  2. Knowledge & Retrieval (Weeks 4-6): Hybrid search, Evidence packs
-  3. AI Layer (Weeks 7-10): Copilot, Agents, Tools, Policy
-  4. Integration & Polish (Weeks 11-13): React UI, E2E tests
+Si quieres entender el sistema por capas:
 
-See `docs/implementation-plan.md` for detailed tasks.
+- [docs/architecture.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/architecture.md)
+- [docs/implementation-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/implementation-plan.md)
 
----
+Si quieres entender la transicion AGENT_SPEC:
 
-## Core Principles
+- [docs/agent-spec-development-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-development-plan.md)
+- [docs/agent-spec-transition-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-transition-plan.md)
+- [docs/agent-spec-design.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-design.md)
+- [docs/agent-spec-integration-analysis.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-integration-analysis.md)
 
-1. **Evidence-first**: All AI responses cite sources. Abstain if uncertain.
-2. **Tools, not mutations**: AI only executes through registered tools.
-3. **Governed**: Every action checked against policies.
-4. **Auditable**: Immutable logs of all actions.
-5. **Operable**: Full tracing, metrics, replay capability.
+Si quieres entender los baselines de la transicion:
 
----
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| `docs/architecture.md` | Technical design, ERD, API specs |
-| `docs/implementation-plan.md` | 13-week execution plan |
-| `docs/CORRECTIONS-APPLIED.md` | Audit report of plan corrections |
-| `CLAUDE.md` | Project guidance for Claude Code |
-| `agentic_crm_requirements_agent_ready.md` | Requirements (FR/NFR/UC) |
+- [docs/agent-spec-regression-baseline.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-regression-baseline.md)
+- [docs/agent-spec-go-agents-baseline.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-go-agents-baseline.md)
+- [docs/agent-spec-core-contracts-baseline.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-core-contracts-baseline.md)
+- [docs/agent-spec-phase1-quality-gates.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-phase1-quality-gates.md)
 
 ---
 
-## License
+## Estado
 
-[License TBD]
-
----
-
-**Status**: Phase 1, Task 1.1 — Project Setup (In Progress)
+- base CRM y capa agentic ya existen
+- la transicion a workflows declarativos esta documentada
+- la implementacion esta aislada en el branch `agent-spec-transition`
