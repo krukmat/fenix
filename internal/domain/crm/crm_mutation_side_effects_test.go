@@ -312,6 +312,55 @@ func TestCaseService_Update_RejectsInvalidBusinessState(t *testing.T) {
 	}
 }
 
+func TestCaseService_Create_RejectsInvalidRelations(t *testing.T) {
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	accountID := createAccount(t, db, wsID, ownerID)
+	pipelineID := "pl-case-" + randID()
+	stageID := "st-case-" + randID()
+	if _, err := db.Exec(`INSERT INTO pipeline (id, workspace_id, name, entity_type, created_at, updated_at) VALUES (?, ?, 'Support', 'case', ?, ?)`, pipelineID, wsID, now, now); err != nil {
+		t.Fatalf("seed pipeline: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO pipeline_stage (id, pipeline_id, name, position, created_at, updated_at) VALUES (?, ?, 'Open', 1, ?, ?)`, stageID, pipelineID, now, now); err != nil {
+		t.Fatalf("seed stage: %v", err)
+	}
+
+	svc := crm.NewCaseService(db)
+
+	_, err := svc.Create(context.Background(), crm.CreateCaseInput{
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Case",
+		ContactID:   "missing-contact",
+	})
+	if !errors.Is(err, crm.ErrInvalidCaseInput) {
+		t.Fatalf("expected ErrInvalidCaseInput for invalid contact, got %v", err)
+	}
+
+	_, err = svc.Create(context.Background(), crm.CreateCaseInput{
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Case",
+		PipelineID:  "missing-pipeline",
+	})
+	if !errors.Is(err, crm.ErrInvalidCaseInput) {
+		t.Fatalf("expected ErrInvalidCaseInput for invalid pipeline, got %v", err)
+	}
+
+	_, err = svc.Create(context.Background(), crm.CreateCaseInput{
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Case",
+		AccountID:   accountID,
+		StageID:     stageID,
+	})
+	if !errors.Is(err, crm.ErrInvalidCaseInput) {
+		t.Fatalf("expected ErrInvalidCaseInput for stage without pipeline, got %v", err)
+	}
+}
+
 func assertAuditCount(t *testing.T, db *sql.DB, workspaceID, action string, want int) {
 	t.Helper()
 	var got int

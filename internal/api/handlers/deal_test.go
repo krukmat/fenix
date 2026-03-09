@@ -118,6 +118,35 @@ func TestDealHandler_CreateDeal_MissingRequired_Returns400(t *testing.T) {
 	}
 }
 
+func TestDealHandler_CreateDeal_InvalidBusinessInput_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	accountID := createAccountForTask15(t, db, wsID, ownerID, "Invalid Deal Account")
+	pipelineID, stageID := createPipelineAndStageForTask15(t, db, wsID)
+	negative := -10.0
+	body, _ := json.Marshal(map[string]any{
+		"accountId":  accountID,
+		"pipelineId": pipelineID,
+		"stageId":    stageID,
+		"ownerId":    ownerID,
+		"title":      "Deal invalid",
+		"amount":     negative,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deals", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+
+	rr := httptest.NewRecorder()
+	h.CreateDeal(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestDealHandler_ListDeals_MissingWorkspace_Returns400(t *testing.T) {
 	t.Parallel()
 
@@ -376,6 +405,27 @@ func TestDealHandler_UpdateDeal_NotFound_Returns404(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	h.UpdateDeal(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestDealHandler_DeleteDeal_NotFound_Returns404(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewDealHandler(crm.NewDealService(db))
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/deals/missing", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "missing")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.DeleteDeal(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d body=%s", rr.Code, rr.Body.String())

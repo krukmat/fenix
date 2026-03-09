@@ -417,6 +417,30 @@ func TestCaseHandler_GetCase_ServiceError_500(t *testing.T) {
 	}
 }
 
+func TestCaseHandler_CreateCase_InvalidBusinessInput_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	h := NewCaseHandler(crm.NewCaseService(db))
+
+	body, _ := json.Marshal(map[string]any{
+		"ownerId":    ownerID,
+		"subject":    "Customer issue",
+		"priority":   "medium",
+		"pipelineId": "missing-pipeline",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/cases", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+
+	rr := httptest.NewRecorder()
+	h.CreateCase(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestCaseHandler_ListCases_ServiceError_500(t *testing.T) {
 	t.Parallel()
 	db := mustOpenDBWithMigrations(t)
