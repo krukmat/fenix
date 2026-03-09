@@ -54,6 +54,16 @@ func insertHandoffTestCase(t *testing.T, db *sql.DB, caseID, workspaceID string)
 	t.Helper()
 	ctx := context.Background()
 	_, err := db.ExecContext(ctx, `
+		INSERT INTO user_account (
+			id, workspace_id, email, display_name, status, created_at, updated_at
+		) VALUES (
+			'user-1', ?, 'handoff-owner@example.com', 'Handoff Owner', 'active', datetime('now'), datetime('now')
+		)
+	`, workspaceID)
+	if err != nil {
+		t.Fatalf("insertHandoffTestCase owner: %v", err)
+	}
+	_, err = db.ExecContext(ctx, `
 		INSERT INTO case_ticket (id, workspace_id, owner_id, subject, priority, status, created_at, updated_at)
 		VALUES (?, ?, 'user-1', 'Test Case Subject', 'medium', 'open', datetime('now'), datetime('now'))
 		`, caseID, workspaceID)
