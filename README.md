@@ -1,15 +1,28 @@
 # FenixCRM
 
-> Operational CRM with agents, evidence, governance, and an evolving declarative workflow layer.
+> A CRM where evidence produces signals, signals trigger workflows, workflows drive actions, and humans stay in control where it matters.
 
 ---
 
 ## What It Is
 
-FenixCRM combines two things:
+Most CRMs are passive databases. Teams update them after the fact, work happens elsewhere,
+and the system lags behind reality.
+
+FenixCRM starts from a different assumption: **the key unit is not the record. It is the signal.**
+
+A signal is an operational conclusion backed by evidence — high intent, escalation risk, deal at risk.
+Once the system detects what matters, it can help act on it: structured workflows, governed tool execution,
+human approval where needed, and a full audit trail.
+
+That means FenixCRM is not "AI on top of CRM." It is a CRM designed around execution from the start —
+a governed execution layer sitting between human teams, business events, external agents, and shared context.
+
+Concretely, it combines:
 
 - a traditional operational CRM: accounts, contacts, leads, deals, cases, activities
 - an agentic layer: tools, policy, audit, evidence packs, and agents acting on the CRM
+- a declarative workflow layer: visible, verifiable, executable business logic
 
 The current direction of the project is to evolve from hardcoded Go agents toward verified,
 executable declarative workflows.
@@ -24,13 +37,20 @@ The core idea is simple:
 
 ## Core Idea
 
-The system is moving from:
+Business logic should not live forever as hidden code and tribal knowledge.
+It should be something the system can explain and the team can evolve.
+
+That is why the system is moving from:
 
 - "Go code defines the workflow"
 
 to:
 
 - "the declarative workflow defines execution"
+
+A workflow should be understandable, verifiable, and executable.
+A judge verifies it before activation. A runtime executes it. Tools perform the concrete operations.
+Policy, approvals, and audit keep the whole thing under control.
 
 This does not require a rewrite. The strategy is to extend the current infrastructure:
 
@@ -181,10 +201,15 @@ Quick summary:
 
 ## Interoperability
 
+A serious system cannot be closed.
+
 The current direction is:
 
-- **A2A-first** for agent-to-agent delegation
-- **MCP-first** for tools, resources, and context
+- **A2A-first** — the emerging standard for agent-to-agent delegation across systems
+- **MCP-first** — Model Context Protocol, for sharing tools, resources, and context across system boundaries
+
+Once you assume A2A and MCP are part of the core, the CRM stops looking like a closed workspace
+and starts looking more like an operational node in a broader ecosystem.
 
 That means:
 

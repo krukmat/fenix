@@ -1,0 +1,7 @@
+flowchart LR
+    WF[Workflow Runtime] --> LT[Local Tools]
+    WF --> AG[External Agents]
+    WF --> CTX[Shared Context]
+    LT --> CRM[CRM State]
+    AG --> CRM
+    CTX --> CRM
