@@ -1,38 +1,38 @@
 # FenixCRM
 
-> CRM operativo con agentes, evidencia, governance y una capa declarativa en evolucion.
+> Operational CRM with agents, evidence, governance, and an evolving declarative workflow layer.
 
 ---
 
-## Que es
+## What It Is
 
-FenixCRM combina dos cosas:
+FenixCRM combines two things:
 
-- un CRM operativo tradicional: cuentas, contactos, leads, deals, casos, actividades
-- una capa agentic: tools, policy, audit, evidence packs y agentes que actuan sobre el CRM
+- a traditional operational CRM: accounts, contacts, leads, deals, cases, activities
+- an agentic layer: tools, policy, audit, evidence packs, and agents acting on the CRM
 
-La direccion actual del proyecto es evolucionar desde agentes Go hardcodeados hacia
-workflows declarativos verificados y ejecutables.
+The current direction of the project is to evolve from hardcoded Go agents toward verified,
+executable declarative workflows.
 
-La idea base es simple:
+The core idea is simple:
 
-- hoy: agentes Go ejecutan logica de negocio
-- transicion: el orquestador se vuelve pluggable
-- futuro: workflows DSL + Judge + Runtime gobiernan la ejecucion
+- today: Go agents execute business logic
+- transition: the orchestrator becomes pluggable
+- future: DSL workflows + Judge + Runtime drive execution
 
 ---
 
-## Idea central
+## Core Idea
 
-El sistema quiere pasar de:
+The system is moving from:
 
-- "el codigo Go define el workflow"
+- "Go code defines the workflow"
 
-a:
+to:
 
-- "el workflow declarativo define la ejecucion"
+- "the declarative workflow defines execution"
 
-Eso no implica reescribir todo. La estrategia es extender la infraestructura actual:
+This does not require a rewrite. The strategy is to extend the current infrastructure:
 
 - `ToolRegistry`
 - `PolicyEngine`
@@ -43,41 +43,39 @@ Eso no implica reescribir todo. La estrategia es extender la infraestructura act
 
 ---
 
-## Conceptos basicos
+## Basic Concepts
 
-### 1. Tools, no mutaciones directas
+### 1. Tools, not direct mutations
 
-Los agentes no deberian mutar datos del CRM directamente. Toda accion relevante debe pasar
-por herramientas registradas y auditables.
+Agents should not mutate CRM data directly. Relevant actions must go through registered,
+auditable tools.
 
-### 2. Policy y approvals
+### 2. Policy and approvals
 
-Antes de ejecutar una accion sensible, el sistema evalua permisos y puede requerir aprobacion
-humana.
+Before executing a sensitive action, the system evaluates permissions and may require human approval.
 
 ### 3. Audit
 
-Toda ejecucion importante debe dejar traza. Esto incluye decisiones, tool calls, approvals y
-resultados.
+Every important execution should leave a trace. This includes decisions, tool calls, approvals,
+and outcomes.
 
 ### 4. Workflow
 
-Un workflow es la unidad declarativa que describe que debe pasar ante un evento o una condicion.
+A workflow is the declarative unit that describes what should happen when an event or condition occurs.
 
 ### 5. Judge
 
-El Judge verifica que un workflow sea consistente antes de activarse.
+The Judge verifies that a workflow is consistent before it can be activated.
 
 ### 6. Signal
 
-Un signal representa una conclusion operativa con evidencia, por ejemplo una intencion alta o
-un riesgo.
+A signal is an operational conclusion backed by evidence, for example high intent or risk.
 
 ---
 
-## Estado arquitectonico
+## Architectural State
 
-Hoy el sistema funciona principalmente asi:
+Today, the system mainly works like this:
 
 ```mermaid
 flowchart LR
@@ -90,7 +88,7 @@ flowchart LR
     GO --> CRM[CRM State]
 ```
 
-La direccion objetivo es esta:
+The target direction is this:
 
 ```mermaid
 flowchart LR
@@ -106,70 +104,70 @@ flowchart LR
 
 ---
 
-## Estrategia de transicion
+## Transition Strategy
 
-La transicion se hace por fases.
+The transition is phased.
 
 ```mermaid
 flowchart LR
-    F1[Fase 1\nCompatibility Layer]
-    F2[Fase 2\nWorkflow Foundation]
-    F3[Fase 3\nDeclarative Bridge]
-    F4[Fase 4\nDSL Foundation]
-    F5[Fase 5\nJudge and Activate]
-    F6[Fase 6\nScheduler and WAIT]
-    F7[Fase 7\nMigration]
-    F8[Fase 8\nA2A and MCP]
+    F1[Phase 1\nCompatibility Layer]
+    F2[Phase 2\nWorkflow Foundation]
+    F3[Phase 3\nDeclarative Bridge]
+    F4[Phase 4\nDSL Foundation]
+    F5[Phase 5\nJudge and Activate]
+    F6[Phase 6\nScheduler and WAIT]
+    F7[Phase 7\nMigration]
+    F8[Phase 8\nA2A and MCP]
 
     F1 --> F2 --> F3 --> F4 --> F5 --> F6 --> F7 --> F8
 ```
 
-Resumen rapido:
+Quick summary:
 
-- `Fase 1`: contrato comun de ejecucion para agentes
-- `Fase 2`: workflows y signals como entidades first-class
-- `Fase 3`: formato declarativo puente antes del DSL final
-- `Fase 4`: parser, runtime y runner DSL
-- `Fase 5`: verify y activate con Judge
-- `Fase 6`: `WAIT` y resume
-- `Fase 7`: migracion progresiva de agentes
-- `Fase 8`: interoperabilidad estandar
-
----
-
-## Interoperabilidad
-
-La direccion actual del proyecto es:
-
-- **A2A-first** para delegacion entre agentes
-- **MCP-first** para tools, resources y contexto
-
-Esto significa:
-
-- `DISPATCH` externo debe alinearse con A2A
-- tools y contexto deben exponerse o consumirse alineados con MCP
-- no se busca inventar un protocolo propietario nuevo como contrato externo
+- `Phase 1`: common execution contract for agents
+- `Phase 2`: workflows and signals as first-class entities
+- `Phase 3`: bridge declarative format before the final DSL
+- `Phase 4`: parser, runtime, and DSL runner
+- `Phase 5`: verify and activate with Judge
+- `Phase 6`: `WAIT` and resume
+- `Phase 7`: gradual agent migration
+- `Phase 8`: standards-based interoperability
 
 ---
 
-## Estructura del proyecto
+## Interoperability
+
+The current direction is:
+
+- **A2A-first** for agent-to-agent delegation
+- **MCP-first** for tools, resources, and context
+
+That means:
+
+- external `DISPATCH` should align with A2A
+- tools and context should be exposed or consumed through MCP-compatible boundaries
+- the project should not introduce a new proprietary external protocol
+
+---
+
+## Project Structure
 
 ```text
 fenix/
 |-- cmd/                # entrypoints
 |-- internal/
-|   |-- api/            # handlers y middleware HTTP
+|   |-- api/            # HTTP handlers and middleware
 |   |-- domain/         # crm, agent, tool, policy, audit, knowledge
 |   |-- infra/          # sqlite, eventbus, llm, config
-|-- docs/               # arquitectura, planes y tareas
-|-- tests/              # contract y otros tests de integracion
-|-- mobile/             # app mobile
+|-- docs/               # architecture, plans, and task docs
+|-- tests/              # contract and integration tests
+|-- mobile/             # mobile app
 |-- bff/                # backend for frontend
 ```
 
 ---
 
-## Comandos utiles
+## Useful Commands
 
 ```bash
 make test
@@ -180,30 +178,30 @@ make complexity
 make trace-check
 ```
 
-Nota importante:
+Important note:
 
-- `make ci` esta pensado para entorno POSIX/Linux
-- la referencia local documentada hoy es CI remota o entorno compatible
+- `make ci` is currently designed for a POSIX/Linux environment
+- the documented local reference is remote CI or a compatible environment
 
-Ver: [docs/ci.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/ci.md)
+See: [docs/ci.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/ci.md)
 
 ---
 
-## Documentacion recomendada
+## Recommended Documentation
 
-Si quieres entender el sistema por capas:
+To understand the current system:
 
 - [docs/architecture.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/architecture.md)
 - [docs/implementation-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/implementation-plan.md)
 
-Si quieres entender la transicion AGENT_SPEC:
+To understand the AGENT_SPEC transition:
 
 - [docs/agent-spec-development-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-development-plan.md)
 - [docs/agent-spec-transition-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-transition-plan.md)
 - [docs/agent-spec-design.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-design.md)
 - [docs/agent-spec-integration-analysis.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-integration-analysis.md)
 
-Si quieres entender los baselines de la transicion:
+To understand the transition baselines:
 
 - [docs/agent-spec-regression-baseline.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-regression-baseline.md)
 - [docs/agent-spec-go-agents-baseline.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-go-agents-baseline.md)
@@ -212,8 +210,8 @@ Si quieres entender los baselines de la transicion:
 
 ---
 
-## Estado
+## Status
 
-- base CRM y capa agentic ya existen
-- la transicion a workflows declarativos esta documentada
-- la implementacion esta aislada en el branch `agent-spec-transition`
+- the CRM base and agentic layer already exist
+- the declarative workflow transition is documented
+- implementation work is isolated in the `agent-spec-transition` branch
