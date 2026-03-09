@@ -125,6 +125,24 @@ sequenceDiagram
     R->>A: record execution
 ```
 
+**Simple example**
+
+A new support case is created. That event triggers the workflow `resolve_support_case`.
+
+The workflow was already verified by the Judge before activation, so the Runtime can execute it safely.
+
+During execution, the Runtime maps a step such as `SET case.status = "resolved"` to a registered tool like `update_case`.
+Before that tool runs, the Policy layer checks whether the action is allowed. If it is allowed, the tool executes and returns the result.
+Finally, the Runtime records the full execution in the audit trail.
+
+In short:
+
+- event: `case.created`
+- workflow: `resolve_support_case`
+- tool call: `update_case`
+- policy decision: allow or deny
+- outcome: CRM updated and execution audited
+
 ---
 
 ## Transition Strategy
