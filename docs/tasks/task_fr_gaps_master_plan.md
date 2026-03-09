@@ -1,6 +1,6 @@
 # FR Gaps - Master Plan de Cierre
 
-**Status**: En ejecucion  
+**Status**: Cerrado  
 **Fuente base**: `docs/fr-gaps-implementation-criteria.md`  
 **Objetivo**: descomponer y ejecutar el cierre de gaps FR pendientes con trazabilidad, orden de dependencias y criterios de cierre verificables.
 
@@ -61,8 +61,10 @@
 ## 4) Estado actual consolidado
 
 ### Cerradas
+- FR-001
 - FR-060
 - FR-061
+- FR-070
 - FR-071
 - FR-090
 - FR-091
@@ -76,8 +78,7 @@
 - FR-240
 
 ### Pendientes
-- FR-001
-- FR-070
+- ninguna
 
 ### Lectura por bloques
 1. **Governance/Auth**
@@ -93,15 +94,21 @@
 4. **Prompt lifecycle**
    - Cerrada: FR-240
 5. **CRM consistency hardening**
-   - Pendientes: FR-001, FR-070
+   - Cerradas: FR-001, FR-070
+   - Pendientes: ninguna
 
 ### Dependencias que marcan el siguiente paso
 - FR-202 y FR-211 quedaron cerradas en `main` con validacion final de CI verde.
 - FR-200, FR-201, FR-230, FR-231 y FR-232 quedaron cerradas en `main` con validacion final de CI verde.
 - FR-090 y FR-091 quedaron cerradas en `main` con validacion final de CI verde.
 - FR-240 quedo cerrada en `main` con validacion final de CI verde.
-- FR-001 depende de FR-070.
-- `FR-070` pasa a ser la siguiente tarea desbloqueada del frente CRM consistency hardening.
+- FR-070 y FR-001 quedaron cerradas en `main` con validacion final de CI verde.
+- No quedan FRs pendientes dentro de esta fase de alignment general.
+
+### Cierre de fase
+- El frente completo de cierre de gaps FR en alcance queda terminado.
+- El repositorio queda sin tareas activas dentro de este master plan.
+- El siguiente trabajo, si existiera, ya no pertenece a esta fase sino a una fase nueva de roadmap o hardening posterior.
 
 ---
 
