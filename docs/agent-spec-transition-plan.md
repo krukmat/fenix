@@ -8,6 +8,23 @@
 
 ---
 
+## Estado documental
+
+Este documento queda como narrativa de transicion y referencia historica.
+
+Fuentes canonicas actuales:
+- `docs/agent-spec-overview.md`
+- `docs/agent-spec-use-cases.md`
+- `docs/agent-spec-design.md`
+- `docs/agent-spec-integration-analysis.md`
+- `docs/agent-spec-development-plan.md`
+
+Regla:
+- no introducir nuevas decisiones de naming aqui
+- usar `docs/agent-spec-overview.md` como source of truth
+
+---
+
 ## Parte 1: Especificacion (Casos de Uso)
 
 ### CONTEXT

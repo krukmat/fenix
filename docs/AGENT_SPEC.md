@@ -7,6 +7,23 @@
 
 ---
 
+## Document Status
+
+This document remains the original conceptual source for AGENT_SPEC.
+
+Current canonical implementation-oriented documents:
+- `docs/agent-spec-overview.md`
+- `docs/agent-spec-use-cases.md`
+- `docs/agent-spec-design.md`
+- `docs/agent-spec-integration-analysis.md`
+- `docs/agent-spec-development-plan.md`
+
+Rule:
+- use this file for conceptual intent
+- use the canonical set for naming, analysis, design, and phased implementation
+
+---
+
 ## The Problem This Solves
 
 Traditional CRMs model the world as it was in the 1990s:

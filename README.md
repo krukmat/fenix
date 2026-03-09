@@ -41,6 +41,9 @@ This does not require a rewrite. The strategy is to extend the current infrastru
 - `EventBus`
 - `agent_run`
 
+For documentation purposes, the new workflow-platform capabilities use the existing repository
+use case convention and are reserved as `UC-A2` to `UC-A9`.
+
 ---
 
 ## Basic Concepts
@@ -237,10 +240,17 @@ To understand the current system:
 
 To understand the AGENT_SPEC transition:
 
-- [docs/agent-spec-development-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-development-plan.md)
-- [docs/agent-spec-transition-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-transition-plan.md)
+- [docs/agent-spec-overview.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-overview.md)
+- [docs/agent-spec-traceability.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-traceability.md)
+- [docs/agent-spec-use-cases.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-use-cases.md)
 - [docs/agent-spec-design.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-design.md)
 - [docs/agent-spec-integration-analysis.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-integration-analysis.md)
+- [docs/agent-spec-development-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-development-plan.md)
+
+Reference-only AGENT_SPEC documents:
+
+- [docs/agent-spec-transition-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-transition-plan.md)
+- [docs/AGENT_SPEC.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/AGENT_SPEC.md)
 
 To understand the transition baselines:
 

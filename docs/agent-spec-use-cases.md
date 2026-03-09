@@ -6,6 +6,32 @@
 >   - **Nivel 1**: Flujo principal (happy path)
 >   - **Nivel 2**: Flujos alternativos y de error
 >   - **Nivel 3**: Edge cases y condiciones de borde
+> **Naming source of truth**: `docs/agent-spec-overview.md`
+
+## Convencion de naming
+
+Este documento conserva `BEHAVIOR` en `snake_case` para escenarios detallados.
+
+Los casos de uso top-level quedan armonizados con la convencion historica del repo:
+
+| UC | Capability | Behavior family |
+|---|---|---|
+| `UC-A2` | Workflow Authoring | `define_workflow*` |
+| `UC-A3` | Workflow Verification and Activation | `verify_workflow*` |
+| `UC-A4` | Workflow Execution | `execute_workflow*` |
+| `UC-A5` | Signal Detection and Lifecycle | `detect_signal*` |
+| `UC-A6` | Deferred Actions | `defer_action*` |
+| `UC-A7` | Human Override and Approval | `human_override*` |
+| `UC-A8` | Workflow Versioning and Rollback | `version_workflow*` |
+| `UC-A9` | Agent Delegation | `delegate_workflow*` |
+
+Set canonico relacionado:
+- `docs/agent-spec-overview.md`
+- `docs/agent-spec-use-cases.md`
+- `docs/agent-spec-design.md`
+- `docs/agent-spec-integration-analysis.md`
+- `docs/agent-spec-development-plan.md`
+- `docs/agent-spec-traceability.md`
 
 ---
 

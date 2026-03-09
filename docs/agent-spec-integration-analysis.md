@@ -4,10 +4,30 @@
 > **Status**: Pre-analysis complete. Pending: progressive incorporation plan.
 > **Source**: `docs/AGENT_SPEC.md`
 > **Context**: P0 MVP in progress (Phase 1 complete, Phases 2-4 partial).
+> **Naming source of truth**: `docs/agent-spec-overview.md`
+> **Traceability rules**: `docs/agent-spec-traceability.md`
 
 ---
 
 ## 1 -- What AGENT_SPEC Proposes
+
+### Naming Alignment
+
+The repository already uses stable top-level use case IDs such as `UC-C1` and `UC-A1`.
+
+For AGENT_SPEC, the new platform capabilities are normalized as:
+- `UC-A2` Workflow Authoring
+- `UC-A3` Workflow Verification and Activation
+- `UC-A4` Workflow Execution
+- `UC-A5` Signal Detection and Lifecycle
+- `UC-A6` Deferred Actions
+- `UC-A7` Human Override and Approval
+- `UC-A8` Workflow Versioning and Rollback
+- `UC-A9` Agent Delegation
+
+`BEHAVIOR` names remain valid as lower-level scenario identifiers inside each `UC`.
+
+A collision check against the existing requirements catalog found no prior use of `UC-A2` to `UC-A9`.
 
 A declarative framework where **the DSL is the program**. Business workflows are described, not coded. CRM state emerges from execution rather than manual data entry.
 

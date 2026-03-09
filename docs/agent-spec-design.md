@@ -24,6 +24,28 @@ La siguiente tabla muestra que componente satisface cada behavior (y sus sub-cas
 
 ---
 
+## Naming Alignment
+
+Source of truth: `docs/agent-spec-overview.md`
+Traceability rules: `docs/agent-spec-traceability.md`
+
+Stable top-level AGENT_SPEC use cases:
+
+| UC | Historical group | Capability |
+|---|---|---|
+| `UC-A2` | `B1` | Workflow Authoring |
+| `UC-A3` | `B2` | Workflow Verification and Activation |
+| `UC-A4` | `B3` | Workflow Execution |
+| `UC-A5` | `B4` | Signal Detection and Lifecycle |
+| `UC-A6` | `B5` | Deferred Actions |
+| `UC-A7` | `B6` | Human Override and Approval |
+| `UC-A8` | `B7` | Workflow Versioning and Rollback |
+| `UC-A9` | `B8` | Agent Delegation |
+
+Rule:
+- `UC-*` is the stable top-level identifier
+- `BEHAVIOR` names remain the detailed scenario layer
+
 ## 2. Catalogo de Componentes
 
 ### 2.1 WorkflowService

@@ -3,6 +3,32 @@
 > Fecha: 2026-03-09
 > Estado: Propuesto
 > Formato: fases, tareas y analisis de dependencias
+> Naming source of truth: `docs/agent-spec-overview.md`
+
+## Mapa de casos de uso
+
+El plan implementa estas capacidades top-level:
+
+- `UC-A2` Workflow Authoring
+- `UC-A3` Workflow Verification and Activation
+- `UC-A4` Workflow Execution
+- `UC-A5` Signal Detection and Lifecycle
+- `UC-A6` Deferred Actions
+- `UC-A7` Human Override and Approval
+- `UC-A8` Workflow Versioning and Rollback
+- `UC-A9` Agent Delegation
+
+Regla:
+- `UC-*` identifica la capacidad estable
+- `BEHAVIOR` identifica escenarios detallados dentro de cada capacidad
+
+Set canonico relacionado:
+- `docs/agent-spec-overview.md`
+- `docs/agent-spec-use-cases.md`
+- `docs/agent-spec-design.md`
+- `docs/agent-spec-integration-analysis.md`
+- `docs/agent-spec-development-plan.md`
+- `docs/agent-spec-traceability.md`
 
 ---
 
