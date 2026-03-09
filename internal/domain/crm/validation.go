@@ -35,6 +35,20 @@ var (
 )
 
 func validateDealInput(ctx context.Context, db *sql.DB, workspaceID string, input CreateDealInput) error {
+	if err := validateDealRelations(ctx, db, workspaceID, input); err != nil {
+		return err
+	}
+	return validateDealValues(input)
+}
+
+func validateCaseInput(ctx context.Context, db *sql.DB, workspaceID string, input CreateCaseInput) error {
+	if err := validateCaseRelations(ctx, db, workspaceID, input); err != nil {
+		return err
+	}
+	return validateCaseValues(input)
+}
+
+func validateDealRelations(ctx context.Context, db *sql.DB, workspaceID string, input CreateDealInput) error {
 	if err := ensureUserExists(ctx, db, workspaceID, input.OwnerID); err != nil {
 		return invalidDealInput("owner_id is invalid", err)
 	}
@@ -52,6 +66,10 @@ func validateDealInput(ctx context.Context, db *sql.DB, workspaceID string, inpu
 	if err := ensureStageBelongsToPipeline(ctx, db, input.StageID, input.PipelineID); err != nil {
 		return invalidDealInput("stage_id does not belong to pipeline_id", err)
 	}
+	return nil
+}
+
+func validateDealValues(input CreateDealInput) error {
 	if input.Amount != nil && *input.Amount < 0 {
 		return invalidDealInput("amount cannot be negative", nil)
 	}
@@ -61,33 +79,66 @@ func validateDealInput(ctx context.Context, db *sql.DB, workspaceID string, inpu
 	return nil
 }
 
-func validateCaseInput(ctx context.Context, db *sql.DB, workspaceID string, input CreateCaseInput) error {
+func validateCaseRelations(ctx context.Context, db *sql.DB, workspaceID string, input CreateCaseInput) error {
 	if err := ensureUserExists(ctx, db, workspaceID, input.OwnerID); err != nil {
 		return invalidCaseInput("owner_id is invalid", err)
 	}
-	if input.AccountID != "" {
-		if err := ensureAccountExists(ctx, db, workspaceID, input.AccountID); err != nil {
-			return invalidCaseInput("account_id is invalid", err)
-		}
+	if err := validateOptionalCaseAccount(ctx, db, workspaceID, input.AccountID); err != nil {
+		return err
 	}
-	if input.ContactID != "" {
-		if err := ensureContactExists(ctx, db, workspaceID, input.ContactID); err != nil {
-			return invalidCaseInput("contact_id is invalid", err)
-		}
+	if err := validateOptionalCaseContact(ctx, db, workspaceID, input.ContactID); err != nil {
+		return err
 	}
-	if input.PipelineID != "" {
-		if err := ensurePipelineExists(ctx, db, workspaceID, input.PipelineID); err != nil {
-			return invalidCaseInput("pipeline_id is invalid", err)
-		}
+	if err := validateOptionalCasePipeline(ctx, db, workspaceID, input.PipelineID); err != nil {
+		return err
 	}
-	if input.StageID != "" {
-		if input.PipelineID == "" {
-			return invalidCaseInput("stage_id requires pipeline_id", nil)
-		}
-		if err := ensureStageBelongsToPipeline(ctx, db, input.StageID, input.PipelineID); err != nil {
-			return invalidCaseInput("stage_id does not belong to pipeline_id", err)
-		}
+	return validateOptionalCaseStage(ctx, db, input.StageID, input.PipelineID)
+}
+
+func validateOptionalCaseAccount(ctx context.Context, db *sql.DB, workspaceID, accountID string) error {
+	if accountID == "" {
+		return nil
 	}
+	if err := ensureAccountExists(ctx, db, workspaceID, accountID); err != nil {
+		return invalidCaseInput("account_id is invalid", err)
+	}
+	return nil
+}
+
+func validateOptionalCaseContact(ctx context.Context, db *sql.DB, workspaceID, contactID string) error {
+	if contactID == "" {
+		return nil
+	}
+	if err := ensureContactExists(ctx, db, workspaceID, contactID); err != nil {
+		return invalidCaseInput("contact_id is invalid", err)
+	}
+	return nil
+}
+
+func validateOptionalCasePipeline(ctx context.Context, db *sql.DB, workspaceID, pipelineID string) error {
+	if pipelineID == "" {
+		return nil
+	}
+	if err := ensurePipelineExists(ctx, db, workspaceID, pipelineID); err != nil {
+		return invalidCaseInput("pipeline_id is invalid", err)
+	}
+	return nil
+}
+
+func validateOptionalCaseStage(ctx context.Context, db *sql.DB, stageID, pipelineID string) error {
+	if stageID == "" {
+		return nil
+	}
+	if pipelineID == "" {
+		return invalidCaseInput("stage_id requires pipeline_id", nil)
+	}
+	if err := ensureStageBelongsToPipeline(ctx, db, stageID, pipelineID); err != nil {
+		return invalidCaseInput("stage_id does not belong to pipeline_id", err)
+	}
+	return nil
+}
+
+func validateCaseValues(input CreateCaseInput) error {
 	if input.Priority != "" && !isValidEnum(input.Priority, validCasePriorities) {
 		return invalidCaseInput("priority is invalid", nil)
 	}

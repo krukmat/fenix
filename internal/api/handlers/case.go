@@ -35,22 +35,46 @@ type CreateCaseRequest struct {
 type UpdateCaseRequest = CreateCaseRequest
 
 func (h *CaseHandler) CreateCase(w http.ResponseWriter, r *http.Request) {
+	wsID, ok := requireWorkspaceForCaseMutation(w, r)
+	if !ok {
+		return
+	}
+	req, ok := decodeCreateCaseRequest(w, r)
+	if !ok {
+		return
+	}
+	out, svcErr := h.service.Create(r.Context(), buildCreateCaseInput(wsID, req))
+	if handleCaseCreateError(w, svcErr) {
+		return
+	}
+	writeCreatedJSON(w, out)
+}
+
+func requireWorkspaceForCaseMutation(w http.ResponseWriter, r *http.Request) (string, bool) {
 	wsID, wsErr := getWorkspaceID(r.Context())
 	if wsErr != nil {
 		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
-		return
+		return "", false
 	}
+	return wsID, true
+}
+
+func decodeCreateCaseRequest(w http.ResponseWriter, r *http.Request) (CreateCaseRequest, bool) {
 	var req CreateCaseRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, errInvalidBody)
-		return
+		return CreateCaseRequest{}, false
 	}
 	if req.OwnerID == "" || req.Subject == "" {
 		writeError(w, http.StatusBadRequest, "ownerId and subject are required")
-		return
+		return CreateCaseRequest{}, false
 	}
-	out, svcErr := h.service.Create(r.Context(), crm.CreateCaseInput{
-		WorkspaceID: wsID,
+	return req, true
+}
+
+func buildCreateCaseInput(workspaceID string, req CreateCaseRequest) crm.CreateCaseInput {
+	return crm.CreateCaseInput{
+		WorkspaceID: workspaceID,
 		AccountID:   req.AccountID,
 		ContactID:   req.ContactID,
 		PipelineID:  req.PipelineID,
@@ -64,20 +88,26 @@ func (h *CaseHandler) CreateCase(w http.ResponseWriter, r *http.Request) {
 		SLAConfig:   req.SLAConfig,
 		SLADeadline: req.SLADeadline,
 		Metadata:    req.Metadata,
-	})
-	if svcErr != nil {
-		if errors.Is(svcErr, crm.ErrInvalidCaseInput) {
-			writeError(w, http.StatusBadRequest, svcErr.Error())
-			return
-		}
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create case: %v", svcErr))
-		return
 	}
+}
+
+func handleCaseCreateError(w http.ResponseWriter, svcErr error) bool {
+	if svcErr == nil {
+		return false
+	}
+	if errors.Is(svcErr, crm.ErrInvalidCaseInput) {
+		writeError(w, http.StatusBadRequest, svcErr.Error())
+		return true
+	}
+	writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create case: %v", svcErr))
+	return true
+}
+
+func writeCreatedJSON(w http.ResponseWriter, out any) {
 	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, errFailedToEncode)
-		return
 	}
 }
 
