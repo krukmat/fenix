@@ -102,6 +102,29 @@ flowchart LR
     RUNTIME --> CRM[CRM State]
 ```
 
+High-level interaction:
+
+```mermaid
+sequenceDiagram
+    participant U as User or Event
+    participant W as Workflow
+    participant J as Judge
+    participant R as Runtime
+    participant T as ToolRegistry
+    participant P as Policy
+    participant A as Audit
+
+    U->>W: trigger
+    W->>J: verify before activation
+    J-->>W: pass or fail
+    W->>R: execute active workflow
+    R->>T: call mapped tool
+    T->>P: enforce policy
+    P-->>T: allow or deny
+    T-->>R: result
+    R->>A: record execution
+```
+
 ---
 
 ## Transition Strategy

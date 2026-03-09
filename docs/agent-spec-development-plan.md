@@ -168,6 +168,70 @@
 
 ---
 
+## Diagramas de interaccion
+
+### 1. Activacion de workflow
+
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant API as Workflow API
+    participant Judge
+    participant Service as WorkflowService
+
+    Admin->>API: verify workflow
+    API->>Judge: Verify(dsl, spec)
+    Judge-->>API: passed or violations
+    API->>Service: set status testing
+
+    Admin->>API: activate workflow
+    API->>Judge: re-verify
+    Judge-->>API: passed
+    API->>Service: activate version
+    Service-->>API: active workflow
+```
+
+### 2. Ejecucion declarativa
+
+```mermaid
+sequenceDiagram
+    participant Event
+    participant Orch as Orchestrator
+    participant Registry as RunnerRegistry
+    participant Runner as DSLRunner
+    participant Runtime as DSLRuntime
+    participant Tools as ToolRegistry
+    participant Policy as PolicyEngine
+    participant Audit
+
+    Event->>Orch: trigger agent
+    Orch->>Registry: resolve runner
+    Registry-->>Orch: DSLRunner
+    Orch->>Runner: Run(input)
+    Runner->>Runtime: execute AST
+    Runtime->>Tools: execute mapped tool
+    Tools->>Policy: check permission
+    Policy-->>Tools: allow or deny
+    Tools-->>Runtime: result
+    Runtime->>Audit: log execution
+```
+
+### 3. Delegacion externa
+
+```mermaid
+sequenceDiagram
+    participant Runtime
+    participant PH as ProtocolHandler
+    participant A2A as External Agent
+
+    Runtime->>PH: dispatch workflow
+    PH->>A2A: A2A request
+    A2A-->>PH: ACCEPTED or REJECTED or DELEGATED
+    PH-->>Runtime: dispatch response
+```
+
+---
+
 ## Analisis de dependencias
 
 ### 1. Dependencias entre fases
