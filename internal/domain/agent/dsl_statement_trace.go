@@ -26,7 +26,7 @@ func insertDSLRunStep(ctx context.Context, rc *RunContext, workspaceID, runID st
 	}
 	stepID := uuid.NewV7().String()
 	now := time.Now().UTC()
-	if err := insertRunStepTx(ctx, tx, &RunStep{
+	if insertErr := insertRunStepTx(ctx, tx, &RunStep{
 		ID:          stepID,
 		WorkspaceID: workspaceID,
 		RunID:       runID,
@@ -38,11 +38,11 @@ func insertDSLRunStep(ctx context.Context, rc *RunContext, workspaceID, runID st
 		StartedAt:   timePtr(now),
 		CreatedAt:   now,
 		UpdatedAt:   now,
-	}); err != nil {
-		return "", err
+	}); insertErr != nil {
+		return "", insertErr
 	}
-	if err := tx.Commit(); err != nil {
-		return "", err
+	if commitErr := tx.Commit(); commitErr != nil {
+		return "", commitErr
 	}
 	return stepID, nil
 }
@@ -62,8 +62,8 @@ func updateDSLRunStep(ctx context.Context, rc *RunContext, workspaceID, stepID, 
 		msg := stepErr.Error()
 		errText = &msg
 	}
-	if err := updateRunStepStateTx(ctx, tx, stepID, workspaceID, status, nil, output, errText); err != nil {
-		return err
+	if updateErr := updateRunStepStateTx(ctx, tx, stepID, workspaceID, status, nil, output, errText); updateErr != nil {
+		return updateErr
 	}
 	return tx.Commit()
 }
@@ -148,11 +148,11 @@ func indicatesPendingApproval(output any) bool {
 	switch v := output.(type) {
 	case map[string]any:
 		action, _ := v["action"].(string)
-		if action == "pending_approval" {
+		if action == pendingApprovalAction {
 			return true
 		}
 		status, _ := v["status"].(string)
-		return status == "pending_approval"
+		return status == pendingApprovalAction
 	default:
 		return false
 	}

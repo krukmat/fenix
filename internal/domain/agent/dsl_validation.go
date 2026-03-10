@@ -19,8 +19,8 @@ func ParseAndValidateDSL(source string) (*Program, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := ValidateDSLProgram(program); err != nil {
-		return nil, err
+	if validateErr := ValidateDSLProgram(program); validateErr != nil {
+		return nil, validateErr
 	}
 	return program, nil
 }

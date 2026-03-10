@@ -47,8 +47,8 @@ func (p *Parser) parseWorkflow() (*WorkflowDecl, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := p.expectNewline("expected newline after WORKFLOW header"); err != nil {
-		return nil, err
+	if parseErr := p.expectNewline("expected newline after WORKFLOW header"); parseErr != nil {
+		return nil, parseErr
 	}
 
 	on, err := p.parseOnDecl()
@@ -78,8 +78,8 @@ func (p *Parser) parseOnDecl() (*OnDecl, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := p.expectNewline("expected newline after ON declaration"); err != nil {
-		return nil, err
+	if parseErr := p.expectNewline("expected newline after ON declaration"); parseErr != nil {
+		return nil, parseErr
 	}
 	return &OnDecl{
 		Event:    event.Literal,
@@ -127,11 +127,11 @@ func (p *Parser) parseIfStatement() (Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := p.expect(TokenColon, "expected ':' after IF condition"); err != nil {
-		return nil, err
+	if _, parseErr := p.expect(TokenColon, "expected ':' after IF condition"); parseErr != nil {
+		return nil, parseErr
 	}
-	if err := p.expectNewline("expected newline after IF statement"); err != nil {
-		return nil, err
+	if parseErr := p.expectNewline("expected newline after IF statement"); parseErr != nil {
+		return nil, parseErr
 	}
 	body, err := p.parseIndentedStatementBlock(start)
 	if err != nil {
@@ -141,8 +141,8 @@ func (p *Parser) parseIfStatement() (Statement, error) {
 }
 
 func (p *Parser) parseIndentedStatementBlock(start Token) ([]Statement, error) {
-	if _, err := p.expect(TokenIndent, "expected indented block after IF"); err != nil {
-		return nil, err
+	if _, parseErr := p.expect(TokenIndent, "expected indented block after IF"); parseErr != nil {
+		return nil, parseErr
 	}
 	body, err := p.parseStatementList(TokenDedent)
 	if err != nil {
@@ -151,8 +151,8 @@ func (p *Parser) parseIndentedStatementBlock(start Token) ([]Statement, error) {
 	if len(body) == 0 {
 		return nil, p.errorAt(start, "IF block must contain at least one statement")
 	}
-	if _, err := p.expect(TokenDedent, "expected end of IF block"); err != nil {
-		return nil, err
+	if _, parseErr := p.expect(TokenDedent, "expected end of IF block"); parseErr != nil {
+		return nil, parseErr
 	}
 	return body, nil
 }
@@ -166,15 +166,15 @@ func (p *Parser) parseSetStatement() (Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := p.expect(TokenAssign, "expected '=' after SET target"); err != nil {
-		return nil, err
+	if _, parseErr := p.expect(TokenAssign, "expected '=' after SET target"); parseErr != nil {
+		return nil, parseErr
 	}
 	value, err := p.parseExpression()
 	if err != nil {
 		return nil, err
 	}
-	if err := p.expectNewline("expected newline after SET statement"); err != nil {
-		return nil, err
+	if parseErr := p.expectNewline("expected newline after SET statement"); parseErr != nil {
+		return nil, parseErr
 	}
 	return &SetStatement{
 		Target:   &IdentifierExpr{Name: target.Literal, Position: positionFromToken(target)},
@@ -192,15 +192,15 @@ func (p *Parser) parseNotifyStatement() (Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := p.expect(TokenWith, "expected WITH after NOTIFY target"); err != nil {
-		return nil, err
+	if _, parseErr := p.expect(TokenWith, "expected WITH after NOTIFY target"); parseErr != nil {
+		return nil, parseErr
 	}
 	value, err := p.parseExpression()
 	if err != nil {
 		return nil, err
 	}
-	if err := p.expectNewline("expected newline after NOTIFY statement"); err != nil {
-		return nil, err
+	if parseErr := p.expectNewline("expected newline after NOTIFY statement"); parseErr != nil {
+		return nil, parseErr
 	}
 	return &NotifyStatement{
 		Target:   &IdentifierExpr{Name: target.Literal, Position: positionFromToken(target)},
@@ -226,8 +226,8 @@ func (p *Parser) parseAgentStatement() (Statement, error) {
 			return nil, err
 		}
 	}
-	if err := p.expectNewline("expected newline after AGENT statement"); err != nil {
-		return nil, err
+	if parseErr := p.expectNewline("expected newline after AGENT statement"); parseErr != nil {
+		return nil, parseErr
 	}
 	return &AgentStatement{
 		Name:     &IdentifierExpr{Name: name.Literal, Position: positionFromToken(name)},
@@ -320,9 +320,9 @@ func (p *Parser) parseArrayLiteral() (Expression, error) {
 	}
 	elements := make([]Expression, 0)
 	for p.current().Type != TokenRBracket {
-		expr, err := p.parseExpression()
-		if err != nil {
-			return nil, err
+		expr, parseErr := p.parseExpression()
+		if parseErr != nil {
+			return nil, parseErr
 		}
 		elements = append(elements, expr)
 		if p.current().Type == TokenComma {
@@ -333,8 +333,8 @@ func (p *Parser) parseArrayLiteral() (Expression, error) {
 			return nil, p.errorAt(p.current(), "expected ',' or ']' in array literal")
 		}
 	}
-	if _, err := p.expect(TokenRBracket, "expected ']'"); err != nil {
-		return nil, err
+	if _, parseErr := p.expect(TokenRBracket, "expected ']'"); parseErr != nil {
+		return nil, parseErr
 	}
 	return &ArrayLiteralExpr{Elements: elements, Position: positionFromToken(start)}, nil
 }
@@ -346,9 +346,9 @@ func (p *Parser) parseObjectLiteral() (Expression, error) {
 	}
 	fields := make([]ObjectField, 0)
 	for p.current().Type != TokenRBrace {
-		field, err := p.parseObjectField()
-		if err != nil {
-			return nil, err
+		field, parseErr := p.parseObjectField()
+		if parseErr != nil {
+			return nil, parseErr
 		}
 		fields = append(fields, field)
 		if p.current().Type == TokenComma {
@@ -359,8 +359,8 @@ func (p *Parser) parseObjectLiteral() (Expression, error) {
 			return nil, p.errorAt(p.current(), "expected ',' or '}' in object literal")
 		}
 	}
-	if _, err := p.expect(TokenRBrace, "expected '}'"); err != nil {
-		return nil, err
+	if _, parseErr := p.expect(TokenRBrace, "expected '}'"); parseErr != nil {
+		return nil, parseErr
 	}
 	return &ObjectLiteralExpr{Fields: fields, Position: positionFromToken(start)}, nil
 }
