@@ -23,6 +23,8 @@ var (
 	ErrSkillToolRegistryMissing       = errors.New("skill runner requires tool registry for mapped actions")
 )
 
+const bridgeEntityCase = "case"
+
 type SkillRunner struct {
 	db *sql.DB
 }
@@ -144,9 +146,9 @@ func emptyTracesUpdate(status string, output, toolCalls json.RawMessage, complet
 	return RunUpdates{
 		Status:               status,
 		Output:               output,
-		ReasoningTrace:       json.RawMessage(`[]`),
-		RetrievalQueries:     json.RawMessage(`[]`),
-		RetrievedEvidenceIDs: json.RawMessage(`[]`),
+		ReasoningTrace:       json.RawMessage(emptyJSONArray),
+		RetrievalQueries:     json.RawMessage(emptyJSONArray),
+		RetrievedEvidenceIDs: json.RawMessage(emptyJSONArray),
 		ToolCalls:            toolCalls,
 		Completed:            completed,
 	}
@@ -389,7 +391,7 @@ func mapSetAction(step BridgeStep, evalCtx map[string]any) mappedBridgeTool {
 		return mappedBridgeTool{
 			name: tool.BuiltinUpdateCase,
 			params: map[string]any{
-				"case_id": resolveEntityID(evalCtx, "case"),
+				"case_id": resolveEntityID(evalCtx, bridgeEntityCase),
 				"status":  value,
 			},
 		}
@@ -397,7 +399,7 @@ func mapSetAction(step BridgeStep, evalCtx map[string]any) mappedBridgeTool {
 		return mappedBridgeTool{
 			name: tool.BuiltinUpdateCase,
 			params: map[string]any{
-				"case_id":  resolveEntityID(evalCtx, "case"),
+				"case_id":  resolveEntityID(evalCtx, bridgeEntityCase),
 				"priority": value,
 			},
 		}
@@ -413,7 +415,7 @@ func mapNotifyAction(step BridgeStep, evalCtx map[string]any) mappedBridgeTool {
 		return mappedBridgeTool{
 			name: tool.BuiltinSendReply,
 			params: map[string]any{
-				"case_id": resolveEntityID(evalCtx, "case"),
+				"case_id": resolveEntityID(evalCtx, bridgeEntityCase),
 				"body":    message,
 			},
 		}
@@ -434,7 +436,7 @@ func mapNotifyAction(step BridgeStep, evalCtx map[string]any) mappedBridgeTool {
 }
 
 func resolvePrimaryEntity(evalCtx map[string]any) (string, string) {
-	for _, entityType := range []string{"case", "lead", "deal", "contact"} {
+	for _, entityType := range []string{bridgeEntityCase, "lead", "deal", "contact"} {
 		if id := resolveEntityID(evalCtx, entityType); id != "" {
 			return entityType, id
 		}
@@ -461,11 +463,11 @@ func resolveOwnerID(evalCtx map[string]any) string {
 
 func marshalSkillToolCalls(toolCalls []ToolCall) json.RawMessage {
 	if len(toolCalls) == 0 {
-		return json.RawMessage(`[]`)
+		return json.RawMessage(emptyJSONArray)
 	}
 	raw, err := json.Marshal(toolCalls)
 	if err != nil {
-		return json.RawMessage(`[]`)
+		return json.RawMessage(emptyJSONArray)
 	}
 	return raw
 }
@@ -485,13 +487,16 @@ func parseBridgeApprovalConfig(args map[string]any) *bridgeApprovalConfig {
 		return nil
 	}
 	cfg := &bridgeApprovalConfig{}
-	if required, ok := raw["required"].(bool); ok {
+	required, hasRequired := raw["required"].(bool)
+	if hasRequired {
 		cfg.Required = required
 	}
-	if approverID, ok := raw["approver_id"].(string); ok {
+	approverID, hasApprover := raw["approver_id"].(string)
+	if hasApprover {
 		cfg.ApproverID = strings.TrimSpace(approverID)
 	}
-	if reason, ok := raw["reason"].(string); ok {
+	reason, hasReason := raw["reason"].(string)
+	if hasReason {
 		cfg.Reason = strings.TrimSpace(reason)
 	}
 	return cfg
@@ -573,7 +578,7 @@ func insertBridgeRunStep(ctx context.Context, rc *RunContext, workspaceID, runID
 	}
 	stepID := uuid.NewV7().String()
 	now := time.Now().UTC()
-	if err := insertRunStepTx(ctx, tx, &RunStep{
+	insertErr := insertRunStepTx(ctx, tx, &RunStep{
 		ID:          stepID,
 		WorkspaceID: workspaceID,
 		RunID:       runID,
@@ -585,11 +590,12 @@ func insertBridgeRunStep(ctx context.Context, rc *RunContext, workspaceID, runID
 		StartedAt:   timePtr(now),
 		CreatedAt:   now,
 		UpdatedAt:   now,
-	}); err != nil {
-		return "", err
+	})
+	if insertErr != nil {
+		return "", insertErr
 	}
-	if err := tx.Commit(); err != nil {
-		return "", err
+	if commitErr := tx.Commit(); commitErr != nil {
+		return "", commitErr
 	}
 	return stepID, nil
 }
@@ -648,10 +654,8 @@ func (r *SkillRunner) loadBridgeWorkflow(ctx context.Context, input TriggerAgent
 }
 
 func isHardDecodeError(err error, raw json.RawMessage) bool {
-	if len(raw) == 0 || !json.Valid(raw) {
-		return false
-	}
-	if errors.Is(err, ErrSkillDefinitionNotFound) || errors.Is(err, ErrBridgeWorkflowInvalid) {
+	if len(raw) == 0 || !json.Valid(raw) ||
+		errors.Is(err, ErrSkillDefinitionNotFound) || errors.Is(err, ErrBridgeWorkflowInvalid) {
 		return false
 	}
 	var syntaxErr *json.SyntaxError
@@ -854,10 +858,10 @@ func resolveBridgeValue(evalCtx map[string]any, dotted string) any {
 }
 
 func compareEquality(left, right any) bool {
-	if lv, ok := toFloat64(left); ok {
-		if rv, ok := toFloat64(right); ok {
-			return lv == rv
-		}
+	lv, leftOK := toFloat64(left)
+	rv, rightOK := toFloat64(right)
+	if leftOK && rightOK {
+		return lv == rv
 	}
 	return fmt.Sprint(left) == fmt.Sprint(right)
 }
