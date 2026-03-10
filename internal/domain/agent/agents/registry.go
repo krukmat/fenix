@@ -32,22 +32,29 @@ func RegisterCurrentGoRunners(registry *agent.RunnerRegistry, runners GoAgentRun
 	if registry == nil {
 		return ErrRunnerRegistryNil
 	}
+	if err := validateGoAgentRunners(runners); err != nil {
+		return err
+	}
+	entries := []struct {
+		agentType string
+		runner    agent.AgentRunner
+	}{
+		{AgentTypeSupport, &SupportRunner{Agent: runners.Support}},
+		{AgentTypeProspecting, &ProspectingRunner{Agent: runners.Prospecting}},
+		{AgentTypeKB, &KBRunner{Agent: runners.KB}},
+		{AgentTypeInsights, &InsightsRunner{Agent: runners.Insights}},
+	}
+	for _, e := range entries {
+		if err := registry.Register(e.agentType, e.runner); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateGoAgentRunners(runners GoAgentRunners) error {
 	if runners.Support == nil || runners.Prospecting == nil || runners.KB == nil || runners.Insights == nil {
 		return ErrGoAgentNil
 	}
-
-	if err := registry.Register(AgentTypeSupport, &SupportRunner{Agent: runners.Support}); err != nil {
-		return err
-	}
-	if err := registry.Register(AgentTypeProspecting, &ProspectingRunner{Agent: runners.Prospecting}); err != nil {
-		return err
-	}
-	if err := registry.Register(AgentTypeKB, &KBRunner{Agent: runners.KB}); err != nil {
-		return err
-	}
-	if err := registry.Register(AgentTypeInsights, &InsightsRunner{Agent: runners.Insights}); err != nil {
-		return err
-	}
-
 	return nil
 }

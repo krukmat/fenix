@@ -172,6 +172,11 @@ func isTerminalRunStatus(status string) bool {
 	}
 }
 
+var allowedRunTransitions = map[string][]string{
+	StatusRunning:  {StatusAccepted, StatusRejected, StatusDelegated, StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusEscalated},
+	StatusAccepted: {StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusDelegated},
+}
+
 func validateRunTransition(current, next string) error {
 	if current == next {
 		return nil
@@ -179,20 +184,8 @@ func validateRunTransition(current, next string) error {
 	if isTerminalRunStatus(current) {
 		return ErrInvalidRunTransition
 	}
-
-	switch current {
-	case StatusRunning:
-		switch next {
-		case StatusAccepted:
-			return nil
-		default:
-			if isTerminalRunStatus(next) {
-				return nil
-			}
-		}
-	case StatusAccepted:
-		switch next {
-		case StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusDelegated:
+	for _, allowed := range allowedRunTransitions[current] {
+		if next == allowed {
 			return nil
 		}
 	}
