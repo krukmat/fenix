@@ -25,6 +25,14 @@ const (
 	topicPolicyEvaluated   = "policy.evaluated"
 	topicApprovalRequested = "approval.requested"
 	topicApprovalDecided   = "approval.decided"
+
+	actionApprovalApproved = "approval.approved"
+	actionApprovalDenied   = "approval.denied"
+	actionApprovalExpired  = "approval.expired"
+
+	decisionApprove = "approve"
+	decisionDeny    = "deny"
+	decisionExpire  = "expire"
 )
 
 // AuditService provides audit logging capabilities
@@ -496,12 +504,12 @@ func resolveAuditAction(topic string, payload any) string {
 
 	decision := strings.ToLower(extractPayloadDecision(payload))
 	switch decision {
-	case "approve", "approved":
-		return "approval.approved"
-	case "deny", "denied":
-		return "approval.denied"
-	case "expire", "expired":
-		return "approval.expired"
+	case decisionApprove, "approved":
+		return actionApprovalApproved
+	case decisionDeny, "denied":
+		return actionApprovalDenied
+	case decisionExpire, "expired":
+		return actionApprovalExpired
 	default:
 		return topicApprovalDecided
 	}

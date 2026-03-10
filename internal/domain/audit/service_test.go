@@ -1178,20 +1178,20 @@ func TestRegisterEventSubscribers_ConsumesTypedPayloadsAndNormalizesActions(t *t
 
 	foundApproved := false
 	for _, ev := range events {
-		if ev.Action != "approval.approved" {
+		if ev.Action != actionApprovalApproved {
 			continue
 		}
 		foundApproved = true
 		if ev.ActorType != ActorTypeSystem {
-			t.Fatalf("approval.approved ActorType = %s; want %s", ev.ActorType, ActorTypeSystem)
+			t.Fatalf("%s ActorType = %s; want %s", actionApprovalApproved, ev.ActorType, ActorTypeSystem)
 		}
 		if ev.Outcome != OutcomeSuccess {
-			t.Fatalf("approval.approved Outcome = %s; want %s", ev.Outcome, OutcomeSuccess)
+			t.Fatalf("%s Outcome = %s; want %s", actionApprovalApproved, ev.Outcome, OutcomeSuccess)
 		}
 	}
 
 	if !foundApproved {
-		t.Fatal("expected normalized approval.approved audit event")
+		t.Fatalf("expected normalized %s audit event", actionApprovalApproved)
 	}
 }
 
@@ -1304,11 +1304,11 @@ func TestServiceHelpers_UtilityFunctions(t *testing.T) {
 
 func TestAuditHelpers_DecisionFromMapAndPointerField(t *testing.T) {
 	// decisionFromMap: all three keys
-	if got := decisionFromMap(map[string]any{"decision": "approve"}); got != "approve" {
+	if got := decisionFromMap(map[string]any{"decision": decisionApprove}); got != decisionApprove {
 		t.Fatalf("decisionFromMap(decision) = %q; want approve", got)
 	}
-	if got := decisionFromMap(map[string]any{"status": "denied"}); got != "denied" {
-		t.Fatalf("decisionFromMap(status) = %q; want denied", got)
+	if got := decisionFromMap(map[string]any{"status": decisionDeny}); got != decisionDeny {
+		t.Fatalf("decisionFromMap(status) = %q; want deny", got)
 	}
 	if got := decisionFromMap(map[string]any{"outcome": "expired"}); got != "expired" {
 		t.Fatalf("decisionFromMap(outcome) = %q; want expired", got)
@@ -1318,14 +1318,14 @@ func TestAuditHelpers_DecisionFromMapAndPointerField(t *testing.T) {
 	}
 
 	// extractPayloadDecision with map path
-	if got := extractPayloadDecision(map[string]any{"decision": "approve"}); got != "approve" {
+	if got := extractPayloadDecision(map[string]any{"decision": decisionApprove}); got != decisionApprove {
 		t.Fatalf("extractPayloadDecision(map) = %q; want approve", got)
 	}
 	// extractPayloadDecision with struct path
 	type approval struct {
 		Decision string
 	}
-	if got := extractPayloadDecision(approval{Decision: "deny"}); got != "deny" {
+	if got := extractPayloadDecision(approval{Decision: decisionDeny}); got != decisionDeny {
 		t.Fatalf("extractPayloadDecision(struct) = %q; want deny", got)
 	}
 	// extractPayloadDecision: non-map, non-struct
@@ -1354,12 +1354,12 @@ func TestAuditHelpers_DecisionFromMapAndPointerField(t *testing.T) {
 	if got := rawMessageFromAny(raw); string(got) != string(raw) {
 		t.Fatalf("rawMessageFromAny(RawMessage) mismatch")
 	}
-	b := []byte(`{"k":2}`)
-	if got := rawMessageFromAny(b); string(got) != string(b) {
+	byteSlice := []byte(`{"k":2}`)
+	if got := rawMessageFromAny(byteSlice); string(got) != string(byteSlice) {
 		t.Fatalf("rawMessageFromAny([]byte) mismatch")
 	}
-	s := `{"k":3}`
-	if got := rawMessageFromAny(s); string(got) != s {
+	strVal := `{"k":3}`
+	if got := rawMessageFromAny(strVal); string(got) != strVal {
 		t.Fatalf("rawMessageFromAny(string) mismatch")
 	}
 	if got := rawMessageFromAny(42); got != nil {
@@ -1367,13 +1367,13 @@ func TestAuditHelpers_DecisionFromMapAndPointerField(t *testing.T) {
 	}
 
 	// resolveAuditAction: approve and expire branches
-	if got := resolveAuditAction("approval.decided", map[string]any{"decision": "approve"}); got != "approval.approved" {
+	if got := resolveAuditAction(topicApprovalDecided, map[string]any{"decision": decisionApprove}); got != actionApprovalApproved {
 		t.Fatalf("resolveAuditAction approve = %q", got)
 	}
-	if got := resolveAuditAction("approval.decided", map[string]any{"outcome": "expire"}); got != "approval.expired" {
+	if got := resolveAuditAction(topicApprovalDecided, map[string]any{"outcome": decisionExpire}); got != actionApprovalExpired {
 		t.Fatalf("resolveAuditAction expire = %q", got)
 	}
-	if got := resolveAuditAction("approval.decided", map[string]any{}); got != "approval.decided" {
+	if got := resolveAuditAction(topicApprovalDecided, map[string]any{}); got != topicApprovalDecided {
 		t.Fatalf("resolveAuditAction default = %q", got)
 	}
 }
