@@ -200,23 +200,19 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "workflows.update") {
 		return
 	}
-
 	workspaceID, ok := requireWorkspaceID(w, r)
 	if !ok {
 		return
 	}
-
 	id := chi.URLParam(r, paramID)
 	if id == "" {
 		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
 		return
 	}
-
 	var req UpdateWorkflowRequest
 	if !decodeBodyJSON(w, r, &req) {
 		return
 	}
-
 	out, err := h.service.Update(r.Context(), workspaceID, id, workflowdomain.UpdateWorkflowInput{
 		AgentDefinitionID: req.AgentDefinitionID,
 		Description:       req.Description,
@@ -227,11 +223,14 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeWorkflowError(w, err)
 		return
 	}
-	if h.runtime != nil && h.runtime.cacheInvalidator != nil {
-		h.runtime.cacheInvalidator.InvalidateCache(id)
-	}
-
+	h.invalidateCacheIfConfigured(id)
 	_ = writeJSONOr500(w, map[string]any{"data": workflowToResponse(out)})
+}
+
+func (h *WorkflowHandler) invalidateCacheIfConfigured(workflowID string) {
+	if h.runtime != nil && h.runtime.cacheInvalidator != nil {
+		h.runtime.cacheInvalidator.InvalidateCache(workflowID)
+	}
 }
 
 func (h *WorkflowHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -262,49 +261,73 @@ func (h *WorkflowHandler) Execute(w http.ResponseWriter, r *http.Request) {
 	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "workflows.execute") {
 		return
 	}
-
 	workspaceID, ok := requireWorkspaceID(w, r)
 	if !ok {
 		return
 	}
-	if h.runtime == nil || h.runtime.orchestrator == nil || h.db == nil {
+	if !h.isRuntimeConfigured() {
 		writeError(w, http.StatusInternalServerError, "workflow execute runtime is not configured")
 		return
 	}
-
 	id := chi.URLParam(r, paramID)
 	if id == "" {
 		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
 		return
 	}
-
 	var req ExecuteWorkflowRequest
 	if !decodeOptionalWorkflowExecuteBody(w, r, &req) {
 		return
 	}
+	run, ok2 := h.loadAndRunWorkflow(w, r, workspaceID, id, req)
+	if !ok2 {
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = writeJSONOr500(w, map[string]any{
+		"data": map[string]any{"workflow_id": id, "run": agentRunToResponse(run)},
+	})
+}
 
+func (h *WorkflowHandler) loadAndRunWorkflow(w http.ResponseWriter, r *http.Request, workspaceID, id string, req ExecuteWorkflowRequest) (*agent.Run, bool) {
 	item, err := h.service.Get(r.Context(), workspaceID, id)
 	if err != nil {
 		writeWorkflowError(w, err)
-		return
+		return nil, false
 	}
+	if err := validateWorkflowForExecution(item); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return nil, false
+	}
+	run, err := h.executeDSLWorkflow(r, workspaceID, item, req)
+	if err != nil {
+		writeWorkflowExecuteError(w, err)
+		return nil, false
+	}
+	return run, true
+}
+
+func (h *WorkflowHandler) isRuntimeConfigured() bool {
+	return h.runtime != nil && h.runtime.orchestrator != nil && h.db != nil
+}
+
+func validateWorkflowForExecution(item *workflowdomain.Workflow) error {
 	if item.AgentDefinitionID == nil || *item.AgentDefinitionID == "" {
-		writeError(w, http.StatusConflict, "workflow must be linked to an agent definition")
-		return
+		return errors.New("workflow must be linked to an agent definition")
 	}
 	if item.Status != workflowdomain.StatusActive {
-		writeError(w, http.StatusConflict, "workflow must be active to execute")
-		return
+		return errors.New("workflow must be active to execute")
 	}
+	return nil
+}
 
+func (h *WorkflowHandler) executeDSLWorkflow(r *http.Request, workspaceID string, item *workflowdomain.Workflow, req ExecuteWorkflowRequest) (*agent.Run, error) {
 	runner := agent.NewDSLRunnerWithDependencies(staticWorkflowResolver{workflow: item}, agent.NewDSLRuntime(), nil)
 	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
 	var triggeredBy *string
 	if userID != "" {
 		triggeredBy = &userID
 	}
-
-	run, err := runner.Run(r.Context(), &agent.RunContext{
+	return runner.Run(r.Context(), &agent.RunContext{
 		Orchestrator:    h.runtime.orchestrator,
 		ToolRegistry:    h.runtime.toolRegistry,
 		PolicyEngine:    h.runtime.policyEngine,
@@ -317,18 +340,6 @@ func (h *WorkflowHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		TriggerType:    agent.TriggerTypeManual,
 		TriggerContext: normalizeOptionalJSONObject(req.TriggerContext),
 		Inputs:         normalizeOptionalJSONObject(req.Inputs),
-	})
-	if err != nil {
-		writeWorkflowExecuteError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	_ = writeJSONOr500(w, map[string]any{
-		"data": map[string]any{
-			"workflow_id": id,
-			"run":         agentRunToResponse(run),
-		},
 	})
 }
 

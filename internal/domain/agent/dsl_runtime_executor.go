@@ -67,35 +67,33 @@ func (e *dslRuntimeExecutor) executeToolOperation(ctx context.Context, op *Runti
 	if e.rc == nil || e.rc.ToolRegistry == nil {
 		return RuntimeExecutionResult{}, ErrDSLToolRegistryMissing
 	}
-
 	params := cloneRuntimeParams(op.Params)
 	approvalCfg := parseBridgeApprovalConfig(params)
 	delete(params, "approval")
-
-	mapped := mappedBridgeTool{
-		name:   op.ToolName,
-		params: params,
-	}
+	mapped := mappedBridgeTool{name: op.ToolName, params: params}
 	if err := checkMappedToolPolicy(ctx, e.rc, e.actorID, mapped.name); err != nil {
 		return RuntimeExecutionResult{}, err
 	}
 	if approvalCfg != nil && approvalCfg.Required {
-		call, pendingApproval, output, err := routeToApproval(ctx, e.rc, e.workspaceID, e.actorID, mapped, approvalCfg)
-		if call != nil {
-			e.toolCalls = append(e.toolCalls, *call)
-		}
-		if err != nil {
-			return RuntimeExecutionResult{}, err
-		}
-		e.pending = true
-		e.pendingApproval = pendingApproval
-		return RuntimeExecutionResult{
-			Output: decodeRuntimeOutput(output),
-			Status: StatusAccepted,
-			Stop:   true,
-		}, nil
+		return e.executeToolWithApproval(ctx, mapped, approvalCfg)
 	}
+	return e.executeToolDirect(ctx, mapped)
+}
 
+func (e *dslRuntimeExecutor) executeToolWithApproval(ctx context.Context, mapped mappedBridgeTool, approvalCfg *bridgeApprovalConfig) (RuntimeExecutionResult, error) {
+	call, pendingApproval, output, err := routeToApproval(ctx, e.rc, e.workspaceID, e.actorID, mapped, approvalCfg)
+	if call != nil {
+		e.toolCalls = append(e.toolCalls, *call)
+	}
+	if err != nil {
+		return RuntimeExecutionResult{}, err
+	}
+	e.pending = true
+	e.pendingApproval = pendingApproval
+	return RuntimeExecutionResult{Output: decodeRuntimeOutput(output), Status: StatusAccepted, Stop: true}, nil
+}
+
+func (e *dslRuntimeExecutor) executeToolDirect(ctx context.Context, mapped mappedBridgeTool) (RuntimeExecutionResult, error) {
 	call, _, output, err := executeRegisteredTool(ctx, e.rc, e.workspaceID, mapped)
 	if call != nil {
 		e.toolCalls = append(e.toolCalls, *call)
@@ -107,37 +105,56 @@ func (e *dslRuntimeExecutor) executeToolOperation(ctx context.Context, op *Runti
 }
 
 func (e *dslRuntimeExecutor) executeAgentOperation(ctx context.Context, op *RuntimeOperation, evalCtx map[string]any) (RuntimeExecutionResult, error) {
-	if e.rc == nil || e.rc.Orchestrator == nil {
-		return RuntimeExecutionResult{}, ErrDSLRunnerMissingOrchestrator
+	if err := validateAgentExecutionContext(e.rc); err != nil {
+		return RuntimeExecutionResult{}, err
 	}
-	if e.rc.DB == nil {
-		return RuntimeExecutionResult{}, ErrDSLExecutorMissingDB
-	}
-
 	target, err := resolveActiveAgentDefinition(ctx, e.rc.DB, e.workspaceID, op.AgentName)
 	if err != nil {
+		return RuntimeExecutionResult{}, err
+	}
+	if err := validateAgentCallAllowed(e.rc, e.actorID, target); err != nil {
 		return RuntimeExecutionResult{}, err
 	}
 	if err := checkMappedAgentPolicy(ctx, e.rc, e.actorID, target); err != nil {
 		return RuntimeExecutionResult{}, err
 	}
-	if e.rc.CallDepth >= dslAgentCallDepthLimit {
-		return RuntimeExecutionResult{}, ErrDSLAgentDepthExceeded
-	}
-	if containsCall(e.rc.CallChain, target.ID) {
-		return RuntimeExecutionResult{}, ErrDSLAgentLoopDetected
-	}
-
 	rawInputs, err := json.Marshal(op.Params)
 	if err != nil {
 		return RuntimeExecutionResult{}, err
 	}
+	stored, err := e.invokeSubAgent(ctx, target, rawInputs)
+	if err != nil {
+		return RuntimeExecutionResult{}, err
+	}
+	return e.buildAgentRunResult(target, stored)
+}
+
+func validateAgentExecutionContext(rc *RunContext) error {
+	if rc == nil || rc.Orchestrator == nil {
+		return ErrDSLRunnerMissingOrchestrator
+	}
+	if rc.DB == nil {
+		return ErrDSLExecutorMissingDB
+	}
+	return nil
+}
+
+func validateAgentCallAllowed(rc *RunContext, actorID string, target *Definition) error {
+	if rc.CallDepth >= dslAgentCallDepthLimit {
+		return ErrDSLAgentDepthExceeded
+	}
+	if containsCall(rc.CallChain, target.ID) {
+		return ErrDSLAgentLoopDetected
+	}
+	return nil
+}
+
+func (e *dslRuntimeExecutor) invokeSubAgent(ctx context.Context, target *Definition, rawInputs json.RawMessage) (*Run, error) {
 	var triggeredBy *string
 	if strings.TrimSpace(e.actorID) != "" && e.actorID != "system" {
 		actorID := e.actorID
 		triggeredBy = &actorID
 	}
-
 	subRun, err := e.rc.Orchestrator.ExecuteAgent(ctx, e.rc.WithCall(target.ID), TriggerAgentInput{
 		AgentID:        target.ID,
 		WorkspaceID:    e.workspaceID,
@@ -147,13 +164,12 @@ func (e *dslRuntimeExecutor) executeAgentOperation(ctx context.Context, op *Runt
 		Inputs:         rawInputs,
 	})
 	if err != nil {
-		return RuntimeExecutionResult{}, err
+		return nil, err
 	}
-	stored, err := e.rc.Orchestrator.GetAgentRun(ctx, e.workspaceID, subRun.ID)
-	if err != nil {
-		return RuntimeExecutionResult{}, err
-	}
+	return e.rc.Orchestrator.GetAgentRun(ctx, e.workspaceID, subRun.ID)
+}
 
+func (e *dslRuntimeExecutor) buildAgentRunResult(target *Definition, stored *Run) (RuntimeExecutionResult, error) {
 	output := map[string]any{
 		"agent_id": target.ID,
 		"status":   stored.Status,
@@ -165,16 +181,9 @@ func (e *dslRuntimeExecutor) executeAgentOperation(ctx context.Context, op *Runt
 	case StatusAccepted:
 		e.pending = true
 		mergePendingApprovalMetadata(output, stored.Output)
-		return RuntimeExecutionResult{
-			Output: output,
-			Status: StatusAccepted,
-			Stop:   true,
-		}, nil
+		return RuntimeExecutionResult{Output: output, Status: StatusAccepted, Stop: true}, nil
 	case StatusAbstained:
-		return RuntimeExecutionResult{
-			Output: output,
-			Status: StatusAbstained,
-		}, nil
+		return RuntimeExecutionResult{Output: output, Status: StatusAbstained}, nil
 	default:
 		return RuntimeExecutionResult{Output: output}, nil
 	}

@@ -327,56 +327,73 @@ func executeMappedBridgeAgent(
 	evalCtx map[string]any,
 	op *RuntimeOperation,
 ) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
-	if rc == nil || rc.Orchestrator == nil {
-		return nil, nil, nil, ErrSkillRunnerMissingOrchestrator
+	if err := validateBridgeAgentContext(rc, op); err != nil {
+		return nil, nil, nil, err
 	}
-	if rc.DB == nil {
-		return nil, nil, nil, ErrSkillRunnerMissingDB
-	}
-	if op == nil || op.Kind != RuntimeOperationAgent {
-		return nil, nil, nil, fmt.Errorf("%w: bridge action is not mappable", ErrSkillStepExecutionFailed)
-	}
-
 	target, err := resolveActiveAgentDefinition(ctx, rc.DB, workspaceID, op.AgentName)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if err := checkMappedAgentPolicy(ctx, rc, actorID, target); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: %v", ErrSkillStepExecutionFailed, err)
+	if err := validateBridgeAgentCall(ctx, rc, actorID, target); err != nil {
+		return nil, nil, nil, err
 	}
-	if rc.CallDepth >= dslAgentCallDepthLimit {
-		return nil, nil, nil, ErrDSLAgentDepthExceeded
-	}
-	if containsCall(rc.CallChain, target.ID) {
-		return nil, nil, nil, ErrDSLAgentLoopDetected
-	}
-
 	rawInputs, err := json.Marshal(op.Params)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	triggerCtx := marshalRuntimeContext(evalCtx)
+	stored, err := invokeBridgeSubAgent(ctx, rc, workspaceID, actorID, target, rawInputs, evalCtx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return buildBridgeSubAgentOutput(target, stored)
+}
+
+func validateBridgeAgentContext(rc *RunContext, op *RuntimeOperation) error {
+	if rc == nil || rc.Orchestrator == nil {
+		return ErrSkillRunnerMissingOrchestrator
+	}
+	if rc.DB == nil {
+		return ErrSkillRunnerMissingDB
+	}
+	if op == nil || op.Kind != RuntimeOperationAgent {
+		return fmt.Errorf("%w: bridge action is not mappable", ErrSkillStepExecutionFailed)
+	}
+	return nil
+}
+
+func validateBridgeAgentCall(ctx context.Context, rc *RunContext, actorID string, target *Definition) error {
+	if err := checkMappedAgentPolicy(ctx, rc, actorID, target); err != nil {
+		return fmt.Errorf("%w: %v", ErrSkillStepExecutionFailed, err)
+	}
+	if rc.CallDepth >= dslAgentCallDepthLimit {
+		return ErrDSLAgentDepthExceeded
+	}
+	if containsCall(rc.CallChain, target.ID) {
+		return ErrDSLAgentLoopDetected
+	}
+	return nil
+}
+
+func invokeBridgeSubAgent(ctx context.Context, rc *RunContext, workspaceID, actorID string, target *Definition, rawInputs json.RawMessage, evalCtx map[string]any) (*Run, error) {
 	var triggeredBy *string
 	if strings.TrimSpace(actorID) != "" && actorID != "system" {
 		triggeredBy = &actorID
 	}
-
 	subRun, err := rc.Orchestrator.ExecuteAgent(ctx, rc.WithCall(target.ID), TriggerAgentInput{
 		AgentID:        target.ID,
 		WorkspaceID:    workspaceID,
 		TriggeredBy:    triggeredBy,
 		TriggerType:    TriggerTypeManual,
-		TriggerContext: triggerCtx,
+		TriggerContext: marshalRuntimeContext(evalCtx),
 		Inputs:         rawInputs,
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
-	stored, err := rc.Orchestrator.GetAgentRun(ctx, workspaceID, subRun.ID)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	return rc.Orchestrator.GetAgentRun(ctx, workspaceID, subRun.ID)
+}
 
+func buildBridgeSubAgentOutput(target *Definition, stored *Run) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
 	output, err := json.Marshal(map[string]any{
 		"agent_id": target.ID,
 		"run_id":   stored.ID,
@@ -390,8 +407,6 @@ func executeMappedBridgeAgent(
 		return nil, nil, output, fmt.Errorf("%w: sub-agent %s returned %s", ErrSkillStepExecutionFailed, target.ID, stored.Status)
 	case StatusAccepted:
 		return nil, extractPendingApprovalResult(stored.Output), output, nil
-	case StatusAbstained, StatusSuccess, StatusPartial, StatusDelegated:
-		return nil, nil, output, nil
 	default:
 		return nil, nil, output, nil
 	}

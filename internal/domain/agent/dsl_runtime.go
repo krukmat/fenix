@@ -99,60 +99,51 @@ func (r *DSLRuntime) executeStatement(ctx context.Context, stmt Statement, evalC
 	}
 }
 
-func (r *DSLRuntime) executeIf(ctx context.Context, stmt *IfStatement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult) (bool, error) {
-	var traceID string
-	if tracer, ok := executor.(RuntimeStatementTracer); ok {
-		var traceErr error
-		traceID, traceErr = tracer.StartStatementTrace(ctx, stmt)
-		if traceErr != nil {
-			return false, traceErr
-		}
+func startStatementTrace(ctx context.Context, executor RuntimeOperationExecutor, stmt Statement) (string, error) {
+	tracer, ok := executor.(RuntimeStatementTracer)
+	if !ok {
+		return "", nil
 	}
-	ok, err := r.evaluator.EvaluateCondition(stmt.Condition, evalCtx)
+	return tracer.StartStatementTrace(ctx, stmt)
+}
+
+func finishStatementTrace(ctx context.Context, executor RuntimeOperationExecutor, traceID string, result DSLStatementResult, err error) {
+	if traceID == "" {
+		return
+	}
+	if tracer, ok := executor.(RuntimeStatementTracer); ok {
+		_ = tracer.FinishStatementTrace(ctx, traceID, result, err)
+	}
+}
+
+func (r *DSLRuntime) executeIf(ctx context.Context, stmt *IfStatement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult) (bool, error) {
+	traceID, traceErr := startStatementTrace(ctx, executor, stmt)
+	if traceErr != nil {
+		return false, traceErr
+	}
+	condOK, err := r.evaluator.EvaluateCondition(stmt.Condition, evalCtx)
 	if err != nil {
-		result := DSLStatementResult{
-			Type:     "IF",
-			Status:   StepStatusFailed,
-			Position: stmt.Pos(),
-		}
+		result := DSLStatementResult{Type: "IF", Status: StepStatusFailed, Position: stmt.Pos()}
 		*out = append(*out, result)
-		if tracer, isTracer := executor.(RuntimeStatementTracer); isTracer && traceID != "" {
-			_ = tracer.FinishStatementTrace(ctx, traceID, result, err)
-		}
+		finishStatementTrace(ctx, executor, traceID, result, err)
 		return false, err
 	}
-	if !ok {
-		result := DSLStatementResult{
-			Type:     "IF",
-			Status:   StepStatusSkipped,
-			Position: stmt.Pos(),
-		}
+	if !condOK {
+		result := DSLStatementResult{Type: "IF", Status: StepStatusSkipped, Position: stmt.Pos()}
 		*out = append(*out, result)
-		if tracer, isTracer := executor.(RuntimeStatementTracer); isTracer && traceID != "" {
-			_ = tracer.FinishStatementTrace(ctx, traceID, result, nil)
-		}
+		finishStatementTrace(ctx, executor, traceID, result, nil)
 		return false, nil
 	}
-	result := DSLStatementResult{
-		Type:     "IF",
-		Status:   StepStatusSuccess,
-		Position: stmt.Pos(),
-	}
+	result := DSLStatementResult{Type: "IF", Status: StepStatusSuccess, Position: stmt.Pos()}
 	*out = append(*out, result)
-	if tracer, isTracer := executor.(RuntimeStatementTracer); isTracer && traceID != "" {
-		_ = tracer.FinishStatementTrace(ctx, traceID, result, nil)
-	}
+	finishStatementTrace(ctx, executor, traceID, result, nil)
 	return r.executeStatements(ctx, stmt.Body, evalCtx, executor, out)
 }
 
 func (r *DSLRuntime) executeMappedStatement(ctx context.Context, stmt Statement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult) (bool, error) {
-	var traceID string
-	if tracer, ok := executor.(RuntimeStatementTracer); ok {
-		var traceErr error
-		traceID, traceErr = tracer.StartStatementTrace(ctx, stmt)
-		if traceErr != nil {
-			return false, traceErr
-		}
+	traceID, traceErr := startStatementTrace(ctx, executor, stmt)
+	if traceErr != nil {
+		return false, traceErr
 	}
 	op, err := r.mapper.MapStatement(stmt, evalCtx)
 	result := DSLStatementResult{
@@ -165,36 +156,33 @@ func (r *DSLRuntime) executeMappedStatement(ctx context.Context, stmt Statement,
 	if err != nil {
 		result.Status = StepStatusFailed
 		*out = append(*out, result)
-		if tracer, ok := executor.(RuntimeStatementTracer); ok && traceID != "" {
-			_ = tracer.FinishStatementTrace(ctx, traceID, result, err)
-		}
+		finishStatementTrace(ctx, executor, traceID, result, err)
 		return false, err
 	}
-	if executor != nil {
-		execResult, execErr := executor.Execute(ctx, op, evalCtx)
-		result.Output = execResult.Output
-		if execResult.Status != "" {
-			result.Status = execResult.Status
-		}
-		if execErr != nil {
-			result.Status = StepStatusFailed
-			*out = append(*out, result)
-			if tracer, ok := executor.(RuntimeStatementTracer); ok && traceID != "" {
-				_ = tracer.FinishStatementTrace(ctx, traceID, result, execErr)
-			}
-			return false, execErr
-		}
+	if executor == nil {
 		*out = append(*out, result)
-		if tracer, ok := executor.(RuntimeStatementTracer); ok && traceID != "" {
-			_ = tracer.FinishStatementTrace(ctx, traceID, result, nil)
-		}
-		return execResult.Stop, nil
+		finishStatementTrace(ctx, executor, traceID, result, nil)
+		return false, nil
 	}
-	*out = append(*out, result)
-	if tracer, ok := executor.(RuntimeStatementTracer); ok && traceID != "" {
-		_ = tracer.FinishStatementTrace(ctx, traceID, result, nil)
+	stop, execErr := r.applyExecutorResult(ctx, executor, op, evalCtx, traceID, &result, out)
+	return stop, execErr
+}
+
+func (r *DSLRuntime) applyExecutorResult(ctx context.Context, executor RuntimeOperationExecutor, op *RuntimeOperation, evalCtx map[string]any, traceID string, result *DSLStatementResult, out *[]DSLStatementResult) (bool, error) {
+	execResult, execErr := executor.Execute(ctx, op, evalCtx)
+	result.Output = execResult.Output
+	if execResult.Status != "" {
+		result.Status = execResult.Status
 	}
-	return false, nil
+	if execErr != nil {
+		result.Status = StepStatusFailed
+		*out = append(*out, *result)
+		finishStatementTrace(ctx, executor, traceID, *result, execErr)
+		return false, execErr
+	}
+	*out = append(*out, *result)
+	finishStatementTrace(ctx, executor, traceID, *result, nil)
+	return execResult.Stop, nil
 }
 
 func runtimeStatementType(stmt Statement) string {

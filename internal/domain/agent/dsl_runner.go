@@ -61,7 +61,6 @@ func (r *DSLRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgentI
 	if rc == nil || rc.Orchestrator == nil {
 		return nil, ErrDSLRunnerMissingOrchestrator
 	}
-
 	workflow, err := r.loadActiveWorkflow(ctx, input.WorkspaceID, input.AgentID)
 	if err != nil {
 		return nil, err
@@ -70,18 +69,9 @@ func (r *DSLRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgentI
 	if err != nil {
 		return nil, err
 	}
-
 	execCtx := rc.WithCall(input.AgentID)
 	evalCtx := mergeDSLContexts(input.TriggerContext, input.Inputs)
-	executor := r.executor
-	var defaultExecutor *dslRuntimeExecutor
-	useDefaultExecutor := false
-	if executor == nil {
-		defaultExecutor = newDSLRuntimeExecutor(execCtx, input, evalCtx)
-		executor = defaultExecutor
-		useDefaultExecutor = true
-	}
-
+	baseExecutor, defaultExecutor := r.buildBaseExecutor(execCtx, input, evalCtx)
 	run, err := rc.Orchestrator.TriggerAgent(ctx, input)
 	if err != nil {
 		return nil, err
@@ -90,27 +80,42 @@ func (r *DSLRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgentI
 	if err != nil {
 		return nil, err
 	}
-
-	if useDefaultExecutor {
-		executor = newTracedDSLExecutor(input.WorkspaceID, run.ID, execCtx, r.runtime, defaultExecutor)
-	}
-
+	executor := wrapWithTrace(input.WorkspaceID, run.ID, execCtx, r.runtime, baseExecutor, defaultExecutor)
 	result, execErr := r.runtime.ExecuteProgram(ctx, program, evalCtx, executor)
+	return r.finalizeRun(ctx, rc, input.WorkspaceID, run.ID, workflow, result, defaultExecutor, execErr)
+}
+
+func (r *DSLRunner) buildBaseExecutor(rc *RunContext, input TriggerAgentInput, evalCtx map[string]any) (RuntimeOperationExecutor, *dslRuntimeExecutor) {
+	if r.executor != nil {
+		return r.executor, nil
+	}
+	de := newDSLRuntimeExecutor(rc, input, evalCtx)
+	return de, de
+}
+
+func wrapWithTrace(workspaceID, runID string, rc *RunContext, runtime *DSLRuntime, base RuntimeOperationExecutor, defaultExecutor *dslRuntimeExecutor) RuntimeOperationExecutor {
+	if defaultExecutor == nil {
+		return base
+	}
+	return newTracedDSLExecutor(workspaceID, runID, rc, runtime, defaultExecutor)
+}
+
+func (r *DSLRunner) finalizeRun(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *workflowdomain.Workflow, result *DSLRuntimeResult, defaultExecutor *dslRuntimeExecutor, execErr error) (*Run, error) {
+	toolCalls := dslToolCallsJSON(defaultExecutor)
 	if execErr != nil {
-		toolCalls := json.RawMessage(emptyJSONArray)
-		if useDefaultExecutor {
-			toolCalls = defaultExecutor.ToolCallsJSON()
-		}
-		return r.finalizeFailure(ctx, rc, input.WorkspaceID, run.ID, workflow, result, toolCalls, execErr)
+		return r.finalizeFailure(ctx, rc, workspaceID, runID, workflow, result, toolCalls, execErr)
 	}
-	if useDefaultExecutor && defaultExecutor.IsPending() {
-		return r.finalizePending(ctx, rc, input.WorkspaceID, run.ID, workflow, result, defaultExecutor)
+	if defaultExecutor != nil && defaultExecutor.IsPending() {
+		return r.finalizePending(ctx, rc, workspaceID, runID, workflow, result, defaultExecutor)
 	}
-	toolCalls := json.RawMessage(emptyJSONArray)
-	if useDefaultExecutor {
-		toolCalls = defaultExecutor.ToolCallsJSON()
+	return r.finalizeSuccess(ctx, rc, workspaceID, runID, workflow, result, toolCalls)
+}
+
+func dslToolCallsJSON(defaultExecutor *dslRuntimeExecutor) json.RawMessage {
+	if defaultExecutor != nil {
+		return defaultExecutor.ToolCallsJSON()
 	}
-	return r.finalizeSuccess(ctx, rc, input.WorkspaceID, run.ID, workflow, result, toolCalls)
+	return json.RawMessage(emptyJSONArray)
 }
 
 func (r *DSLRunner) loadActiveWorkflow(ctx context.Context, workspaceID, agentDefinitionID string) (*workflowdomain.Workflow, error) {

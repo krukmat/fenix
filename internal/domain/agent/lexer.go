@@ -123,102 +123,100 @@ func lexLine(line string, lineNo, startColumn int) ([]Token, error) {
 	tokens := make([]Token, 0, len(line))
 	for i := 0; i < len(line); {
 		ch := rune(line[i])
-		column := startColumn + i
-
 		if unicode.IsSpace(ch) {
 			i++
 			continue
 		}
-
-		switch ch {
-		case ':':
-			tokens = append(tokens, Token{Type: TokenColon, Literal: ":", Line: lineNo, Column: column})
-			i++
-		case ',':
-			tokens = append(tokens, Token{Type: TokenComma, Literal: ",", Line: lineNo, Column: column})
-			i++
-		case '[':
-			tokens = append(tokens, Token{Type: TokenLBracket, Literal: "[", Line: lineNo, Column: column})
-			i++
-		case ']':
-			tokens = append(tokens, Token{Type: TokenRBracket, Literal: "]", Line: lineNo, Column: column})
-			i++
-		case '{':
-			tokens = append(tokens, Token{Type: TokenLBrace, Literal: "{", Line: lineNo, Column: column})
-			i++
-		case '}':
-			tokens = append(tokens, Token{Type: TokenRBrace, Literal: "}", Line: lineNo, Column: column})
-			i++
-		case '=':
-			if i+1 < len(line) && line[i+1] == '=' {
-				tokens = append(tokens, Token{Type: TokenEqual, Literal: "==", Line: lineNo, Column: column})
-				i += 2
-				continue
-			}
-			tokens = append(tokens, Token{Type: TokenAssign, Literal: "=", Line: lineNo, Column: column})
-			i++
-		case '!':
-			if i+1 < len(line) && line[i+1] == '=' {
-				tokens = append(tokens, Token{Type: TokenNotEqual, Literal: "!=", Line: lineNo, Column: column})
-				i += 2
-				continue
-			}
-			return nil, &LexerError{Line: lineNo, Column: column, Reason: "unexpected character '!'"}
-		case '>':
-			if i+1 < len(line) && line[i+1] == '=' {
-				tokens = append(tokens, Token{Type: TokenGTE, Literal: ">=", Line: lineNo, Column: column})
-				i += 2
-				continue
-			}
-			tokens = append(tokens, Token{Type: TokenGT, Literal: ">", Line: lineNo, Column: column})
-			i++
-		case '<':
-			if i+1 < len(line) && line[i+1] == '=' {
-				tokens = append(tokens, Token{Type: TokenLTE, Literal: "<=", Line: lineNo, Column: column})
-				i += 2
-				continue
-			}
-			tokens = append(tokens, Token{Type: TokenLT, Literal: "<", Line: lineNo, Column: column})
-			i++
-		case '"':
-			literal, next, err := readStringLiteral(line, i, lineNo, column)
-			if err != nil {
-				return nil, err
-			}
-			tokens = append(tokens, Token{Type: TokenString, Literal: literal, Line: lineNo, Column: column})
-			i = next
-		default:
-			switch {
-			case isIdentifierStart(ch):
-				literal, next := readIdentifier(line, i)
-				tokens = append(tokens, Token{
-					Type:    LookupTokenType(literal),
-					Literal: literal,
-					Line:    lineNo,
-					Column:  column,
-				})
-				i = next
-			case isNumberStart(line, i):
-				literal, next := readNumber(line, i)
-				tokens = append(tokens, Token{
-					Type:    TokenNumber,
-					Literal: literal,
-					Line:    lineNo,
-					Column:  column,
-				})
-				i = next
-			default:
-				return nil, &LexerError{
-					Line:   lineNo,
-					Column: column,
-					Reason: fmt.Sprintf("unexpected character %q", ch),
-					Found:  Token{Type: TokenIllegal, Literal: string(ch), Line: lineNo, Column: column},
-				}
-			}
+		tok, next, err := lexNextToken(line, i, lineNo, startColumn+i)
+		if err != nil {
+			return nil, err
 		}
+		tokens = append(tokens, tok)
+		i = next
 	}
-
 	return tokens, nil
+}
+
+func lexNextToken(line string, i, lineNo, column int) (Token, int, error) {
+	ch := rune(line[i])
+	switch ch {
+	case ':', ',', '[', ']', '{', '}':
+		return lexSingleCharToken(ch, lineNo, column), i + 1, nil
+	case '=', '!', '>', '<':
+		tok, next, err := lexOperatorToken(line, ch, i, lineNo, column)
+		return tok, next, err
+	case '"':
+		literal, next, err := readStringLiteral(line, i, lineNo, column)
+		if err != nil {
+			return Token{}, 0, err
+		}
+		return Token{Type: TokenString, Literal: literal, Line: lineNo, Column: column}, next, nil
+	default:
+		return lexWordOrNumberToken(line, ch, i, lineNo, column)
+	}
+}
+
+func lexSingleCharToken(ch rune, lineNo, column int) Token {
+	lit := string(ch)
+	var tt TokenType
+	switch ch {
+	case ':':
+		tt = TokenColon
+	case ',':
+		tt = TokenComma
+	case '[':
+		tt = TokenLBracket
+	case ']':
+		tt = TokenRBracket
+	case '{':
+		tt = TokenLBrace
+	default:
+		tt = TokenRBrace
+	}
+	return Token{Type: tt, Literal: lit, Line: lineNo, Column: column}
+}
+
+func lexOperatorToken(line string, ch rune, i, lineNo, column int) (Token, int, error) {
+	switch ch {
+	case '=':
+		tok, next := lexTwoOrOneChar(line, i, lineNo, column, '=', TokenEqual, "==", TokenAssign, "=")
+		return tok, next, nil
+	case '!':
+		if i+1 < len(line) && line[i+1] == '=' {
+			return Token{Type: TokenNotEqual, Literal: "!=", Line: lineNo, Column: column}, i + 2, nil
+		}
+		return Token{}, 0, &LexerError{Line: lineNo, Column: column, Reason: "unexpected character '!'"}
+	case '>':
+		tok, next := lexTwoOrOneChar(line, i, lineNo, column, '=', TokenGTE, ">=", TokenGT, ">")
+		return tok, next, nil
+	default:
+		tok, next := lexTwoOrOneChar(line, i, lineNo, column, '=', TokenLTE, "<=", TokenLT, "<")
+		return tok, next, nil
+	}
+}
+
+func lexTwoOrOneChar(line string, i, lineNo, column int, match byte, twoType TokenType, twoLit string, oneType TokenType, oneLit string) (Token, int) {
+	if i+1 < len(line) && line[i+1] == match {
+		return Token{Type: twoType, Literal: twoLit, Line: lineNo, Column: column}, i + 2
+	}
+	return Token{Type: oneType, Literal: oneLit, Line: lineNo, Column: column}, i + 1
+}
+
+func lexWordOrNumberToken(line string, ch rune, i, lineNo, column int) (Token, int, error) {
+	if isIdentifierStart(ch) {
+		literal, next := readIdentifier(line, i)
+		return Token{Type: LookupTokenType(literal), Literal: literal, Line: lineNo, Column: column}, next, nil
+	}
+	if isNumberStart(line, i) {
+		literal, next := readNumber(line, i)
+		return Token{Type: TokenNumber, Literal: literal, Line: lineNo, Column: column}, next, nil
+	}
+	return Token{}, 0, &LexerError{
+		Line:   lineNo,
+		Column: column,
+		Reason: fmt.Sprintf("unexpected character %q", ch),
+		Found:  Token{Type: TokenIllegal, Literal: string(ch), Line: lineNo, Column: column},
+	}
 }
 
 func readStringLiteral(line string, start, lineNo, column int) (string, int, error) {

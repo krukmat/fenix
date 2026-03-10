@@ -133,6 +133,14 @@ func (p *Parser) parseIfStatement() (Statement, error) {
 	if err := p.expectNewline("expected newline after IF statement"); err != nil {
 		return nil, err
 	}
+	body, err := p.parseIndentedStatementBlock(start)
+	if err != nil {
+		return nil, err
+	}
+	return &IfStatement{Condition: condition, Body: body, Position: positionFromToken(start)}, nil
+}
+
+func (p *Parser) parseIndentedStatementBlock(start Token) ([]Statement, error) {
 	if _, err := p.expect(TokenIndent, "expected indented block after IF"); err != nil {
 		return nil, err
 	}
@@ -146,11 +154,7 @@ func (p *Parser) parseIfStatement() (Statement, error) {
 	if _, err := p.expect(TokenDedent, "expected end of IF block"); err != nil {
 		return nil, err
 	}
-	return &IfStatement{
-		Condition: condition,
-		Body:      body,
-		Position:  positionFromToken(start),
-	}, nil
+	return body, nil
 }
 
 func (p *Parser) parseSetStatement() (Statement, error) {
@@ -255,36 +259,43 @@ func (p *Parser) parseExpression() (Expression, error) {
 }
 
 func (p *Parser) parsePrimary() (Expression, error) {
-	switch tok := p.current(); tok.Type {
+	tok := p.current()
+	switch tok.Type {
 	case TokenIdentifier:
 		p.advance()
 		return &IdentifierExpr{Name: tok.Literal, Position: positionFromToken(tok)}, nil
 	case TokenString:
-		p.advance()
-		value, err := strconv.Unquote(tok.Literal)
-		if err != nil {
-			return nil, p.errorAt(tok, "invalid string literal")
-		}
-		return &LiteralExpr{Value: value, Position: positionFromToken(tok)}, nil
+		return p.parseStringPrimary(tok)
 	case TokenNumber:
 		p.advance()
 		return parseNumberLiteral(tok)
 	case TokenBoolean:
 		p.advance()
-		return &LiteralExpr{
-			Value:    strings.EqualFold(tok.Literal, "true"),
-			Position: positionFromToken(tok),
-		}, nil
+		return &LiteralExpr{Value: strings.EqualFold(tok.Literal, "true"), Position: positionFromToken(tok)}, nil
 	case TokenNull:
 		p.advance()
 		return &LiteralExpr{Value: nil, Position: positionFromToken(tok)}, nil
-	case TokenLBracket:
-		return p.parseArrayLiteral()
-	case TokenLBrace:
-		return p.parseObjectLiteral()
+	case TokenLBracket, TokenLBrace:
+		return p.parseCollectionLiteral(tok)
 	default:
 		return nil, p.errorAt(tok, "expected expression")
 	}
+}
+
+func (p *Parser) parseStringPrimary(tok Token) (Expression, error) {
+	p.advance()
+	value, err := strconv.Unquote(tok.Literal)
+	if err != nil {
+		return nil, p.errorAt(tok, "invalid string literal")
+	}
+	return &LiteralExpr{Value: value, Position: positionFromToken(tok)}, nil
+}
+
+func (p *Parser) parseCollectionLiteral(tok Token) (Expression, error) {
+	if tok.Type == TokenLBracket {
+		return p.parseArrayLiteral()
+	}
+	return p.parseObjectLiteral()
 }
 
 func parseNumberLiteral(tok Token) (Expression, error) {
@@ -335,30 +346,11 @@ func (p *Parser) parseObjectLiteral() (Expression, error) {
 	}
 	fields := make([]ObjectField, 0)
 	for p.current().Type != TokenRBrace {
-		keyTok := p.current()
-		if keyTok.Type != TokenIdentifier && keyTok.Type != TokenString {
-			return nil, p.errorAt(keyTok, "expected object key")
-		}
-		p.advance()
-		key := keyTok.Literal
-		if keyTok.Type == TokenString {
-			key, err = strconv.Unquote(keyTok.Literal)
-			if err != nil {
-				return nil, p.errorAt(keyTok, "invalid object key")
-			}
-		}
-		if _, err := p.expect(TokenColon, "expected ':' after object key"); err != nil {
-			return nil, err
-		}
-		value, err := p.parseExpression()
+		field, err := p.parseObjectField()
 		if err != nil {
 			return nil, err
 		}
-		fields = append(fields, ObjectField{
-			Key:      key,
-			Value:    value,
-			Position: positionFromToken(keyTok),
-		})
+		fields = append(fields, field)
 		if p.current().Type == TokenComma {
 			p.advance()
 			continue
@@ -371,6 +363,30 @@ func (p *Parser) parseObjectLiteral() (Expression, error) {
 		return nil, err
 	}
 	return &ObjectLiteralExpr{Fields: fields, Position: positionFromToken(start)}, nil
+}
+
+func (p *Parser) parseObjectField() (ObjectField, error) {
+	keyTok := p.current()
+	if keyTok.Type != TokenIdentifier && keyTok.Type != TokenString {
+		return ObjectField{}, p.errorAt(keyTok, "expected object key")
+	}
+	p.advance()
+	key := keyTok.Literal
+	if keyTok.Type == TokenString {
+		var err error
+		key, err = strconv.Unquote(keyTok.Literal)
+		if err != nil {
+			return ObjectField{}, p.errorAt(keyTok, "invalid object key")
+		}
+	}
+	if _, err := p.expect(TokenColon, "expected ':' after object key"); err != nil {
+		return ObjectField{}, err
+	}
+	value, err := p.parseExpression()
+	if err != nil {
+		return ObjectField{}, err
+	}
+	return ObjectField{Key: key, Value: value, Position: positionFromToken(keyTok)}, nil
 }
 
 func (p *Parser) expect(tokenType TokenType, reason string) (Token, error) {

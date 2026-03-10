@@ -54,37 +54,53 @@ func validateStatementSlice(statements []Statement) error {
 func validateStatement(statement Statement) error {
 	switch stmt := statement.(type) {
 	case *IfStatement:
-		if stmt.Condition == nil {
-			return validationError(stmt.Pos(), "IF requires condition")
-		}
-		if len(stmt.Body) == 0 {
-			return validationError(stmt.Pos(), "IF block must contain at least one statement")
-		}
-		return validateStatementSlice(stmt.Body)
+		return validateIfStatement(stmt)
 	case *SetStatement:
-		if stmt.Target == nil || !strings.Contains(stmt.Target.Name, ".") {
-			return validationError(stmt.Pos(), "SET target must be a dotted field reference")
-		}
-		if stmt.Value == nil {
-			return validationError(stmt.Pos(), "SET requires value")
-		}
-		return nil
+		return validateSetStatement(stmt)
 	case *NotifyStatement:
-		if stmt.Target == nil || strings.TrimSpace(stmt.Target.Name) == "" {
-			return validationError(stmt.Pos(), "NOTIFY target is required")
-		}
-		if stmt.Value == nil {
-			return validationError(stmt.Pos(), "NOTIFY requires WITH payload")
-		}
-		return nil
+		return validateNotifyStatement(stmt)
 	case *AgentStatement:
-		if stmt.Name == nil || strings.TrimSpace(stmt.Name.Name) == "" {
-			return validationError(stmt.Pos(), "AGENT name is required")
-		}
-		return nil
+		return validateAgentStatement(stmt)
 	default:
 		return validationError(statement.Pos(), "statement is not allowed in DSL v0")
 	}
+}
+
+func validateIfStatement(stmt *IfStatement) error {
+	if stmt.Condition == nil {
+		return validationError(stmt.Pos(), "IF requires condition")
+	}
+	if len(stmt.Body) == 0 {
+		return validationError(stmt.Pos(), "IF block must contain at least one statement")
+	}
+	return validateStatementSlice(stmt.Body)
+}
+
+func validateSetStatement(stmt *SetStatement) error {
+	if stmt.Target == nil || !strings.Contains(stmt.Target.Name, ".") {
+		return validationError(stmt.Pos(), "SET target must be a dotted field reference")
+	}
+	if stmt.Value == nil {
+		return validationError(stmt.Pos(), "SET requires value")
+	}
+	return nil
+}
+
+func validateNotifyStatement(stmt *NotifyStatement) error {
+	if stmt.Target == nil || strings.TrimSpace(stmt.Target.Name) == "" {
+		return validationError(stmt.Pos(), "NOTIFY target is required")
+	}
+	if stmt.Value == nil {
+		return validationError(stmt.Pos(), "NOTIFY requires WITH payload")
+	}
+	return nil
+}
+
+func validateAgentStatement(stmt *AgentStatement) error {
+	if stmt.Name == nil || strings.TrimSpace(stmt.Name.Name) == "" {
+		return validationError(stmt.Pos(), "AGENT name is required")
+	}
+	return nil
 }
 
 func validationError(pos Position, reason string) error {
