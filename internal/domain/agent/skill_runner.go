@@ -273,7 +273,7 @@ func executeBridgeStep(
 	}
 	op, err := NewVerbMapper().MapBridgeStep(step, evalCtx)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: %v", ErrSkillStepExecutionFailed, err)
+		return nil, nil, nil, fmt.Errorf("%w: %w", ErrSkillStepExecutionFailed, err)
 	}
 
 	switch op.Kind {
@@ -363,7 +363,7 @@ func validateBridgeAgentContext(rc *RunContext, op *RuntimeOperation) error {
 
 func validateBridgeAgentCall(ctx context.Context, rc *RunContext, actorID string, target *Definition) error {
 	if err := checkMappedAgentPolicy(ctx, rc, actorID, target); err != nil {
-		return fmt.Errorf("%w: %v", ErrSkillStepExecutionFailed, err)
+		return fmt.Errorf("%w: %w", ErrSkillStepExecutionFailed, err)
 	}
 	if rc.CallDepth >= dslAgentCallDepthLimit {
 		return ErrDSLAgentDepthExceeded
