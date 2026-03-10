@@ -118,13 +118,13 @@ func fetchSignals(ctx context.Context, svc SignalService, workspaceID string, fi
 
 func decodeSignalFilters(r *http.Request) (signaldomain.Filters, error) {
 	var filters signaldomain.Filters
-	if entityType := r.URL.Query().Get("entity_type"); entityType != "" {
+	if entityType := r.URL.Query().Get(paramEntityType); entityType != "" {
 		filters.EntityType = entityType
 	}
-	if entityID := r.URL.Query().Get("entity_id"); entityID != "" {
+	if entityID := r.URL.Query().Get(paramEntityID); entityID != "" {
 		filters.EntityID = entityID
 	}
-	if status := r.URL.Query().Get("status"); status != "" {
+	if status := r.URL.Query().Get(queryStatus); status != "" {
 		parsed := signaldomain.Status(status)
 		switch parsed {
 		case signaldomain.StatusActive, signaldomain.StatusDismissed, signaldomain.StatusExpired:

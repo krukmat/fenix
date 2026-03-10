@@ -119,7 +119,7 @@ func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
 
 func parseDealListInput(r *http.Request, page paginationParams) (crm.ListDealsInput, error) {
 	q := r.URL.Query()
-	status := strings.TrimSpace(q.Get("status"))
+	status := strings.TrimSpace(q.Get(queryStatus))
 	ownerID := strings.TrimSpace(q.Get(queryOwnerID))
 	accountID := strings.TrimSpace(q.Get(queryAccountID))
 	pipelineID := strings.TrimSpace(q.Get("pipeline_id"))

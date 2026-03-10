@@ -115,7 +115,7 @@ func (h *WorkflowHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, paramID)
 	if id == "" {
-		writeError(w, http.StatusBadRequest, "workflow id is required")
+		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
 		return
 	}
 
@@ -169,7 +169,7 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, paramID)
 	if id == "" {
-		writeError(w, http.StatusBadRequest, "workflow id is required")
+		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
 		return
 	}
 
@@ -204,7 +204,7 @@ func (h *WorkflowHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, paramID)
 	if id == "" {
-		writeError(w, http.StatusBadRequest, "workflow id is required")
+		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
 		return
 	}
 
@@ -221,7 +221,7 @@ func decodeWorkflowListInput(r *http.Request) (workflowdomain.ListWorkflowsInput
 	if name := r.URL.Query().Get("name"); name != "" {
 		input.Name = name
 	}
-	if status := r.URL.Query().Get("status"); status != "" {
+	if status := r.URL.Query().Get(queryStatus); status != "" {
 		parsed := workflowdomain.Status(status)
 		switch parsed {
 		case workflowdomain.StatusDraft, workflowdomain.StatusTesting, workflowdomain.StatusActive, workflowdomain.StatusArchived:

@@ -21,6 +21,11 @@ var (
 const (
 	TopicSignalCreated   = "signal.created"
 	TopicSignalDismissed = "signal.dismissed"
+
+	entityTypeContact = "contact"
+	entityTypeLead    = "lead"
+	entityTypeDeal    = "deal"
+	entityTypeCase    = "case"
 )
 
 type CreatedEventPayload struct {
@@ -216,7 +221,7 @@ func validateSignalConstraints(input CreateSignalInput) error {
 		return invalidSignalInput("confidence must be in range [0.0, 1.0]", nil)
 	}
 	switch normalizeEntityType(input.EntityType) {
-	case "contact", "lead", "deal", "case":
+	case entityTypeContact, entityTypeLead, entityTypeDeal, entityTypeCase:
 		return nil
 	default:
 		return invalidSignalInput("entity_type is invalid", nil)
@@ -226,13 +231,13 @@ func validateSignalConstraints(input CreateSignalInput) error {
 func ensureSignalEntityExists(ctx context.Context, db *sql.DB, workspaceID, entityType, entityID string) error {
 	var query string
 	switch normalizeEntityType(entityType) {
-	case "contact":
+	case entityTypeContact:
 		query = `SELECT 1 FROM contact WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL LIMIT 1`
-	case "lead":
+	case entityTypeLead:
 		query = `SELECT 1 FROM lead WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL LIMIT 1`
-	case "deal":
+	case entityTypeDeal:
 		query = `SELECT 1 FROM deal WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL LIMIT 1`
-	case "case":
+	case entityTypeCase:
 		query = `SELECT 1 FROM case_ticket WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL LIMIT 1`
 	default:
 		return errors.New("unsupported entity type")

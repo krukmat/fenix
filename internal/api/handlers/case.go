@@ -228,7 +228,7 @@ func buildUpdateCaseInput(req UpdateCaseRequest, existing *crm.CaseTicket) crm.U
 
 func parseCaseListInput(r *http.Request, page paginationParams) (crm.ListCasesInput, error) {
 	q := r.URL.Query()
-	status := strings.TrimSpace(q.Get("status"))
+	status := strings.TrimSpace(q.Get(queryStatus))
 	priority := strings.TrimSpace(q.Get("priority"))
 	ownerID := strings.TrimSpace(q.Get(queryOwnerID))
 	accountID := strings.TrimSpace(q.Get(queryAccountID))

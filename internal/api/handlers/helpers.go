@@ -92,8 +92,12 @@ const (
 	// Common query params
 	queryOwnerID   = "owner_id"
 	queryAccountID = "account_id"
+	queryStatus    = "status"
 	querySortAsc   = "created_at"
 	querySortDesc  = "-created_at"
+
+	// Error messages — workflow
+	errWorkflowIDRequired = "workflow id is required"
 )
 
 // getWorkspaceID retrieves workspace_id from context.
