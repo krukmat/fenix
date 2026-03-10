@@ -23,6 +23,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - These two documents are the primary source of truth. Only deviate with explicit user approval.
 - If the implementation plan is ambiguous or conflicts with the architecture doc, ask the user before proceeding.
 
+**Agent attribution (MANDATORY)**:
+- Before making any git commit, ALWAYS set `AI_AGENT` to the exact model ID currently running this session.
+- Single agent: `export AI_AGENT="claude-sonnet-4-6"`
+- Multi-agent session: `export AI_AGENTS="orchestrator:claude-opus-4-6,coder:claude-sonnet-4-6"`
+- Never commit without setting this variable first. The git hook requires it to build performance metrics.
+
 ---
 
 ## Core Design Principles

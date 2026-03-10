@@ -6,7 +6,6 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
@@ -66,7 +65,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25.8'
           cache: true
 
       - name: Install gocyclo
@@ -111,7 +110,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25.8'
           cache: true
 
       - name: Create venv and install Doorstop
@@ -141,7 +140,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25.8'
           cache: true
 
       - name: Install golangci-lint
@@ -172,6 +171,31 @@ jobs:
 
       - name: Run linter
         run: golangci-lint run ./...
+
+      - name: Vulnerability scan (govulncheck)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Dead code report (warn only)
+        run: |
+          go install golang.org/x/tools/cmd/deadcode@latest
+          # Runs from both binaries so all reachable code is included.
+          # Warn-only: report is uploaded as artifact but does not fail CI.
+          # Promote to blocking once baseline is clean and interfaces stabilize.
+          deadcode -test ./cmd/fenix/... ./cmd/frtrace/... 2>&1 | tee deadcode-report.txt || true
+          LINES=$(grep -c "." deadcode-report.txt 2>/dev/null || echo 0)
+          echo "Dead code findings: $LINES"
+          if [ "$LINES" -gt 0 ]; then
+            echo "::warning::$LINES dead code finding(s) detected — see deadcode-report artifact"
+          fi
+
+      - name: Upload dead code report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deadcode-report-${{ github.sha }}
+          path: deadcode-report.txt
 
       - name: Run tests
         run: make test
@@ -240,7 +264,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25.8'
           cache: true
 
       - name: Create venv and install Schemathesis + Doorstop

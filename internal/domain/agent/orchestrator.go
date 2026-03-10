@@ -18,11 +18,15 @@ var (
 	ErrAgentNotActive      = errors.New("agent is not active")
 	ErrInvalidTriggerType  = errors.New("invalid trigger type")
 	ErrAgentAlreadyRunning = errors.New("agent run already in progress")
+	ErrRunnerRegistryUnset = errors.New("runner registry is not configured")
 )
 
 // Agent status constants
 const (
 	StatusRunning   = "running"
+	StatusAccepted  = "accepted"
+	StatusRejected  = "rejected"
+	StatusDelegated = "delegated"
 	StatusSuccess   = "success"
 	StatusPartial   = "partial"
 	StatusAbstained = "abstained"
@@ -120,11 +124,19 @@ type ToolCall struct {
 // Orchestrator service
 
 type Orchestrator struct {
-	db *sql.DB
+	db             *sql.DB
+	runnerRegistry *RunnerRegistry
 }
 
 func NewOrchestrator(db *sql.DB) *Orchestrator {
 	return &Orchestrator{db: db}
+}
+
+func NewOrchestratorWithRegistry(db *sql.DB, registry *RunnerRegistry) *Orchestrator {
+	return &Orchestrator{
+		db:             db,
+		runnerRegistry: registry,
+	}
 }
 
 // TriggerAgent creates a new agent run and returns it
@@ -206,6 +218,52 @@ func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (
 	}
 
 	return run, nil
+}
+
+// ExecuteAgent resolves the concrete runner for an agent definition and
+// delegates execution through the shared Runner contract.
+//
+// TriggerAgent remains unchanged in F1.4 so the current persistence flow keeps
+// working until Go agents are adapted in F1.5.
+func (o *Orchestrator) ExecuteAgent(ctx context.Context, rc *RunContext, in TriggerAgentInput) (*Run, error) {
+	if !isValidTriggerType(in.TriggerType) {
+		return nil, ErrInvalidTriggerType
+	}
+
+	definition, err := o.getAgentDefinition(ctx, in.AgentID, in.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if definition.Status != "active" {
+		return nil, ErrAgentNotActive
+	}
+
+	runner, err := o.ResolveRunner(ctx, in.WorkspaceID, in.AgentID)
+	if err != nil {
+		return nil, err
+	}
+
+	runCtx := rc.Clone()
+	runCtx.Orchestrator = o
+	if runCtx.RunnerRegistry == nil {
+		runCtx.RunnerRegistry = o.runnerRegistry
+	}
+
+	return runner.Run(ctx, runCtx, in)
+}
+
+// ResolveRunner looks up the runner registered for the agent definition type.
+func (o *Orchestrator) ResolveRunner(ctx context.Context, workspaceID, agentID string) (Runner, error) {
+	if o.runnerRegistry == nil {
+		return nil, ErrRunnerRegistryUnset
+	}
+
+	definition, err := o.getAgentDefinition(ctx, agentID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return o.runnerRegistry.Resolve(definition.AgentType)
 }
 
 // GetAgentRun retrieves an agent run by ID

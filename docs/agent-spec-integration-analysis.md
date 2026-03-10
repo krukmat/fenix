@@ -4,10 +4,30 @@
 > **Status**: Pre-analysis complete. Pending: progressive incorporation plan.
 > **Source**: `docs/AGENT_SPEC.md`
 > **Context**: P0 MVP in progress (Phase 1 complete, Phases 2-4 partial).
+> **Naming source of truth**: `docs/agent-spec-overview.md`
+> **Traceability rules**: `docs/agent-spec-traceability.md`
 
 ---
 
 ## 1 -- What AGENT_SPEC Proposes
+
+### Naming Alignment
+
+The repository already uses stable top-level use case IDs such as `UC-C1` and `UC-A1`.
+
+For AGENT_SPEC, the new platform capabilities are normalized as:
+- `UC-A2` Workflow Authoring
+- `UC-A3` Workflow Verification and Activation
+- `UC-A4` Workflow Execution
+- `UC-A5` Signal Detection and Lifecycle
+- `UC-A6` Deferred Actions
+- `UC-A7` Human Override and Approval
+- `UC-A8` Workflow Versioning and Rollback
+- `UC-A9` Agent Delegation
+
+`BEHAVIOR` names remain valid as lower-level scenario identifiers inside each `UC`.
+
+A collision check against the existing requirements catalog found no prior use of `UC-A2` to `UC-A9`.
 
 A declarative framework where **the DSL is the program**. Business workflows are described, not coded. CRM state emerges from execution rather than manual data entry.
 
@@ -25,7 +45,7 @@ Human / MCP / A2A  -->  BPMN translation  -->  DSL  -->  Judge  -->  Runtime  --
 | **BPMN Layer** | Resolves business concept ambiguity before DSL compilation. Skipped for agent-to-agent input. |
 | **Judge** | Verifies consistency between spec and DSL via 8 checks before execution is allowed. |
 | **Spec Anatomy** | 4 mandatory blocks: CONTEXT, ACTORS, BEHAVIOR (GIVEN/WHEN/THEN), CONSTRAINTS |
-| **Protocol Modes** | EXECUTE (run locally), DISPATCH (send to other agent via MCP/A2A), VERIFY (validate only) |
+| **Protocol Modes** | EXECUTE (run locally), DISPATCH (send to other agent via A2A), VERIFY (validate only) |
 | **Protocol Responses** | ACCEPTED, REJECTED (with reason), DELEGATED (forwarded) |
 | **Signal** | The unit of truth -- replaces "contact" as the central concept |
 | **Workflow Entity** | First-class citizen, defined by Salesperson, executed by Agent, verified by Judge |
@@ -118,8 +138,9 @@ Agents are Go structs with hardcoded logic:
 | **DSL Parser** | Lexer + parser for DSL grammar (ON, IF, SET, WAIT, NOTIFY, SURFACE, DISPATCH, AGENT) | High -- formal grammar, error reporting, type checking | P2 |
 | **DSL Runtime/Interpreter** | Execution engine that reads DSL and produces CRM operations | High -- state management, async (WAIT), event-driven | P2 |
 | **BPMN Translator** | NL -> BPMN -> DSL compiler. Requires LLM + BPMN schema knowledge | High -- a project in itself | P2 |
-| **Protocol Handler** | DISPATCH mode: serialize DSL + send to external agent. VERIFY mode: dry-run validation | Medium | P2 |
-| **MCP/A2A Gateway** | Inter-agent communication protocol. Standards still maturing (2026) | High -- protocol design + transport | P2 |
+| **Protocol Handler** | DISPATCH mode: map workflow execution to A2A-compatible dispatch. VERIFY mode: dry-run validation | Medium | P2 |
+| **MCP Gateway** | Expose and consume tools/context using MCP transports and auth model | Medium | P2 |
+| **A2A Gateway** | Inter-agent communication using A2A over HTTP(S) + JSON-RPC | High -- transport, auth, discovery, streaming | P2 |
 | **Workflow Entity** | New DB table: `workflow { id, workspace_id, name, dsl_source, bpmn_source, status, version, created_by, ... }` | Low -- schema only | P1 |
 | **Spec Parser** | Parse CONTEXT/ACTORS/BEHAVIOR/CONSTRAINTS blocks from spec text | Medium | P2 |
 
@@ -158,7 +179,7 @@ The fundamental tension is **CRM-first vs. Agent-first**:
 | **Data entry** | Manual CRUD + agent assistance | State emerges from workflow execution |
 | **Agent definition** | Go struct with hardcoded logic | DSL source text, interpreted by Runtime |
 | **Extensibility** | New Go code per agent type | New DSL workflow, no code change |
-| **Inter-agent** | Not supported | MCP/A2A dispatch protocol |
+| **Inter-agent** | Not supported | A2A dispatch protocol |
 | **Business logic** | In Go services | In DSL + BPMN |
 | **Verification** | Unit/integration tests | Judge (spec consistency) + tests |
 
@@ -208,7 +229,7 @@ agent_run status                Add ACCEPTED/REJECTED/DELEGATED       Full proto
 | Scope creep -- P0 never finishes | Complete P0 first, no AGENT_SPEC changes until Phase 4 done |
 | Two paradigms coexisting without resolution | Define clear interface boundary: orchestrator is pluggable |
 | BPMN parser is a project in itself | Defer to P2. Use LLM-assisted BPMN generation, not custom parser |
-| MCP/A2A standards not mature | Defer to P2. Design internal protocol first, adapt to standards later |
+| Estandares de interoperabilidad evolucionan | Definir desde el inicio A2A para dispatch y MCP para tools; encapsularlos detras de adapters |
 | DSL grammar design takes too long | Start with skill_definition JSON as proto-DSL in P1 |
 
 ---
@@ -222,7 +243,8 @@ agent_run status                Add ACCEPTED/REJECTED/DELEGATED       Full proto
 5. **Prototype Judge** -- extend eval framework with spec-level consistency checks
 6. **Define Workflow entity** -- DB schema for storing DSL source + BPMN source + versions
 7. **Create DSL grammar specification** -- formal BNF/PEG grammar for the DSL verbs and syntax
-8. **Build DSL interpreter** -- Runtime that reads DSL and calls existing tools/policies/evidence
+8. **Define interoperability target** -- A2A for dispatch, MCP for tools/context, before external integration
+9. **Build DSL interpreter** -- Runtime that reads DSL and calls existing tools/policies/evidence
 
 ---
 
@@ -246,5 +268,12 @@ agent_run status                Add ACCEPTED/REJECTED/DELEGATED       Full proto
 | `WAIT <duration>` | Not implemented | Needs scheduler/timer service |
 | `NOTIFY <actor> WITH <data>` | `send_reply` tool (partial) | Needs generic notification service |
 | `SURFACE <entity> TO <actor.view>` | Not implemented | Needs UI push/priority queue |
-| `DISPATCH TO <agent> WITH <workflow>` | Not implemented | Needs MCP/A2A protocol |
+| `DISPATCH TO <agent> WITH <workflow>` | Not implemented | Needs A2A-compatible dispatch |
 | `AGENT <function>(<args>)` | `TriggerAgent()` in orchestrator | Needs sub-agent invocation |
+
+## Appendix C -- Interoperability Direction
+
+- `DISPATCH` externo debe ser A2A-first.
+- Exposicion y consumo de tools/contexto debe ser MCP-first.
+- `ProtocolHandler` debe ser un puerto interno con adapters compatibles con estandares, no un protocolo propietario.
+- HTTP no es el contrato objetivo; es el transporte del estandar cuando aplique.

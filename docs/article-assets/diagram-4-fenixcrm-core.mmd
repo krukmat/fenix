@@ -1,0 +1,23 @@
+flowchart LR
+    U[Human Teams]
+    EXT[External Systems]
+    AG[External Agents]
+    RES[Shared Resources and Context]
+
+    subgraph F[FenixCRM Core]
+        SIG[Signals]
+        WF[Workflows]
+        RT[Runtime]
+        GOV[Policy Approvals Audit]
+        CRM[CRM State]
+    end
+
+    U --> WF
+    EXT --> SIG
+    SIG --> WF
+    WF --> RT
+    RT --> GOV
+    RT --> CRM
+    RT <-- A2A --> AG
+    RT <-- MCP --> RES
+    EXT --> RES

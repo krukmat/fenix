@@ -20,4 +20,6 @@ data/fenixcrm.db-wal
 mobile/artifacts/*
 .tmp/
 fenix
-.github\workflows\ci.yml
+.gocache/*
+*.out
+.claude/settings.local.json
