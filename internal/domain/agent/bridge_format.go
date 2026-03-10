@@ -72,9 +72,12 @@ func (wf BridgeWorkflow) Validate() error {
 	if len(wf.Steps) == 0 {
 		return invalidBridgeWorkflow("at least one step is required", nil)
 	}
+	return validateBridgeStepSlice(wf.Steps)
+}
 
-	seenIDs := make(map[string]struct{}, len(wf.Steps))
-	for i, step := range wf.Steps {
+func validateBridgeStepSlice(steps []BridgeStep) error {
+	seenIDs := make(map[string]struct{}, len(steps))
+	for i, step := range steps {
 		if err := step.Validate(); err != nil {
 			return invalidBridgeWorkflow(fmt.Sprintf("step %d is invalid", i), err)
 		}
@@ -86,7 +89,6 @@ func (wf BridgeWorkflow) Validate() error {
 		}
 		seenIDs[step.ID] = struct{}{}
 	}
-
 	return nil
 }
 

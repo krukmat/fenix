@@ -63,59 +63,71 @@ func (r *SkillRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgen
 		return nil, err
 	}
 
-	run, err := rc.Orchestrator.TriggerAgent(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-
-	accepted, err := rc.Orchestrator.UpdateAgentRunStatus(ctx, input.WorkspaceID, run.ID, StatusAccepted)
+	accepted, err := r.triggerAndAccept(ctx, rc, input)
 	if err != nil {
 		return nil, err
 	}
 
 	executedSteps, toolCalls, pendingApproval, err := r.executeSequentialSteps(ctx, rc, input.WorkspaceID, accepted.ID, actorIDFromInput(input, evalCtx), workflow, evalCtx)
+	return r.finalizeRun(ctx, rc, input.WorkspaceID, accepted.ID, workflow, source, executedSteps, toolCalls, pendingApproval, err)
+}
+
+func (r *SkillRunner) triggerAndAccept(ctx context.Context, rc *RunContext, input TriggerAgentInput) (*Run, error) {
+	run, err := rc.Orchestrator.TriggerAgent(ctx, input)
 	if err != nil {
-		failedOutput, marshalErr := json.Marshal(map[string]any{
-			"bridge_name": workflow.Name,
-			"source":      source,
-			"step_count":  len(workflow.Steps),
-			"error":       err.Error(),
-		})
-		if marshalErr != nil {
-			return nil, marshalErr
-		}
-		return rc.Orchestrator.UpdateAgentRun(ctx, input.WorkspaceID, accepted.ID, RunUpdates{
-			Status:               StatusFailed,
-			Output:               failedOutput,
-			ReasoningTrace:       json.RawMessage(`[]`),
-			RetrievalQueries:     json.RawMessage(`[]`),
-			RetrievedEvidenceIDs: json.RawMessage(`[]`),
-			ToolCalls:            toolCalls,
-			Completed:            true,
-		})
+		return nil, err
+	}
+	return rc.Orchestrator.UpdateAgentRunStatus(ctx, input.WorkspaceID, run.ID, StatusAccepted)
+}
+
+func (r *SkillRunner) finalizeRun(
+	ctx context.Context,
+	rc *RunContext,
+	workspaceID, runID string,
+	workflow *BridgeWorkflow,
+	source string,
+	executedSteps []SkillStepExecution,
+	toolCalls json.RawMessage,
+	pendingApproval *skillApprovalResult,
+	execErr error,
+) (*Run, error) {
+	if execErr != nil {
+		return applyFailedRunUpdate(ctx, rc, workspaceID, runID, workflow, source, toolCalls, execErr)
 	}
 	if pendingApproval != nil {
-		pendingOutput, marshalErr := json.Marshal(map[string]any{
-			"bridge_name": workflow.Name,
-			"source":      source,
-			"step_count":  len(workflow.Steps),
-			"action":      "pending_approval",
-			"approval_id": pendingApproval.ApprovalID,
-		})
-		if marshalErr != nil {
-			return nil, marshalErr
-		}
-		return rc.Orchestrator.UpdateAgentRun(ctx, input.WorkspaceID, accepted.ID, RunUpdates{
-			Status:               StatusAccepted,
-			Output:               pendingOutput,
-			ReasoningTrace:       json.RawMessage(`[]`),
-			RetrievalQueries:     json.RawMessage(`[]`),
-			RetrievedEvidenceIDs: json.RawMessage(`[]`),
-			ToolCalls:            toolCalls,
-			Completed:            false,
-		})
+		return applyPendingApprovalUpdate(ctx, rc, workspaceID, runID, workflow, source, toolCalls, pendingApproval)
 	}
+	return applySuccessRunUpdate(ctx, rc, workspaceID, runID, workflow, source, executedSteps, toolCalls)
+}
 
+func applyFailedRunUpdate(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *BridgeWorkflow, source string, toolCalls json.RawMessage, execErr error) (*Run, error) {
+	output, err := json.Marshal(map[string]any{
+		"bridge_name": workflow.Name,
+		"source":      source,
+		"step_count":  len(workflow.Steps),
+		"error":       execErr.Error(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(StatusFailed, output, toolCalls, true))
+}
+
+func applyPendingApprovalUpdate(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *BridgeWorkflow, source string, toolCalls json.RawMessage, approval *skillApprovalResult) (*Run, error) {
+	output, err := json.Marshal(map[string]any{
+		"bridge_name": workflow.Name,
+		"source":      source,
+		"step_count":  len(workflow.Steps),
+		"action":      "pending_approval",
+		"approval_id": approval.ApprovalID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(StatusAccepted, output, toolCalls, false))
+}
+
+func applySuccessRunUpdate(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *BridgeWorkflow, source string, executedSteps []SkillStepExecution, toolCalls json.RawMessage) (*Run, error) {
 	output, err := json.Marshal(SkillRunOutput{
 		BridgeName: workflow.Name,
 		Source:     source,
@@ -125,16 +137,26 @@ func (r *SkillRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgen
 	if err != nil {
 		return nil, err
 	}
+	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(StatusSuccess, output, toolCalls, true))
+}
 
-	return rc.Orchestrator.UpdateAgentRun(ctx, input.WorkspaceID, accepted.ID, RunUpdates{
-		Status:               StatusSuccess,
+func emptyTracesUpdate(status string, output, toolCalls json.RawMessage, completed bool) RunUpdates {
+	return RunUpdates{
+		Status:               status,
 		Output:               output,
 		ReasoningTrace:       json.RawMessage(`[]`),
 		RetrievalQueries:     json.RawMessage(`[]`),
 		RetrievedEvidenceIDs: json.RawMessage(`[]`),
 		ToolCalls:            toolCalls,
-		Completed:            true,
-	})
+		Completed:            completed,
+	}
+}
+
+type stepResult struct {
+	execution     SkillStepExecution
+	call          *ToolCall
+	pendingApproval *skillApprovalResult
+	done          bool // stop sequence after this step
 }
 
 func (r *SkillRunner) executeSequentialSteps(
@@ -149,59 +171,92 @@ func (r *SkillRunner) executeSequentialSteps(
 	executed := make([]SkillStepExecution, 0, len(workflow.Steps))
 	toolCalls := make([]ToolCall, 0)
 	for _, step := range workflow.Steps {
-		stepInput := marshalBridgeStepInput(step)
-		traceStepID, traceErr := insertBridgeRunStep(ctx, rc, workspaceID, runID, stepInput)
-		if traceErr != nil {
-			return executed, marshalSkillToolCalls(toolCalls), nil, traceErr
-		}
-		if step.Condition != nil {
-			ok, err := evaluateBridgeCondition(*step.Condition, evalCtx)
-			if err != nil {
-				_ = updateBridgeRunStep(ctx, rc, workspaceID, traceStepID, StepStatusFailed, nil, err)
-				return executed, marshalSkillToolCalls(toolCalls), nil, err
-			}
-			if !ok {
-				_ = updateBridgeRunStep(ctx, rc, workspaceID, traceStepID, StepStatusSkipped, json.RawMessage(`{"result":"condition_false"}`), nil)
-				executed = append(executed, SkillStepExecution{
-					ID:     step.ID,
-					Verb:   strings.ToUpper(step.Action.Verb),
-					Target: step.Action.Target,
-					Status: StepStatusSkipped,
-				})
-				continue
-			}
-		}
-
-		call, pendingApproval, stepOutput, err := executeBridgeStep(ctx, rc, workspaceID, actorID, step, evalCtx)
+		sr, err := r.executeSingleStep(ctx, rc, workspaceID, runID, actorID, step, evalCtx)
 		if err != nil {
-			_ = updateBridgeRunStep(ctx, rc, workspaceID, traceStepID, StepStatusFailed, stepOutput, err)
 			return executed, marshalSkillToolCalls(toolCalls), nil, err
 		}
-		if pendingApproval != nil {
-			if call != nil {
-				toolCalls = append(toolCalls, *call)
-			}
-			_ = updateBridgeRunStep(ctx, rc, workspaceID, traceStepID, StepStatusRunning, stepOutput, nil)
-			executed = append(executed, SkillStepExecution{
-				ID:     step.ID,
-				Verb:   strings.ToUpper(step.Action.Verb),
-				Target: step.Action.Target,
-				Status: "pending_approval",
-			})
-			return executed, marshalSkillToolCalls(toolCalls), pendingApproval, nil
+		if sr.call != nil {
+			toolCalls = append(toolCalls, *sr.call)
 		}
-		if call != nil {
-			toolCalls = append(toolCalls, *call)
+		executed = append(executed, sr.execution)
+		if sr.done {
+			return executed, marshalSkillToolCalls(toolCalls), sr.pendingApproval, nil
 		}
-		_ = updateBridgeRunStep(ctx, rc, workspaceID, traceStepID, StepStatusSuccess, stepOutput, nil)
-		executed = append(executed, SkillStepExecution{
-			ID:     step.ID,
-			Verb:   strings.ToUpper(step.Action.Verb),
-			Target: step.Action.Target,
-			Status: StatusSuccess,
-		})
 	}
 	return executed, marshalSkillToolCalls(toolCalls), nil, nil
+}
+
+func (r *SkillRunner) executeSingleStep(
+	ctx context.Context,
+	rc *RunContext,
+	workspaceID, runID, actorID string,
+	step BridgeStep,
+	evalCtx map[string]any,
+) (stepResult, error) {
+	traceStepID, traceErr := insertBridgeRunStep(ctx, rc, workspaceID, runID, marshalBridgeStepInput(step))
+	if traceErr != nil {
+		return stepResult{}, traceErr
+	}
+	if step.Condition != nil {
+		return r.evaluateConditionalStep(ctx, rc, workspaceID, traceStepID, step, evalCtx)
+	}
+	return r.executeAndTraceStep(ctx, rc, workspaceID, traceStepID, actorID, step, evalCtx)
+}
+
+func (r *SkillRunner) evaluateConditionalStep(
+	ctx context.Context,
+	rc *RunContext,
+	workspaceID, traceStepID string,
+	step BridgeStep,
+	evalCtx map[string]any,
+) (stepResult, error) {
+	ok, err := evaluateBridgeCondition(*step.Condition, evalCtx)
+	if err != nil {
+		_ = updateBridgeRunStep(ctx, rc, workspaceID, traceStepID, StepStatusFailed, nil, err)
+		return stepResult{}, err
+	}
+	if !ok {
+		_ = updateBridgeRunStep(ctx, rc, workspaceID, traceStepID, StepStatusSkipped, json.RawMessage(`{"result":"condition_false"}`), nil)
+		return stepResult{execution: skippedExecution(step)}, nil
+	}
+	return r.executeAndTraceStep(ctx, rc, workspaceID, traceStepID, "", step, evalCtx)
+}
+
+func (r *SkillRunner) executeAndTraceStep(
+	ctx context.Context,
+	rc *RunContext,
+	workspaceID, traceStepID, actorID string,
+	step BridgeStep,
+	evalCtx map[string]any,
+) (stepResult, error) {
+	call, pendingApproval, stepOutput, err := executeBridgeStep(ctx, rc, workspaceID, actorID, step, evalCtx)
+	if err != nil {
+		_ = updateBridgeRunStep(ctx, rc, workspaceID, traceStepID, StepStatusFailed, stepOutput, err)
+		return stepResult{}, err
+	}
+	if pendingApproval != nil {
+		_ = updateBridgeRunStep(ctx, rc, workspaceID, traceStepID, StepStatusRunning, stepOutput, nil)
+		return stepResult{
+			execution:       pendingExecution(step),
+			call:            call,
+			pendingApproval: pendingApproval,
+			done:            true,
+		}, nil
+	}
+	_ = updateBridgeRunStep(ctx, rc, workspaceID, traceStepID, StepStatusSuccess, stepOutput, nil)
+	return stepResult{execution: successExecution(step), call: call}, nil
+}
+
+func skippedExecution(step BridgeStep) SkillStepExecution {
+	return SkillStepExecution{ID: step.ID, Verb: strings.ToUpper(step.Action.Verb), Target: step.Action.Target, Status: StepStatusSkipped}
+}
+
+func successExecution(step BridgeStep) SkillStepExecution {
+	return SkillStepExecution{ID: step.ID, Verb: strings.ToUpper(step.Action.Verb), Target: step.Action.Target, Status: StatusSuccess}
+}
+
+func pendingExecution(step BridgeStep) SkillStepExecution {
+	return SkillStepExecution{ID: step.ID, Verb: strings.ToUpper(step.Action.Verb), Target: step.Action.Target, Status: "pending_approval"}
 }
 
 func executeBridgeStep(
@@ -213,35 +268,49 @@ func executeBridgeStep(
 	evalCtx map[string]any,
 ) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
 	verb := strings.ToUpper(strings.TrimSpace(step.Action.Verb))
-
 	switch verb {
 	case BridgeVerbSet:
-		if step.Action.Args == nil {
-			return nil, nil, nil, fmt.Errorf("%w: step %s: SET requires args", ErrSkillStepExecutionFailed, step.ID)
-		}
-		if _, ok := step.Action.Args["value"]; !ok {
-			return nil, nil, nil, fmt.Errorf("%w: step %s: SET requires args.value", ErrSkillStepExecutionFailed, step.ID)
-		}
-		return executeMappedTool(ctx, rc, workspaceID, actorID, step, mapSetAction(step, evalCtx))
+		return executeSetStep(ctx, rc, workspaceID, actorID, step, evalCtx)
 	case BridgeVerbNotify:
-		if step.Action.Args == nil {
-			return nil, nil, nil, fmt.Errorf("%w: step %s: NOTIFY requires args", ErrSkillStepExecutionFailed, step.ID)
-		}
-		if _, ok := step.Action.Args["message"]; !ok {
-			return nil, nil, nil, fmt.Errorf("%w: step %s: NOTIFY requires args.message", ErrSkillStepExecutionFailed, step.ID)
-		}
-		return executeMappedTool(ctx, rc, workspaceID, actorID, step, mapNotifyAction(step, evalCtx))
+		return executeNotifyStep(ctx, rc, workspaceID, actorID, step, evalCtx)
 	case BridgeVerbAgent:
-		// F3.3 validates ordering only. Actual sub-agent execution comes later.
-		output, err := json.Marshal(map[string]any{
-			"verb":   verb,
-			"target": step.Action.Target,
-			"result": "executed",
-		})
-		return nil, nil, output, err
+		return executeAgentStep(verb, step)
 	default:
 		return nil, nil, nil, fmt.Errorf("%w: step %s: unsupported verb", ErrSkillStepExecutionFailed, step.ID)
 	}
+}
+
+func executeSetStep(ctx context.Context, rc *RunContext, workspaceID, actorID string, step BridgeStep, evalCtx map[string]any) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
+	if err := requireArg(step, "value"); err != nil {
+		return nil, nil, nil, err
+	}
+	return executeMappedTool(ctx, rc, workspaceID, actorID, step, mapSetAction(step, evalCtx))
+}
+
+func executeNotifyStep(ctx context.Context, rc *RunContext, workspaceID, actorID string, step BridgeStep, evalCtx map[string]any) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
+	if err := requireArg(step, "message"); err != nil {
+		return nil, nil, nil, err
+	}
+	return executeMappedTool(ctx, rc, workspaceID, actorID, step, mapNotifyAction(step, evalCtx))
+}
+
+func executeAgentStep(verb string, step BridgeStep) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
+	output, err := json.Marshal(map[string]any{
+		"verb":   verb,
+		"target": step.Action.Target,
+		"result": "executed",
+	})
+	return nil, nil, output, err
+}
+
+func requireArg(step BridgeStep, key string) error {
+	if step.Action.Args == nil {
+		return fmt.Errorf("%w: step %s: %s requires args", ErrSkillStepExecutionFailed, step.ID, strings.ToUpper(step.Action.Verb))
+	}
+	if _, ok := step.Action.Args[key]; !ok {
+		return fmt.Errorf("%w: step %s: %s requires args.%s", ErrSkillStepExecutionFailed, step.ID, strings.ToUpper(step.Action.Verb), key)
+	}
+	return nil
 }
 
 type mappedBridgeTool struct {
@@ -260,23 +329,38 @@ func executeMappedTool(
 	if mapped.name == "" {
 		return nil, nil, nil, fmt.Errorf("%w: bridge action is not mappable", ErrSkillStepExecutionFailed)
 	}
-	if rc != nil && rc.PolicyEngine != nil && actorID != "" {
-		allowed, err := rc.PolicyEngine.CheckToolPermission(ctx, actorID, mapped.name)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		if !allowed {
-			return nil, nil, nil, fmt.Errorf("%w: tool %s denied by policy", ErrSkillStepExecutionFailed, mapped.name)
-		}
+	if err := checkMappedToolPolicy(ctx, rc, actorID, mapped.name); err != nil {
+		return nil, nil, nil, err
 	}
-
 	if approvalCfg := parseBridgeApprovalConfig(step.Action.Args); approvalCfg != nil && approvalCfg.Required {
-		if rc == nil || rc.ApprovalService == nil {
-			return nil, nil, nil, fmt.Errorf("%w: approval service is required", ErrSkillStepExecutionFailed)
-		}
-		approvalResult, call, output, err := createBridgeApproval(ctx, rc.ApprovalService, workspaceID, actorID, mapped, approvalCfg)
-		return call, approvalResult, output, err
+		return routeToApproval(ctx, rc, workspaceID, actorID, mapped, approvalCfg)
 	}
+	return executeRegisteredTool(ctx, rc, workspaceID, mapped)
+}
+
+func checkMappedToolPolicy(ctx context.Context, rc *RunContext, actorID, toolName string) error {
+	if rc == nil || rc.PolicyEngine == nil || actorID == "" {
+		return nil
+	}
+	allowed, err := rc.PolicyEngine.CheckToolPermission(ctx, actorID, toolName)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return fmt.Errorf("%w: tool %s denied by policy", ErrSkillStepExecutionFailed, toolName)
+	}
+	return nil
+}
+
+func routeToApproval(ctx context.Context, rc *RunContext, workspaceID, actorID string, mapped mappedBridgeTool, cfg *bridgeApprovalConfig) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
+	if rc == nil || rc.ApprovalService == nil {
+		return nil, nil, nil, fmt.Errorf("%w: approval service is required", ErrSkillStepExecutionFailed)
+	}
+	approvalResult, call, output, err := createBridgeApproval(ctx, rc.ApprovalService, workspaceID, actorID, mapped, cfg)
+	return call, approvalResult, output, err
+}
+
+func executeRegisteredTool(ctx context.Context, rc *RunContext, workspaceID string, mapped mappedBridgeTool) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
 	if rc == nil || rc.ToolRegistry == nil {
 		return nil, nil, nil, ErrSkillToolRegistryMissing
 	}
@@ -285,24 +369,13 @@ func executeMappedTool(
 		return nil, nil, nil, err
 	}
 	result, err := rc.ToolRegistry.Execute(ctx, workspaceID, mapped.name, rawParams)
-	call := &ToolCall{
-		ToolName: mapped.name,
-		Params:   rawParams,
-		Result:   result,
-	}
+	call := &ToolCall{ToolName: mapped.name, Params: rawParams, Result: result}
 	if err != nil {
 		call.Error = err.Error()
-		output, _ := json.Marshal(map[string]any{
-			"tool":   mapped.name,
-			"result": "failed",
-			"error":  err.Error(),
-		})
+		output, _ := json.Marshal(map[string]any{"tool": mapped.name, "result": "failed", "error": err.Error()})
 		return call, nil, output, err
 	}
-	output, marshalErr := json.Marshal(map[string]any{
-		"tool":   mapped.name,
-		"result": "success",
-	})
+	output, marshalErr := json.Marshal(map[string]any{"tool": mapped.name, "result": "success"})
 	if marshalErr != nil {
 		return call, nil, nil, marshalErr
 	}
@@ -564,16 +637,28 @@ func stringPtrOrNil(value string) *string {
 }
 
 func (r *SkillRunner) loadBridgeWorkflow(ctx context.Context, input TriggerAgentInput) (*BridgeWorkflow, string, map[string]any, error) {
-	if wf, envelopeCtx, err := decodeBridgeWorkflowInput(input.Inputs); err == nil {
+	wf, envelopeCtx, err := decodeBridgeWorkflowInput(input.Inputs)
+	if err == nil {
 		return wf, "input", mergeBridgeContexts(input.TriggerContext, envelopeCtx), nil
-	} else if len(input.Inputs) > 0 && json.Valid(input.Inputs) && !errors.Is(err, ErrSkillDefinitionNotFound) {
-		// If explicit JSON was provided but not in a supported format, fail fast.
-		var bridgeErr *json.SyntaxError
-		if !errors.As(err, &bridgeErr) && !errors.Is(err, ErrBridgeWorkflowInvalid) {
-			return nil, "", nil, err
-		}
 	}
+	if isHardDecodeError(err, input.Inputs) {
+		return nil, "", nil, err
+	}
+	return r.loadFromSkillDefinition(ctx, input)
+}
 
+func isHardDecodeError(err error, raw json.RawMessage) bool {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return false
+	}
+	if errors.Is(err, ErrSkillDefinitionNotFound) || errors.Is(err, ErrBridgeWorkflowInvalid) {
+		return false
+	}
+	var syntaxErr *json.SyntaxError
+	return !errors.As(err, &syntaxErr)
+}
+
+func (r *SkillRunner) loadFromSkillDefinition(ctx context.Context, input TriggerAgentInput) (*BridgeWorkflow, string, map[string]any, error) {
 	wf, source, err := r.loadActiveSkillDefinition(ctx, input.WorkspaceID, input.AgentID)
 	if err != nil {
 		return nil, "", nil, err
@@ -582,6 +667,21 @@ func (r *SkillRunner) loadBridgeWorkflow(ctx context.Context, input TriggerAgent
 }
 
 func (r *SkillRunner) loadActiveSkillDefinition(ctx context.Context, workspaceID, agentID string) (*BridgeWorkflow, string, error) {
+	def, err := r.querySkillDefinition(ctx, workspaceID, agentID)
+	if err != nil {
+		return nil, "", err
+	}
+	if strings.TrimSpace(def.Status) != "active" {
+		return nil, "", ErrSkillDefinitionInactive
+	}
+	wf, err := buildBridgeWorkflowFromDefinition(def)
+	if err != nil {
+		return nil, "", err
+	}
+	return wf, "skill_definition", nil
+}
+
+func (r *SkillRunner) querySkillDefinition(ctx context.Context, workspaceID, agentID string) (*SkillDefinition, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT id, workspace_id, name, description, steps, agent_definition_id, status, created_at, updated_at
 		FROM skill_definition
@@ -589,26 +689,21 @@ func (r *SkillRunner) loadActiveSkillDefinition(ctx context.Context, workspaceID
 		ORDER BY created_at DESC
 		LIMIT 1
 	`, workspaceID, agentID)
+	return scanSkillDefinitionRow(row)
+}
 
+func scanSkillDefinitionRow(row *sql.Row) (*SkillDefinition, error) {
 	var def SkillDefinition
-	var description sql.NullString
-	var agentDefinitionID sql.NullString
-	var steps sql.NullString
+	var description, agentDefinitionID, steps sql.NullString
 	if err := row.Scan(
-		&def.ID,
-		&def.WorkspaceID,
-		&def.Name,
-		&description,
-		&steps,
-		&agentDefinitionID,
-		&def.Status,
-		&def.CreatedAt,
-		&def.UpdatedAt,
+		&def.ID, &def.WorkspaceID, &def.Name,
+		&description, &steps, &agentDefinitionID,
+		&def.Status, &def.CreatedAt, &def.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, "", ErrSkillDefinitionNotFound
+			return nil, ErrSkillDefinitionNotFound
 		}
-		return nil, "", err
+		return nil, err
 	}
 	if description.Valid {
 		def.Description = &description.String
@@ -619,23 +714,21 @@ func (r *SkillRunner) loadActiveSkillDefinition(ctx context.Context, workspaceID
 	if steps.Valid {
 		def.Steps = json.RawMessage(steps.String)
 	}
-	if strings.TrimSpace(def.Status) != "active" {
-		return nil, "", ErrSkillDefinitionInactive
-	}
+	return &def, nil
+}
 
+func buildBridgeWorkflowFromDefinition(def *SkillDefinition) (*BridgeWorkflow, error) {
 	wf := &BridgeWorkflow{
-		Name: def.Name,
-		Trigger: BridgeTrigger{
-			Event: TriggerTypeManual,
-		},
+		Name:    def.Name,
+		Trigger: BridgeTrigger{Event: TriggerTypeManual},
 	}
 	if err := json.Unmarshal(def.Steps, &wf.Steps); err != nil {
-		return nil, "", fmt.Errorf("decode skill_definition steps: %w", err)
+		return nil, fmt.Errorf("decode skill_definition steps: %w", err)
 	}
 	if err := wf.Validate(); err != nil {
-		return nil, "", err
+		return nil, err
 	}
-	return wf, "skill_definition", nil
+	return wf, nil
 }
 
 type bridgeWorkflowEnvelope struct {
@@ -648,15 +741,24 @@ func decodeBridgeWorkflowInput(raw json.RawMessage) (*BridgeWorkflow, map[string
 	if trimmed == "" || trimmed == "null" || trimmed == "{}" {
 		return nil, nil, ErrSkillDefinitionNotFound
 	}
-
-	var wf BridgeWorkflow
-	if err := json.Unmarshal(raw, &wf); err == nil && wf.Name != "" {
-		if err := wf.Validate(); err != nil {
-			return nil, nil, err
-		}
-		return &wf, nil, nil
+	if wf, err := decodeDirectWorkflow(raw); err == nil {
+		return wf, nil, nil
 	}
+	return decodeEnvelopeWorkflow(raw)
+}
 
+func decodeDirectWorkflow(raw json.RawMessage) (*BridgeWorkflow, error) {
+	var wf BridgeWorkflow
+	if err := json.Unmarshal(raw, &wf); err != nil || wf.Name == "" {
+		return nil, ErrSkillDefinitionNotFound
+	}
+	if err := wf.Validate(); err != nil {
+		return nil, err
+	}
+	return &wf, nil
+}
+
+func decodeEnvelopeWorkflow(raw json.RawMessage) (*BridgeWorkflow, map[string]any, error) {
 	var envelope bridgeWorkflowEnvelope
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return nil, nil, err
@@ -697,35 +799,43 @@ func evaluateBridgeCondition(condition BridgeCondition, evalCtx map[string]any) 
 	case BridgeOpNEQ:
 		return !compareEquality(left, right), nil
 	case BridgeOpGT, BridgeOpLT, BridgeOpGTE, BridgeOpLTE:
-		lv, lok := toFloat64(left)
-		rv, rok := toFloat64(right)
-		if !lok || !rok {
-			return false, fmt.Errorf("%w: condition %s requires numeric operands", ErrSkillStepExecutionFailed, condition.Left)
-		}
-		switch operator {
-		case BridgeOpGT:
-			return lv > rv, nil
-		case BridgeOpLT:
-			return lv < rv, nil
-		case BridgeOpGTE:
-			return lv >= rv, nil
-		default:
-			return lv <= rv, nil
-		}
+		return evaluateOrderedOp(operator, left, right, condition.Left)
 	case BridgeOpIn:
-		values, ok := right.([]any)
-		if !ok {
-			return false, fmt.Errorf("%w: IN requires array right operand", ErrSkillStepExecutionFailed)
-		}
-		for _, item := range values {
-			if compareEquality(left, item) {
-				return true, nil
-			}
-		}
-		return false, nil
+		return evaluateInOp(left, right)
 	default:
 		return false, fmt.Errorf("%w: unsupported condition operator", ErrSkillStepExecutionFailed)
 	}
+}
+
+func evaluateOrderedOp(operator string, left, right any, fieldName string) (bool, error) {
+	lv, lok := toFloat64(left)
+	rv, rok := toFloat64(right)
+	if !lok || !rok {
+		return false, fmt.Errorf("%w: condition %s requires numeric operands", ErrSkillStepExecutionFailed, fieldName)
+	}
+	switch operator {
+	case BridgeOpGT:
+		return lv > rv, nil
+	case BridgeOpLT:
+		return lv < rv, nil
+	case BridgeOpGTE:
+		return lv >= rv, nil
+	default:
+		return lv <= rv, nil
+	}
+}
+
+func evaluateInOp(left, right any) (bool, error) {
+	values, ok := right.([]any)
+	if !ok {
+		return false, fmt.Errorf("%w: IN requires array right operand", ErrSkillStepExecutionFailed)
+	}
+	for _, item := range values {
+		if compareEquality(left, item) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func resolveBridgeValue(evalCtx map[string]any, dotted string) any {
