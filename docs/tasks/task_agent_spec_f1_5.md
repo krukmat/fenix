@@ -76,3 +76,39 @@ go test ./internal/domain/policy/...
 - `docs/agent-spec-development-plan.md`
 - `docs/agent-spec-design.md`
 - `docs/agent-spec-phase1-quality-gates.md`
+
+---
+
+## Implemented Diagram
+
+```mermaid
+flowchart LR
+    TI[TriggerAgentInput] --> AD[Runner adapter]
+    AD --> CFG[Typed agent config]
+    CFG --> GA[Existing Go agent]
+    GA --> RUN[agent_run result]
+```
+
+## Implemented
+
+- adapters created for `support`, `prospecting`, `kb` and `insights`
+- common runtime input is converted into each agent's typed config
+- existing Go-agent business logic stayed unchanged behind the adapter boundary
+
+## Sources of Truth
+
+- `docs/agent-spec-overview.md`
+- `docs/agent-spec-development-plan.md`
+- `docs/agent-spec-go-agents-baseline.md`
+- `docs/agent-spec-traceability.md`
+
+## Implementation References
+
+- `internal/domain/agent/agents/runner_adapters.go`
+- `internal/domain/agent/agents/runner_adapters_test.go`
+
+## Verification Evidence
+
+- `go test ./internal/domain/agent/...`
+- `go test ./internal/domain/tool/...`
+- `go test ./internal/domain/policy/...`

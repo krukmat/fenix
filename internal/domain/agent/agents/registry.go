@@ -11,11 +11,13 @@ const (
 	AgentTypeProspecting = "prospecting"
 	AgentTypeKB          = "kb"
 	AgentTypeInsights    = "insights"
+	AgentTypeDSL         = "dsl"
 )
 
 var (
 	ErrRunnerRegistryNil = errors.New("runner registry is nil")
 	ErrGoAgentNil        = errors.New("go agent is nil")
+	ErrDSLRunnerNil      = errors.New("dsl runner is nil")
 )
 
 // GoAgentRunners holds the explicit Go agent adapters registered in F1.6.
@@ -50,6 +52,17 @@ func RegisterCurrentGoRunners(registry *agent.RunnerRegistry, runners GoAgentRun
 		}
 	}
 	return nil
+}
+
+// RegisterDSLRunner registers the DSL runner under agent_type="dsl".
+func RegisterDSLRunner(registry *agent.RunnerRegistry, runner agent.Runner) error {
+	if registry == nil {
+		return ErrRunnerRegistryNil
+	}
+	if runner == nil {
+		return ErrDSLRunnerNil
+	}
+	return registry.Register(AgentTypeDSL, runner)
 }
 
 func validateGoAgentRunners(runners GoAgentRunners) error {

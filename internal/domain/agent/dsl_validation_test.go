@@ -1,0 +1,86 @@
+package agent
+
+import (
+	"errors"
+	"testing"
+)
+
+func TestValidateDSLProgramAcceptsValidV0Program(t *testing.T) {
+	t.Parallel()
+
+	program, err := ParseDSL(`WORKFLOW resolve_support_case
+ON case.created
+IF case.priority IN ["high", "urgent"]:
+  NOTIFY salesperson WITH "review this case"
+SET case.status = "resolved"`)
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
+	}
+
+	if err := ValidateDSLProgram(program); err != nil {
+		t.Fatalf("ValidateDSLProgram() error = %v", err)
+	}
+}
+
+func TestValidateDSLProgramRejectsSetWithoutDottedTarget(t *testing.T) {
+	t.Parallel()
+
+	program := &Program{
+		Workflow: &WorkflowDecl{
+			Name:     "x",
+			Trigger:  &OnDecl{Event: "case.created", Position: Position{Line: 2, Column: 1}},
+			Position: Position{Line: 1, Column: 1},
+			Body: []Statement{
+				&SetStatement{
+					Target:   &IdentifierExpr{Name: "status", Position: Position{Line: 3, Column: 5}},
+					Value:    &LiteralExpr{Value: "resolved", Position: Position{Line: 3, Column: 14}},
+					Position: Position{Line: 3, Column: 1},
+				},
+			},
+		},
+	}
+
+	err := ValidateDSLProgram(program)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	var validationErr *DSLValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected DSLValidationError, got %T", err)
+	}
+	if validationErr.Position.Line != 3 {
+		t.Fatalf("validationErr.Position = %+v, want line 3", validationErr.Position)
+	}
+}
+
+func TestValidateDSLProgramRejectsEmptyWorkflowBody(t *testing.T) {
+	t.Parallel()
+
+	program := &Program{
+		Workflow: &WorkflowDecl{
+			Name:     "x",
+			Trigger:  &OnDecl{Event: "case.created", Position: Position{Line: 2, Column: 1}},
+			Position: Position{Line: 1, Column: 1},
+		},
+	}
+
+	err := ValidateDSLProgram(program)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestParseAndValidateDSLRejectsReservedStatementInV0(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseAndValidateDSL(`WORKFLOW follow_up_case
+ON case.created
+WAIT 48`)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var parseErr *ParserError
+	if !errors.As(err, &parseErr) {
+		t.Fatalf("expected ParserError, got %T", err)
+	}
+}

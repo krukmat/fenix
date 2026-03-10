@@ -2,12 +2,17 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
+	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
+	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
+	tooldomain "github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
 )
 
@@ -22,6 +27,20 @@ type WorkflowService interface {
 type WorkflowHandler struct {
 	service WorkflowService
 	authz   ActionAuthorizer
+	db      *sql.DB
+	runtime *workflowRuntime
+}
+
+type workflowCacheInvalidator interface {
+	InvalidateCache(workflowID string)
+}
+
+type workflowRuntime struct {
+	orchestrator    *agent.Orchestrator
+	toolRegistry    *tooldomain.ToolRegistry
+	policyEngine    *policy.PolicyEngine
+	approvalService *policy.ApprovalService
+	cacheInvalidator workflowCacheInvalidator
 }
 
 type CreateWorkflowRequest struct {
@@ -56,12 +75,32 @@ type WorkflowResponse struct {
 	UpdatedAt         string  `json:"updated_at"`
 }
 
+type ExecuteWorkflowRequest struct {
+	TriggerContext json.RawMessage `json:"trigger_context,omitempty"`
+	Inputs         json.RawMessage `json:"inputs,omitempty"`
+}
+
 func NewWorkflowHandler(service WorkflowService) *WorkflowHandler {
 	return &WorkflowHandler{service: service}
 }
 
 func NewWorkflowHandlerWithAuthorizer(service WorkflowService, authz ActionAuthorizer) *WorkflowHandler {
 	return &WorkflowHandler{service: service, authz: authz}
+}
+
+func NewWorkflowHandlerWithRuntime(service WorkflowService, authz ActionAuthorizer, db *sql.DB, orchestrator *agent.Orchestrator, toolRegistry *tooldomain.ToolRegistry, policyEngine *policy.PolicyEngine, approvalService *policy.ApprovalService, cacheInvalidator workflowCacheInvalidator) *WorkflowHandler {
+	return &WorkflowHandler{
+		service: service,
+		authz:   authz,
+		db:      db,
+		runtime: &workflowRuntime{
+			orchestrator:    orchestrator,
+			toolRegistry:    toolRegistry,
+			policyEngine:    policyEngine,
+			approvalService: approvalService,
+			cacheInvalidator: cacheInvalidator,
+		},
+	}
 }
 
 func (h *WorkflowHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -188,6 +227,9 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 		writeWorkflowError(w, err)
 		return
 	}
+	if h.runtime != nil && h.runtime.cacheInvalidator != nil {
+		h.runtime.cacheInvalidator.InvalidateCache(id)
+	}
 
 	_ = writeJSONOr500(w, map[string]any{"data": workflowToResponse(out)})
 }
@@ -214,6 +256,80 @@ func (h *WorkflowHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *WorkflowHandler) Execute(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "workflows.execute") {
+		return
+	}
+
+	workspaceID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+	if h.runtime == nil || h.runtime.orchestrator == nil || h.db == nil {
+		writeError(w, http.StatusInternalServerError, "workflow execute runtime is not configured")
+		return
+	}
+
+	id := chi.URLParam(r, paramID)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
+		return
+	}
+
+	var req ExecuteWorkflowRequest
+	if !decodeOptionalWorkflowExecuteBody(w, r, &req) {
+		return
+	}
+
+	item, err := h.service.Get(r.Context(), workspaceID, id)
+	if err != nil {
+		writeWorkflowError(w, err)
+		return
+	}
+	if item.AgentDefinitionID == nil || *item.AgentDefinitionID == "" {
+		writeError(w, http.StatusConflict, "workflow must be linked to an agent definition")
+		return
+	}
+	if item.Status != workflowdomain.StatusActive {
+		writeError(w, http.StatusConflict, "workflow must be active to execute")
+		return
+	}
+
+	runner := agent.NewDSLRunnerWithDependencies(staticWorkflowResolver{workflow: item}, agent.NewDSLRuntime(), nil)
+	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
+	var triggeredBy *string
+	if userID != "" {
+		triggeredBy = &userID
+	}
+
+	run, err := runner.Run(r.Context(), &agent.RunContext{
+		Orchestrator:    h.runtime.orchestrator,
+		ToolRegistry:    h.runtime.toolRegistry,
+		PolicyEngine:    h.runtime.policyEngine,
+		ApprovalService: h.runtime.approvalService,
+		DB:              h.db,
+	}, agent.TriggerAgentInput{
+		AgentID:        *item.AgentDefinitionID,
+		WorkspaceID:    workspaceID,
+		TriggeredBy:    triggeredBy,
+		TriggerType:    agent.TriggerTypeManual,
+		TriggerContext: normalizeOptionalJSONObject(req.TriggerContext),
+		Inputs:         normalizeOptionalJSONObject(req.Inputs),
+	})
+	if err != nil {
+		writeWorkflowExecuteError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = writeJSONOr500(w, map[string]any{
+		"data": map[string]any{
+			"workflow_id": id,
+			"run":         agentRunToResponse(run),
+		},
+	})
 }
 
 func decodeWorkflowListInput(r *http.Request) (workflowdomain.ListWorkflowsInput, error) {
@@ -249,6 +365,43 @@ func writeWorkflowError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, err.Error())
 	}
+}
+
+func writeWorkflowExecuteError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, workflowdomain.ErrWorkflowNotFound), errors.Is(err, agent.ErrDSLWorkflowNotFound):
+		writeError(w, http.StatusNotFound, "workflow not found")
+	case errors.Is(err, workflowdomain.ErrInvalidWorkflowInput),
+		errors.Is(err, agent.ErrInvalidTriggerType):
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+	default:
+		writeError(w, http.StatusInternalServerError, err.Error())
+	}
+}
+
+func decodeOptionalWorkflowExecuteBody(w http.ResponseWriter, r *http.Request, dst *ExecuteWorkflowRequest) bool {
+	if r.Body == nil || r.ContentLength == 0 {
+		return true
+	}
+	return decodeBodyJSON(w, r, dst)
+}
+
+func normalizeOptionalJSONObject(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return json.RawMessage(`{}`)
+	}
+	return raw
+}
+
+type staticWorkflowResolver struct {
+	workflow *workflowdomain.Workflow
+}
+
+func (s staticWorkflowResolver) GetActiveByAgentDefinition(_ context.Context, workspaceID, agentDefinitionID string) (*workflowdomain.Workflow, error) {
+	if s.workflow == nil || s.workflow.WorkspaceID != workspaceID || s.workflow.Status != workflowdomain.StatusActive || s.workflow.AgentDefinitionID == nil || *s.workflow.AgentDefinitionID != agentDefinitionID {
+		return nil, workflowdomain.ErrWorkflowNotFound
+	}
+	return s.workflow, nil
 }
 
 func workflowToResponse(in *workflowdomain.Workflow) *WorkflowResponse {

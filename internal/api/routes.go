@@ -90,6 +90,10 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		go reindexSvc.Start(context.Background())
 		policyEngine := policy.NewPolicyEngine(db, nil, auditService)
 		toolRegistry := tooldomain.NewToolRegistryWithRuntime(db, policyEngine, auditService)
+		approvalService := policy.NewApprovalService(db, auditService)
+		runnerRegistry := agent.NewRunnerRegistry()
+		agentOrchestrator := agent.NewOrchestratorWithRegistry(db, runnerRegistry)
+		dslRunner := agent.NewDSLRunner(db)
 
 		// Account endpoints (Task 1.3.8)
 		accountHandler := handlers.NewAccountHandler(crm.NewAccountServiceWithBus(db, knowledgeBus))
@@ -123,7 +127,8 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		timelineHandler := handlers.NewTimelineHandler(crm.NewTimelineService(db))
 		reportHandler := handlers.NewReportHandler(crm.NewReportService(db))
 		auditHandler := handlers.NewAuditHandler(auditService)
-		workflowHandler := handlers.NewWorkflowHandlerWithAuthorizer(workflowdomain.NewService(db), policyEngine)
+		workflowService := workflowdomain.NewService(db)
+		workflowHandler := handlers.NewWorkflowHandlerWithRuntime(workflowService, policyEngine, db, agentOrchestrator, toolRegistry, policyEngine, approvalService, dslRunner)
 		signalHandler := handlers.NewSignalHandlerWithAuthorizer(
 			signaldomain.NewServiceWithBus(db, signaldomain.NewRepository(db), knowledgeBus),
 			policyEngine,
@@ -195,6 +200,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Route("/workflows", func(r chi.Router) {
 			r.Post("/", workflowHandler.Create)
 			r.Get("/", workflowHandler.List)
+			r.Post("/{id}/execute", workflowHandler.Execute)
 			r.Get(routeByID, workflowHandler.Get)
 			r.Put(routeByID, workflowHandler.Update)
 			r.Delete(routeByID, workflowHandler.Delete)
@@ -231,7 +237,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		knowledgeSearchHandler := handlers.NewKnowledgeSearchHandler(searchSvc)
 		knowledgeEvidenceHandler := handlers.NewKnowledgeEvidenceHandler(evidenceSvc)
 		knowledgeReindexHandler := handlers.NewKnowledgeReindexHandler(reindexSvc)
-		approvalHandler := handlers.NewApprovalHandler(policy.NewApprovalService(db, auditService))
+		approvalHandler := handlers.NewApprovalHandler(approvalService)
 		toolHandler := handlers.NewToolHandlerWithAuthorizer(toolRegistry, policyEngine)
 		// Task 3.9: Prompt Versioning
 		promptSvc := agent.NewPromptService(db, auditService)
@@ -303,7 +309,6 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		})
 
 		// Task 3.7: Agent Runtime routes
-		agentOrchestrator := agent.NewOrchestrator(db)
 		agentHandler := handlers.NewAgentHandler(agentOrchestrator)
 		supportAgent := agents.NewSupportAgentWithDB(agentOrchestrator, toolRegistry, searchSvc, db)
 		supportAgentHandler := handlers.NewSupportAgentHandler(supportAgent)
@@ -336,6 +341,14 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			db,
 		)
 		insightsAgentHandler := handlers.NewInsightsAgentHandler(insightsAgent)
+
+		_ = agents.RegisterCurrentGoRunners(runnerRegistry, agents.GoAgentRunners{
+			Support:     supportAgent,
+			Prospecting: prospectingAgent,
+			KB:          kbAgent,
+			Insights:    insightsAgent,
+		})
+		_ = agents.RegisterDSLRunner(runnerRegistry, dslRunner)
 
 		// Task 3.8: Handoff Manager (reuses caseService + knowledgeBus from above)
 		handoffService := agent.NewHandoffService(db, caseService, knowledgeBus)

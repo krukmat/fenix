@@ -28,6 +28,7 @@ func TestSkillRunnerRunLoadsBridgeWorkflowFromInput(t *testing.T) {
 
 	db := setupSkillRunnerDB(t)
 	registry := NewRunnerRegistry()
+	registerSkillAgentTargets(t, db, registry, "evaluate_intent")
 	orch := NewOrchestratorWithRegistry(db, registry)
 	runner := NewSkillRunner(db)
 
@@ -65,6 +66,7 @@ func TestSkillRunnerRunLoadsActiveSkillDefinition(t *testing.T) {
 
 	db := setupSkillRunnerDB(t)
 	registry := NewRunnerRegistry()
+	registerSkillAgentTargets(t, db, registry, "evaluate_intent")
 	orch := NewOrchestratorWithRegistry(db, registry)
 	runner := NewSkillRunner(db)
 
@@ -100,6 +102,45 @@ func TestSkillRunnerRunLoadsActiveSkillDefinition(t *testing.T) {
 	}
 }
 
+func TestSkillRunnerRunExecutesAgentStepViaOrchestrator(t *testing.T) {
+	t.Parallel()
+
+	db := setupSkillRunnerDB(t)
+	registry := NewRunnerRegistry()
+	registerSkillAgentTargets(t, db, registry, "evaluate_intent")
+	orch := NewOrchestratorWithRegistry(db, registry)
+	runner := NewSkillRunner(db)
+
+	run, err := runner.Run(context.Background(), &RunContext{
+		Orchestrator:   orch,
+		RunnerRegistry: registry,
+		DB:             db,
+	}, TriggerAgentInput{
+		AgentID:     "agent_skill_1",
+		WorkspaceID: "ws_skill",
+		TriggerType: TriggerTypeManual,
+		Inputs: json.RawMessage(`{
+			"name":"qualify_lead_bridge",
+			"trigger":{"event":"lead.created"},
+			"steps":[{"id":"step_1","action":{"verb":"AGENT","target":"evaluate_intent"}}]
+		}`),
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if run.Status != StatusSuccess {
+		t.Fatalf("status = %s, want %s", run.Status, StatusSuccess)
+	}
+
+	runs, total, err := orch.ListAgentRuns(context.Background(), "ws_skill", 50, 0)
+	if err != nil {
+		t.Fatalf("ListAgentRuns() error = %v", err)
+	}
+	if total < 2 || len(runs) < 2 {
+		t.Fatalf("expected parent and nested runs, total=%d len=%d", total, len(runs))
+	}
+}
+
 func TestSkillRunnerRunRequiresOrchestrator(t *testing.T) {
 	t.Parallel()
 
@@ -121,6 +162,7 @@ func TestSkillRunnerRunFailsWithoutActiveDefinition(t *testing.T) {
 
 	db := setupSkillRunnerDB(t)
 	registry := NewRunnerRegistry()
+	registerSkillAgentTargets(t, db, registry, "evaluate_intent", "enrich_lead", "notify_owner")
 	orch := NewOrchestratorWithRegistry(db, registry)
 	runner := NewSkillRunner(db)
 
@@ -143,6 +185,7 @@ func TestSkillRunnerRunExecutesStepsInOrder(t *testing.T) {
 
 	db := setupSkillRunnerDB(t)
 	registry := NewRunnerRegistry()
+	registerSkillAgentTargets(t, db, registry, "evaluate_intent", "enrich_lead", "notify_owner")
 	orch := NewOrchestratorWithRegistry(db, registry)
 	runner := NewSkillRunner(db)
 
@@ -224,7 +267,9 @@ func TestSkillRunnerRunExecutesMappedSetAndNotifyThroughToolRegistry(t *testing.
 	t.Parallel()
 
 	db := setupSkillRunnerDB(t)
-	orch := NewOrchestratorWithRegistry(db, NewRunnerRegistry())
+	registry := NewRunnerRegistry()
+	registerSkillAgentTargets(t, db, registry, "qualify_lead")
+	orch := NewOrchestratorWithRegistry(db, registry)
 	runner := NewSkillRunner(db)
 	toolRegistry := setupSkillToolRegistry(t, db)
 
@@ -287,7 +332,9 @@ func TestSkillRunnerRunFailsWhenPolicyDeniesTool(t *testing.T) {
 	t.Parallel()
 
 	db := setupSkillRunnerDB(t)
-	orch := NewOrchestratorWithRegistry(db, NewRunnerRegistry())
+	registry := NewRunnerRegistry()
+	registerSkillAgentTargets(t, db, registry, "qualify_lead", "fallback_action")
+	orch := NewOrchestratorWithRegistry(db, registry)
 	runner := NewSkillRunner(db)
 	toolRegistry := setupSkillToolRegistry(t, db)
 	policyEngine := policy.NewPolicyEngine(db, nil, nil)
@@ -414,7 +461,9 @@ func TestSkillRunnerRunPausesWhenApprovalIsRequired(t *testing.T) {
 	t.Parallel()
 
 	db := setupSkillRunnerDB(t)
-	orch := NewOrchestratorWithRegistry(db, NewRunnerRegistry())
+	registry := NewRunnerRegistry()
+	registerSkillAgentTargets(t, db, registry, "qualify_lead")
+	orch := NewOrchestratorWithRegistry(db, registry)
 	runner := NewSkillRunner(db)
 	toolRegistry := setupSkillToolRegistry(t, db)
 	approvalService := policy.NewApprovalService(db, nil)
@@ -483,11 +532,14 @@ func TestSkillRunnerRunExecutesConditionalStepWhenTrue(t *testing.T) {
 	t.Parallel()
 
 	db := setupSkillRunnerDB(t)
-	orch := NewOrchestratorWithRegistry(db, NewRunnerRegistry())
+	registry := NewRunnerRegistry()
+	registerSkillAgentTargets(t, db, registry, "qualify_lead")
+	orch := NewOrchestratorWithRegistry(db, registry)
 	runner := NewSkillRunner(db)
 
 	run, err := runner.Run(context.Background(), &RunContext{
 		Orchestrator: orch,
+		RunnerRegistry: registry,
 		DB:           db,
 	}, TriggerAgentInput{
 		AgentID:     "agent_skill_1",
@@ -525,11 +577,14 @@ func TestSkillRunnerRunSkipsConditionalStepWhenFalse(t *testing.T) {
 	t.Parallel()
 
 	db := setupSkillRunnerDB(t)
-	orch := NewOrchestratorWithRegistry(db, NewRunnerRegistry())
+	registry := NewRunnerRegistry()
+	registerSkillAgentTargets(t, db, registry, "qualify_lead", "fallback_action")
+	orch := NewOrchestratorWithRegistry(db, registry)
 	runner := NewSkillRunner(db)
 
 	run, err := runner.Run(context.Background(), &RunContext{
 		Orchestrator: orch,
+		RunnerRegistry: registry,
 		DB:           db,
 	}, TriggerAgentInput{
 		AgentID:     "agent_skill_1",
@@ -562,6 +617,9 @@ func TestSkillRunnerRunSkipsConditionalStepWhenFalse(t *testing.T) {
 	if err := json.Unmarshal(run.Output, &output); err != nil {
 		t.Fatalf("unmarshal output: %v", err)
 	}
+	if len(output.Steps) != 2 {
+		t.Fatalf("unexpected output for conditional false path: status=%s output=%s", run.Status, string(run.Output))
+	}
 	if output.Steps[0].Status != StepStatusSkipped {
 		t.Fatalf("step 1 status = %s, want %s", output.Steps[0].Status, StepStatusSkipped)
 	}
@@ -589,11 +647,14 @@ func TestSkillRunnerRunFailsOnConditionalTypeMismatch(t *testing.T) {
 	t.Parallel()
 
 	db := setupSkillRunnerDB(t)
-	orch := NewOrchestratorWithRegistry(db, NewRunnerRegistry())
+	registry := NewRunnerRegistry()
+	registerSkillAgentTargets(t, db, registry, "qualify_lead")
+	orch := NewOrchestratorWithRegistry(db, registry)
 	runner := NewSkillRunner(db)
 
 	run, err := runner.Run(context.Background(), &RunContext{
 		Orchestrator: orch,
+		RunnerRegistry: registry,
 		DB:           db,
 	}, TriggerAgentInput{
 		AgentID:     "agent_skill_1",
@@ -723,4 +784,16 @@ func setupSkillToolRegistry(t *testing.T, db *sql.DB) *tool.ToolRegistry {
 	}
 
 	return registry
+}
+
+func registerSkillAgentTargets(t *testing.T, db *sql.DB, registry *RunnerRegistry, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		agentID := "agent_" + name
+		mustExecSkillRunner(t, db, `INSERT INTO agent_definition (id, workspace_id, name, description, agent_type, objective, allowed_tools, limits, trigger_config, status, created_at, updated_at)
+		VALUES ('`+agentID+`', 'ws_skill', '`+name+`', 'Nested target', 'nested', '{}', '[]', '{}', '{}', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	}
+	if err := registry.Register("nested", stubNestedRunner{}); err != nil && !errors.Is(err, ErrRunnerAlreadyExists) {
+		t.Fatalf("registry.Register(nested) error = %v", err)
+	}
 }

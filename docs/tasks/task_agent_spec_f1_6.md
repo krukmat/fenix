@@ -76,3 +76,44 @@ go test ./internal/domain/policy/...
 - `docs/agent-spec-development-plan.md`
 - `docs/agent-spec-design.md`
 - `docs/agent-spec-phase1-quality-gates.md`
+
+---
+
+## Implemented Diagram
+
+```mermaid
+flowchart LR
+    REG[RegisterCurrentGoRunners] --> S[support]
+    REG --> P[prospecting]
+    REG --> K[kb]
+    REG --> I[insights]
+    S --> SR[SupportRunner]
+    P --> PR[ProspectingRunner]
+    K --> KR[KBRunner]
+    I --> IR[InsightsRunner]
+```
+
+## Implemented
+
+- explicit wiring helper added for the four current Go agents
+- stable `agent_type` constants introduced for runtime lookup
+- registry tests verify correct mapping from `agent_type` to runner instance
+
+## Sources of Truth
+
+- `docs/agent-spec-overview.md`
+- `docs/agent-spec-development-plan.md`
+- `docs/agent-spec-go-agents-baseline.md`
+- `docs/agent-spec-traceability.md`
+
+## Implementation References
+
+- `internal/domain/agent/agents/registry.go`
+- `internal/domain/agent/agents/registry_test.go`
+- `internal/domain/agent/agents/runner_adapters.go`
+
+## Verification Evidence
+
+- `go test ./internal/domain/agent/...`
+- `go test ./internal/domain/tool/...`
+- `go test ./internal/domain/policy/...`

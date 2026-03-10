@@ -170,6 +170,18 @@ func (p *PolicyEngine) CheckToolPermission(ctx context.Context, userID, toolID s
 	return false, nil
 }
 
+// CheckAgentPermission verifies whether a user may dispatch a sub-agent.
+func (p *PolicyEngine) CheckAgentPermission(ctx context.Context, userID, agentID, agentName string) (bool, error) {
+	attrs := map[string]string{}
+	if strings.TrimSpace(agentID) != "" {
+		attrs["agent_id"] = strings.TrimSpace(agentID)
+	}
+	if strings.TrimSpace(agentName) != "" {
+		attrs["agent_name"] = strings.TrimSpace(agentName)
+	}
+	return p.CheckActionPermission(ctx, userID, "agents", "execute", attrs)
+}
+
 // CheckActionPermission performs unified RBAC/ABAC evaluation for API/tool actions.
 // 1) If an active policy exists, its decision is authoritative.
 // 2) If no active policy is available, fallback to role permissions.

@@ -172,6 +172,29 @@ func (r *Repository) GetActiveByName(ctx context.Context, workspaceID, name stri
 	return out, nil
 }
 
+func (r *Repository) GetActiveByAgentDefinition(ctx context.Context, workspaceID, agentDefinitionID string) (*Workflow, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT
+			id, workspace_id, agent_definition_id, parent_version_id, name, description,
+			dsl_source, spec_source, version, status, created_by_user_id, archived_at,
+			created_at, updated_at
+		FROM workflow
+		WHERE workspace_id = ? AND agent_definition_id = ? AND status = 'active'
+		ORDER BY updated_at DESC, created_at DESC
+		LIMIT 1
+	`, workspaceID, agentDefinitionID)
+
+	out, err := scanWorkflow(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrWorkflowNotFound
+		}
+		return nil, fmt.Errorf("get active workflow by agent definition: %w", err)
+	}
+
+	return out, nil
+}
+
 func (r *Repository) ListByWorkspace(ctx context.Context, workspaceID string) ([]*Workflow, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT

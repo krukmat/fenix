@@ -145,6 +145,38 @@ func TestService_GetAndList_ScopedByWorkspace(t *testing.T) {
 	}
 }
 
+func TestService_GetActiveByAgentDefinition(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	svc := NewService(db)
+	agentDefinitionID := "agent-dsl-1"
+
+	created, err := svc.Create(context.Background(), CreateWorkflowInput{
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: &agentDefinitionID,
+		Name:              "triage_case",
+		DSLSource:         "WORKFLOW triage_case\nON case.created\nSET case.status = \"open\"",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := svc.MarkTesting(context.Background(), "ws_test", created.ID); err != nil {
+		t.Fatalf("MarkTesting() error = %v", err)
+	}
+	if _, err := svc.MarkActive(context.Background(), "ws_test", created.ID); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	got, err := svc.GetActiveByAgentDefinition(context.Background(), "ws_test", agentDefinitionID)
+	if err != nil {
+		t.Fatalf("GetActiveByAgentDefinition() error = %v", err)
+	}
+	if got.ID != created.ID {
+		t.Fatalf("id = %s, want %s", got.ID, created.ID)
+	}
+}
+
 func TestService_List_FiltersByStatusAndName(t *testing.T) {
 	t.Parallel()
 

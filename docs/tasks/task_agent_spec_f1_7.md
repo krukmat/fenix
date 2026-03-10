@@ -76,3 +76,47 @@ go test ./internal/domain/policy/...
 - `docs/agent-spec-development-plan.md`
 - `docs/agent-spec-design.md`
 - `docs/agent-spec-use-cases.md`
+
+---
+
+## Implemented Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> running
+    running --> accepted
+    running --> rejected
+    running --> delegated
+    accepted --> success
+    accepted --> partial
+    accepted --> abstained
+    accepted --> failed
+    accepted --> delegated
+    rejected --> [*]
+    delegated --> [*]
+```
+
+## Implemented
+
+- `agent_run` extended with `accepted`, `rejected` and `delegated`
+- state machine updated to allow new transitions without breaking legacy ones
+- runtime step status mapping adjusted so rejected executions remain auditable
+
+## Sources of Truth
+
+- `docs/agent-spec-overview.md`
+- `docs/agent-spec-development-plan.md`
+- `docs/agent-spec-core-contracts-baseline.md`
+- `docs/agent-spec-traceability.md`
+
+## Implementation References
+
+- `internal/domain/agent/orchestrator.go`
+- `internal/domain/agent/runtime_steps.go`
+- `internal/domain/agent/orchestrator_test.go`
+
+## Verification Evidence
+
+- `go test ./internal/domain/agent/...`
+- `go test ./internal/domain/tool/...`
+- `go test ./internal/domain/policy/...`

@@ -92,6 +92,10 @@ func (s *Service) Get(ctx context.Context, workspaceID, workflowID string) (*Wor
 	return s.repo.GetByID(ctx, workspaceID, workflowID)
 }
 
+func (s *Service) GetActiveByAgentDefinition(ctx context.Context, workspaceID, agentDefinitionID string) (*Workflow, error) {
+	return s.repo.GetActiveByAgentDefinition(ctx, workspaceID, agentDefinitionID)
+}
+
 func (s *Service) List(ctx context.Context, workspaceID string, input ListWorkflowsInput) ([]*Workflow, error) {
 	workflows, err := s.listBase(ctx, workspaceID, input)
 	if err != nil {

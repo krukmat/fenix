@@ -70,3 +70,54 @@ go test ./internal/api/handlers/... ./internal/api/middleware/...
 - `docs/agent-spec-phase1-quality-gates.md`
 - `docs/agent-spec-go-agents-baseline.md`
 - `docs/agent-spec-core-contracts-baseline.md`
+
+---
+
+## Implemented Diagram
+
+```mermaid
+flowchart LR
+    C1[AgentRunner]
+    C2[RunContext]
+    C3[RunnerRegistry]
+    C4[Orchestrator delegation]
+    C5[Go adapters]
+    C6[Go registration]
+    C7[New run states]
+    C8[Regression gates]
+    C1 --> C8
+    C2 --> C8
+    C3 --> C8
+    C4 --> C8
+    C5 --> C8
+    C6 --> C8
+    C7 --> C8
+```
+
+## Implemented
+
+- Phase 1 regression baseline documented and executed against the new runtime path
+- integrated test added for `RunnerRegistry -> ExecuteAgent -> real Go runner`
+- transition gates recorded for `agent`, `tool`, `policy`, `audit` and API layers
+
+## Sources of Truth
+
+- `docs/agent-spec-regression-baseline.md`
+- `docs/agent-spec-phase1-quality-gates.md`
+- `docs/agent-spec-go-agents-baseline.md`
+- `docs/agent-spec-core-contracts-baseline.md`
+
+## Implementation References
+
+- `docs/agent-spec-phase1-regression-status.md`
+- `internal/domain/agent/agents/registry_test.go`
+- `internal/domain/agent/orchestrator_test.go`
+- `internal/domain/agent/runner_test.go`
+
+## Verification Evidence
+
+- `go test ./internal/domain/agent/...`
+- `go test ./internal/domain/tool/...`
+- `go test ./internal/domain/policy/...`
+- `go test ./internal/domain/audit/...`
+- `go test ./internal/api/handlers/... ./internal/api/middleware/...`

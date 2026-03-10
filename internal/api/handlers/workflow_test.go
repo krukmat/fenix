@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
+	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
+	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
 )
 
@@ -274,6 +277,133 @@ func TestWorkflowHandler_List_InvalidStatus_Returns400(t *testing.T) {
 	}
 }
 
+func TestWorkflowHandler_Execute_Returns200(t *testing.T) {
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	insertDSLWorkflowAgent(t, db, wsID, "dsl-agent-exec")
+	insertExecutableWorkflow(t, db, wsID, "wf_exec_1", "dsl-agent-exec")
+
+	toolRegistry := setupWorkflowToolRegistry(t, db, wsID)
+	orch := agent.NewOrchestratorWithRegistry(db, agent.NewRunnerRegistry())
+	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, orch, toolRegistry, nil, nil, nil)
+
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/execute", handler.Execute)
+
+	body, _ := json.Marshal(ExecuteWorkflowRequest{
+		TriggerContext: json.RawMessage(`{"case":{"id":"case-1"}}`),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_exec_1/execute", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := contextWithWorkspaceID(req.Context(), wsID)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data map[string]json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Data["run"] == nil {
+		t.Fatalf("expected run in response: %s", rr.Body.String())
+	}
+}
+
+func TestWorkflowHandler_Execute_RejectsWorkflowWithoutAgentDefinition(t *testing.T) {
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	now := time.Now().UTC()
+	if _, err := db.Exec(`
+		INSERT INTO workflow (id, workspace_id, name, dsl_source, version, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 1, 'draft', ?, ?)
+	`, "wf_no_agent", wsID, "orphan_workflow", "WORKFLOW orphan_workflow\nON case.created\nSET case.status = \"resolved\"", now, now); err != nil {
+		t.Fatalf("insert workflow: %v", err)
+	}
+
+	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, agent.NewOrchestratorWithRegistry(db, agent.NewRunnerRegistry()), nil, nil, nil, nil)
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/execute", handler.Execute)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_no_agent/execute", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestWorkflowHandler_Execute_RejectsNonActiveWorkflow(t *testing.T) {
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	insertDSLWorkflowAgent(t, db, wsID, "dsl-agent-non-active")
+	if _, err := db.Exec(`
+		INSERT INTO workflow (id, workspace_id, agent_definition_id, name, dsl_source, version, status, created_at, updated_at)
+		VALUES (?, ?, ?, 'resolve_support_case', ?, 1, 'draft', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, "wf_exec_draft", wsID, "dsl-agent-non-active", "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\""); err != nil {
+		t.Fatalf("insert workflow: %v", err)
+	}
+
+	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, agent.NewOrchestratorWithRegistry(db, agent.NewRunnerRegistry()), nil, nil, nil, nil)
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/execute", handler.Execute)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_exec_draft/execute", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestWorkflowHandler_Update_InvalidatesDSLRunnerCache(t *testing.T) {
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	now := time.Now().UTC()
+	if _, err := db.Exec(`
+		INSERT INTO workflow (id, workspace_id, name, dsl_source, version, status, created_at, updated_at)
+		VALUES (?, ?, 'qualify_lead', ?, 1, 'draft', ?, ?)
+	`, "wf_cache_invalidate", wsID, "WORKFLOW qualify_lead\nON lead.created\nSET case.status = \"open\"", now, now); err != nil {
+		t.Fatalf("insert workflow: %v", err)
+	}
+
+	invalidator := &workflowCacheInvalidatorStub{}
+	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, nil, nil, nil, nil, invalidator)
+	r := chi.NewRouter()
+	r.Put("/workflows/{id}", handler.Update)
+
+	body, _ := json.Marshal(UpdateWorkflowRequest{
+		DSLSource: "WORKFLOW qualify_lead\nON lead.created\nNOTIFY contact WITH \"updated\"",
+	})
+	req := httptest.NewRequest(http.MethodPut, "/workflows/wf_cache_invalidate", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if len(invalidator.invalidated) != 1 || invalidator.invalidated[0] != "wf_cache_invalidate" {
+		t.Fatalf("unexpected invalidated workflows = %#v", invalidator.invalidated)
+	}
+}
+
 func withWorkflowContext(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, ctxkeys.WorkspaceID, "ws_test")
 	ctx = context.WithValue(ctx, ctxkeys.UserID, "user_test")
@@ -291,4 +421,57 @@ type workflowServiceAdapter struct{ *mockWorkflowService }
 
 func (a workflowServiceAdapter) List(ctx context.Context, workspaceID string, input workflowdomain.ListWorkflowsInput) ([]*workflowdomain.Workflow, error) {
 	return a.mockWorkflowService.ListWorkflows(ctx, workspaceID, input)
+}
+
+type workflowStubToolExecutor struct {
+	result json.RawMessage
+}
+
+type workflowCacheInvalidatorStub struct {
+	invalidated []string
+}
+
+func (s *workflowCacheInvalidatorStub) InvalidateCache(workflowID string) {
+	s.invalidated = append(s.invalidated, workflowID)
+}
+
+func (s workflowStubToolExecutor) Execute(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
+	return s.result, nil
+}
+
+func setupWorkflowToolRegistry(t *testing.T, db *sql.DB, wsID string) *tool.ToolRegistry {
+	t.Helper()
+
+	registry := tool.NewToolRegistry(db)
+	if _, err := registry.CreateToolDefinition(context.Background(), tool.CreateToolDefinitionInput{
+		WorkspaceID: wsID,
+		Name:        tool.BuiltinUpdateCase,
+		InputSchema: json.RawMessage(`{"type":"object","required":["case_id"],"properties":{"case_id":{"type":"string"},"status":{"type":"string"}},"additionalProperties":false}`),
+	}); err != nil {
+		t.Fatalf("CreateToolDefinition(update_case): %v", err)
+	}
+	if err := registry.Register(tool.BuiltinUpdateCase, workflowStubToolExecutor{result: json.RawMessage(`{"status":"updated"}`)}); err != nil {
+		t.Fatalf("Register(update_case): %v", err)
+	}
+	return registry
+}
+
+func insertDSLWorkflowAgent(t *testing.T, db *sql.DB, wsID, agentID string) {
+	t.Helper()
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+		VALUES (?, ?, ?, 'dsl', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, agentID, wsID, agentID); err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+}
+
+func insertExecutableWorkflow(t *testing.T, db *sql.DB, wsID, workflowID, agentID string) {
+	t.Helper()
+	if _, err := db.Exec(`
+		INSERT INTO workflow (id, workspace_id, agent_definition_id, name, dsl_source, version, status, created_at, updated_at)
+		VALUES (?, ?, ?, 'resolve_support_case', ?, 1, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, workflowID, wsID, agentID, "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\""); err != nil {
+		t.Fatalf("insert workflow: %v", err)
+	}
 }

@@ -1,6 +1,6 @@
 # Task F1.4 - Orchestrator Delegation via RunnerRegistry
 
-**Status**: Proposed
+**Status**: Completed
 **Phase**: AGENT_SPEC - Fase 1 Compatibility Layer
 **Depends on**: F1.2, F1.3
 **Required by**: F1.8, F3.2, F4.11
@@ -78,3 +78,45 @@ go test ./internal/domain/policy/...
 - `docs/agent-spec-design.md`
 - `docs/agent-spec-traceability.md`
 - `docs/agent-spec-regression-baseline.md`
+
+---
+
+## Implemented Diagram
+
+```mermaid
+sequenceDiagram
+    participant O as Orchestrator
+    participant DB as agent_definition
+    participant RR as RunnerRegistry
+    participant R as AgentRunner
+
+    O->>DB: load agent
+    DB-->>O: agent_type
+    O->>RR: resolve(agent_type)
+    RR-->>O: runner
+    O->>R: Run(ctx, RunContext, input)
+```
+
+## Implemented
+
+- `Orchestrator` now accepts an optional registry through `NewOrchestratorWithRegistry`
+- `ResolveRunner` and `ExecuteAgent` added for runner-based delegation
+- legacy `TriggerAgent` path preserved for compatibility during the transition
+
+## Sources of Truth
+
+- `docs/agent-spec-overview.md`
+- `docs/agent-spec-development-plan.md`
+- `docs/agent-spec-design.md`
+- `docs/agent-spec-traceability.md`
+
+## Implementation References
+
+- `internal/domain/agent/orchestrator.go`
+- `internal/domain/agent/orchestrator_test.go`
+
+## Verification Evidence
+
+- `go test ./internal/domain/agent/...`
+- `go test ./internal/domain/tool/...`
+- `go test ./internal/domain/policy/...`

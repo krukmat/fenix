@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
-	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
@@ -269,40 +268,22 @@ func executeBridgeStep(
 	step BridgeStep,
 	evalCtx map[string]any,
 ) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
-	verb := strings.ToUpper(strings.TrimSpace(step.Action.Verb))
-	switch verb {
-	case BridgeVerbSet:
-		return executeSetStep(ctx, rc, workspaceID, actorID, step, evalCtx)
-	case BridgeVerbNotify:
-		return executeNotifyStep(ctx, rc, workspaceID, actorID, step, evalCtx)
-	case BridgeVerbAgent:
-		return executeAgentStep(verb, step)
+	if err := validateBridgeStepAction(step); err != nil {
+		return nil, nil, nil, err
+	}
+	op, err := NewVerbMapper().MapBridgeStep(step, evalCtx)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("%w: %v", ErrSkillStepExecutionFailed, err)
+	}
+
+	switch op.Kind {
+	case RuntimeOperationTool:
+		return executeMappedBridgeTool(ctx, rc, workspaceID, actorID, step, op)
+	case RuntimeOperationAgent:
+		return executeMappedBridgeAgent(ctx, rc, workspaceID, actorID, step, evalCtx, op)
 	default:
-		return nil, nil, nil, fmt.Errorf("%w: step %s: unsupported verb", ErrSkillStepExecutionFailed, step.ID)
+		return nil, nil, nil, fmt.Errorf("%w: step %s: unsupported runtime operation kind", ErrSkillStepExecutionFailed, step.ID)
 	}
-}
-
-func executeSetStep(ctx context.Context, rc *RunContext, workspaceID, actorID string, step BridgeStep, evalCtx map[string]any) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
-	if err := requireArg(step, "value"); err != nil {
-		return nil, nil, nil, err
-	}
-	return executeMappedTool(ctx, rc, workspaceID, actorID, step, mapSetAction(step, evalCtx))
-}
-
-func executeNotifyStep(ctx context.Context, rc *RunContext, workspaceID, actorID string, step BridgeStep, evalCtx map[string]any) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
-	if err := requireArg(step, "message"); err != nil {
-		return nil, nil, nil, err
-	}
-	return executeMappedTool(ctx, rc, workspaceID, actorID, step, mapNotifyAction(step, evalCtx))
-}
-
-func executeAgentStep(verb string, step BridgeStep) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
-	output, err := json.Marshal(map[string]any{
-		"verb":   verb,
-		"target": step.Action.Target,
-		"result": "executed",
-	})
-	return nil, nil, output, err
 }
 
 func requireArg(step BridgeStep, key string) error {
@@ -318,6 +299,102 @@ func requireArg(step BridgeStep, key string) error {
 type mappedBridgeTool struct {
 	name   string
 	params map[string]any
+}
+
+func executeMappedBridgeTool(
+	ctx context.Context,
+	rc *RunContext,
+	workspaceID string,
+	actorID string,
+	step BridgeStep,
+	op *RuntimeOperation,
+) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
+	if op == nil || op.Kind != RuntimeOperationTool {
+		return nil, nil, nil, fmt.Errorf("%w: bridge action is not mappable", ErrSkillStepExecutionFailed)
+	}
+	return executeMappedTool(ctx, rc, workspaceID, actorID, step, mappedBridgeTool{
+		name:   op.ToolName,
+		params: op.Params,
+	})
+}
+
+func executeMappedBridgeAgent(
+	ctx context.Context,
+	rc *RunContext,
+	workspaceID string,
+	actorID string,
+	step BridgeStep,
+	evalCtx map[string]any,
+	op *RuntimeOperation,
+) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
+	if rc == nil || rc.Orchestrator == nil {
+		return nil, nil, nil, ErrSkillRunnerMissingOrchestrator
+	}
+	if rc.DB == nil {
+		return nil, nil, nil, ErrSkillRunnerMissingDB
+	}
+	if op == nil || op.Kind != RuntimeOperationAgent {
+		return nil, nil, nil, fmt.Errorf("%w: bridge action is not mappable", ErrSkillStepExecutionFailed)
+	}
+
+	target, err := resolveActiveAgentDefinition(ctx, rc.DB, workspaceID, op.AgentName)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := checkMappedAgentPolicy(ctx, rc, actorID, target); err != nil {
+		return nil, nil, nil, fmt.Errorf("%w: %v", ErrSkillStepExecutionFailed, err)
+	}
+	if rc.CallDepth >= dslAgentCallDepthLimit {
+		return nil, nil, nil, ErrDSLAgentDepthExceeded
+	}
+	if containsCall(rc.CallChain, target.ID) {
+		return nil, nil, nil, ErrDSLAgentLoopDetected
+	}
+
+	rawInputs, err := json.Marshal(op.Params)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	triggerCtx := marshalRuntimeContext(evalCtx)
+	var triggeredBy *string
+	if strings.TrimSpace(actorID) != "" && actorID != "system" {
+		triggeredBy = &actorID
+	}
+
+	subRun, err := rc.Orchestrator.ExecuteAgent(ctx, rc.WithCall(target.ID), TriggerAgentInput{
+		AgentID:        target.ID,
+		WorkspaceID:    workspaceID,
+		TriggeredBy:    triggeredBy,
+		TriggerType:    TriggerTypeManual,
+		TriggerContext: triggerCtx,
+		Inputs:         rawInputs,
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	stored, err := rc.Orchestrator.GetAgentRun(ctx, workspaceID, subRun.ID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	output, err := json.Marshal(map[string]any{
+		"agent_id": target.ID,
+		"run_id":   stored.ID,
+		"status":   stored.Status,
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	switch stored.Status {
+	case StatusFailed, StatusRejected:
+		return nil, nil, output, fmt.Errorf("%w: sub-agent %s returned %s", ErrSkillStepExecutionFailed, target.ID, stored.Status)
+	case StatusAccepted:
+		return nil, extractPendingApprovalResult(stored.Output), output, nil
+	case StatusAbstained, StatusSuccess, StatusPartial, StatusDelegated:
+		return nil, nil, output, nil
+	default:
+		return nil, nil, output, nil
+	}
 }
 
 func executeMappedTool(
@@ -384,54 +461,36 @@ func executeRegisteredTool(ctx context.Context, rc *RunContext, workspaceID stri
 	return call, nil, output, nil
 }
 
-func mapSetAction(step BridgeStep, evalCtx map[string]any) mappedBridgeTool {
-	value := step.Action.Args["value"]
-	switch strings.TrimSpace(step.Action.Target) {
-	case "case.status":
-		return mappedBridgeTool{
-			name: tool.BuiltinUpdateCase,
-			params: map[string]any{
-				"case_id": resolveEntityID(evalCtx, bridgeEntityCase),
-				"status":  value,
-			},
-		}
-	case "case.priority":
-		return mappedBridgeTool{
-			name: tool.BuiltinUpdateCase,
-			params: map[string]any{
-				"case_id":  resolveEntityID(evalCtx, bridgeEntityCase),
-				"priority": value,
-			},
-		}
+func validateBridgeStepAction(step BridgeStep) error {
+	verb := strings.ToUpper(strings.TrimSpace(step.Action.Verb))
+	switch verb {
+	case BridgeVerbSet:
+		return requireArg(step, "value")
+	case BridgeVerbNotify:
+		return requireArg(step, "message")
+	case BridgeVerbAgent:
+		return nil
 	default:
-		return mappedBridgeTool{}
+		return fmt.Errorf("%w: step %s: unsupported verb", ErrSkillStepExecutionFailed, step.ID)
 	}
 }
 
-func mapNotifyAction(step BridgeStep, evalCtx map[string]any) mappedBridgeTool {
-	message := step.Action.Args["message"]
-	switch strings.TrimSpace(step.Action.Target) {
-	case "contact", "contact.reply":
-		return mappedBridgeTool{
-			name: tool.BuiltinSendReply,
-			params: map[string]any{
-				"case_id": resolveEntityID(evalCtx, bridgeEntityCase),
-				"body":    message,
-			},
-		}
-	case "salesperson", "salesperson.task":
-		entityType, entityID := resolvePrimaryEntity(evalCtx)
-		return mappedBridgeTool{
-			name: tool.BuiltinCreateTask,
-			params: map[string]any{
-				"owner_id":    resolveOwnerID(evalCtx),
-				"title":       message,
-				"entity_type": entityType,
-				"entity_id":   entityID,
-			},
-		}
-	default:
-		return mappedBridgeTool{}
+func extractPendingApprovalResult(raw json.RawMessage) *skillApprovalResult {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return &skillApprovalResult{Action: "pending_approval"}
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return &skillApprovalResult{Action: "pending_approval"}
+	}
+	action, _ := payload["action"].(string)
+	if action == "" {
+		action = "pending_approval"
+	}
+	approvalID, _ := payload["approval_id"].(string)
+	return &skillApprovalResult{
+		ApprovalID: approvalID,
+		Action:     action,
 	}
 }
 

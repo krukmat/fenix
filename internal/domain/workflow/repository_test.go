@@ -106,6 +106,35 @@ func TestRepository_GetActiveByName(t *testing.T) {
 	}
 }
 
+func TestRepository_GetActiveByAgentDefinition(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	agentDefinitionID := "agent-dsl-1"
+	_, err := repo.Create(context.Background(), CreateInput{
+		ID:                "wf-active-def",
+		WorkspaceID:       "ws_test",
+		AgentDefinitionID: &agentDefinitionID,
+		Name:              "triage_case",
+		DSLSource:         "WORKFLOW triage_case\nON case.created\nSET case.status = \"open\"",
+		Version:           1,
+		Status:            StatusActive,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	got, err := repo.GetActiveByAgentDefinition(context.Background(), "ws_test", agentDefinitionID)
+	if err != nil {
+		t.Fatalf("GetActiveByAgentDefinition() error = %v", err)
+	}
+	if got.ID != "wf-active-def" {
+		t.Fatalf("id = %s, want wf-active-def", got.ID)
+	}
+}
+
 func TestRepository_ListByWorkspaceAndStatus(t *testing.T) {
 	t.Parallel()
 
