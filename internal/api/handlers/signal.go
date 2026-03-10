@@ -66,12 +66,7 @@ func (h *SignalHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var out []*signaldomain.Signal
-	if filters.EntityType != "" && filters.EntityID != "" {
-		out, err = h.service.GetByEntity(r.Context(), workspaceID, filters.EntityType, filters.EntityID)
-	} else {
-		out, err = h.service.List(r.Context(), workspaceID, filters)
-	}
+	out, err := fetchSignals(r.Context(), h.service, workspaceID, filters)
 	if err != nil {
 		writeSignalError(w, err)
 		return
@@ -112,6 +107,13 @@ func (h *SignalHandler) Dismiss(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func fetchSignals(ctx context.Context, svc SignalService, workspaceID string, filters signaldomain.Filters) ([]*signaldomain.Signal, error) {
+	if filters.EntityType != "" && filters.EntityID != "" {
+		return svc.GetByEntity(ctx, workspaceID, filters.EntityType, filters.EntityID)
+	}
+	return svc.List(ctx, workspaceID, filters)
 }
 
 func decodeSignalFilters(r *http.Request) (signaldomain.Filters, error) {

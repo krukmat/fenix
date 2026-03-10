@@ -180,6 +180,13 @@ func (s *Service) publishDismissed(dismissed *Signal) {
 }
 
 func validateCreateSignalInput(input CreateSignalInput) error {
+	if err := validateSignalIDFields(input); err != nil {
+		return err
+	}
+	return validateSignalConstraints(input)
+}
+
+func validateSignalIDFields(input CreateSignalInput) error {
 	if strings.TrimSpace(input.WorkspaceID) == "" {
 		return invalidSignalInput("workspace_id is required", nil)
 	}
@@ -192,17 +199,21 @@ func validateCreateSignalInput(input CreateSignalInput) error {
 	if strings.TrimSpace(input.SignalType) == "" {
 		return invalidSignalInput("signal_type is required", nil)
 	}
-	if len(trimNonEmptyStrings(input.EvidenceIDs)) == 0 {
-		return invalidSignalInput("evidence_ids requires at least one value", nil)
-	}
-	if input.Confidence < 0.0 || input.Confidence > 1.0 {
-		return invalidSignalInput("confidence must be in range [0.0, 1.0]", nil)
-	}
 	if strings.TrimSpace(input.SourceType) == "" {
 		return invalidSignalInput("source_type is required", nil)
 	}
 	if strings.TrimSpace(input.SourceID) == "" {
 		return invalidSignalInput("source_id is required", nil)
+	}
+	return nil
+}
+
+func validateSignalConstraints(input CreateSignalInput) error {
+	if len(trimNonEmptyStrings(input.EvidenceIDs)) == 0 {
+		return invalidSignalInput("evidence_ids requires at least one value", nil)
+	}
+	if input.Confidence < 0.0 || input.Confidence > 1.0 {
+		return invalidSignalInput("confidence must be in range [0.0, 1.0]", nil)
 	}
 	switch normalizeEntityType(input.EntityType) {
 	case "contact", "lead", "deal", "case":
