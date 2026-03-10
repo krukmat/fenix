@@ -232,6 +232,42 @@ func TestRepository_Delete(t *testing.T) {
 	}
 }
 
+func TestRepository_GetByNameAndVersion_NotFound(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	_, err := repo.GetByNameAndVersion(context.Background(), "ws_test", "missing", 1)
+	if !errors.Is(err, ErrWorkflowNotFound) {
+		t.Fatalf("expected ErrWorkflowNotFound, got %v", err)
+	}
+}
+
+func TestRepository_Update_NotFound(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	_, err := repo.Update(context.Background(), "ws_test", "missing-id", UpdateInput{DSLSource: "ON lead.updated", Status: StatusDraft})
+	if !errors.Is(err, ErrWorkflowNotFound) {
+		t.Fatalf("expected ErrWorkflowNotFound, got %v", err)
+	}
+}
+
+func TestRepository_Delete_NotFound(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	err := repo.Delete(context.Background(), "ws_test", "missing-id")
+	if !errors.Is(err, ErrWorkflowNotFound) {
+		t.Fatalf("expected ErrWorkflowNotFound, got %v", err)
+	}
+}
+
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 

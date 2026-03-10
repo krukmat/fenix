@@ -281,6 +281,91 @@ func TestService_Dismiss_PublishesEvent(t *testing.T) {
 	}
 }
 
+func TestService_Create_RejectsMissingSourceFields(t *testing.T) {
+	t.Parallel()
+
+	db := setupServiceDB(t)
+	svc := NewService(db)
+
+	base := CreateSignalInput{
+		WorkspaceID: "ws_test",
+		EntityType:  "lead",
+		EntityID:    "lead_1",
+		SignalType:  "intent_high",
+		Confidence:  0.9,
+		EvidenceIDs: []string{"ev-1"},
+		SourceType:  "workflow",
+		SourceID:    "wf-1",
+	}
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(*CreateSignalInput)
+	}{
+		{"empty signal_type", func(i *CreateSignalInput) { i.SignalType = "" }},
+		{"empty source_type", func(i *CreateSignalInput) { i.SourceType = "" }},
+		{"empty source_id", func(i *CreateSignalInput) { i.SourceID = "" }},
+		{"empty entity_id", func(i *CreateSignalInput) { i.EntityID = "" }},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			input := base
+			tc.mutate(&input)
+			_, err := svc.Create(context.Background(), input)
+			if !errors.Is(err, ErrInvalidSignalInput) {
+				t.Fatalf("%s: expected ErrInvalidSignalInput, got %v", tc.name, err)
+			}
+		})
+	}
+}
+
+func TestService_Create_SucceedsForContactDealCase(t *testing.T) {
+	t.Parallel()
+
+	db := setupServiceDB(t)
+	svc := NewService(db)
+
+	for _, tc := range []struct {
+		entityType string
+		entityID   string
+	}{
+		{"contact", "contact_1"},
+		{"deal", "deal_1"},
+		{"case", "case_1"},
+	} {
+		tc := tc
+		t.Run(tc.entityType, func(t *testing.T) {
+			t.Parallel()
+			_, err := svc.Create(context.Background(), CreateSignalInput{
+				WorkspaceID: "ws_test",
+				EntityType:  tc.entityType,
+				EntityID:    tc.entityID,
+				SignalType:  "test_signal",
+				Confidence:  0.8,
+				EvidenceIDs: []string{"ev-1"},
+				SourceType:  "workflow",
+				SourceID:    "wf-1",
+			})
+			if err != nil {
+				t.Fatalf("Create(%s) error = %v", tc.entityType, err)
+			}
+		})
+	}
+}
+
+func TestService_Dismiss_RejectsMissingActorID(t *testing.T) {
+	t.Parallel()
+
+	db := setupServiceDB(t)
+	svc := NewService(db)
+
+	err := svc.Dismiss(context.Background(), "ws_test", "sig-1", "")
+	if !errors.Is(err, ErrInvalidSignalInput) {
+		t.Fatalf("expected ErrInvalidSignalInput, got %v", err)
+	}
+}
+
 func setupServiceDB(t *testing.T) *sql.DB {
 	t.Helper()
 

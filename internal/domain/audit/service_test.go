@@ -1301,3 +1301,79 @@ func TestServiceHelpers_UtilityFunctions(t *testing.T) {
 		t.Fatalf("resolveAuditAction(non-approval) = %q; want tool.executed", got)
 	}
 }
+
+func TestAuditHelpers_DecisionFromMapAndPointerField(t *testing.T) {
+	// decisionFromMap: all three keys
+	if got := decisionFromMap(map[string]any{"decision": "approve"}); got != "approve" {
+		t.Fatalf("decisionFromMap(decision) = %q; want approve", got)
+	}
+	if got := decisionFromMap(map[string]any{"status": "denied"}); got != "denied" {
+		t.Fatalf("decisionFromMap(status) = %q; want denied", got)
+	}
+	if got := decisionFromMap(map[string]any{"outcome": "expired"}); got != "expired" {
+		t.Fatalf("decisionFromMap(outcome) = %q; want expired", got)
+	}
+	if got := decisionFromMap(map[string]any{"other": "x"}); got != "" {
+		t.Fatalf("decisionFromMap(no match) = %q; want empty", got)
+	}
+
+	// extractPayloadDecision with map path
+	if got := extractPayloadDecision(map[string]any{"decision": "approve"}); got != "approve" {
+		t.Fatalf("extractPayloadDecision(map) = %q; want approve", got)
+	}
+	// extractPayloadDecision with struct path
+	type approval struct {
+		Decision string
+	}
+	if got := extractPayloadDecision(approval{Decision: "deny"}); got != "deny" {
+		t.Fatalf("extractPayloadDecision(struct) = %q; want deny", got)
+	}
+	// extractPayloadDecision: non-map, non-struct
+	if got := extractPayloadDecision("plain-string"); got != "" {
+		t.Fatalf("extractPayloadDecision(string) = %q; want empty", got)
+	}
+	// extractPayloadDecision: nil pointer struct
+	var nilPtr *approval
+	if got := extractPayloadDecision(nilPtr); got != "" {
+		t.Fatalf("extractPayloadDecision(nil ptr) = %q; want empty", got)
+	}
+
+	// nonEmptyStringPtr
+	if got := nonEmptyStringPtr(""); got != nil {
+		t.Fatalf("nonEmptyStringPtr(empty) should be nil")
+	}
+	if got := nonEmptyStringPtr("hello"); got == nil || *got != "hello" {
+		t.Fatalf("nonEmptyStringPtr(hello) mismatch")
+	}
+
+	// rawMessageFromAny: all branches
+	if got := rawMessageFromAny(nil); got != nil {
+		t.Fatalf("rawMessageFromAny(nil) should be nil")
+	}
+	raw := json.RawMessage(`{"k":1}`)
+	if got := rawMessageFromAny(raw); string(got) != string(raw) {
+		t.Fatalf("rawMessageFromAny(RawMessage) mismatch")
+	}
+	b := []byte(`{"k":2}`)
+	if got := rawMessageFromAny(b); string(got) != string(b) {
+		t.Fatalf("rawMessageFromAny([]byte) mismatch")
+	}
+	s := `{"k":3}`
+	if got := rawMessageFromAny(s); string(got) != s {
+		t.Fatalf("rawMessageFromAny(string) mismatch")
+	}
+	if got := rawMessageFromAny(42); got != nil {
+		t.Fatalf("rawMessageFromAny(int/default) should be nil, got %v", got)
+	}
+
+	// resolveAuditAction: approve and expire branches
+	if got := resolveAuditAction("approval.decided", map[string]any{"decision": "approve"}); got != "approval.approved" {
+		t.Fatalf("resolveAuditAction approve = %q", got)
+	}
+	if got := resolveAuditAction("approval.decided", map[string]any{"outcome": "expire"}); got != "approval.expired" {
+		t.Fatalf("resolveAuditAction expire = %q", got)
+	}
+	if got := resolveAuditAction("approval.decided", map[string]any{}); got != "approval.decided" {
+		t.Fatalf("resolveAuditAction default = %q", got)
+	}
+}
