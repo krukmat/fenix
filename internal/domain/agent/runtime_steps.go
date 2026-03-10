@@ -29,6 +29,7 @@ const (
 	StepTypeReason           = "reason"
 	StepTypeToolCall         = "tool_call"
 	StepTypeFinalize         = "finalize"
+	StepTypeBridgeStep       = "bridge_step"
 )
 
 const maxStepRetries = 2
@@ -681,6 +682,7 @@ func nextStepStatusMap(current string) map[string]bool {
 	case StepStatusRunning:
 		return map[string]bool{
 			StepStatusSuccess:  true,
+			StepStatusSkipped:  true,
 			StepStatusFailed:   true,
 			StepStatusRetrying: true,
 		}
