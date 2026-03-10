@@ -1,17 +1,3 @@
 #!/bin/bash
-# pre-commit hook — validates AI_AGENT/AI_AGENTS is set before committing.
-#
-# Blocks the commit if neither variable is set.
-# Humans must explicitly set: export AI_AGENT="human"
-
-if [ -z "$AI_AGENTS" ] && [ -z "$AI_AGENT" ]; then
-  echo ""
-  echo "ERROR: AI_AGENT is not set."
-  echo ""
-  echo "Set it before committing:"
-  echo "  export AI_AGENT=\"human\"                          # for human commits"
-  echo "  export AI_AGENT=\"claude-sonnet-4-6\"              # for single agent"
-  echo "  export AI_AGENTS=\"orchestrator:claude-opus-4-6,coder:claude-sonnet-4-6\""
-  echo ""
-  exit 1
-fi
+# pre-commit hook — no-op. Attribution is handled by prepare-commit-msg.
+exit 0

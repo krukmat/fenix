@@ -1,18 +1,12 @@
 #!/bin/bash
-# prepare-commit-msg hook — appends AI agent attribution trailers to commit messages.
+# prepare-commit-msg hook — appends AI agent attribution to every commit.
 #
-# Single agent:
-#   export AI_AGENT="claude-sonnet-4-6"
+# Priority for agent detection:
+#   1. $AI_AGENT or $AI_AGENTS env var (set programmatically by AI tools)
+#   2. git config fenix.ai-agent (set manually via scripts/switch-agent.sh)
+#   3. "unknown" fallback
 #
-# Multiple agents (role:model, comma-separated):
-#   export AI_AGENTS="orchestrator:claude-opus-4-6,coder:claude-sonnet-4-6"
-#
-# AI_AGENTS takes precedence over AI_AGENT when both are set.
-#
-# Valid models: claude-opus-4-6 | claude-sonnet-4-6 | claude-haiku-4-5 | human
-# Valid roles:  orchestrator | coder | reviewer | worker | (any string)
-#
-# If neither variable is set, no trailers are added (fully opt-in).
+# To switch agent: bash scripts/switch-agent.sh [claude|gpt|human]
 
 COMMIT_MSG_FILE=$1
 COMMIT_SOURCE=$2
@@ -23,16 +17,23 @@ if [ "$COMMIT_SOURCE" = "merge" ] || [ "$COMMIT_SOURCE" = "squash" ]; then
 fi
 
 if [ -n "$AI_AGENTS" ]; then
+  AGENT_VALUE="$AI_AGENTS"
   echo "" >> "$COMMIT_MSG_FILE"
-  # Split by comma and emit one trailer per agent
   IFS=',' read -ra AGENTS <<< "$AI_AGENTS"
   for entry in "${AGENTS[@]}"; do
-    entry="$(echo "$entry" | xargs)"  # trim whitespace
+    entry="$(echo "$entry" | xargs)"
     echo "AI-Agent: $entry" >> "$COMMIT_MSG_FILE"
   done
   echo "AI-Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$COMMIT_MSG_FILE"
 elif [ -n "$AI_AGENT" ]; then
   echo "" >> "$COMMIT_MSG_FILE"
   echo "AI-Agent: $AI_AGENT" >> "$COMMIT_MSG_FILE"
+  echo "AI-Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$COMMIT_MSG_FILE"
+else
+  # Fallback to git config, then unknown
+  GIT_AGENT="$(git config fenix.ai-agent 2>/dev/null)"
+  AGENT="${GIT_AGENT:-unknown}"
+  echo "" >> "$COMMIT_MSG_FILE"
+  echo "AI-Agent: $AGENT" >> "$COMMIT_MSG_FILE"
   echo "AI-Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$COMMIT_MSG_FILE"
 fi

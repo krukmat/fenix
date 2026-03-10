@@ -20,7 +20,9 @@ import (
 	domaineval "github.com/matiasleandrokruk/fenix/internal/domain/eval"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
+	signaldomain "github.com/matiasleandrokruk/fenix/internal/domain/signal"
 	tooldomain "github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
 	"github.com/matiasleandrokruk/fenix/internal/infra/config"
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
@@ -121,6 +123,11 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		timelineHandler := handlers.NewTimelineHandler(crm.NewTimelineService(db))
 		reportHandler := handlers.NewReportHandler(crm.NewReportService(db))
 		auditHandler := handlers.NewAuditHandler(auditService)
+		workflowHandler := handlers.NewWorkflowHandlerWithAuthorizer(workflowdomain.NewService(db), policyEngine)
+		signalHandler := handlers.NewSignalHandlerWithAuthorizer(
+			signaldomain.NewServiceWithBus(db, signaldomain.NewRepository(db), knowledgeBus),
+			policyEngine,
+		)
 		r.Route("/leads", func(r chi.Router) {
 			r.Post("/", leadHandler.CreateLead)         // POST /api/v1/leads
 			r.Get("/", leadHandler.ListLeads)           // GET /api/v1/leads
@@ -183,6 +190,19 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Route("/timeline", func(r chi.Router) {
 			r.Get("/", timelineHandler.ListTimeline)
 			r.Get("/{entity_type}/{entity_id}", timelineHandler.ListTimelineByEntity)
+		})
+
+		r.Route("/workflows", func(r chi.Router) {
+			r.Post("/", workflowHandler.Create)
+			r.Get("/", workflowHandler.List)
+			r.Get(routeByID, workflowHandler.Get)
+			r.Put(routeByID, workflowHandler.Update)
+			r.Delete(routeByID, workflowHandler.Delete)
+		})
+
+		r.Route("/signals", func(r chi.Router) {
+			r.Get("/", signalHandler.List)
+			r.Put("/{id}/dismiss", signalHandler.Dismiss)
 		})
 
 		// Task 4.5e — FR-003: Reporting endpoints.

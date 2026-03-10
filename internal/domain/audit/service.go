@@ -592,8 +592,8 @@ func rowToAuditEvent(row sqlcgen.AuditEvent) *AuditEvent {
 		Action:             row.Action,
 		EntityType:         row.EntityType,
 		EntityID:           row.EntityID,
-		Details:            row.Details,
-		PermissionsChecked: row.PermissionsChecked,
+		Details:            rawMessageFromAny(row.Details),
+		PermissionsChecked: rawMessageFromAny(row.PermissionsChecked),
 		Outcome:            Outcome(row.Outcome),
 		TraceID:            row.TraceID,
 		IPAddress:          row.IpAddress,
@@ -613,4 +613,19 @@ func normalizeJSON(raw json.RawMessage, fallback []byte) json.RawMessage {
 		return json.RawMessage(fallback)
 	}
 	return raw
+}
+
+func rawMessageFromAny(value any) json.RawMessage {
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case json.RawMessage:
+		return v
+	case []byte:
+		return json.RawMessage(v)
+	case string:
+		return json.RawMessage(v)
+	default:
+		return nil
+	}
 }
