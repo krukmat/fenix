@@ -37,6 +37,10 @@ const (
 // emptyJSONArray is the default value for JSON array fields in a new agent run.
 const emptyJSONArray = `[]`
 
+const emptyJSONObject = `{}`
+
+const agentStatusActive = "active"
+
 // Trigger type constants
 const (
 	TriggerTypeEvent    = "event"
@@ -153,7 +157,7 @@ func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (
 	}
 
 	// Check agent is active
-	if agent.Status != "active" {
+	if agent.Status != agentStatusActive {
 		return nil, ErrAgentNotActive
 	}
 
@@ -171,7 +175,7 @@ func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (
 		RetrievedEvidenceIDs: json.RawMessage(emptyJSONArray),
 		ReasoningTrace:       json.RawMessage(emptyJSONArray),
 		ToolCalls:            json.RawMessage(emptyJSONArray),
-		Output:               json.RawMessage(`{}`),
+		Output:               json.RawMessage(emptyJSONObject),
 		TraceID:              stringPtr(uuid.NewV7().String()),
 		StartedAt:            time.Now().UTC(),
 		CreatedAt:            time.Now().UTC(),
@@ -234,7 +238,7 @@ func (o *Orchestrator) ExecuteAgent(ctx context.Context, rc *RunContext, in Trig
 	if err != nil {
 		return nil, err
 	}
-	if definition.Status != "active" {
+	if definition.Status != agentStatusActive {
 		return nil, ErrAgentNotActive
 	}
 

@@ -7,9 +7,14 @@ import (
 )
 
 var (
-	ErrBridgeWorkflowInvalid = errors.New("bridge workflow is invalid")
-	ErrBridgeStepInvalid     = errors.New("bridge step is invalid")
+	ErrBridgeWorkflowInvalid  = errors.New("bridge workflow is invalid")
+	ErrBridgeStepInvalid      = errors.New("bridge step is invalid")
 	ErrBridgeConditionInvalid = errors.New("bridge condition is invalid")
+)
+
+const (
+	fmtWrappedError       = "%w: %s"
+	fmtWrappedErrorNested = "%w: %s: %w"
 )
 
 const (
@@ -150,22 +155,20 @@ func (a BridgeAction) Validate() error {
 }
 
 func invalidBridgeWorkflow(reason string, err error) error {
-	if err == nil {
-		return fmt.Errorf("%w: %s", ErrBridgeWorkflowInvalid, reason)
-	}
-	return fmt.Errorf("%w: %s: %w", ErrBridgeWorkflowInvalid, reason, err)
+	return wrapBridgeError(ErrBridgeWorkflowInvalid, reason, err)
 }
 
 func invalidBridgeStep(reason string, err error) error {
-	if err == nil {
-		return fmt.Errorf("%w: %s", ErrBridgeStepInvalid, reason)
-	}
-	return fmt.Errorf("%w: %s: %w", ErrBridgeStepInvalid, reason, err)
+	return wrapBridgeError(ErrBridgeStepInvalid, reason, err)
 }
 
 func invalidBridgeCondition(reason string, err error) error {
+	return wrapBridgeError(ErrBridgeConditionInvalid, reason, err)
+}
+
+func wrapBridgeError(sentinel error, reason string, err error) error {
 	if err == nil {
-		return fmt.Errorf("%w: %s", ErrBridgeConditionInvalid, reason)
+		return fmt.Errorf(fmtWrappedError, sentinel, reason)
 	}
-	return fmt.Errorf("%w: %s: %w", ErrBridgeConditionInvalid, reason, err)
+	return fmt.Errorf(fmtWrappedErrorNested, sentinel, reason, err)
 }

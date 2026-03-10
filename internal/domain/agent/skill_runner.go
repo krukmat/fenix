@@ -615,8 +615,9 @@ func updateBridgeRunStep(ctx context.Context, rc *RunContext, workspaceID, stepI
 		msg := stepErr.Error()
 		errText = &msg
 	}
-	if err := updateRunStepStateTx(ctx, tx, stepID, workspaceID, status, nil, output, errText); err != nil {
-		return err
+	updateErr := updateRunStepStateTx(ctx, tx, stepID, workspaceID, status, nil, output, errText)
+	if updateErr != nil {
+		return updateErr
 	}
 	return tx.Commit()
 }
