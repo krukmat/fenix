@@ -743,7 +743,7 @@ type bridgeWorkflowEnvelope struct {
 
 func decodeBridgeWorkflowInput(raw json.RawMessage) (*BridgeWorkflow, map[string]any, error) {
 	trimmed := strings.TrimSpace(string(raw))
-	if trimmed == "" || trimmed == "null" || trimmed == "{}" {
+	if trimmed == "" || trimmed == "null" || trimmed == emptyJSONObject {
 		return nil, nil, ErrSkillDefinitionNotFound
 	}
 	if wf, err := decodeDirectWorkflow(raw); err == nil {
