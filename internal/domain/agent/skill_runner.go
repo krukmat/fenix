@@ -13,6 +13,8 @@ import (
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
+const errMsgBridgeNotMappable = "%w: bridge action is not mappable"
+
 var (
 	ErrSkillRunnerMissingOrchestrator = errors.New("skill runner requires orchestrator")
 	ErrSkillRunnerMissingDB           = errors.New("skill runner requires db")
@@ -310,7 +312,7 @@ func executeMappedBridgeTool(
 	op *RuntimeOperation,
 ) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
 	if op == nil || op.Kind != RuntimeOperationTool {
-		return nil, nil, nil, fmt.Errorf("%w: bridge action is not mappable", ErrSkillStepExecutionFailed)
+		return nil, nil, nil, fmt.Errorf(errMsgBridgeNotMappable, ErrSkillStepExecutionFailed)
 	}
 	return executeMappedTool(ctx, rc, workspaceID, actorID, step, mappedBridgeTool{
 		name:   op.ToolName,
@@ -323,7 +325,7 @@ func executeMappedBridgeAgent(
 	rc *RunContext,
 	workspaceID string,
 	actorID string,
-	step BridgeStep,
+	_ BridgeStep,
 	evalCtx map[string]any,
 	op *RuntimeOperation,
 ) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
@@ -356,7 +358,7 @@ func validateBridgeAgentContext(rc *RunContext, op *RuntimeOperation) error {
 		return ErrSkillRunnerMissingDB
 	}
 	if op == nil || op.Kind != RuntimeOperationAgent {
-		return fmt.Errorf("%w: bridge action is not mappable", ErrSkillStepExecutionFailed)
+		return fmt.Errorf(errMsgBridgeNotMappable, ErrSkillStepExecutionFailed)
 	}
 	return nil
 }
@@ -421,7 +423,7 @@ func executeMappedTool(
 	mapped mappedBridgeTool,
 ) (*ToolCall, *skillApprovalResult, json.RawMessage, error) {
 	if mapped.name == "" {
-		return nil, nil, nil, fmt.Errorf("%w: bridge action is not mappable", ErrSkillStepExecutionFailed)
+		return nil, nil, nil, fmt.Errorf(errMsgBridgeNotMappable, ErrSkillStepExecutionFailed)
 	}
 	if err := checkMappedToolPolicy(ctx, rc, actorID, mapped.name); err != nil {
 		return nil, nil, nil, err

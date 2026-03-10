@@ -73,6 +73,7 @@ type NotifyStatement struct {
 func (n *NotifyStatement) Pos() Position  { return n.Position }
 func (n *NotifyStatement) statementNode() {}
 
+//nolint:revive // AgentStatement is intentionally named in the agent package for DSL clarity
 type AgentStatement struct {
 	Name     *IdentifierExpr `json:"name"`
 	Input    Expression      `json:"input,omitempty"`

@@ -294,8 +294,8 @@ func (h *WorkflowHandler) loadAndRunWorkflow(w http.ResponseWriter, r *http.Requ
 		writeWorkflowError(w, err)
 		return nil, false
 	}
-	if err := validateWorkflowForExecution(item); err != nil {
-		writeError(w, http.StatusConflict, err.Error())
+	if vErr := validateWorkflowForExecution(item); vErr != nil {
+		writeError(w, http.StatusConflict, vErr.Error())
 		return nil, false
 	}
 	run, err := h.executeDSLWorkflow(r, workspaceID, item, req)
@@ -399,7 +399,7 @@ func decodeOptionalWorkflowExecuteBody(w http.ResponseWriter, r *http.Request, d
 
 func normalizeOptionalJSONObject(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
-		return json.RawMessage(`{}`)
+		return json.RawMessage(errEmptyJSON)
 	}
 	return raw
 }

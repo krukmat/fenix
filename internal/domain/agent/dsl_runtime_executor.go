@@ -17,7 +17,10 @@ var (
 	ErrDSLAgentPolicyDenied   = errors.New("dsl runtime agent dispatch denied by policy")
 )
 
-const dslAgentCallDepthLimit = 5
+const (
+	dslAgentCallDepthLimit  = 5
+	pendingApprovalAction = "pending_approval"
+)
 
 type dslRuntimeExecutor struct {
 	rc          *RunContext
@@ -104,7 +107,7 @@ func (e *dslRuntimeExecutor) executeToolDirect(ctx context.Context, mapped mappe
 	return RuntimeExecutionResult{Output: decodeRuntimeOutput(output)}, nil
 }
 
-func (e *dslRuntimeExecutor) executeAgentOperation(ctx context.Context, op *RuntimeOperation, evalCtx map[string]any) (RuntimeExecutionResult, error) {
+func (e *dslRuntimeExecutor) executeAgentOperation(ctx context.Context, op *RuntimeOperation, _ map[string]any) (RuntimeExecutionResult, error) {
 	if err := validateAgentExecutionContext(e.rc); err != nil {
 		return RuntimeExecutionResult{}, err
 	}
@@ -112,11 +115,11 @@ func (e *dslRuntimeExecutor) executeAgentOperation(ctx context.Context, op *Runt
 	if err != nil {
 		return RuntimeExecutionResult{}, err
 	}
-	if err := validateAgentCallAllowed(e.rc, e.actorID, target); err != nil {
-		return RuntimeExecutionResult{}, err
+	if callErr := validateAgentCallAllowed(e.rc, e.actorID, target); callErr != nil {
+		return RuntimeExecutionResult{}, callErr
 	}
-	if err := checkMappedAgentPolicy(ctx, e.rc, e.actorID, target); err != nil {
-		return RuntimeExecutionResult{}, err
+	if policyErr := checkMappedAgentPolicy(ctx, e.rc, e.actorID, target); policyErr != nil {
+		return RuntimeExecutionResult{}, policyErr
 	}
 	rawInputs, err := json.Marshal(op.Params)
 	if err != nil {
@@ -139,7 +142,7 @@ func validateAgentExecutionContext(rc *RunContext) error {
 	return nil
 }
 
-func validateAgentCallAllowed(rc *RunContext, actorID string, target *Definition) error {
+func validateAgentCallAllowed(rc *RunContext, _ string, target *Definition) error {
 	if rc.CallDepth >= dslAgentCallDepthLimit {
 		return ErrDSLAgentDepthExceeded
 	}
@@ -151,7 +154,7 @@ func validateAgentCallAllowed(rc *RunContext, actorID string, target *Definition
 
 func (e *dslRuntimeExecutor) invokeSubAgent(ctx context.Context, target *Definition, rawInputs json.RawMessage) (*Run, error) {
 	var triggeredBy *string
-	if strings.TrimSpace(e.actorID) != "" && e.actorID != "system" {
+	if strings.TrimSpace(e.actorID) != "" && e.actorID != systemActorID {
 		actorID := e.actorID
 		triggeredBy = &actorID
 	}
@@ -252,18 +255,18 @@ func containsCall(chain []string, agentID string) bool {
 
 func mergePendingApprovalMetadata(output map[string]any, raw json.RawMessage) {
 	if len(raw) == 0 || !json.Valid(raw) {
-		output["action"] = "pending_approval"
+		output["action"] = pendingApprovalAction
 		return
 	}
 	var decoded map[string]any
 	if err := json.Unmarshal(raw, &decoded); err != nil {
-		output["action"] = "pending_approval"
+		output["action"] = pendingApprovalAction
 		return
 	}
 	if action, ok := decoded["action"]; ok {
 		output["action"] = action
 	} else {
-		output["action"] = "pending_approval"
+		output["action"] = pendingApprovalAction
 	}
 	if approvalID, ok := decoded["approval_id"]; ok {
 		output["approval_id"] = approvalID

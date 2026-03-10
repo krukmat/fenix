@@ -96,7 +96,7 @@ type tracedDSLExecutor struct {
 	delegate    RuntimeOperationExecutor
 }
 
-func newTracedDSLExecutor(workspaceID, runID string, rc *RunContext, runtime *DSLRuntime, delegate RuntimeOperationExecutor) *tracedDSLExecutor {
+func newTracedDSLExecutor(workspaceID, runID string, rc *RunContext, _ *DSLRuntime, delegate RuntimeOperationExecutor) *tracedDSLExecutor {
 	return &tracedDSLExecutor{
 		workspaceID: workspaceID,
 		runID:       runID,

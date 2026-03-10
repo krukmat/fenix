@@ -24,11 +24,7 @@ func (l *Lexer) Lex() ([]Token, error) {
 		indentWidth, content := splitIndentation(rawLine)
 		trimmed := strings.TrimSpace(content)
 
-		if trimmed == "" {
-			continue
-		}
-
-		if strings.HasPrefix(trimmed, "#") {
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
 
