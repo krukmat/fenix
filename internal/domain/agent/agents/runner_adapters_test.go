@@ -105,6 +105,36 @@ func TestDecodeInsightsAgentInputUsesFallbacks(t *testing.T) {
 	}
 }
 
+func TestProspectingRunnerRunReturnsDecodeError(t *testing.T) {
+	r := &ProspectingRunner{}
+	_, err := r.Run(t.Context(), nil, agent.TriggerAgentInput{
+		Inputs: json.RawMessage(`{bad json`),
+	})
+	if err == nil {
+		t.Fatal("expected decode error, got nil")
+	}
+}
+
+func TestKBRunnerRunReturnsDecodeError(t *testing.T) {
+	r := &KBRunner{}
+	_, err := r.Run(t.Context(), nil, agent.TriggerAgentInput{
+		Inputs: json.RawMessage(`{bad json`),
+	})
+	if err == nil {
+		t.Fatal("expected decode error, got nil")
+	}
+}
+
+func TestInsightsRunnerRunReturnsDecodeError(t *testing.T) {
+	r := &InsightsRunner{}
+	_, err := r.Run(t.Context(), nil, agent.TriggerAgentInput{
+		Inputs: json.RawMessage(`{bad json`),
+	})
+	if err == nil {
+		t.Fatal("expected decode error, got nil")
+	}
+}
+
 func mustMarshalJSON(t *testing.T, v any) json.RawMessage {
 	t.Helper()
 	data, err := json.Marshal(v)

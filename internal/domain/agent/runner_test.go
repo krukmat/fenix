@@ -78,6 +78,14 @@ func TestRunContextClonePreservesDepsAndCopiesChain(t *testing.T) {
 	}
 }
 
+func TestRunContextCloneNilReceiverReturnsEmpty(t *testing.T) {
+	var rc *RunContext
+	clone := rc.Clone()
+	if clone == nil {
+		t.Fatal("Clone() on nil rc should return non-nil RunContext")
+	}
+}
+
 func TestRunContextWithCallExtendsChain(t *testing.T) {
 	original := &RunContext{
 		CallDepth: 1,

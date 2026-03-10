@@ -644,6 +644,30 @@ func TestResolveRunner_Success(t *testing.T) {
 	}
 }
 
+func TestExecuteAgent_InactiveAgent(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('def-inactive', 'ws-inactive', 'Paused Agent', 'support', 'paused')`)
+	if err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	registry := NewRunnerRegistry()
+	orch := NewOrchestratorWithRegistry(db, registry)
+	_, err = orch.ExecuteAgent(ctx, &RunContext{}, TriggerAgentInput{
+		AgentID:     "def-inactive",
+		WorkspaceID: "ws-inactive",
+		TriggerType: TriggerTypeManual,
+	})
+	if !errors.Is(err, ErrAgentNotActive) {
+		t.Fatalf("ExecuteAgent() error = %v, want %v", err, ErrAgentNotActive)
+	}
+}
+
 func TestExecuteAgent_DelegatesToRunner(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
