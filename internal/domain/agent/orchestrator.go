@@ -221,7 +221,7 @@ func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (
 }
 
 // ExecuteAgent resolves the concrete runner for an agent definition and
-// delegates execution through the shared AgentRunner contract.
+// delegates execution through the shared Runner contract.
 //
 // TriggerAgent remains unchanged in F1.4 so the current persistence flow keeps
 // working until Go agents are adapted in F1.5.
@@ -253,7 +253,7 @@ func (o *Orchestrator) ExecuteAgent(ctx context.Context, rc *RunContext, in Trig
 }
 
 // ResolveRunner looks up the runner registered for the agent definition type.
-func (o *Orchestrator) ResolveRunner(ctx context.Context, workspaceID, agentID string) (AgentRunner, error) {
+func (o *Orchestrator) ResolveRunner(ctx context.Context, workspaceID, agentID string) (Runner, error) {
 	if o.runnerRegistry == nil {
 		return nil, ErrRunnerRegistryUnset
 	}

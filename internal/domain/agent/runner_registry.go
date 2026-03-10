@@ -13,24 +13,24 @@ var (
 	ErrRunnerTypeEmpty     = errors.New("agent type is required")
 )
 
-// RunnerRegistry maps an agent_type to a concrete AgentRunner.
+// RunnerRegistry maps an agent_type to a concrete Runner.
 //
 // It stays intentionally small in F1.3 so orchestrator wiring, Go agent
 // adapters, and declarative runners can build on a stable lookup contract.
 type RunnerRegistry struct {
 	mu      sync.RWMutex
-	runners map[string]AgentRunner
+	runners map[string]Runner
 }
 
 // NewRunnerRegistry creates an empty runner registry.
 func NewRunnerRegistry() *RunnerRegistry {
 	return &RunnerRegistry{
-		runners: make(map[string]AgentRunner),
+		runners: make(map[string]Runner),
 	}
 }
 
 // Register stores a runner under a normalized agent type.
-func (r *RunnerRegistry) Register(agentType string, runner AgentRunner) error {
+func (r *RunnerRegistry) Register(agentType string, runner Runner) error {
 	if runner == nil {
 		return ErrRunnerNil
 	}
@@ -52,7 +52,7 @@ func (r *RunnerRegistry) Register(agentType string, runner AgentRunner) error {
 }
 
 // Get returns the registered runner for an agent type.
-func (r *RunnerRegistry) Get(agentType string) (AgentRunner, bool) {
+func (r *RunnerRegistry) Get(agentType string) (Runner, bool) {
 	key, err := normalizeAgentType(agentType)
 	if err != nil {
 		return nil, false
@@ -66,7 +66,7 @@ func (r *RunnerRegistry) Get(agentType string) (AgentRunner, bool) {
 }
 
 // Resolve returns a registered runner or a deterministic lookup error.
-func (r *RunnerRegistry) Resolve(agentType string) (AgentRunner, error) {
+func (r *RunnerRegistry) Resolve(agentType string) (Runner, error) {
 	runner, ok := r.Get(agentType)
 	if !ok {
 		return nil, ErrRunnerNotFound

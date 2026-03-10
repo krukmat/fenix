@@ -28,6 +28,8 @@ type KBAgentConfig struct {
 
 const kbBaseRunCostEuros = 0.02 // Task 4.5c — baseline per non-LLM KB run.
 
+const caseStatusResolved = "resolved"
+
 // KBCaseGetter abstracts case retrieval for testability.
 type KBCaseGetter interface {
 	Get(ctx context.Context, workspaceID, caseID string) (*crm.CaseTicket, error)
@@ -285,7 +287,7 @@ func (a *KBAgent) loadEligibleCase(
 }
 
 func isResolvedOrClosedCase(status string) bool {
-	return status == "resolved" || status == "closed"
+	return status == caseStatusResolved || status == "closed"
 }
 
 func resolveKBAgentUserID(ownerID string, triggeredBy *string) string {

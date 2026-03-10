@@ -30,12 +30,12 @@ type RunContext struct {
 	CallChain []string
 }
 
-// AgentRunner is the common execution contract for any runnable agent.
+// Runner is the common execution contract for any runnable agent.
 //
 // Concrete Go agents are adapted to this interface in F1.5. Future declarative
 // runners, such as DSLRunner, can implement the same contract without changing
 // orchestrator-facing execution semantics.
-type AgentRunner interface {
+type Runner interface {
 	Run(ctx context.Context, rc *RunContext, input TriggerAgentInput) (*Run, error)
 }
 

@@ -37,7 +37,7 @@ func RegisterCurrentGoRunners(registry *agent.RunnerRegistry, runners GoAgentRun
 	}
 	entries := []struct {
 		agentType string
-		runner    agent.AgentRunner
+		runner    agent.Runner
 	}{
 		{AgentTypeSupport, &SupportRunner{Agent: runners.Support}},
 		{AgentTypeProspecting, &ProspectingRunner{Agent: runners.Prospecting}},

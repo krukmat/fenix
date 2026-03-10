@@ -8,28 +8,28 @@ import (
 )
 
 func TestSupportRunnerImplementsAgentRunner(t *testing.T) {
-	var runner agent.AgentRunner = &SupportRunner{}
+	var runner agent.Runner = &SupportRunner{}
 	if runner == nil {
 		t.Fatal("expected non-nil runner adapter")
 	}
 }
 
 func TestProspectingRunnerImplementsAgentRunner(t *testing.T) {
-	var runner agent.AgentRunner = &ProspectingRunner{}
+	var runner agent.Runner = &ProspectingRunner{}
 	if runner == nil {
 		t.Fatal("expected non-nil runner adapter")
 	}
 }
 
 func TestKBRunnerImplementsAgentRunner(t *testing.T) {
-	var runner agent.AgentRunner = &KBRunner{}
+	var runner agent.Runner = &KBRunner{}
 	if runner == nil {
 		t.Fatal("expected non-nil runner adapter")
 	}
 }
 
 func TestInsightsRunnerImplementsAgentRunner(t *testing.T) {
-	var runner agent.AgentRunner = &InsightsRunner{}
+	var runner agent.Runner = &InsightsRunner{}
 	if runner == nil {
 		t.Fatal("expected non-nil runner adapter")
 	}

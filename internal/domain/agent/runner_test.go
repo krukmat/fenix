@@ -21,7 +21,7 @@ func (stubRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgentInp
 	}, nil
 }
 
-var _ AgentRunner = stubRunner{}
+var _ Runner = stubRunner{}
 
 func TestAgentRunnerContract(t *testing.T) {
 	runner := stubRunner{}

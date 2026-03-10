@@ -29,10 +29,10 @@ type InsightsRunner struct {
 }
 
 var (
-	_ agent.AgentRunner = (*SupportRunner)(nil)
-	_ agent.AgentRunner = (*ProspectingRunner)(nil)
-	_ agent.AgentRunner = (*KBRunner)(nil)
-	_ agent.AgentRunner = (*InsightsRunner)(nil)
+	_ agent.Runner = (*SupportRunner)(nil)
+	_ agent.Runner = (*ProspectingRunner)(nil)
+	_ agent.Runner = (*KBRunner)(nil)
+	_ agent.Runner = (*InsightsRunner)(nil)
 )
 
 func (r *SupportRunner) Run(ctx context.Context, rc *agent.RunContext, input agent.TriggerAgentInput) (*agent.Run, error) {
