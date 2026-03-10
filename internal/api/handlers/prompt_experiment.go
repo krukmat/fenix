@@ -47,7 +47,7 @@ func (h *PromptHandler) ListExperiments(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	experiments, err := h.service.ListPromptExperiments(r.Context(), workspaceID, agentID)
+	experiments, err := h.experiments.ListPromptExperiments(r.Context(), workspaceID, agentID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -65,7 +65,7 @@ func (h *PromptHandler) StartExperiment(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	experiment, err := h.service.StartPromptExperiment(r.Context(), input)
+	experiment, err := h.experiments.StartPromptExperiment(r.Context(), input)
 	if err != nil {
 		writePromptExperimentError(w, err)
 		return
@@ -84,7 +84,7 @@ func (h *PromptHandler) StopExperiment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	experiment, err := h.service.StopPromptExperiment(r.Context(), input)
+	experiment, err := h.experiments.StopPromptExperiment(r.Context(), input)
 	if err != nil {
 		writePromptExperimentError(w, err)
 		return

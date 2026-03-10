@@ -15,6 +15,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 )
 
+// PromptVersionService covers prompt version lifecycle operations.
 type PromptVersionService interface {
 	CreatePromptVersion(ctx context.Context, input agent.CreatePromptVersionInput) (*agent.PromptVersion, error)
 	GetActivePrompt(ctx context.Context, workspaceID, agentID string) (*agent.PromptVersion, error)
@@ -22,22 +23,27 @@ type PromptVersionService interface {
 	GetPromptVersionByID(ctx context.Context, workspaceID, promptVersionID string) (*agent.PromptVersion, error)
 	PromotePrompt(ctx context.Context, workspaceID, promptVersionID string) error
 	RollbackPrompt(ctx context.Context, workspaceID, promptVersionID string) error
+}
+
+// PromptExperimentService covers A/B experiment operations (ISP: separated from version lifecycle).
+type PromptExperimentService interface {
 	StartPromptExperiment(ctx context.Context, input agent.StartPromptExperimentInput) (*agent.PromptExperiment, error)
 	ListPromptExperiments(ctx context.Context, workspaceID, agentID string) ([]*agent.PromptExperiment, error)
 	StopPromptExperiment(ctx context.Context, input agent.StopPromptExperimentInput) (*agent.PromptExperiment, error)
 }
 
 type PromptHandler struct {
-	service PromptVersionService
-	authz   ActionAuthorizer
+	service     PromptVersionService
+	experiments PromptExperimentService
+	authz       ActionAuthorizer
 }
 
-func NewPromptHandler(service PromptVersionService) *PromptHandler {
-	return &PromptHandler{service: service}
+func NewPromptHandler(service PromptVersionService, experiments PromptExperimentService) *PromptHandler {
+	return &PromptHandler{service: service, experiments: experiments}
 }
 
-func NewPromptHandlerWithAuthorizer(service PromptVersionService, authz ActionAuthorizer) *PromptHandler {
-	return &PromptHandler{service: service, authz: authz}
+func NewPromptHandlerWithAuthorizer(service PromptVersionService, experiments PromptExperimentService, authz ActionAuthorizer) *PromptHandler {
+	return &PromptHandler{service: service, experiments: experiments, authz: authz}
 }
 
 type CreatePromptVersionRequest struct {

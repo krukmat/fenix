@@ -234,7 +234,8 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		approvalHandler := handlers.NewApprovalHandler(policy.NewApprovalService(db, auditService))
 		toolHandler := handlers.NewToolHandlerWithAuthorizer(toolRegistry, policyEngine)
 		// Task 3.9: Prompt Versioning
-		promptHandler := handlers.NewPromptHandlerWithAuthorizer(agent.NewPromptService(db, auditService), policyEngine)
+		promptSvc := agent.NewPromptService(db, auditService)
+		promptHandler := handlers.NewPromptHandlerWithAuthorizer(promptSvc, promptSvc, policyEngine)
 		copilotChatSvc := copilotdomain.NewChatService(evidenceSvc, llmProvider, policyEngine, auditService)
 		copilotChatHandler := handlers.NewCopilotChatHandler(copilotChatSvc)
 		copilotActionsSvc := copilotdomain.NewActionService(evidenceSvc, llmProvider, policyEngine, auditService)

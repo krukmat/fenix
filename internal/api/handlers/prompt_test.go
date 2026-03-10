@@ -19,15 +19,13 @@ import (
 
 type mockPromptVersionService struct {
 	versions    map[string]*agent.PromptVersion
-	experiments map[string]*agent.PromptExperiment
 	promoteErr  error
 	rollbackErr error
 }
 
 func newMockPromptVersionService() *mockPromptVersionService {
 	return &mockPromptVersionService{
-		versions:    make(map[string]*agent.PromptVersion),
-		experiments: make(map[string]*agent.PromptExperiment),
+		versions: make(map[string]*agent.PromptVersion),
 	}
 }
 
@@ -92,7 +90,15 @@ func (m *mockPromptVersionService) RollbackPrompt(_ context.Context, _, promptVe
 	return nil
 }
 
-func (m *mockPromptVersionService) StartPromptExperiment(_ context.Context, input agent.StartPromptExperimentInput) (*agent.PromptExperiment, error) {
+type mockPromptExperimentService struct {
+	experiments map[string]*agent.PromptExperiment
+}
+
+func newMockExperimentService() *mockPromptExperimentService {
+	return &mockPromptExperimentService{experiments: make(map[string]*agent.PromptExperiment)}
+}
+
+func (m *mockPromptExperimentService) StartPromptExperiment(_ context.Context, input agent.StartPromptExperimentInput) (*agent.PromptExperiment, error) {
 	experiment := &agent.PromptExperiment{
 		ID:                       "exp_1",
 		WorkspaceID:              input.WorkspaceID,
@@ -107,7 +113,7 @@ func (m *mockPromptVersionService) StartPromptExperiment(_ context.Context, inpu
 	return experiment, nil
 }
 
-func (m *mockPromptVersionService) ListPromptExperiments(_ context.Context, _, _ string) ([]*agent.PromptExperiment, error) {
+func (m *mockPromptExperimentService) ListPromptExperiments(_ context.Context, _, _ string) ([]*agent.PromptExperiment, error) {
 	var experiments []*agent.PromptExperiment
 	for _, experiment := range m.experiments {
 		experiments = append(experiments, experiment)
@@ -115,7 +121,7 @@ func (m *mockPromptVersionService) ListPromptExperiments(_ context.Context, _, _
 	return experiments, nil
 }
 
-func (m *mockPromptVersionService) StopPromptExperiment(_ context.Context, input agent.StopPromptExperimentInput) (*agent.PromptExperiment, error) {
+func (m *mockPromptExperimentService) StopPromptExperiment(_ context.Context, input agent.StopPromptExperimentInput) (*agent.PromptExperiment, error) {
 	experiment, ok := m.experiments[input.ExperimentID]
 	if !ok {
 		return nil, agent.ErrPromptExperimentNotFound
@@ -136,7 +142,7 @@ func TestListPromptsHandler_Returns200(t *testing.T) {
 		Status:            agent.PromptStatusDraft,
 		CreatedAt:         time.Now(),
 	}
-	handler := NewPromptHandler(mock)
+	handler := NewPromptHandler(mock, newMockExperimentService())
 
 	r := chi.NewRouter()
 	r.Get("/admin/prompts", handler.List)
@@ -152,7 +158,7 @@ func TestListPromptsHandler_Returns200(t *testing.T) {
 }
 
 func TestCreatePromptHandler_Returns201(t *testing.T) {
-	handler := NewPromptHandler(newMockPromptVersionService())
+	handler := NewPromptHandler(newMockPromptVersionService(), newMockExperimentService())
 
 	r := chi.NewRouter()
 	r.Post("/admin/prompts", handler.Create)
@@ -174,7 +180,7 @@ func TestCreatePromptHandler_Returns201(t *testing.T) {
 }
 
 func TestCreatePromptHandler_ReturnsBadRequestOnInvalidBody(t *testing.T) {
-	handler := NewPromptHandler(newMockPromptVersionService())
+	handler := NewPromptHandler(newMockPromptVersionService(), newMockExperimentService())
 
 	r := chi.NewRouter()
 	r.Post("/admin/prompts", handler.Create)
@@ -192,7 +198,7 @@ func TestCreatePromptHandler_ReturnsBadRequestOnInvalidBody(t *testing.T) {
 }
 
 func TestCreatePromptHandler_ReturnsBadRequestOnMissingFields(t *testing.T) {
-	handler := NewPromptHandler(newMockPromptVersionService())
+	handler := NewPromptHandler(newMockPromptVersionService(), newMockExperimentService())
 
 	r := chi.NewRouter()
 	r.Post("/admin/prompts", handler.Create)
@@ -223,7 +229,7 @@ func TestPromotePromptHandler_ReturnsConflictOnMissingEval(t *testing.T) {
 	}
 	mock.promoteErr = agent.ErrPromptPromotionEvalMissing
 
-	handler := NewPromptHandler(mock)
+	handler := NewPromptHandler(mock, newMockExperimentService())
 	r := chi.NewRouter()
 	r.Put("/admin/prompts/{id}/promote", handler.Promote)
 
@@ -238,7 +244,7 @@ func TestPromotePromptHandler_ReturnsConflictOnMissingEval(t *testing.T) {
 }
 
 func TestPromotePromptHandler_ReturnsUnauthorizedWithoutWorkspace(t *testing.T) {
-	handler := NewPromptHandler(newMockPromptVersionService())
+	handler := NewPromptHandler(newMockPromptVersionService(), newMockExperimentService())
 	r := chi.NewRouter()
 	r.Put("/admin/prompts/{id}/promote", handler.Promote)
 
@@ -252,7 +258,7 @@ func TestPromotePromptHandler_ReturnsUnauthorizedWithoutWorkspace(t *testing.T) 
 }
 
 func TestPromotePromptHandler_ReturnsBadRequestWithoutID(t *testing.T) {
-	handler := NewPromptHandler(newMockPromptVersionService())
+	handler := NewPromptHandler(newMockPromptVersionService(), newMockExperimentService())
 	r := chi.NewRouter()
 	r.Put("/admin/prompts/", handler.Promote)
 
@@ -269,7 +275,7 @@ func TestPromotePromptHandler_ReturnsBadRequestWithoutID(t *testing.T) {
 func TestPromotePromptHandler_ReturnsNotFound(t *testing.T) {
 	mock := newMockPromptVersionService()
 	mock.promoteErr = agent.ErrPromptVersionNotFound
-	handler := NewPromptHandler(mock)
+	handler := NewPromptHandler(mock, newMockExperimentService())
 	r := chi.NewRouter()
 	r.Put("/admin/prompts/{id}/promote", handler.Promote)
 
@@ -286,7 +292,7 @@ func TestPromotePromptHandler_ReturnsNotFound(t *testing.T) {
 func TestPromotePromptHandler_ReturnsInternalError(t *testing.T) {
 	mock := newMockPromptVersionService()
 	mock.promoteErr = errors.New("boom")
-	handler := NewPromptHandler(mock)
+	handler := NewPromptHandler(mock, newMockExperimentService())
 	r := chi.NewRouter()
 	r.Put("/admin/prompts/{id}/promote", handler.Promote)
 
@@ -311,7 +317,7 @@ func TestRollbackPromptHandler_UsesPromptVersionID(t *testing.T) {
 		Status:            agent.PromptStatusArchived,
 		CreatedAt:         time.Now(),
 	}
-	handler := NewPromptHandler(mock)
+	handler := NewPromptHandler(mock, newMockExperimentService())
 
 	r := chi.NewRouter()
 	r.Put("/admin/prompts/{id}/rollback", handler.Rollback)
@@ -329,7 +335,7 @@ func TestRollbackPromptHandler_UsesPromptVersionID(t *testing.T) {
 func TestRollbackPromptHandler_ReturnsConflictForInvalidRollback(t *testing.T) {
 	mock := newMockPromptVersionService()
 	mock.rollbackErr = agent.ErrPromptRollbackInvalid
-	handler := NewPromptHandler(mock)
+	handler := NewPromptHandler(mock, newMockExperimentService())
 
 	r := chi.NewRouter()
 	r.Put("/admin/prompts/{id}/rollback", handler.Rollback)
@@ -347,7 +353,7 @@ func TestRollbackPromptHandler_ReturnsConflictForInvalidRollback(t *testing.T) {
 func TestRollbackPromptHandler_ReturnsNotFound(t *testing.T) {
 	mock := newMockPromptVersionService()
 	mock.rollbackErr = agent.ErrPromptVersionNotFound
-	handler := NewPromptHandler(mock)
+	handler := NewPromptHandler(mock, newMockExperimentService())
 
 	r := chi.NewRouter()
 	r.Put("/admin/prompts/{id}/rollback", handler.Rollback)
@@ -365,7 +371,7 @@ func TestRollbackPromptHandler_ReturnsNotFound(t *testing.T) {
 func TestRollbackPromptHandler_ReturnsInternalError(t *testing.T) {
 	mock := newMockPromptVersionService()
 	mock.rollbackErr = errors.New("boom")
-	handler := NewPromptHandler(mock)
+	handler := NewPromptHandler(mock, newMockExperimentService())
 
 	r := chi.NewRouter()
 	r.Put("/admin/prompts/{id}/rollback", handler.Rollback)
@@ -381,8 +387,8 @@ func TestRollbackPromptHandler_ReturnsInternalError(t *testing.T) {
 }
 
 func TestPromptExperimentHandlers_StartListStop(t *testing.T) {
-	mock := newMockPromptVersionService()
-	handler := NewPromptHandler(mock)
+	experimentMock := newMockExperimentService()
+	handler := NewPromptHandler(newMockPromptVersionService(), experimentMock)
 
 	r := chi.NewRouter()
 	r.Get("/admin/prompts/experiments", handler.ListExperiments)
@@ -424,7 +430,7 @@ func TestPromptExperimentHandlers_StartListStop(t *testing.T) {
 }
 
 func TestPromptExperimentHandler_ReturnsBadRequestOnInvalidSplit(t *testing.T) {
-	handler := NewPromptHandler(&promptExperimentErrorService{err: agent.ErrPromptExperimentInvalidSplit})
+	handler := NewPromptHandler(newMockPromptVersionService(), &promptExperimentErrorService{err: agent.ErrPromptExperimentInvalidSplit})
 
 	r := chi.NewRouter()
 	r.Post("/admin/prompts/experiments", handler.StartExperiment)
@@ -447,7 +453,7 @@ func TestPromptExperimentHandler_ReturnsBadRequestOnInvalidSplit(t *testing.T) {
 }
 
 func TestPromptExperimentHandlers_ReturnBadRequestOnInvalidBodies(t *testing.T) {
-	handler := NewPromptHandler(newMockPromptVersionService())
+	handler := NewPromptHandler(newMockPromptVersionService(), newMockExperimentService())
 
 	r := chi.NewRouter()
 	r.Post("/admin/prompts/experiments", handler.StartExperiment)
@@ -473,7 +479,7 @@ func TestPromptExperimentHandlers_ReturnBadRequestOnInvalidBodies(t *testing.T) 
 }
 
 func TestListExperimentsHandler_ReturnsBadRequestWithoutAgentID(t *testing.T) {
-	handler := NewPromptHandler(newMockPromptVersionService())
+	handler := NewPromptHandler(newMockPromptVersionService(), newMockExperimentService())
 	r := chi.NewRouter()
 	r.Get("/admin/prompts/experiments", handler.ListExperiments)
 
@@ -488,7 +494,7 @@ func TestListExperimentsHandler_ReturnsBadRequestWithoutAgentID(t *testing.T) {
 }
 
 func TestPromptExperimentHandlers_ReturnNotFoundOnStopMissingExperiment(t *testing.T) {
-	handler := NewPromptHandler(newMockPromptVersionService())
+	handler := NewPromptHandler(newMockPromptVersionService(), newMockExperimentService())
 	r := chi.NewRouter()
 	r.Put("/admin/prompts/experiments/{id}/stop", handler.StopExperiment)
 
@@ -529,30 +535,6 @@ func TestIsPromptNotFoundError(t *testing.T) {
 
 type promptExperimentErrorService struct {
 	err error
-}
-
-func (s *promptExperimentErrorService) CreatePromptVersion(_ context.Context, _ agent.CreatePromptVersionInput) (*agent.PromptVersion, error) {
-	return nil, nil
-}
-
-func (s *promptExperimentErrorService) GetActivePrompt(_ context.Context, _, _ string) (*agent.PromptVersion, error) {
-	return nil, nil
-}
-
-func (s *promptExperimentErrorService) ListPromptVersions(_ context.Context, _, _ string) ([]*agent.PromptVersion, error) {
-	return nil, nil
-}
-
-func (s *promptExperimentErrorService) GetPromptVersionByID(_ context.Context, _, _ string) (*agent.PromptVersion, error) {
-	return nil, nil
-}
-
-func (s *promptExperimentErrorService) PromotePrompt(_ context.Context, _, _ string) error {
-	return nil
-}
-
-func (s *promptExperimentErrorService) RollbackPrompt(_ context.Context, _, _ string) error {
-	return nil
 }
 
 func (s *promptExperimentErrorService) StartPromptExperiment(_ context.Context, _ agent.StartPromptExperimentInput) (*agent.PromptExperiment, error) {
