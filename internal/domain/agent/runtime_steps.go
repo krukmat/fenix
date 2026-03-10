@@ -165,7 +165,7 @@ func applyRunStepNullables(step *RunStep, n *runStepNullable) {
 
 func isTerminalRunStatus(status string) bool {
 	switch status {
-	case StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusEscalated:
+	case StatusRejected, StatusDelegated, StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusEscalated:
 		return true
 	default:
 		return false
@@ -179,14 +179,28 @@ func validateRunTransition(current, next string) error {
 	if isTerminalRunStatus(current) {
 		return ErrInvalidRunTransition
 	}
-	if current == StatusRunning && isTerminalRunStatus(next) {
-		return nil
+
+	switch current {
+	case StatusRunning:
+		switch next {
+		case StatusAccepted:
+			return nil
+		default:
+			if isTerminalRunStatus(next) {
+				return nil
+			}
+		}
+	case StatusAccepted:
+		switch next {
+		case StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusDelegated:
+			return nil
+		}
 	}
 	return ErrInvalidRunTransition
 }
 
 func stepStatusForRun(status string) string {
-	if status == StatusFailed {
+	if status == StatusFailed || status == StatusRejected {
 		return StepStatusFailed
 	}
 	return StepStatusSuccess

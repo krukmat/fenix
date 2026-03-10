@@ -295,6 +295,83 @@ func TestUpdateAgentRunStatus_InvalidTerminalTransition(t *testing.T) {
 	}
 }
 
+func TestUpdateAgentRunStatus_AcceptsNewTerminalStates(t *testing.T) {
+	ctx := context.Background()
+
+	cases := []string{StatusRejected, StatusDelegated}
+	for _, nextStatus := range cases {
+		runDB := setupTestDB(t)
+		defer runDB.Close()
+
+		_, err := runDB.ExecContext(ctx,
+			`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+			 VALUES ('agent-f17', 'ws-f17', 'F17', 'support', 'active')`)
+		if err != nil {
+			t.Fatalf("insert definition: %v", err)
+		}
+
+		orch := NewOrchestrator(runDB)
+		run, err := orch.TriggerAgent(ctx, TriggerAgentInput{
+			AgentID:     "agent-f17",
+			WorkspaceID: "ws-f17",
+			TriggerType: TriggerTypeManual,
+		})
+		if err != nil {
+			t.Fatalf("TriggerAgent: %v", err)
+		}
+
+		updated, err := orch.UpdateAgentRunStatus(ctx, "ws-f17", run.ID, nextStatus)
+		if err != nil {
+			t.Fatalf("UpdateAgentRunStatus(%s): %v", nextStatus, err)
+		}
+		if updated.Status != nextStatus {
+			t.Fatalf("Status = %q, want %q", updated.Status, nextStatus)
+		}
+	}
+}
+
+func TestUpdateAgentRun_AcceptedThenSuccess(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('agent-accepted', 'ws-accepted', 'Accepted', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert definition: %v", err)
+	}
+
+	orch := NewOrchestrator(db)
+	run, err := orch.TriggerAgent(ctx, TriggerAgentInput{
+		AgentID:     "agent-accepted",
+		WorkspaceID: "ws-accepted",
+		TriggerType: TriggerTypeManual,
+	})
+	if err != nil {
+		t.Fatalf("TriggerAgent: %v", err)
+	}
+
+	if _, err := orch.UpdateAgentRun(ctx, "ws-accepted", run.ID, RunUpdates{
+		Status:    StatusAccepted,
+		Completed: false,
+	}); err != nil {
+		t.Fatalf("UpdateAgentRun(accepted): %v", err)
+	}
+
+	updated, err := orch.UpdateAgentRun(ctx, "ws-accepted", run.ID, RunUpdates{
+		Status:    StatusSuccess,
+		Output:    json.RawMessage(`{"ok":true}`),
+		Completed: true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateAgentRun(success): %v", err)
+	}
+	if updated.Status != StatusSuccess {
+		t.Fatalf("Status = %q, want %q", updated.Status, StatusSuccess)
+	}
+}
+
 // TestUpdateAgentRun_SynthesizesStepsForCompletedRun verifies compatibility path materializes runtime steps.
 // Traces: FR-230
 func TestUpdateAgentRun_SynthesizesStepsForCompletedRun(t *testing.T) {
@@ -518,5 +595,82 @@ func TestGetAgentDefinition_Success(t *testing.T) {
 	}
 	if def.Name != "Get Agent" {
 		t.Errorf("expected name='Get Agent', got %s", def.Name)
+	}
+}
+
+func TestResolveRunner_RegistryNotConfigured(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('def-runner', 'ws-runner', 'Runner Agent', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	orch := NewOrchestrator(db)
+	_, err = orch.ResolveRunner(ctx, "ws-runner", "def-runner")
+	if err != ErrRunnerRegistryUnset {
+		t.Fatalf("ResolveRunner() error = %v, want %v", err, ErrRunnerRegistryUnset)
+	}
+}
+
+func TestResolveRunner_Success(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('def-runner', 'ws-runner', 'Runner Agent', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	registry := NewRunnerRegistry()
+	if err := registry.Register("support", stubRunner{}); err != nil {
+		t.Fatalf("Register(): %v", err)
+	}
+
+	orch := NewOrchestratorWithRegistry(db, registry)
+	runner, err := orch.ResolveRunner(ctx, "ws-runner", "def-runner")
+	if err != nil {
+		t.Fatalf("ResolveRunner(): %v", err)
+	}
+	if runner == nil {
+		t.Fatal("ResolveRunner() returned nil runner")
+	}
+}
+
+func TestExecuteAgent_DelegatesToRunner(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('def-exec', 'ws-exec', 'Exec Agent', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	registry := NewRunnerRegistry()
+	if err := registry.Register("support", stubRunner{}); err != nil {
+		t.Fatalf("Register(): %v", err)
+	}
+
+	orch := NewOrchestratorWithRegistry(db, registry)
+	run, err := orch.ExecuteAgent(ctx, &RunContext{}, TriggerAgentInput{
+		AgentID:     "def-exec",
+		WorkspaceID: "ws-exec",
+		TriggerType: TriggerTypeManual,
+	})
+	if err != nil {
+		t.Fatalf("ExecuteAgent(): %v", err)
+	}
+	if run.DefinitionID != "def-exec" {
+		t.Fatalf("DefinitionID = %q, want %q", run.DefinitionID, "def-exec")
 	}
 }
