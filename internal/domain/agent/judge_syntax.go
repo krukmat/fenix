@@ -1,10 +1,16 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
+)
+
+const (
+	judgeViolationDSLSyntax    = "dsl_syntax_error"
+	judgeViolationDSLValidate  = "dsl_validation_error"
 )
 
 type WorkflowSyntaxValidationResult struct {
@@ -17,7 +23,7 @@ type WorkflowSyntaxValidationResult struct {
 func ValidateWorkflowDSLSyntax(workflow *workflowdomain.Workflow) *WorkflowSyntaxValidationResult {
 	if workflow == nil {
 		return failedWorkflowSyntaxValidation(newSyntaxViolation(
-			"dsl_syntax_error",
+			judgeViolationDSLSyntax,
 			"workflow is required",
 			"",
 			Position{},
@@ -25,7 +31,7 @@ func ValidateWorkflowDSLSyntax(workflow *workflowdomain.Workflow) *WorkflowSynta
 	}
 	if strings.TrimSpace(workflow.DSLSource) == "" {
 		return failedWorkflowSyntaxValidation(newSyntaxViolation(
-			"dsl_syntax_error",
+			judgeViolationDSLSyntax,
 			"dsl_source is required",
 			"workflow "+workflow.ID,
 			Position{},
@@ -36,8 +42,9 @@ func ValidateWorkflowDSLSyntax(workflow *workflowdomain.Workflow) *WorkflowSynta
 	if err != nil {
 		return failedWorkflowSyntaxValidation(mapSyntaxViolation(workflow.ID, err))
 	}
-	if err := ValidateDSLProgram(program); err != nil {
-		return failedWorkflowSyntaxValidation(mapSyntaxViolation(workflow.ID, err))
+	validateErr := ValidateDSLProgram(program)
+	if validateErr != nil {
+		return failedWorkflowSyntaxValidation(mapSyntaxViolation(workflow.ID, validateErr))
 	}
 
 	return &WorkflowSyntaxValidationResult{
@@ -47,30 +54,33 @@ func ValidateWorkflowDSLSyntax(workflow *workflowdomain.Workflow) *WorkflowSynta
 }
 
 func mapSyntaxViolation(workflowID string, err error) Violation {
-	switch e := err.(type) {
-	case SyntaxError:
-		pos := e.Position()
+	var syntaxErr SyntaxError
+	if errors.As(err, &syntaxErr) {
+		pos := syntaxErr.Position()
 		return newSyntaxViolation(
-			"dsl_syntax_error",
-			e.Message(),
+			judgeViolationDSLSyntax,
+			syntaxErr.Message(),
 			locationForSyntax(workflowID, pos),
 			pos,
 		)
-	case *DSLValidationError:
+	}
+
+	var validationErr *DSLValidationError
+	if errors.As(err, &validationErr) {
 		return newSyntaxViolation(
-			"dsl_validation_error",
-			e.Reason,
-			locationForSyntax(workflowID, e.Position),
-			e.Position,
-		)
-	default:
-		return newSyntaxViolation(
-			"dsl_syntax_error",
-			err.Error(),
-			"workflow "+workflowID,
-			Position{},
+			judgeViolationDSLValidate,
+			validationErr.Reason,
+			locationForSyntax(workflowID, validationErr.Position),
+			validationErr.Position,
 		)
 	}
+
+	return newSyntaxViolation(
+		judgeViolationDSLSyntax,
+		err.Error(),
+		"workflow "+workflowID,
+		Position{},
+	)
 }
 
 func locationForSyntax(workflowID string, pos Position) string {

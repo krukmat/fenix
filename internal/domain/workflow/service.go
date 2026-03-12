@@ -187,8 +187,9 @@ func (s *Service) Activate(ctx context.Context, workspaceID, workflowID string) 
 	if err != nil {
 		return nil, err
 	}
-	if err := s.archivePreviousActiveWorkflow(ctx, existing); err != nil {
-		return nil, err
+	archiveErr := s.archivePreviousActiveWorkflow(ctx, existing)
+	if archiveErr != nil {
+		return nil, archiveErr
 	}
 	return s.promoteWorkflowToActive(ctx, existing)
 }
