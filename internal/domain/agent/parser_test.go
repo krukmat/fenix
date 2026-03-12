@@ -119,11 +119,11 @@ func TestParseDSLRejectsReservedStatementInV0(t *testing.T) {
 func TestParserErrorMessageAndError(t *testing.T) {
 	t.Parallel()
 
-	e := &ParserError{Line: 5, Column: 2, Reason: "expected WORKFLOW declaration"}
-	if e.Message() != "expected WORKFLOW declaration" {
-		t.Fatalf("Message() = %q, want %q", e.Message(), "expected WORKFLOW declaration")
+	e := &ParserError{Line: 5, Column: 2, Reason: msgExpectedWorkflowDecl}
+	if e.Message() != msgExpectedWorkflowDecl {
+		t.Fatalf("Message() = %q, want %q", e.Message(), msgExpectedWorkflowDecl)
 	}
-	want := "parser error at line 5, column 2: expected WORKFLOW declaration"
+	want := "parser error at line 5, column 2: " + msgExpectedWorkflowDecl
 	if e.Error() != want {
 		t.Fatalf("Error() = %q, want %q", e.Error(), want)
 	}
