@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const msgExpectedWorkflowDecl = "expected WORKFLOW declaration"
+
 type Parser struct {
 	tokens []Token
 	pos    int
@@ -39,7 +41,7 @@ func (p *Parser) ParseProgram() (*Program, error) {
 }
 
 func (p *Parser) parseWorkflow() (*WorkflowDecl, error) {
-	start, err := p.expect(TokenWorkflow, "expected WORKFLOW declaration")
+	start, err := p.expect(TokenWorkflow, msgExpectedWorkflowDecl)
 	if err != nil {
 		return nil, err
 	}
