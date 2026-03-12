@@ -373,6 +373,9 @@ func setupServiceDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("failed to open test DB: %v", err)
 	}
+	// IMPORTANT: :memory: databases are per-connection in SQLite.
+	// Without this, the pool may open a second connection that sees an empty DB.
+	db.SetMaxOpenConns(1)
 	if err = isqlite.MigrateUp(db); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
