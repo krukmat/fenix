@@ -119,18 +119,26 @@ func newCoverageLabel(kind, value string) DSLCoverageLabel {
 }
 
 func normalizeCoverageTokens(value string) []string {
+	return sortedCoverageTokens(filterCoverageTokens(splitCoverageParts(normalizeCoverageValue(value))))
+}
+
+func normalizeCoverageValue(value string) string {
 	replacer := strings.NewReplacer(".", "_", "-", "_", ":", "_")
-	value = replacer.Replace(strings.ToLower(strings.TrimSpace(value)))
-	parts := strings.FieldsFunc(value, func(r rune) bool {
+	return replacer.Replace(strings.ToLower(strings.TrimSpace(value)))
+}
+
+func splitCoverageParts(value string) []string {
+	return strings.FieldsFunc(value, func(r rune) bool {
 		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9')
 	})
+}
 
+func filterCoverageTokens(parts []string) map[string]bool {
 	stop := map[string]bool{
 		"workflow": true,
 		"with":     true,
 		"agent":    true,
 	}
-
 	set := make(map[string]bool)
 	for _, part := range parts {
 		if part == "" || stop[part] {
@@ -138,7 +146,10 @@ func normalizeCoverageTokens(value string) []string {
 		}
 		set[part] = true
 	}
+	return set
+}
 
+func sortedCoverageTokens(set map[string]bool) []string {
 	out := make([]string, 0, len(set))
 	for token := range set {
 		out = append(out, token)
