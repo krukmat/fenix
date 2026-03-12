@@ -244,9 +244,9 @@ func (p *Parser) parseExpression() (Expression, error) {
 	if IsComparisonOperator(p.current().Type) {
 		operator := p.current()
 		p.advance()
-		right, err := p.parsePrimary()
-		if err != nil {
-			return nil, err
+		right, parseErr := p.parsePrimary()
+		if parseErr != nil {
+			return nil, parseErr
 		}
 		return &ComparisonExpr{
 			Left:     left,

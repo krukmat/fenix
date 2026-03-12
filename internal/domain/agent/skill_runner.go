@@ -336,8 +336,8 @@ func executeMappedBridgeAgent(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if err := validateBridgeAgentCall(ctx, rc, actorID, target); err != nil {
-		return nil, nil, nil, err
+	if callErr := validateBridgeAgentCall(ctx, rc, actorID, target); callErr != nil {
+		return nil, nil, nil, callErr
 	}
 	rawInputs, err := json.Marshal(op.Params)
 	if err != nil {
@@ -494,15 +494,15 @@ func validateBridgeStepAction(step BridgeStep) error {
 
 func extractPendingApprovalResult(raw json.RawMessage) *skillApprovalResult {
 	if len(raw) == 0 || !json.Valid(raw) {
-		return &skillApprovalResult{Action: "pending_approval"}
+		return &skillApprovalResult{Action: pendingApprovalAction}
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return &skillApprovalResult{Action: "pending_approval"}
+		return &skillApprovalResult{Action: pendingApprovalAction}
 	}
 	action, _ := payload["action"].(string)
 	if action == "" {
-		action = "pending_approval"
+		action = pendingApprovalAction
 	}
 	approvalID, _ := payload["approval_id"].(string)
 	return &skillApprovalResult{
