@@ -200,8 +200,10 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Route("/workflows", func(r chi.Router) {
 			r.Post("/", workflowHandler.Create)
 			r.Get("/", workflowHandler.List)
+			r.Post("/{id}/verify", workflowHandler.Verify)
 			r.Post("/{id}/execute", workflowHandler.Execute)
 			r.Get(routeByID, workflowHandler.Get)
+			r.Put("/{id}/activate", workflowHandler.Activate)
 			r.Put(routeByID, workflowHandler.Update)
 			r.Delete(routeByID, workflowHandler.Delete)
 		})

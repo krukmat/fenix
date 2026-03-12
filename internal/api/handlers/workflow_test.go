@@ -23,6 +23,8 @@ type mockWorkflowService struct {
 	getErr    error
 	listErr   error
 	updateErr error
+	markTestingErr error
+	markActiveErr error
 	deleteErr error
 }
 
@@ -83,6 +85,36 @@ func (m *mockWorkflowService) Update(_ context.Context, _, workflowID string, in
 	item.SpecSource = stringPtrToOptional(input.SpecSource)
 	item.UpdatedAt = time.Now().UTC()
 	return item, nil
+}
+
+func (m *mockWorkflowService) MarkTesting(_ context.Context, _, workflowID string) (*workflowdomain.Workflow, error) {
+	if m.markTestingErr != nil {
+		return nil, m.markTestingErr
+	}
+	item, ok := m.items[workflowID]
+	if !ok {
+		return nil, workflowdomain.ErrWorkflowNotFound
+	}
+	item.Status = workflowdomain.StatusTesting
+	item.UpdatedAt = time.Now().UTC()
+	return item, nil
+}
+
+func (m *mockWorkflowService) MarkActive(_ context.Context, _, workflowID string) (*workflowdomain.Workflow, error) {
+	if m.markActiveErr != nil {
+		return nil, m.markActiveErr
+	}
+	item, ok := m.items[workflowID]
+	if !ok {
+		return nil, workflowdomain.ErrWorkflowNotFound
+	}
+	item.Status = workflowdomain.StatusActive
+	item.UpdatedAt = time.Now().UTC()
+	return item, nil
+}
+
+func (m *mockWorkflowService) Activate(_ context.Context, _, workflowID string) (*workflowdomain.Workflow, error) {
+	return m.MarkActive(context.Background(), "", workflowID)
 }
 
 func (m *mockWorkflowService) DeleteDraft(_ context.Context, _, workflowID string) error {
@@ -313,6 +345,263 @@ func TestWorkflowHandler_Execute_Returns200(t *testing.T) {
 	}
 	if payload.Data["run"] == nil {
 		t.Fatalf("expected run in response: %s", rr.Body.String())
+	}
+}
+
+func TestWorkflowHandler_Verify_Returns200WithJudgeResult(t *testing.T) {
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	spec := "CONTEXT\n  system = crm\nACTORS\n  admin\nBEHAVIOR resolve_support_case\n  GIVEN a workflow\nCONSTRAINTS\n  one active per name"
+	mock.items["wf_verify_1"] = &workflowdomain.Workflow{
+		ID:          "wf_verify_1",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		SpecSource:  &spec,
+		Version:     1,
+		Status:      workflowdomain.StatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/verify", handler.Verify)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_verify_1/verify", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data agent.JudgeResult `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !payload.Data.Passed {
+		t.Fatalf("expected Passed=true, got %+v", payload.Data)
+	}
+	if mock.items["wf_verify_1"].Status != workflowdomain.StatusTesting {
+		t.Fatalf("status = %s, want %s", mock.items["wf_verify_1"].Status, workflowdomain.StatusTesting)
+	}
+}
+
+func TestWorkflowHandler_Verify_Returns200WhenJudgeFindsViolations(t *testing.T) {
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_verify_bad"] = &workflowdomain.Workflow{
+		ID:          "wf_verify_bad",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "ON case.created\nSET case.status = \"resolved\"",
+		Version:     1,
+		Status:      workflowdomain.StatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/verify", handler.Verify)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_verify_bad/verify", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data agent.JudgeResult `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Data.Passed {
+		t.Fatalf("expected Passed=false, got %+v", payload.Data)
+	}
+	if len(payload.Data.Violations) == 0 {
+		t.Fatalf("expected violations, got %+v", payload.Data)
+	}
+	if mock.items["wf_verify_bad"].Status != workflowdomain.StatusDraft {
+		t.Fatalf("status = %s, want %s", mock.items["wf_verify_bad"].Status, workflowdomain.StatusDraft)
+	}
+}
+
+func TestWorkflowHandler_Verify_Returns404WhenWorkflowMissing(t *testing.T) {
+	mock := newMockWorkflowService()
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/verify", handler.Verify)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/missing/verify", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestWorkflowHandler_Verify_DoesNotPromoteNonDraftWorkflow(t *testing.T) {
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	spec := "CONTEXT\n  system = crm\nACTORS\n  admin\nBEHAVIOR resolve_support_case\n  GIVEN a workflow\nCONSTRAINTS\n  one active per name"
+	mock.items["wf_verify_testing"] = &workflowdomain.Workflow{
+		ID:          "wf_verify_testing",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		SpecSource:  &spec,
+		Version:     1,
+		Status:      workflowdomain.StatusTesting,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/verify", handler.Verify)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_verify_testing/verify", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if mock.items["wf_verify_testing"].Status != workflowdomain.StatusTesting {
+		t.Fatalf("status = %s, want %s", mock.items["wf_verify_testing"].Status, workflowdomain.StatusTesting)
+	}
+}
+
+func TestWorkflowHandler_Activate_Returns200AndPromotesTestingWorkflow(t *testing.T) {
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	spec := "CONTEXT\n  system = crm\nACTORS\n  admin\nBEHAVIOR resolve_support_case\n  GIVEN a workflow\nCONSTRAINTS\n  one active per name"
+	mock.items["wf_activate_1"] = &workflowdomain.Workflow{
+		ID:          "wf_activate_1",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		SpecSource:  &spec,
+		Version:     1,
+		Status:      workflowdomain.StatusTesting,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	invalidator := &workflowCacheInvalidatorStub{}
+	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, invalidator)
+
+	r := chi.NewRouter()
+	r.Put("/workflows/{id}/activate", handler.Activate)
+
+	req := httptest.NewRequest(http.MethodPut, "/workflows/wf_activate_1/activate", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if mock.items["wf_activate_1"].Status != workflowdomain.StatusActive {
+		t.Fatalf("status = %s, want %s", mock.items["wf_activate_1"].Status, workflowdomain.StatusActive)
+	}
+	if len(invalidator.invalidated) != 1 || invalidator.invalidated[0] != "wf_activate_1" {
+		t.Fatalf("unexpected invalidated workflows = %#v", invalidator.invalidated)
+	}
+}
+
+func TestWorkflowHandler_Activate_ReverifyBlocksInvalidWorkflow(t *testing.T) {
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_activate_invalid"] = &workflowdomain.Workflow{
+		ID:          "wf_activate_invalid",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "ON case.created\nSET case.status = \"resolved\"",
+		Version:     1,
+		Status:      workflowdomain.StatusTesting,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	invalidator := &workflowCacheInvalidatorStub{}
+	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, invalidator)
+
+	r := chi.NewRouter()
+	r.Put("/workflows/{id}/activate", handler.Activate)
+
+	req := httptest.NewRequest(http.MethodPut, "/workflows/wf_activate_invalid/activate", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data agent.JudgeResult `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Data.Passed {
+		t.Fatalf("expected Passed=false, got %+v", payload.Data)
+	}
+	if mock.items["wf_activate_invalid"].Status != workflowdomain.StatusTesting {
+		t.Fatalf("status = %s, want %s", mock.items["wf_activate_invalid"].Status, workflowdomain.StatusTesting)
+	}
+	if len(invalidator.invalidated) != 0 {
+		t.Fatalf("expected no invalidation, got %#v", invalidator.invalidated)
+	}
+}
+
+func TestWorkflowHandler_Activate_RejectsNonTestingWorkflow(t *testing.T) {
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_activate_draft"] = &workflowdomain.Workflow{
+		ID:          "wf_activate_draft",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		Version:     1,
+		Status:      workflowdomain.StatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Put("/workflows/{id}/activate", handler.Activate)
+
+	req := httptest.NewRequest(http.MethodPut, "/workflows/wf_activate_draft/activate", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if mock.items["wf_activate_draft"].Status != workflowdomain.StatusDraft {
+		t.Fatalf("status = %s, want %s", mock.items["wf_activate_draft"].Status, workflowdomain.StatusDraft)
 	}
 }
 

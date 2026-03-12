@@ -613,3 +613,60 @@ func TestService_Rollback_RejectsWhenAnotherActiveExists(t *testing.T) {
 		t.Fatalf("expected ErrWorkflowActiveConflict, got %v", err)
 	}
 }
+
+func TestService_Activate_ArchivesPreviousActiveVersion(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+	svc := NewServiceWithRepository(repo)
+
+	for _, input := range []CreateInput{
+		{ID: "wf-active-1", WorkspaceID: "ws_test", Name: "triage_case", DSLSource: "WORKFLOW triage_case\nON case.created\nSET case.status = \"open\"", Version: 1, Status: StatusActive},
+		{ID: "wf-testing-2", WorkspaceID: "ws_test", Name: "triage_case", DSLSource: "WORKFLOW triage_case\nON case.updated\nSET case.status = \"resolved\"", Version: 2, Status: StatusTesting},
+	} {
+		if _, err := repo.Create(context.Background(), input); err != nil {
+			t.Fatalf("repo.Create(%s) error = %v", input.ID, err)
+		}
+	}
+
+	out, err := svc.Activate(context.Background(), "ws_test", "wf-testing-2")
+	if err != nil {
+		t.Fatalf("Activate() error = %v", err)
+	}
+	if out.Status != StatusActive {
+		t.Fatalf("status = %s, want %s", out.Status, StatusActive)
+	}
+
+	previous, err := svc.Get(context.Background(), "ws_test", "wf-active-1")
+	if err != nil {
+		t.Fatalf("Get(previous) error = %v", err)
+	}
+	if previous.Status != StatusArchived {
+		t.Fatalf("previous status = %s, want %s", previous.Status, StatusArchived)
+	}
+	if previous.ArchivedAt == nil {
+		t.Fatal("expected ArchivedAt on previous active workflow")
+	}
+}
+
+func TestService_Activate_RejectsNonTestingWorkflow(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	svc := NewService(db)
+
+	created, err := svc.Create(context.Background(), CreateWorkflowInput{
+		WorkspaceID: "ws_test",
+		Name:        "triage_case",
+		DSLSource:   "WORKFLOW triage_case\nON case.created\nSET case.status = \"open\"",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	_, err = svc.Activate(context.Background(), "ws_test", created.ID)
+	if !errors.Is(err, ErrInvalidStatusTransition) {
+		t.Fatalf("expected ErrInvalidStatusTransition, got %v", err)
+	}
+}

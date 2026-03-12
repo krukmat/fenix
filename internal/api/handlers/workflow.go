@@ -21,6 +21,9 @@ type WorkflowService interface {
 	Get(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
 	List(ctx context.Context, workspaceID string, input workflowdomain.ListWorkflowsInput) ([]*workflowdomain.Workflow, error)
 	Update(ctx context.Context, workspaceID, workflowID string, input workflowdomain.UpdateWorkflowInput) (*workflowdomain.Workflow, error)
+	MarkTesting(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
+	MarkActive(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
+	Activate(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
 	DeleteDraft(ctx context.Context, workspaceID, workflowID string) error
 }
 
@@ -255,6 +258,91 @@ func (h *WorkflowHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *WorkflowHandler) Verify(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "workflows.verify") {
+		return
+	}
+
+	workspaceID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, paramID)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
+		return
+	}
+
+	item, err := h.service.Get(r.Context(), workspaceID, id)
+	if err != nil {
+		writeWorkflowError(w, err)
+		return
+	}
+
+	result, err := agent.NewJudge().Verify(r.Context(), item)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if result.Passed && item.Status == workflowdomain.StatusDraft {
+		if _, err := h.service.MarkTesting(r.Context(), workspaceID, id); err != nil {
+			writeWorkflowError(w, err)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = writeJSONOr500(w, map[string]any{"data": result})
+}
+
+func (h *WorkflowHandler) Activate(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "workflows.activate") {
+		return
+	}
+
+	workspaceID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, paramID)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
+		return
+	}
+
+	item, err := h.service.Get(r.Context(), workspaceID, id)
+	if err != nil {
+		writeWorkflowError(w, err)
+		return
+	}
+	if item.Status != workflowdomain.StatusTesting {
+		writeError(w, http.StatusConflict, "workflow must be in testing to activate")
+		return
+	}
+	result, err := agent.NewJudge().Verify(r.Context(), item)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !result.Passed {
+		w.WriteHeader(http.StatusConflict)
+		_ = writeJSONOr500(w, map[string]any{"data": result})
+		return
+	}
+
+	out, err := h.service.Activate(r.Context(), workspaceID, id)
+	if err != nil {
+		writeWorkflowError(w, err)
+		return
+	}
+	h.invalidateCacheIfConfigured(id)
+
+	w.WriteHeader(http.StatusOK)
+	_ = writeJSONOr500(w, map[string]any{"data": workflowToResponse(out)})
 }
 
 func (h *WorkflowHandler) Execute(w http.ResponseWriter, r *http.Request) {

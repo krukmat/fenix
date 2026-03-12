@@ -182,6 +182,42 @@ func (s *Service) MarkActive(ctx context.Context, workspaceID, workflowID string
 	return s.SetStatus(ctx, workspaceID, workflowID, StatusActive)
 }
 
+func (s *Service) Activate(ctx context.Context, workspaceID, workflowID string) (*Workflow, error) {
+	existing, err := s.repo.GetByID(ctx, workspaceID, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	if existing.Status != StatusTesting {
+		return nil, ErrInvalidStatusTransition
+	}
+
+	active, err := s.repo.GetActiveByName(ctx, existing.WorkspaceID, existing.Name)
+	if err != nil && !errors.Is(err, ErrWorkflowNotFound) {
+		return nil, err
+	}
+	if active != nil && active.ID != existing.ID {
+		if _, err := s.repo.Update(ctx, active.WorkspaceID, active.ID, UpdateInput{
+			AgentDefinitionID: active.AgentDefinitionID,
+			Description:       active.Description,
+			DSLSource:         active.DSLSource,
+			SpecSource:        active.SpecSource,
+			Status:            StatusArchived,
+			ArchivedAt:        archivedAtForStatus(StatusArchived, active.ArchivedAt),
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	return s.repo.Update(ctx, workspaceID, workflowID, UpdateInput{
+		AgentDefinitionID: existing.AgentDefinitionID,
+		Description:       existing.Description,
+		DSLSource:         existing.DSLSource,
+		SpecSource:        existing.SpecSource,
+		Status:            StatusActive,
+		ArchivedAt:        archivedAtForStatus(StatusActive, existing.ArchivedAt),
+	})
+}
+
 func (s *Service) MarkArchived(ctx context.Context, workspaceID, workflowID string) (*Workflow, error) {
 	return s.SetStatus(ctx, workspaceID, workflowID, StatusArchived)
 }
