@@ -133,3 +133,13 @@ func TestExpressionEvaluatorRejectsNonBooleanCondition(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestExpressionEvalErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	e := &ExpressionEvalError{Position: Position{Line: 4, Column: 8}, Reason: "unsupported expression type"}
+	want := "expression evaluation error at line 4, column 8: unsupported expression type"
+	if e.Error() != want {
+		t.Fatalf("Error() = %q, want %q", e.Error(), want)
+	}
+}

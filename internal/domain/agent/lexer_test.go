@@ -113,3 +113,16 @@ func TestLexerLexRejectsInconsistentIndentation(t *testing.T) {
 		t.Fatalf("Position() = %+v, want 4:1", lexErr.Position())
 	}
 }
+
+func TestLexerErrorMessageAndError(t *testing.T) {
+	t.Parallel()
+
+	e := &LexerError{Line: 3, Column: 7, Reason: "unexpected character '!'"}
+	if e.Message() != "unexpected character '!'" {
+		t.Fatalf("Message() = %q, want %q", e.Message(), "unexpected character '!'")
+	}
+	want := "lexer error at line 3, column 7: unexpected character '!'"
+	if e.Error() != want {
+		t.Fatalf("Error() = %q, want %q", e.Error(), want)
+	}
+}

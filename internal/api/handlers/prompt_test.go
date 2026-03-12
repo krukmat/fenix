@@ -558,3 +558,12 @@ func withPromptContext(ctx context.Context) context.Context {
 func stringPtr(value string) *string {
 	return &value
 }
+
+func TestNewPromptHandlerWithAuthorizer_NotNil(t *testing.T) {
+	t.Parallel()
+
+	h := NewPromptHandlerWithAuthorizer(newMockPromptVersionService(), newMockExperimentService(), nil)
+	if h == nil {
+		t.Fatal("expected non-nil handler")
+	}
+}

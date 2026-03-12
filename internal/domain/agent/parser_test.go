@@ -115,3 +115,42 @@ func TestParseDSLRejectsReservedStatementInV0(t *testing.T) {
 		t.Fatalf("UnexpectedToken.Type = %s, want %s", parseErr.UnexpectedToken().Type, TokenWait)
 	}
 }
+
+func TestParserErrorMessageAndError(t *testing.T) {
+	t.Parallel()
+
+	e := &ParserError{Line: 5, Column: 2, Reason: "expected WORKFLOW declaration"}
+	if e.Message() != "expected WORKFLOW declaration" {
+		t.Fatalf("Message() = %q, want %q", e.Message(), "expected WORKFLOW declaration")
+	}
+	want := "parser error at line 5, column 2: expected WORKFLOW declaration"
+	if e.Error() != want {
+		t.Fatalf("Error() = %q, want %q", e.Error(), want)
+	}
+}
+
+func TestParserParsesNumberLiterals(t *testing.T) {
+	t.Parallel()
+
+	source := `WORKFLOW count_check
+ON lead.created
+SET lead.score = 42`
+	program, err := ParseDSL(source)
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
+	}
+	if len(program.Workflow.Body) != 1 {
+		t.Fatalf("body len = %d, want 1", len(program.Workflow.Body))
+	}
+	set, ok := program.Workflow.Body[0].(*SetStatement)
+	if !ok {
+		t.Fatalf("expected *SetStatement, got %T", program.Workflow.Body[0])
+	}
+	lit, ok := set.Value.(*LiteralExpr)
+	if !ok {
+		t.Fatalf("expected *LiteralExpr, got %T", set.Value)
+	}
+	if lit.Value != 42 {
+		t.Fatalf("literal value = %v, want 42", lit.Value)
+	}
+}

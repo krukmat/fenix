@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -1375,5 +1376,17 @@ func TestAuditHelpers_DecisionFromMapAndPointerField(t *testing.T) {
 	}
 	if got := resolveAuditAction(topicApprovalDecided, map[string]any{}); got != topicApprovalDecided {
 		t.Fatalf("resolveAuditAction default = %q", got)
+	}
+
+	// pointerStringFieldValue via optionalStructFieldValue with *string field.
+	type withPtrField struct {
+		Name *string
+	}
+	v := "alice"
+	if got := optionalStructFieldValue(reflect.ValueOf(withPtrField{Name: &v}), "Name"); got == nil || *got != "alice" {
+		t.Fatalf("optionalStructFieldValue(*string) = %v, want 'alice'", got)
+	}
+	if got := optionalStructFieldValue(reflect.ValueOf(withPtrField{Name: nil}), "Name"); got != nil {
+		t.Fatalf("optionalStructFieldValue(nil *string) = %v, want nil", got)
 	}
 }

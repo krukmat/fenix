@@ -179,3 +179,15 @@ func TestDSLRuntimeExecuteProgramFailsOnUnsupportedMapping(t *testing.T) {
 		t.Fatalf("statement status = %s, want %s", result.Statements[0].Status, StepStatusFailed)
 	}
 }
+
+func TestDSLRuntimeMapperAndEvaluatorAccessors(t *testing.T) {
+	t.Parallel()
+
+	rt := NewDSLRuntime()
+	if rt.Mapper() == nil {
+		t.Fatal("Mapper() returned nil")
+	}
+	if rt.Evaluator() == nil {
+		t.Fatal("Evaluator() returned nil")
+	}
+}

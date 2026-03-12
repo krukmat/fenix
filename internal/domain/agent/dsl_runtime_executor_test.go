@@ -280,3 +280,89 @@ func seedDSLRunnerRole(t *testing.T, db *sql.DB, userID string, permissions stri
 		t.Fatalf("insert user_role: %v", err)
 	}
 }
+
+func TestValidateAgentExecutionContextErrors(t *testing.T) {
+	t.Parallel()
+
+	// nil RunContext
+	if err := validateAgentExecutionContext(nil); !errors.Is(err, ErrDSLRunnerMissingOrchestrator) {
+		t.Fatalf("nil rc: err = %v, want ErrDSLRunnerMissingOrchestrator", err)
+	}
+	// nil Orchestrator
+	if err := validateAgentExecutionContext(&RunContext{}); !errors.Is(err, ErrDSLRunnerMissingOrchestrator) {
+		t.Fatalf("nil orch: err = %v, want ErrDSLRunnerMissingOrchestrator", err)
+	}
+	// nil DB
+	if err := validateAgentExecutionContext(&RunContext{Orchestrator: &Orchestrator{}}); !errors.Is(err, ErrDSLExecutorMissingDB) {
+		t.Fatalf("nil db: err = %v, want ErrDSLExecutorMissingDB", err)
+	}
+	// valid
+	if err := validateAgentExecutionContext(&RunContext{Orchestrator: &Orchestrator{}, DB: &sql.DB{}}); err != nil {
+		t.Fatalf("valid: unexpected error %v", err)
+	}
+}
+
+func TestValidateAgentCallAllowedErrors(t *testing.T) {
+	t.Parallel()
+
+	target := &Definition{ID: "agent-1"}
+
+	// call depth exceeded
+	rc := &RunContext{CallDepth: dslAgentCallDepthLimit, CallChain: []string{}}
+	if err := validateAgentCallAllowed(rc, "", target); !errors.Is(err, ErrDSLAgentDepthExceeded) {
+		t.Fatalf("depth: err = %v, want ErrDSLAgentDepthExceeded", err)
+	}
+	// loop detected
+	rc = &RunContext{CallDepth: 0, CallChain: []string{"agent-1", "agent-2"}}
+	if err := validateAgentCallAllowed(rc, "", target); !errors.Is(err, ErrDSLAgentLoopDetected) {
+		t.Fatalf("loop: err = %v, want ErrDSLAgentLoopDetected", err)
+	}
+	// valid
+	rc = &RunContext{CallDepth: 1, CallChain: []string{"agent-2"}}
+	if err := validateAgentCallAllowed(rc, "", target); err != nil {
+		t.Fatalf("valid: unexpected error %v", err)
+	}
+}
+
+func TestDecodeRuntimeOutput(t *testing.T) {
+	t.Parallel()
+
+	if got := decodeRuntimeOutput(json.RawMessage("")); got != nil {
+		t.Fatalf("empty: got %v, want nil", got)
+	}
+	if got := decodeRuntimeOutput(json.RawMessage("{invalid")); got != nil {
+		t.Fatalf("invalid: got %v, want nil", got)
+	}
+	got := decodeRuntimeOutput(json.RawMessage(`{"key":"value"}`))
+	if got == nil {
+		t.Fatal("valid: expected non-nil")
+	}
+}
+
+func TestMergePendingApprovalMetadata(t *testing.T) {
+	t.Parallel()
+
+	// empty raw → sets default action
+	out := map[string]any{}
+	mergePendingApprovalMetadata(out, json.RawMessage(""))
+	if out["action"] != pendingApprovalAction {
+		t.Fatalf("empty: action = %v, want %v", out["action"], pendingApprovalAction)
+	}
+
+	// valid JSON with action and approval_id
+	out = map[string]any{}
+	mergePendingApprovalMetadata(out, json.RawMessage(`{"action":"approve","approval_id":"app-1"}`))
+	if out["action"] != "approve" {
+		t.Fatalf("action = %v, want approve", out["action"])
+	}
+	if out["approval_id"] != "app-1" {
+		t.Fatalf("approval_id = %v, want app-1", out["approval_id"])
+	}
+
+	// valid JSON without action → default
+	out = map[string]any{}
+	mergePendingApprovalMetadata(out, json.RawMessage(`{"approval_id":"app-2"}`))
+	if out["action"] != pendingApprovalAction {
+		t.Fatalf("no action: action = %v, want %v", out["action"], pendingApprovalAction)
+	}
+}

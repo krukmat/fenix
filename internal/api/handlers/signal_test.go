@@ -242,6 +242,58 @@ func withSignalContext(ctx context.Context) context.Context {
 	return ctx
 }
 
+func TestNewSignalHandlerWithAuthorizer_NotNil(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockSignalService()
+	h := NewSignalHandlerWithAuthorizer(signalServiceAdapter{mock}, nil)
+	if h == nil {
+		t.Fatal("expected non-nil handler")
+	}
+}
+
+func TestWriteSignalError_StatusCodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err        error
+		wantStatus int
+	}{
+		{signaldomain.ErrSignalNotFound, http.StatusNotFound},
+		{signaldomain.ErrInvalidSignalInput, http.StatusUnprocessableEntity},
+		{signaldomain.ErrSignalDismissInvalid, http.StatusConflict},
+	}
+
+	for _, tc := range tests {
+		w := httptest.NewRecorder()
+		writeSignalError(w, tc.err)
+		if w.Code != tc.wantStatus {
+			t.Errorf("writeSignalError(%v): status = %d, want %d", tc.err, w.Code, tc.wantStatus)
+		}
+	}
+}
+
+func TestFormatOptionalSignalTime_NonNil(t *testing.T) {
+	t.Parallel()
+
+	ts := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	got := formatOptionalSignalTime(&ts)
+	if got == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if *got == "" {
+		t.Fatal("expected non-empty formatted time")
+	}
+}
+
+func TestSignalToResponse_Nil(t *testing.T) {
+	t.Parallel()
+
+	if signalToResponse(nil) != nil {
+		t.Fatal("expected nil response for nil input")
+	}
+}
+
 type signalServiceAdapter struct{ *mockSignalService }
 
 func (a signalServiceAdapter) List(ctx context.Context, workspaceID string, filters signaldomain.Filters) ([]*signaldomain.Signal, error) {

@@ -84,3 +84,13 @@ WAIT 48`)
 		t.Fatalf("expected ParserError, got %T", err)
 	}
 }
+
+func TestDSLValidationErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	e := &DSLValidationError{Position: Position{Line: 2, Column: 5}, Reason: "SET target must use dotted path"}
+	want := "dsl validation error at line 2, column 5: SET target must use dotted path"
+	if e.Error() != want {
+		t.Fatalf("Error() = %q, want %q", e.Error(), want)
+	}
+}

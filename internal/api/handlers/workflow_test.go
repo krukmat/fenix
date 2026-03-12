@@ -475,3 +475,56 @@ func insertExecutableWorkflow(t *testing.T, db *sql.DB, wsID, workflowID, agentI
 		t.Fatalf("insert workflow: %v", err)
 	}
 }
+
+func TestFormatOptionalWorkflowTime_NonNil(t *testing.T) {
+	t.Parallel()
+
+	ts := time.Date(2026, 2, 1, 9, 0, 0, 0, time.UTC)
+	got := formatOptionalWorkflowTime(&ts)
+	if got == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if *got == "" {
+		t.Fatal("expected non-empty formatted time")
+	}
+}
+
+func TestFormatOptionalWorkflowTime_Nil(t *testing.T) {
+	t.Parallel()
+
+	if formatOptionalWorkflowTime(nil) != nil {
+		t.Fatal("expected nil for nil input")
+	}
+}
+
+func TestNewWorkflowHandlerWithAuthorizer_NotNil(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	h := NewWorkflowHandlerWithAuthorizer(workflowServiceAdapter{mock}, nil)
+	if h == nil {
+		t.Fatal("expected non-nil handler")
+	}
+}
+
+func TestWriteWorkflowExecuteError_StatusCodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err        error
+		wantStatus int
+	}{
+		{workflowdomain.ErrWorkflowNotFound, http.StatusNotFound},
+		{agent.ErrDSLWorkflowNotFound, http.StatusNotFound},
+		{workflowdomain.ErrInvalidWorkflowInput, http.StatusUnprocessableEntity},
+		{agent.ErrInvalidTriggerType, http.StatusUnprocessableEntity},
+	}
+
+	for _, tc := range tests {
+		w := httptest.NewRecorder()
+		writeWorkflowExecuteError(w, tc.err)
+		if w.Code != tc.wantStatus {
+			t.Errorf("writeWorkflowExecuteError(%v): status = %d, want %d", tc.err, w.Code, tc.wantStatus)
+		}
+	}
+}

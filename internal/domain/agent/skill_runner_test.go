@@ -797,3 +797,136 @@ func registerSkillAgentTargets(t *testing.T, db *sql.DB, registry *RunnerRegistr
 		t.Fatalf("registry.Register(nested) error = %v", err)
 	}
 }
+
+func TestExtractPendingApprovalResult(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		raw        json.RawMessage
+		wantAction string
+		wantID     string
+	}{
+		{"empty", json.RawMessage(""), pendingApprovalAction, ""},
+		{"invalid json", json.RawMessage("{bad"), pendingApprovalAction, ""},
+		{"no action field", json.RawMessage(`{"approval_id":"app-1"}`), pendingApprovalAction, "app-1"},
+		{"empty action field", json.RawMessage(`{"action":"","approval_id":"app-2"}`), pendingApprovalAction, "app-2"},
+		{"explicit action", json.RawMessage(`{"action":"approve","approval_id":"app-3"}`), "approve", "app-3"},
+		{"action only", json.RawMessage(`{"action":"reject"}`), "reject", ""},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := extractPendingApprovalResult(tc.raw)
+			if got.Action != tc.wantAction {
+				t.Errorf("action = %q, want %q", got.Action, tc.wantAction)
+			}
+			if got.ApprovalID != tc.wantID {
+				t.Errorf("approvalID = %q, want %q", got.ApprovalID, tc.wantID)
+			}
+		})
+	}
+}
+
+func TestDecodeEnvelopeWorkflow(t *testing.T) {
+	t.Parallel()
+
+	// Invalid JSON
+	_, _, err := decodeEnvelopeWorkflow(json.RawMessage("{invalid"))
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+
+	// Nil workflow
+	_, _, err = decodeEnvelopeWorkflow(json.RawMessage(`{"bridge_workflow":null}`))
+	if !errors.Is(err, ErrSkillDefinitionNotFound) {
+		t.Fatalf("err = %v, want ErrSkillDefinitionNotFound", err)
+	}
+
+	// Valid workflow with context
+	raw := json.RawMessage(`{"bridge_workflow":{"name":"test","trigger":{"event":"case.created"},"steps":[{"id":"s1","action":{"verb":"SET","target":"case.status","args":{"value":"resolved"}}}]},"context":{"case_id":"c1"}}`)
+	wf, ctx, err := decodeEnvelopeWorkflow(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if wf == nil {
+		t.Fatal("expected non-nil workflow")
+	}
+	if ctx["case_id"] != "c1" {
+		t.Fatalf("context case_id = %v, want c1", ctx["case_id"])
+	}
+}
+
+func TestToFloat64(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  any
+		want   float64
+		wantOk bool
+	}{
+		{"float64", float64(1.5), 1.5, true},
+		{"float32", float32(2.5), float64(float32(2.5)), true},
+		{"int", int(42), 42.0, true},
+		{"int32", int32(100), 100.0, true},
+		{"int64", int64(1000), 1000.0, true},
+		{"json.Number valid", json.Number("3.14"), 3.14, true},
+		{"json.Number invalid", json.Number("bad"), 0, false},
+		{"string", "hello", 0, false},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := toFloat64(tc.input)
+			if ok != tc.wantOk {
+				t.Errorf("ok = %v, want %v", ok, tc.wantOk)
+			}
+			if ok && got != tc.want {
+				t.Errorf("value = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateBridgeAgentContextErrors(t *testing.T) {
+	t.Parallel()
+
+	// nil RunContext
+	err := validateBridgeAgentContext(nil, &RuntimeOperation{Kind: RuntimeOperationAgent})
+	if !errors.Is(err, ErrSkillRunnerMissingOrchestrator) {
+		t.Fatalf("nil rc: err = %v, want ErrSkillRunnerMissingOrchestrator", err)
+	}
+
+	// nil Orchestrator
+	err = validateBridgeAgentContext(&RunContext{}, &RuntimeOperation{Kind: RuntimeOperationAgent})
+	if !errors.Is(err, ErrSkillRunnerMissingOrchestrator) {
+		t.Fatalf("nil orch: err = %v, want ErrSkillRunnerMissingOrchestrator", err)
+	}
+
+	// nil DB
+	err = validateBridgeAgentContext(&RunContext{Orchestrator: &Orchestrator{}}, &RuntimeOperation{Kind: RuntimeOperationAgent})
+	if !errors.Is(err, ErrSkillRunnerMissingDB) {
+		t.Fatalf("nil db: err = %v, want ErrSkillRunnerMissingDB", err)
+	}
+
+	// wrong operation kind
+	err = validateBridgeAgentContext(
+		&RunContext{Orchestrator: &Orchestrator{}, DB: &sql.DB{}},
+		&RuntimeOperation{Kind: RuntimeOperationTool},
+	)
+	if err == nil {
+		t.Fatal("expected error for wrong op kind")
+	}
+
+	// valid
+	err = validateBridgeAgentContext(
+		&RunContext{Orchestrator: &Orchestrator{}, DB: &sql.DB{}},
+		&RuntimeOperation{Kind: RuntimeOperationAgent},
+	)
+	if err != nil {
+		t.Fatalf("valid: unexpected error %v", err)
+	}
+}
