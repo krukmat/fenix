@@ -526,6 +526,13 @@ type staticWorkflowResolver struct {
 	workflow *workflowdomain.Workflow
 }
 
+func (s staticWorkflowResolver) Get(_ context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error) {
+	if s.workflow == nil || s.workflow.WorkspaceID != workspaceID || s.workflow.ID != workflowID {
+		return nil, workflowdomain.ErrWorkflowNotFound
+	}
+	return s.workflow, nil
+}
+
 func (s staticWorkflowResolver) GetActiveByAgentDefinition(_ context.Context, workspaceID, agentDefinitionID string) (*workflowdomain.Workflow, error) {
 	if s.workflow == nil || s.workflow.WorkspaceID != workspaceID || s.workflow.Status != workflowdomain.StatusActive || s.workflow.AgentDefinitionID == nil || *s.workflow.AgentDefinitionID != agentDefinitionID {
 		return nil, workflowdomain.ErrWorkflowNotFound
