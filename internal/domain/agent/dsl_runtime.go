@@ -93,31 +93,36 @@ func (r *DSLRuntime) ExecuteProgramFromIndex(ctx context.Context, program *Progr
 
 func (r *DSLRuntime) executeStatements(ctx context.Context, statements []Statement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult, startIndex int, cursor *int) (bool, error) {
 	for _, stmt := range statements {
-		index := *cursor
-		*cursor++
-		if index < startIndex && shouldDescendIntoSkippedStatement(stmt) {
-			stop, err := r.executeSkippedSubtree(ctx, stmt, evalCtx, executor, out, startIndex, cursor)
-			if err != nil {
-				return false, err
-			}
-			if stop {
-				return true, nil
-			}
-			continue
-		}
-		if index < startIndex {
-			continue
-		}
-
-		stop, err := r.executeStatement(ctx, stmt, evalCtx, executor, out, startIndex, cursor)
+		stop, skip, err := r.executeStatementAtCursor(ctx, stmt, evalCtx, executor, out, startIndex, cursor)
 		if err != nil {
 			return false, err
+		}
+		if skip {
+			continue
 		}
 		if stop {
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+func (r *DSLRuntime) executeStatementAtCursor(ctx context.Context, stmt Statement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult, startIndex int, cursor *int) (bool, bool, error) {
+	index := *cursor
+	*cursor++
+	if index >= startIndex {
+		stop, err := r.executeStatement(ctx, stmt, evalCtx, executor, out, startIndex, cursor)
+		return stop, false, err
+	}
+	stop, err := r.executeSkippedStatement(ctx, stmt, evalCtx, executor, out, startIndex, cursor)
+	return stop, true, err
+}
+
+func (r *DSLRuntime) executeSkippedStatement(ctx context.Context, stmt Statement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult, startIndex int, cursor *int) (bool, error) {
+	if !shouldDescendIntoSkippedStatement(stmt) {
+		return false, nil
+	}
+	return r.executeSkippedSubtree(ctx, stmt, evalCtx, executor, out, startIndex, cursor)
 }
 
 func shouldDescendIntoSkippedStatement(stmt Statement) bool {
