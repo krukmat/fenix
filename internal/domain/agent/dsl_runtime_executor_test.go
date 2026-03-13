@@ -696,3 +696,182 @@ func TestMergePendingApprovalMetadata(t *testing.T) {
 		t.Fatalf("no action: action = %v, want %v", out["action"], pendingApprovalAction)
 	}
 }
+
+func TestDSLRuntimeExecutorSurfaceHelpers(t *testing.T) {
+	t.Parallel()
+
+	op := &RuntimeOperation{
+		Kind:   RuntimeOperationSurface,
+		Target: "case",
+		Params: map[string]any{
+			"entity":      "case",
+			"view":        "salesperson.view",
+			"value":       "review",
+			"signal_type": "surface.review",
+			"confidence":  "0.75",
+			"evidence_ids": []any{
+				"ev-1", " ", "ev-2",
+			},
+			"metadata": map[string]any{
+				"channel": "crm",
+			},
+		},
+	}
+	evalCtx := map[string]any{"case": map[string]any{"id": "case-7"}}
+
+	input, err := buildSurfaceSignalInput(op, evalCtx, "ws_dsl", "wf-1", "run-1")
+	if err != nil {
+		t.Fatalf("buildSurfaceSignalInput() error = %v", err)
+	}
+	if input.EntityType != "case" || input.EntityID != "case-7" {
+		t.Fatalf("unexpected entity = %s/%s", input.EntityType, input.EntityID)
+	}
+	if input.SignalType != "surface.review" {
+		t.Fatalf("SignalType = %q, want surface.review", input.SignalType)
+	}
+	if input.Confidence != 0.75 {
+		t.Fatalf("Confidence = %v, want 0.75", input.Confidence)
+	}
+	if len(input.EvidenceIDs) != 2 || input.EvidenceIDs[0] != "ev-1" || input.EvidenceIDs[1] != "ev-2" {
+		t.Fatalf("unexpected evidence ids = %#v", input.EvidenceIDs)
+	}
+	if got, _ := input.Metadata["view"].(string); got != "salesperson.view" {
+		t.Fatalf("metadata.view = %q, want salesperson.view", got)
+	}
+	if got, _ := input.Metadata["channel"].(string); got != "crm" {
+		t.Fatalf("metadata.channel = %q, want crm", got)
+	}
+
+	if surfaceView(op) != "salesperson.view" {
+		t.Fatalf("surfaceView() = %q", surfaceView(op))
+	}
+	if runtimeParamString(op, "view") != "salesperson.view" {
+		t.Fatalf("runtimeParamString(view) mismatch")
+	}
+	if signalType := surfaceSignalType("sales.person", map[string]any{}); signalType != "surface.sales_person" {
+		t.Fatalf("surfaceSignalType() = %q", signalType)
+	}
+	if confidence := surfaceConfidence(map[string]any{}); confidence != 1.0 {
+		t.Fatalf("surfaceConfidence default = %v, want 1.0", confidence)
+	}
+	if ids := surfaceEvidenceIDs("", map[string]any{}); len(ids) != 1 || ids[0] != "surface" {
+		t.Fatalf("surfaceEvidenceIDs default = %#v", ids)
+	}
+	if got, ok := floatValue(json.Number("1.5")); !ok || got != 1.5 {
+		t.Fatalf("floatValue(json.Number) = %v, %v", got, ok)
+	}
+	if got, ok := stringSliceValue([]string{" a ", "", "b"}); !ok || len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("stringSliceValue([]string) = %#v, %v", got, ok)
+	}
+	if trimmed := trimNonEmptyStrings([]string{" a ", "", "b "}); len(trimmed) != 2 || trimmed[0] != "a" || trimmed[1] != "b" {
+		t.Fatalf("trimNonEmptyStrings() = %#v", trimmed)
+	}
+	if got := firstNonEmpty("", "  ", "x", "y"); got != "x" {
+		t.Fatalf("firstNonEmpty() = %q, want x", got)
+	}
+}
+
+func TestDSLRuntimeExecutorDispatchAndWaitHelpers(t *testing.T) {
+	t.Parallel()
+
+	target := &Definition{ID: "agent-1", Name: "agent-one"}
+	stored := &Run{ID: "run-1", Status: StatusDelegated}
+	output := baseDispatchOutput(target, stored)
+	if output["agent_id"] != "agent-1" || output["delegated_run_id"] != "run-1" {
+		t.Fatalf("baseDispatchOutput() = %#v", output)
+	}
+
+	reason := "explicit reason"
+	if got := dispatchRejectReason(&Run{Status: StatusRejected, AbstentionReason: &reason}); got != reason {
+		t.Fatalf("dispatchRejectReason() = %q, want explicit reason", got)
+	}
+	if got := dispatchRejectReason(&Run{Status: StatusFailed}); got != "target run returned failed" {
+		t.Fatalf("dispatchRejectReason fallback = %q", got)
+	}
+	if got := dispatchRejectionCode(ErrDSLAgentLoopDetected); got != dispatchRejectLoop {
+		t.Fatalf("dispatchRejectionCode(loop) = %q", got)
+	}
+	if got := dispatchRejectionCode(ErrDSLAgentDepthExceeded); got != dispatchRejectDepth {
+		t.Fatalf("dispatchRejectionCode(depth) = %q", got)
+	}
+	if got := dispatchRejectionCode(errors.New("other")); got != "dispatch_rejected" {
+		t.Fatalf("dispatchRejectionCode(default) = %q", got)
+	}
+
+	if got, err := waitStatementDuration(&WaitStatement{Amount: 2, Unit: "hours"}); err != nil || got != 2*time.Hour {
+		t.Fatalf("waitStatementDuration(hours) = %v, %v", got, err)
+	}
+	if got, err := waitStatementDuration(&WaitStatement{Amount: 0, Unit: "hours"}); err != nil || got != 0 {
+		t.Fatalf("waitStatementDuration(zero) = %v, %v", got, err)
+	}
+	if _, err := waitStatementDuration(&WaitStatement{Amount: 1, Unit: "fortnights"}); err == nil {
+		t.Fatal("expected unsupported WAIT unit error")
+	}
+	if got, err := waitDurationMultiplier("day"); err != nil || got != 24*time.Hour {
+		t.Fatalf("waitDurationMultiplier(day) = %v, %v", got, err)
+	}
+
+	m := cloneRuntimeMap(map[string]any{"a": 1})
+	m["a"] = 2
+	if cloneRuntimeMap(nil) != nil {
+		t.Fatal("cloneRuntimeMap(nil) should be nil")
+	}
+	if containsCall([]string{"a", "b"}, "b") != true || containsCall([]string{"a"}, "c") != false {
+		t.Fatal("containsCall() mismatch")
+	}
+
+	rejected := rejectedDispatchExecutionResult(target, ErrDSLAgentLoopDetected)
+	if rejected.Status != StatusRejected || rejected.Output.(map[string]any)["reason"] != dispatchRejectLoop {
+		t.Fatalf("rejectedDispatchExecutionResult() = %#v", rejected)
+	}
+}
+
+func TestDSLRuntimeExecutorHelperCoverage(t *testing.T) {
+	t.Parallel()
+
+	if got := dispatchRejectReason(nil); got != "dispatch rejected" {
+		t.Fatalf("dispatchRejectReason(nil) = %q", got)
+	}
+	if got := dispatchRejectReason(&Run{Status: StatusRejected}); got != "target run returned rejected" {
+		t.Fatalf("dispatchRejectReason(status) = %q", got)
+	}
+	if got := stringValue(nil); got != "" {
+		t.Fatalf("stringValue(nil) = %q", got)
+	}
+	if got := stringValue(42); got != "42" {
+		t.Fatalf("stringValue(42) = %q", got)
+	}
+	if _, ok := floatValue(struct{}{}); ok {
+		t.Fatal("floatValue(struct{}) expected false")
+	}
+	if _, ok := stringSliceValue(struct{}{}); ok {
+		t.Fatal("stringSliceValue(struct{}) expected false")
+	}
+	if got := firstNonEmpty("", " ", "winner"); got != "winner" {
+		t.Fatalf("firstNonEmpty() = %q", got)
+	}
+	if got := surfaceSignalType("", map[string]any{}); got != "surface.generic" {
+		t.Fatalf("surfaceSignalType(empty) = %q", got)
+	}
+	if got := surfaceSignalType("ignored", map[string]any{"signal_type": "custom.signal"}); got != "custom.signal" {
+		t.Fatalf("surfaceSignalType(override) = %q", got)
+	}
+	if got := surfaceEvidenceIDs("", map[string]any{}); len(got) != 1 || got[0] != "surface" {
+		t.Fatalf("surfaceEvidenceIDs(default) = %#v", got)
+	}
+	if got := cloneRuntimeParams(nil); len(got) != 0 {
+		t.Fatalf("cloneRuntimeParams(nil) = %#v", got)
+	}
+	if got := decodeRuntimeOutput(json.RawMessage(`"ok"`)); got != "ok" {
+		t.Fatalf("decodeRuntimeOutput(string) = %#v", got)
+	}
+	if got := marshalRuntimeContext(nil); string(got) != emptyJSONObject {
+		t.Fatalf("marshalRuntimeContext(nil) = %s", string(got))
+	}
+	if err := checkMappedAgentPolicy(context.Background(), nil, "", nil); err != nil {
+		t.Fatalf("checkMappedAgentPolicy(nil) error = %v", err)
+	}
+	if got := cloneRuntimeMap(nil); got != nil {
+		t.Fatalf("cloneRuntimeMap(nil) = %#v", got)
+	}
+}

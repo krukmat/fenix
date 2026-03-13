@@ -175,6 +175,87 @@ func TestMCPGateway_BuildServer_PropagatesResourceProviderErrors(t *testing.T) {
 	}
 }
 
+func TestMCPGateway_ClientSessionGuardsAndPayloadValidation(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	registry := NewToolRegistry(db)
+	gateway, err := NewMCPGateway(wsID, registry, nil)
+	if err != nil {
+		t.Fatalf("NewMCPGateway() error = %v", err)
+	}
+
+	if _, err := gateway.CallTool(context.Background(), nil, "echo_tool", nil); !errors.Is(err, ErrMCPClientSession) {
+		t.Fatalf("CallTool(nil) err = %v, want ErrMCPClientSession", err)
+	}
+	if _, err := gateway.ListResources(context.Background(), nil); !errors.Is(err, ErrMCPClientSession) {
+		t.Fatalf("ListResources(nil) err = %v, want ErrMCPClientSession", err)
+	}
+	if _, err := gateway.ReadResource(context.Background(), nil, "fenix://x"); !errors.Is(err, ErrMCPClientSession) {
+		t.Fatalf("ReadResource(nil) err = %v, want ErrMCPClientSession", err)
+	}
+
+	if err := (&MCPResourcePayload{}).Validate(); !errors.Is(err, ErrMCPGatewayInvalid) {
+		t.Fatalf("Validate(empty) err = %v, want ErrMCPGatewayInvalid", err)
+	}
+	if err := (&MCPResourcePayload{URI: "fenix://ok"}).Validate(); err != nil {
+		t.Fatalf("Validate(valid) error = %v", err)
+	}
+}
+
+func TestBuildMCPToolResult_StructuredAndTextFallback(t *testing.T) {
+	t.Parallel()
+
+	structured := buildMCPToolResult(json.RawMessage(`{"ok":true,"message":"hi"}`))
+	if len(structured.Content) != 1 {
+		t.Fatalf("structured content len = %d, want 1", len(structured.Content))
+	}
+	text, ok := structured.Content[0].(*mcp.TextContent)
+	if !ok || text.Text == "" {
+		t.Fatalf("unexpected structured text content = %#v", structured.Content)
+	}
+	if structured.StructuredContent == nil {
+		t.Fatal("expected structured content")
+	}
+
+	unstructured := buildMCPToolResult(json.RawMessage(`not-json`))
+	if unstructured.StructuredContent != nil {
+		t.Fatalf("expected nil structured content, got %#v", unstructured.StructuredContent)
+	}
+}
+
+func TestMCPGateway_BuildServerAndConnectInMemory(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	registry := NewToolRegistry(db)
+
+	gateway, err := NewMCPGateway(wsID, registry, nil)
+	if err != nil {
+		t.Fatalf("NewMCPGateway() error = %v", err)
+	}
+
+	server, err := gateway.BuildServer(context.Background())
+	if err != nil {
+		t.Fatalf("BuildServer() error = %v", err)
+	}
+	if server == nil {
+		t.Fatal("BuildServer() returned nil server")
+	}
+
+	session, cleanup, err := gateway.ConnectInMemory(context.Background())
+	if err != nil {
+		t.Fatalf("ConnectInMemory() error = %v", err)
+	}
+	defer cleanup()
+
+	if _, err := gateway.ListResources(context.Background(), session); err != nil {
+		t.Fatalf("ListResources() error = %v", err)
+	}
+}
+
 func containsTool(items []*mcp.Tool, name string) bool {
 	for _, item := range items {
 		if item.Name == name {

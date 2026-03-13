@@ -338,6 +338,104 @@ func TestQueryMetricsExecutor_SalesFunnelAndInvalidMetric(t *testing.T) {
 	}
 }
 
+func TestUpdateKnowledgeItemExecutor_InvalidParamsAndMissingDB(t *testing.T) {
+	t.Parallel()
+
+	if _, err := parseUpdateKnowledgeItemParams(json.RawMessage(`{"title":"x"}`)); err == nil {
+		t.Fatal("expected missing id error")
+	}
+	if _, err := parseUpdateKnowledgeItemParams(json.RawMessage(`{"id":"k1"}`)); err == nil {
+		t.Fatal("expected missing fields error")
+	}
+	if _, err := parseUpdateKnowledgeItemParams(json.RawMessage(`{"id":`)); err == nil {
+		t.Fatal("expected invalid json error")
+	}
+
+	exec := &UpdateKnowledgeItemExecutor{}
+	if err := exec.updateKnowledgeItem(context.Background(), "ws", updateKnowledgeItemParams{ID: "k1", Title: "x"}); err == nil {
+		t.Fatal("expected db not configured error")
+	}
+}
+
+func TestQueryMetricsExecutor_HelperErrors(t *testing.T) {
+	t.Parallel()
+
+	if _, err := parseQueryMetricsParams(json.RawMessage(`{"workspace_id":"ws"}`)); err == nil {
+		t.Fatal("expected missing metric error")
+	}
+	if _, err := parseQueryMetricsParams(json.RawMessage(`{"metric":`)); err == nil {
+		t.Fatal("expected invalid json error")
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkeys.WorkspaceID, "ws-1")
+	if _, err := resolveWorkspaceID(ctx, "ws-2"); err == nil {
+		t.Fatal("expected workspace mismatch error")
+	}
+
+	exec := NewQueryMetricsExecutor(nil).(*QueryMetricsExecutor)
+	if _, err := exec.Execute(ctx, json.RawMessage(`{"metric":"sales_funnel"}`)); err == nil {
+		t.Fatal("expected db not configured error")
+	}
+
+	if normalizeDBValue([]byte("x")) != "x" {
+		t.Fatal("expected []byte to normalize to string")
+	}
+	if normalizeDBValue(1).(int) != 1 {
+		t.Fatal("expected int passthrough")
+	}
+}
+
+func TestQueryMetricsExecutor_CoversAdditionalMetrics(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	ownerID := createToolUser(t, db, wsID)
+	pipelineID, stageID := createPipelineStageForToolTest(t, db, wsID)
+
+	caseSvc := crm.NewCaseService(db)
+	if _, err := caseSvc.Create(context.Background(), crm.CreateCaseInput{
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Old backlog case",
+		Status:      "open",
+		Priority:    "high",
+	}); err != nil {
+		t.Fatalf("create backlog case: %v", err)
+	}
+	if _, err := db.ExecContext(context.Background(), `
+		UPDATE case_ticket
+		SET created_at = datetime('now', '-40 days')
+		WHERE workspace_id = ?
+	`, wsID); err != nil {
+		t.Fatalf("age backlog case: %v", err)
+	}
+	if _, err := caseSvc.Create(context.Background(), crm.CreateCaseInput{
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Resolved case",
+		Status:      "resolved",
+		Priority:    "medium",
+	}); err != nil {
+		t.Fatalf("create resolved case: %v", err)
+	}
+
+	createDealForMetrics(t, db, wsID, ownerID, pipelineID, stageID, "open", 100)
+
+	exec := NewQueryMetricsExecutor(db)
+	ctx := context.WithValue(context.Background(), ctxkeys.WorkspaceID, wsID)
+	metrics := []string{"deal_aging", "case_volume", "case_backlog", "mttr"}
+	for _, metric := range metrics {
+		out, err := exec.Execute(ctx, json.RawMessage(`{"metric":"`+metric+`","workspace_id":"`+wsID+`"}`))
+		if err != nil {
+			t.Fatalf("Execute(%s) error = %v", metric, err)
+		}
+		if len(out) == 0 {
+			t.Fatalf("expected non-empty output for %s", metric)
+		}
+	}
+}
+
 func createPipelineStageForToolTest(t *testing.T, db *sql.DB, workspaceID string) (string, string) {
 	t.Helper()
 	pipelineID := "pipeline-tool-" + randID()

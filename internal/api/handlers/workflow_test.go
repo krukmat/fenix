@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -815,5 +816,262 @@ func TestWriteWorkflowExecuteError_StatusCodes(t *testing.T) {
 		if w.Code != tc.wantStatus {
 			t.Errorf("writeWorkflowExecuteError(%v): status = %d, want %d", tc.err, w.Code, tc.wantStatus)
 		}
+	}
+}
+
+func TestDecodeWorkflowListInput_ParsesNameAndStatus(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodGet, "/workflows?name=pilot&status=active", nil)
+	input, err := decodeWorkflowListInput(req)
+	if err != nil {
+		t.Fatalf("decodeWorkflowListInput() error = %v", err)
+	}
+	if input.Name != "pilot" {
+		t.Fatalf("Name = %q, want pilot", input.Name)
+	}
+	if input.Status == nil || *input.Status != workflowdomain.StatusActive {
+		t.Fatalf("Status = %#v, want active", input.Status)
+	}
+}
+
+func TestDecodeWorkflowListInput_InvalidStatus(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodGet, "/workflows?status=weird", nil)
+	if _, err := decodeWorkflowListInput(req); err == nil {
+		t.Fatal("decodeWorkflowListInput() expected error")
+	}
+}
+
+func TestDecodeOptionalWorkflowExecuteBodyAndNormalize(t *testing.T) {
+	t.Parallel()
+
+	var reqBody ExecuteWorkflowRequest
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf/execute", nil)
+	rr := httptest.NewRecorder()
+	if !decodeOptionalWorkflowExecuteBody(rr, req, &reqBody) {
+		t.Fatal("decodeOptionalWorkflowExecuteBody(nil body) expected true")
+	}
+	if got := normalizeOptionalJSONObject(nil); string(got) != errEmptyJSON {
+		t.Fatalf("normalizeOptionalJSONObject(nil) = %s", string(got))
+	}
+	if got := normalizeOptionalJSONObject(json.RawMessage(`{"x":1}`)); string(got) != `{"x":1}` {
+		t.Fatalf("normalizeOptionalJSONObject(raw) = %s", string(got))
+	}
+}
+
+func TestStaticWorkflowResolverAndWorkflowToResponse(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+	agentID := "agent-1"
+	parentID := "parent-1"
+	createdBy := "user-1"
+	item := &workflowdomain.Workflow{
+		ID:                "wf-1",
+		WorkspaceID:       "ws-1",
+		AgentDefinitionID: &agentID,
+		ParentVersionID:   &parentID,
+		Name:              "qualify_lead",
+		Description:       testStringPtr("desc"),
+		DSLSource:         "WORKFLOW qualify_lead\nON lead.created\nSET case.status = \"open\"",
+		SpecSource:        testStringPtr("spec"),
+		Version:           2,
+		Status:            workflowdomain.StatusActive,
+		CreatedByUserID:   &createdBy,
+		ArchivedAt:        &now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	resolver := staticWorkflowResolver{workflow: item}
+	got, err := resolver.Get(context.Background(), "ws-1", "wf-1")
+	if err != nil || got.ID != "wf-1" {
+		t.Fatalf("Get() = %#v, %v", got, err)
+	}
+	got, err = resolver.GetActiveByAgentDefinition(context.Background(), "ws-1", "agent-1")
+	if err != nil || got.ID != "wf-1" {
+		t.Fatalf("GetActiveByAgentDefinition() = %#v, %v", got, err)
+	}
+	if _, err := resolver.Get(context.Background(), "ws-2", "wf-1"); !errors.Is(err, workflowdomain.ErrWorkflowNotFound) {
+		t.Fatalf("Get(mismatch) err = %v", err)
+	}
+
+	resp := workflowToResponse(item)
+	if resp == nil || resp.ID != "wf-1" || resp.Status != string(workflowdomain.StatusActive) {
+		t.Fatalf("workflowToResponse() = %#v", resp)
+	}
+	if workflowToResponse(nil) != nil {
+		t.Fatal("workflowToResponse(nil) expected nil")
+	}
+}
+
+func TestWriteWorkflowErrorAndValidateExecution(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err        error
+		wantStatus int
+	}{
+		{workflowdomain.ErrWorkflowNotFound, http.StatusNotFound},
+		{workflowdomain.ErrInvalidWorkflowInput, http.StatusUnprocessableEntity},
+		{workflowdomain.ErrWorkflowNameConflict, http.StatusConflict},
+		{errors.New("boom"), http.StatusInternalServerError},
+	}
+	for _, tc := range tests {
+		rr := httptest.NewRecorder()
+		writeWorkflowError(rr, tc.err)
+		if rr.Code != tc.wantStatus {
+			t.Fatalf("writeWorkflowError(%v) = %d, want %d", tc.err, rr.Code, tc.wantStatus)
+		}
+	}
+
+	if err := validateWorkflowForExecution(&workflowdomain.Workflow{Status: workflowdomain.StatusActive}); err == nil {
+		t.Fatal("validateWorkflowForExecution() expected missing agent definition error")
+	}
+	agentID := "agent-1"
+	if err := validateWorkflowForExecution(&workflowdomain.Workflow{AgentDefinitionID: &agentID, Status: workflowdomain.StatusDraft}); err == nil {
+		t.Fatal("validateWorkflowForExecution() expected active status error")
+	}
+	if err := validateWorkflowForExecution(&workflowdomain.Workflow{AgentDefinitionID: &agentID, Status: workflowdomain.StatusActive}); err != nil {
+		t.Fatalf("validateWorkflowForExecution(valid) error = %v", err)
+	}
+}
+
+func TestWorkflowHandlerJudgeHelpers(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_judge"] = &workflowdomain.Workflow{
+		ID:          "wf_judge",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		Version:     1,
+		Status:      workflowdomain.StatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Get("/workflows/{id}", func(w http.ResponseWriter, r *http.Request) {
+		workspaceID, id, item, ok := handler.loadWorkflowForJudge(w, r)
+		if !ok {
+			return
+		}
+		result, ok := handler.verifyWorkflowForJudge(w, r, item)
+		if !ok {
+			return
+		}
+		if !handler.promoteVerifiedDraftWorkflow(w, r, workspaceID, id, item, result) {
+			return
+		}
+		handler.writeJudgeResult(w, result)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/workflows/wf_judge", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if mock.items["wf_judge"].Status != workflowdomain.StatusTesting {
+		t.Fatalf("status = %s, want testing", mock.items["wf_judge"].Status)
+	}
+}
+
+func TestWorkflowHandlerActivationAndResponseHelpers(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_activate_helper"] = &workflowdomain.Workflow{
+		ID:          "wf_activate_helper",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		Version:     1,
+		Status:      workflowdomain.StatusTesting,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	invalidator := &workflowCacheInvalidatorStub{}
+	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, invalidator)
+
+	if !validateWorkflowForActivation(httptest.NewRecorder(), mock.items["wf_activate_helper"]) {
+		t.Fatal("validateWorkflowForActivation(testing) expected true")
+	}
+
+	rr := httptest.NewRecorder()
+	out, ok := handler.activateVerifiedWorkflow(rr, httptest.NewRequest(http.MethodPut, "/", nil), "ws_test", "wf_activate_helper")
+	if !ok || out == nil || out.Status != workflowdomain.StatusActive {
+		t.Fatalf("activateVerifiedWorkflow() = %#v, %v", out, ok)
+	}
+	if len(invalidator.invalidated) != 1 || invalidator.invalidated[0] != "wf_activate_helper" {
+		t.Fatalf("unexpected invalidation = %#v", invalidator.invalidated)
+	}
+
+	rr = httptest.NewRecorder()
+	handler.writeWorkflowResponse(rr, out)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("writeWorkflowResponse() status = %d", rr.Code)
+	}
+
+	conflict := httptest.NewRecorder()
+	handler.writeJudgeConflict(conflict, &agent.JudgeResult{Passed: false})
+	if conflict.Code != http.StatusConflict {
+		t.Fatalf("writeJudgeConflict() status = %d", conflict.Code)
+	}
+}
+
+func TestWorkflowHandlerRuntimeChecksAndExecuteHelpers(t *testing.T) {
+	t.Parallel()
+
+	if NewWorkflowHandler(workflowServiceAdapter{newMockWorkflowService()}).isRuntimeConfigured() {
+		t.Fatal("isRuntimeConfigured() expected false without runtime")
+	}
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	if _, err := db.Exec(`
+		INSERT INTO user_account (id, workspace_id, email, display_name, status, created_at, updated_at)
+		VALUES ('user_test', ?, 'user_test@example.com', 'User Test', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, wsID); err != nil {
+		t.Fatalf("insert user_account: %v", err)
+	}
+	insertDSLWorkflowAgent(t, db, wsID, "dsl-agent-exec")
+	insertExecutableWorkflow(t, db, wsID, "wf_exec_helper", "dsl-agent-exec")
+	if _, err := db.Exec(`
+		INSERT INTO case_ticket (id, workspace_id, owner_id, subject, priority, status, created_at, updated_at)
+		VALUES ('case-1', ?, 'owner-1', 'helper case', 'medium', 'open', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, wsID); err != nil {
+		t.Fatalf("insert case_ticket: %v", err)
+	}
+	registry := agent.NewRunnerRegistry()
+	orch := agent.NewOrchestratorWithRegistry(db, registry)
+	toolRegistry := setupWorkflowToolRegistry(t, db, wsID)
+	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, orch, toolRegistry, nil, nil, nil)
+
+	if !handler.isRuntimeConfigured() {
+		t.Fatal("isRuntimeConfigured() expected true")
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_exec_helper/execute", bytes.NewReader([]byte(`{}`)))
+	req = req.WithContext(contextWithWorkspaceID(context.WithValue(req.Context(), ctxkeys.UserID, "user_test"), wsID))
+	run, err := handler.executeDSLWorkflow(req, wsID, &workflowdomain.Workflow{
+		ID:                "wf_exec_helper",
+		WorkspaceID:       wsID,
+		AgentDefinitionID: testStringPtr("dsl-agent-exec"),
+		Name:              "resolve_support_case",
+		DSLSource:         "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		Version:           1,
+		Status:            workflowdomain.StatusActive,
+	}, ExecuteWorkflowRequest{})
+	if err != nil || run == nil {
+		t.Fatalf("executeDSLWorkflow() = %#v, %v", run, err)
 	}
 }

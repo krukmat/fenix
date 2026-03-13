@@ -5,6 +5,8 @@ package agents
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -355,5 +357,109 @@ func TestSupportError_Error_ReturnsMessage(t *testing.T) {
 	err := ErrSupportDBNotConfigured
 	if err.Error() == "" {
 		t.Fatal("SupportError.Error() should not be empty")
+	}
+}
+
+func TestSupportAgent_RequestSupportApprovalAndBuildApprovalEscalationResult(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+
+	wsID, ownerID := seedSupportWorkspace(t, db)
+	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+	ctx := supportRunContext(context.Background(), wsID, ownerID)
+	caseContext := &CaseContext{
+		ID:          "case-approval-1",
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Sensitive support issue",
+		Priority:    "high",
+	}
+	action := &Action{
+		Type:       supportActionUpdateCase,
+		CaseID:     caseContext.ID,
+		Status:     "resolved",
+		Details:    "Apply sensitive remediation",
+		Confidence: 90,
+	}
+
+	approvalID, err := sa.requestSupportApproval(ctx, caseContext, action)
+	if err != nil {
+		t.Fatalf("requestSupportApproval() error = %v", err)
+	}
+	if approvalID == "" {
+		t.Fatal("expected non-empty approval id")
+	}
+
+	var storedAction string
+	if err := db.QueryRowContext(context.Background(), `
+		SELECT action
+		FROM approval_request
+		WHERE id = ?
+	`, approvalID).Scan(&storedAction); err != nil {
+		t.Fatalf("query approval_request: %v", err)
+	}
+	if storedAction != "support.case.update" {
+		t.Fatalf("approval action = %q want %q", storedAction, "support.case.update")
+	}
+
+	tokens := int64(0)
+	cost := 0.0
+	result, err := sa.buildApprovalEscalationResult(
+		ctx,
+		time.Now().Add(-time.Second),
+		SupportAgentConfig{WorkspaceID: wsID, CaseID: caseContext.ID, CustomerQuery: "please help"},
+		caseContext,
+		emptyResults(),
+		action,
+		&tokens,
+		&cost,
+	)
+	if err != nil {
+		t.Fatalf("buildApprovalEscalationResult() error = %v", err)
+	}
+	if result.Status != agent.StatusEscalated {
+		t.Fatalf("status = %q want %q", result.Status, agent.StatusEscalated)
+	}
+
+	var output map[string]any
+	if err := json.Unmarshal(result.Output, &output); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if got, _ := output["Type"].(string); got != "pending_approval" {
+		t.Fatalf("action = %q want pending_approval", got)
+	}
+	if got, _ := output["ApprovalID"].(string); got == "" {
+		t.Fatal("expected approval_id in output")
+	}
+}
+
+func TestSupportAgent_FailSupportRunReturnsCauseAndMarksFailed(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+
+	wsID, _ := seedSupportWorkspace(t, db)
+	insertSupportAgentDefinition(t, db, wsID)
+	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+
+	run, err := agent.NewOrchestrator(db).TriggerAgent(context.Background(), agent.TriggerAgentInput{
+		AgentID:     "support-agent",
+		WorkspaceID: wsID,
+		TriggerType: agent.TriggerTypeManual,
+	})
+	if err != nil {
+		t.Fatalf("TriggerAgent() error = %v", err)
+	}
+
+	cause := errors.New("boom")
+	if err := sa.failSupportRun(context.Background(), run, cause); !errors.Is(err, cause) {
+		t.Fatalf("failSupportRun() error = %v want %v", err, cause)
+	}
+
+	stored, err := agent.NewOrchestrator(db).GetAgentRun(context.Background(), wsID, run.ID)
+	if err != nil {
+		t.Fatalf("GetAgentRun() error = %v", err)
+	}
+	if stored.Status != agent.StatusFailed {
+		t.Fatalf("status = %q want %q", stored.Status, agent.StatusFailed)
 	}
 }

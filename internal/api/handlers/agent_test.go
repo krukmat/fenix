@@ -1341,6 +1341,96 @@ func TestBuildInsightsShadowPayload_Disabled(t *testing.T) {
 	}
 }
 
+func TestBuildInsightsShadowPayload_Enabled(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestInsightsAgentHandlerWithShadow(t, db, wsID)
+	primary := &agent.Run{ID: "primary-run"}
+
+	got := buildInsightsShadowPayload(
+		h,
+		httptest.NewRequest(http.MethodPost, "/", nil),
+		agents.InsightsAgentConfig{WorkspaceID: wsID, Query: "cuantos deals", Language: "es"},
+		insightsAgentRequest{ShadowMode: true},
+		primary,
+	)
+	if got == nil {
+		t.Fatal("expected shadow payload")
+	}
+	if got["run_id"] == "" {
+		t.Fatalf("expected shadow run_id, got %#v", got)
+	}
+}
+
+func TestInsightsAgentHandler_RunInsightsPrimary_Success(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestInsightsAgentHandler(t, db, wsID)
+
+	run, ok := h.runInsightsPrimary(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/", nil), agents.InsightsAgentConfig{
+		WorkspaceID: wsID,
+		Query:       "cuantos deals",
+		Language:    "es",
+	})
+	if !ok || run == nil {
+		t.Fatalf("expected primary run success, got ok=%v run=%v", ok, run)
+	}
+}
+
+func TestInsightsAgentHandler_TriggerInsightsDeclarativePrimary_NotConfigured(t *testing.T) {
+	t.Parallel()
+
+	h := &InsightsAgentHandler{}
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", nil)
+	rr := httptest.NewRecorder()
+
+	h.triggerInsightsDeclarativePrimary(rr, req, agents.InsightsAgentConfig{
+		WorkspaceID: "ws",
+		Query:       "cuantos deals",
+		Language:    "es",
+	}, insightsRolloutConfig{Enabled: true, DeclarativePrimary: true, AgentID: defaultInsightsShadowAgentID})
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestInsightsAgentHandler_TriggerInsightsDeclarativePrimary_Success(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestInsightsAgentHandlerWithShadow(t, db, wsID)
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", nil)
+	rr := httptest.NewRecorder()
+
+	h.triggerInsightsDeclarativePrimary(rr, req, agents.InsightsAgentConfig{
+		WorkspaceID: wsID,
+		Query:       "cuantos deals",
+		Language:    "es",
+	}, insightsRolloutConfig{
+		Enabled:            true,
+		DeclarativePrimary: true,
+		AgentID:            defaultInsightsShadowAgentID,
+		Source:             "workspace.settings",
+	})
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if rollout, ok := resp["rollout"].(map[string]any); !ok || rollout["mode"] != insightsPrimaryModeDeclarative {
+		t.Fatalf("unexpected rollout payload: %#v", resp["rollout"])
+	}
+}
+
 func TestBuildInsightsShadowSuccessResponse_UsesFallbackRun(t *testing.T) {
 	t.Parallel()
 
@@ -1784,5 +1874,117 @@ func TestSupportAgentHandler_TriggerSupportAgent_RunError(t *testing.T) {
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestProspectingAndKBHandlerSuccessPaths(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	ownerID := createUser(t, db, wsID)
+
+	prospectingHandler, leadID := newTestProspectingAgentHandler(t, db, wsID, ownerID)
+	prospectingBody, _ := json.Marshal(map[string]any{"lead_id": leadID})
+	prospectingReq := httptest.NewRequest(http.MethodPost, "/agents/prospecting/trigger", bytes.NewReader(prospectingBody))
+	prospectingReq = prospectingReq.WithContext(contextWithWorkspaceID(prospectingReq.Context(), wsID))
+	prospectingReq.Header.Set("Content-Type", "application/json")
+	prospectingRR := httptest.NewRecorder()
+	prospectingHandler.TriggerProspectingAgent(prospectingRR, prospectingReq)
+	if prospectingRR.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for prospecting success, got %d: %s", prospectingRR.Code, prospectingRR.Body.String())
+	}
+
+	kbHandler, kbCaseID := newTestKBAgentHandler(t, db, wsID, ownerID)
+	kbBody, _ := json.Marshal(map[string]any{"case_id": kbCaseID})
+	kbReq := httptest.NewRequest(http.MethodPost, "/agents/kb/trigger", bytes.NewReader(kbBody))
+	kbReq = kbReq.WithContext(contextWithWorkspaceID(kbReq.Context(), wsID))
+	kbReq.Header.Set("Content-Type", "application/json")
+	kbRR := httptest.NewRecorder()
+	kbHandler.TriggerKBAgent(kbRR, kbReq)
+	if kbRR.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for kb success, got %d: %s", kbRR.Code, kbRR.Body.String())
+	}
+}
+
+func TestAgentHandlerConfigBuildersAndTriggeredByHelpers(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	supportCfg, ok := buildSupportConfig(rr, supportAgentRequest{
+		CaseID:        "case-1",
+		CustomerQuery: "help",
+	}, "ws-1")
+	if !ok || supportCfg.WorkspaceID != "ws-1" || supportCfg.CaseID != "case-1" {
+		t.Fatalf("unexpected support config = %#v, ok=%v", supportCfg, ok)
+	}
+
+	rr = httptest.NewRecorder()
+	prospectingCfg, ok := buildProspectingConfig(rr, prospectingAgentRequest{LeadID: "lead-1"}, "ws-1")
+	if !ok || prospectingCfg.Language != defaultAgentLanguage {
+		t.Fatalf("unexpected prospecting config = %#v, ok=%v", prospectingCfg, ok)
+	}
+	if withProspectingTriggeredBy(prospectingCfg, "").TriggeredByUserID != nil {
+		t.Fatal("expected empty triggered by for blank user")
+	}
+	withProspecting := withProspectingTriggeredBy(prospectingCfg, "user-1")
+	if withProspecting.TriggeredByUserID == nil || *withProspecting.TriggeredByUserID != "user-1" {
+		t.Fatalf("unexpected prospecting triggered by = %#v", withProspecting.TriggeredByUserID)
+	}
+
+	rr = httptest.NewRecorder()
+	kbCfg, ok := buildKBConfig(rr, kbAgentRequest{CaseID: "case-1"}, "ws-1")
+	if !ok || kbCfg.Language != defaultAgentLanguage {
+		t.Fatalf("unexpected kb config = %#v, ok=%v", kbCfg, ok)
+	}
+	if withKBTriggeredBy(kbCfg, "").TriggeredByUserID != nil {
+		t.Fatal("expected empty KB triggered by for blank user")
+	}
+	withKB := withKBTriggeredBy(kbCfg, "user-2")
+	if withKB.TriggeredByUserID == nil || *withKB.TriggeredByUserID != "user-2" {
+		t.Fatalf("unexpected kb triggered by = %#v", withKB.TriggeredByUserID)
+	}
+}
+
+func TestAgentHandlerHelperCoverage(t *testing.T) {
+	t.Parallel()
+
+	input := buildTriggerInput(triggerAgentRequest{
+		AgentID:        "agent-1",
+		TriggerContext: json.RawMessage(`{"x":1}`),
+		Inputs:         json.RawMessage(`{"y":2}`),
+	}, "ws-1", "user-1")
+	if input.TriggerType != agent.TriggerTypeManual {
+		t.Fatalf("unexpected trigger type = %q", input.TriggerType)
+	}
+	if input.TriggeredBy == nil || *input.TriggeredBy != "user-1" {
+		t.Fatalf("unexpected triggered by = %#v", input.TriggeredBy)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/agents/runs?limit=10&offset=5", nil)
+	limit, offset := parsePageParams(req)
+	if limit != 10 || offset != 5 {
+		t.Fatalf("parsePageParams() = (%d,%d)", limit, offset)
+	}
+
+	defaultReq := httptest.NewRequest(http.MethodGet, "/agents/runs?limit=-1&offset=bad", nil)
+	limit, offset = parsePageParams(defaultReq)
+	if limit != 25 || offset != 0 {
+		t.Fatalf("parsePageParams(default) = (%d,%d)", limit, offset)
+	}
+
+	startedAt := time.Now().UTC()
+	createdAt := startedAt.Add(-time.Minute)
+	resp := agentRunToResponse(&agent.Run{
+		ID:           "run-1",
+		WorkspaceID:  "ws-1",
+		DefinitionID: "agent-1",
+		TriggerType:  agent.TriggerTypeManual,
+		Status:       agent.StatusSuccess,
+		StartedAt:    startedAt,
+		CreatedAt:    createdAt,
+	})
+	if resp.CompletedAt != nil {
+		t.Fatalf("unexpected completedAt = %#v", resp.CompletedAt)
 	}
 }

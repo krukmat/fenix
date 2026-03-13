@@ -136,3 +136,99 @@ func TestDSLValidationErrorMessage(t *testing.T) {
 		t.Fatalf("Error() = %q, want %q", e.Error(), want)
 	}
 }
+
+func TestValidateDSLProgramRejectsEmptyIfBody(t *testing.T) {
+	t.Parallel()
+
+	program := &Program{
+		Workflow: &WorkflowDecl{
+			Name:     "x",
+			Trigger:  &OnDecl{Event: "case.created", Position: Position{Line: 2, Column: 1}},
+			Position: Position{Line: 1, Column: 1},
+			Body: []Statement{
+				&IfStatement{
+					Condition: &ComparisonExpr{
+						Left:     &IdentifierExpr{Name: "case.priority"},
+						Operator: TokenEqual,
+						Right:    &LiteralExpr{Value: "high"},
+					},
+					Position: Position{Line: 3, Column: 1},
+				},
+			},
+		},
+	}
+
+	if err := ValidateDSLProgram(program); err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestValidateDSLProgramRejectsNotifyWithoutTarget(t *testing.T) {
+	t.Parallel()
+
+	program := &Program{
+		Workflow: &WorkflowDecl{
+			Name:     "x",
+			Trigger:  &OnDecl{Event: "case.created", Position: Position{Line: 2, Column: 1}},
+			Position: Position{Line: 1, Column: 1},
+			Body: []Statement{
+				&NotifyStatement{
+					Target:   nil,
+					Value:    &LiteralExpr{Value: "review"},
+					Position: Position{Line: 3, Column: 1},
+				},
+			},
+		},
+	}
+
+	if err := ValidateDSLProgram(program); err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestValidateDSLProgramRejectsDispatchWithoutPayload(t *testing.T) {
+	t.Parallel()
+
+	program := &Program{
+		Workflow: &WorkflowDecl{
+			Name:     "x",
+			Trigger:  &OnDecl{Event: "case.created", Position: Position{Line: 2, Column: 1}},
+			Position: Position{Line: 1, Column: 1},
+			Body: []Statement{
+				&DispatchStatement{
+					Target:   &IdentifierExpr{Name: "router"},
+					Payload:  nil,
+					Position: Position{Line: 3, Column: 1},
+				},
+			},
+		},
+	}
+
+	if err := ValidateDSLProgram(program); err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestValidateDSLProgramRejectsSurfaceWithUnsupportedEntity(t *testing.T) {
+	t.Parallel()
+
+	program := &Program{
+		Workflow: &WorkflowDecl{
+			Name:     "x",
+			Trigger:  &OnDecl{Event: "case.created", Position: Position{Line: 2, Column: 1}},
+			Position: Position{Line: 1, Column: 1},
+			Body: []Statement{
+				&SurfaceStatement{
+					Entity:   &IdentifierExpr{Name: "invoice"},
+					View:     &IdentifierExpr{Name: "salesperson"},
+					Payload:  &ObjectLiteralExpr{Fields: []ObjectField{{Key: "value", Value: &LiteralExpr{Value: "review"}}}},
+					Position: Position{Line: 3, Column: 1},
+				},
+			},
+		},
+	}
+
+	if err := ValidateDSLProgram(program); err == nil {
+		t.Fatal("expected validation error")
+	}
+}

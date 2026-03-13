@@ -134,3 +134,103 @@ func TestVerbMapperMapStatementFailsForUnsupportedTarget(t *testing.T) {
 		t.Fatalf("expected ErrVerbMappingFailed, got %v", err)
 	}
 }
+
+func TestVerbMapperDispatchAndSurfaceHelpers(t *testing.T) {
+	t.Parallel()
+
+	mapper := NewVerbMapper()
+
+	dispatchStmt := &DispatchStatement{
+		Target: &IdentifierExpr{Name: "remote-agent"},
+		Payload: &ObjectLiteralExpr{
+			Fields: []ObjectField{
+				{Key: "workflow_name", Value: &LiteralExpr{Value: "wf_remote"}},
+			},
+		},
+	}
+	dispatchOp, err := mapper.MapStatement(dispatchStmt, nil)
+	if err != nil {
+		t.Fatalf("MapStatement(dispatch) error = %v", err)
+	}
+	if dispatchOp.Kind != RuntimeOperationDispatch || dispatchOp.AgentName != "remote-agent" {
+		t.Fatalf("unexpected dispatch op = %#v", dispatchOp)
+	}
+
+	surfaceStmt := &SurfaceStatement{
+		Entity:  &IdentifierExpr{Name: "case"},
+		View:    &IdentifierExpr{Name: "salesperson.view"},
+		Payload: &LiteralExpr{Value: "review"},
+	}
+	surfaceOp, err := mapper.MapStatement(surfaceStmt, nil)
+	if err != nil {
+		t.Fatalf("MapStatement(surface) error = %v", err)
+	}
+	if surfaceOp.Kind != RuntimeOperationSurface || surfaceOp.Target != "case" {
+		t.Fatalf("unexpected surface op = %#v", surfaceOp)
+	}
+	if surfaceOp.Params["view"] != "salesperson.view" || surfaceOp.Params["value"] != "review" {
+		t.Fatalf("unexpected surface params = %#v", surfaceOp.Params)
+	}
+
+	notifyOp, err := mapNotifyOperation("contact.reply", "done", map[string]any{"case": map[string]any{"id": "case-1"}})
+	if err != nil {
+		t.Fatalf("mapNotifyOperation(contact.reply) error = %v", err)
+	}
+	if notifyOp.ToolName != tool.BuiltinSendReply || notifyOp.Params["body"] != "done" {
+		t.Fatalf("unexpected notify op = %#v", notifyOp)
+	}
+
+	agentOp := mapAgentOperation("support", nil)
+	if agentOp.Kind != RuntimeOperationAgent || agentOp.AgentName != "support" {
+		t.Fatalf("unexpected agent op = %#v", agentOp)
+	}
+
+	dispatchMapped := mapDispatchOperation("router", nil)
+	if dispatchMapped.Kind != RuntimeOperationDispatch || dispatchMapped.AgentName != "router" {
+		t.Fatalf("unexpected mapped dispatch op = %#v", dispatchMapped)
+	}
+
+	surfaceMapped := mapSurfaceOperation("deal", "sales.team", nil)
+	if surfaceMapped.Kind != RuntimeOperationSurface || surfaceMapped.Params["entity"] != "deal" {
+		t.Fatalf("unexpected mapped surface op = %#v", surfaceMapped)
+	}
+
+	if value, ok := actionArg(map[string]any{"x": 1}, "x"); !ok || value.(int) != 1 {
+		t.Fatalf("actionArg() = %#v, %v", value, ok)
+	}
+	normalizedInput, err := normalizeAgentInput("hello")
+	if err != nil {
+		t.Fatalf("normalizeAgentInput() error = %v", err)
+	}
+	if normalizedInput["input"] != "hello" {
+		t.Fatalf("normalizeAgentInput() = %#v", normalizedInput)
+	}
+	normalizedSurface, err := normalizeSurfacePayload("hello")
+	if err != nil {
+		t.Fatalf("normalizeSurfacePayload() error = %v", err)
+	}
+	if normalizedSurface["value"] != "hello" {
+		t.Fatalf("normalizeSurfacePayload() = %#v", normalizedSurface)
+	}
+}
+
+func TestVerbMapperSurfaceAndDispatchValidationFailures(t *testing.T) {
+	t.Parallel()
+
+	mapper := NewVerbMapper()
+
+	if _, err := mapper.MapStatement(&SurfaceStatement{
+		Entity:  nil,
+		View:    &IdentifierExpr{Name: "salesperson"},
+		Payload: &LiteralExpr{Value: "review"},
+	}, nil); err == nil {
+		t.Fatal("expected surface validation error")
+	}
+
+	if _, err := mapper.MapStatement(&DispatchStatement{
+		Target:  &IdentifierExpr{Name: "router"},
+		Payload: nil,
+	}, nil); err == nil {
+		t.Fatal("expected dispatch validation error")
+	}
+}

@@ -328,6 +328,62 @@ func TestA2AProtocolHandlerDispatchRejectsRejectedMetadataWithoutReason(t *testi
 	}
 }
 
+func TestMapA2ATaskVariantsAndFirstTextPart(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+
+	completed, err := mapA2ATask(&a2a.Task{
+		ID: "task-completed",
+		Status: a2a.TaskStatus{
+			State:     a2a.TaskStateCompleted,
+			Timestamp: &now,
+		},
+	})
+	if err != nil {
+		t.Fatalf("mapA2ATask(completed) error = %v", err)
+	}
+	if completed.Status != DispatchStatusDelegated || completed.Target != "task-completed" {
+		t.Fatalf("unexpected completed response = %#v", completed)
+	}
+
+	accepted, err := mapA2ATask(&a2a.Task{
+		ID: "task-working",
+		Status: a2a.TaskStatus{
+			State:     a2a.TaskStateWorking,
+			Timestamp: &now,
+		},
+	})
+	if err != nil {
+		t.Fatalf("mapA2ATask(working) error = %v", err)
+	}
+	if accepted.Status != DispatchStatusAccepted {
+		t.Fatalf("unexpected accepted response = %#v", accepted)
+	}
+
+	rejected, err := mapA2ATask(&a2a.Task{
+		ID: "task-rejected",
+		Status: a2a.TaskStatus{
+			State:     a2a.TaskStateRejected,
+			Timestamp: &now,
+		},
+	})
+	if err != nil {
+		t.Fatalf("mapA2ATask(rejected) error = %v", err)
+	}
+	if rejected.Status != DispatchStatusRejected || rejected.Reason == "" {
+		t.Fatalf("unexpected rejected response = %#v", rejected)
+	}
+
+	msg := &a2a.Message{Parts: a2a.ContentParts{a2a.TextPart{Text: "  first  "}}}
+	if got := firstTextPart(msg); got != "first" {
+		t.Fatalf("firstTextPart() = %q", got)
+	}
+	if got := firstTextPart(&a2a.Message{}); got != "" {
+		t.Fatalf("firstTextPart(empty) = %q", got)
+	}
+}
+
 func testDispatchAgentCard() *a2a.AgentCard {
 	return &a2a.AgentCard{
 		Name:               "ext",
@@ -348,4 +404,109 @@ func testSecuredDispatchAgentCard() *a2a.AgentCard {
 		},
 	}
 	return card
+}
+
+func TestA2AProtocolHandlerHelperCoverage(t *testing.T) {
+	t.Parallel()
+
+	base := []a2a.AgentInterface{{
+		URL:       "https://example.com/jsonrpc",
+		Transport: a2a.TransportProtocolJSONRPC,
+	}}
+	extra := []a2a.AgentInterface{
+		{URL: "https://example.com/jsonrpc", Transport: a2a.TransportProtocolJSONRPC},
+		{URL: "https://example.com/grpc", Transport: a2a.TransportProtocolGRPC},
+		{URL: "", Transport: a2a.TransportProtocolJSONRPC},
+	}
+	got := appendUniqueInterfaces(base, extra)
+	if len(got) != 2 {
+		t.Fatalf("appendUniqueInterfaces() len = %d, want 2", len(got))
+	}
+	if !containsAgentInterface(got, a2a.AgentInterface{URL: "https://example.com/grpc", Transport: a2a.TransportProtocolGRPC}) {
+		t.Fatal("containsAgentInterface() expected true")
+	}
+
+	auth := &DispatchAuthConfig{SessionID: " sess-1 "}
+	if got := dispatchSessionID(auth, "dispatch-1"); got != "sess-1" {
+		t.Fatalf("dispatchSessionID(auth) = %q", got)
+	}
+	if got := dispatchSessionID(nil, " dispatch-1 "); got != "dispatch-1" {
+		t.Fatalf("dispatchSessionID(dispatch) = %q", got)
+	}
+	if got := dispatchSessionID(nil, ""); got != "fenix-dispatch" {
+		t.Fatalf("dispatchSessionID(default) = %q", got)
+	}
+
+	if !agentCardRequiresAuth(testSecuredDispatchAgentCard()) {
+		t.Fatal("agentCardRequiresAuth() expected true")
+	}
+	if agentCardRequiresAuth(testDispatchAgentCard()) {
+		t.Fatal("agentCardRequiresAuth() expected false")
+	}
+
+	task := &a2a.Task{
+		ID: "task-1",
+		Metadata: map[string]any{
+			"target_agent": "support_agent",
+		},
+	}
+	if got := taskTarget(task); got != "support_agent" {
+		t.Fatalf("taskTarget(metadata) = %q", got)
+	}
+	if got := taskTarget(&a2a.Task{ID: "task-2"}); got != "task-2" {
+		t.Fatalf("taskTarget(id) = %q", got)
+	}
+	if got := taskTarget(nil); got != "" {
+		t.Fatalf("taskTarget(nil) = %q", got)
+	}
+}
+
+func TestA2AProtocolHandlerConstructorAndEndpointHelpers(t *testing.T) {
+	t.Parallel()
+
+	if handler := NewA2AProtocolHandler(); handler == nil || handler.factory == nil {
+		t.Fatal("NewA2AProtocolHandler() expected non-nil factory")
+	}
+	if handler := NewA2AProtocolHandlerWithFactory(nil); handler == nil || handler.factory == nil {
+		t.Fatal("NewA2AProtocolHandlerWithFactory(nil) expected default factory")
+	}
+
+	card := testDispatchAgentCard()
+	if _, cloned, err := resolveDispatchEndpoint(DispatchInput{AgentCard: card}); err != nil || cloned == nil {
+		t.Fatalf("resolveDispatchEndpoint(card) = %v, %v", cloned, err)
+	}
+
+	if err := validateDispatchEndpoint(DispatchEndpoint{}); err == nil {
+		t.Fatal("validateDispatchEndpoint(empty) expected error")
+	}
+	if err := validateDispatchEndpoint(DispatchEndpoint{URL: "https://example.com/a2a", Transport: string(a2a.TransportProtocolJSONRPC)}); err != nil {
+		t.Fatalf("validateDispatchEndpoint(valid) error = %v", err)
+	}
+	if _, err := parseDispatchTransport(string(a2a.TransportProtocolHTTPJSON)); err != nil {
+		t.Fatalf("parseDispatchTransport(HTTPJSON) error = %v", err)
+	}
+	if _, err := parseDispatchTransport("weird"); err == nil {
+		t.Fatal("parseDispatchTransport(weird) expected error")
+	}
+
+	if got := dispatchPromptText(DispatchInput{TargetAgent: "support", WorkflowName: "delegate_case"}); got == "" {
+		t.Fatal("dispatchPromptText(workflow) expected text")
+	}
+	if got := dispatchPromptText(DispatchInput{TargetAgent: "support", DSLSource: "WORKFLOW x"}); got == "" {
+		t.Fatal("dispatchPromptText(dsl) expected text")
+	}
+
+	reason := taskStatusReason(a2a.TaskStatus{State: a2a.TaskStateFailed})
+	if reason == "" {
+		t.Fatal("taskStatusReason(no message) expected fallback")
+	}
+	reason = taskStatusReason(a2a.TaskStatus{
+		State: a2a.TaskStateRejected,
+		Message: &a2a.Message{
+			Parts: a2a.ContentParts{a2a.TextPart{Text: "policy denied"}},
+		},
+	})
+	if reason != "policy denied" {
+		t.Fatalf("taskStatusReason(message) = %q", reason)
+	}
 }

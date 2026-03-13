@@ -651,3 +651,122 @@ func mustExecDSLRunner(t *testing.T, db *sql.DB, query string) {
 		t.Fatalf("exec failed: %v", err)
 	}
 }
+
+func TestDSLRunnerHelperCoverage(t *testing.T) {
+	t.Parallel()
+
+	if got := dslToolCallsJSON(nil); string(got) != emptyJSONArray {
+		t.Fatalf("dslToolCallsJSON(nil) = %s", string(got))
+	}
+
+	dispatchResult := &DSLRuntimeResult{
+		Statements: []DSLStatementResult{{Type: dslStatementTypeDispatch, Status: StatusDelegated}},
+	}
+	if status, ok := terminalDispatchStatus(dispatchResult); !ok || status != StatusDelegated {
+		t.Fatalf("terminalDispatchStatus(dispatch) = %q, %v", status, ok)
+	}
+	if _, ok := terminalDispatchStatus(&DSLRuntimeResult{
+		Statements: []DSLStatementResult{{Type: "SET", Status: StatusSuccess}},
+	}); ok {
+		t.Fatal("terminalDispatchStatus(non-dispatch) expected false")
+	}
+
+	ctx := mergeDSLContexts(json.RawMessage(`{"a":1}`), json.RawMessage(`{"b":2}`))
+	if ctx["a"] != float64(1) || ctx["b"] != float64(2) {
+		t.Fatalf("mergeDSLContexts() = %#v", ctx)
+	}
+
+	dst := map[string]any{"left": true}
+	mergeRawObjectInto(dst, json.RawMessage(`{"right":42}`))
+	if dst["right"] != float64(42) {
+		t.Fatalf("mergeRawObjectInto(valid) = %#v", dst)
+	}
+	mergeRawObjectInto(dst, json.RawMessage(`not-json`))
+
+	leftCalls, _ := json.Marshal([]ToolCall{{ToolName: "left"}})
+	rightCalls, _ := json.Marshal([]ToolCall{{ToolName: "right"}})
+	merged := mergeRunToolCalls(leftCalls, rightCalls)
+	decoded := decodeToolCallArray(merged)
+	if len(decoded) != 2 || decoded[0].ToolName != "left" || decoded[1].ToolName != "right" {
+		t.Fatalf("mergeRunToolCalls() = %#v", decoded)
+	}
+	if got := decodeToolCallArray(json.RawMessage(`not-json`)); got != nil {
+		t.Fatalf("decodeToolCallArray(invalid) = %#v", got)
+	}
+}
+
+func TestDSLRunnerFinalizeResumeHelpers(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	mustExecDSLRunner(t, db, `INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+	VALUES ('agent_resume', 'ws_dsl', 'resume agent', 'dsl', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	orch := NewOrchestrator(db)
+	runner := NewDSLRunner(db)
+	rc := &RunContext{Orchestrator: orch, DB: db}
+
+	baseRun, err := orch.TriggerAgent(context.Background(), TriggerAgentInput{
+		AgentID:        "agent_resume",
+		WorkspaceID:    "ws_dsl",
+		TriggerType:    TriggerTypeManual,
+		TriggerContext: json.RawMessage(`{"case":{"id":"case-1"}}`),
+	})
+	if err != nil {
+		t.Fatalf("TriggerAgent() error = %v", err)
+	}
+	existing, err := orch.GetAgentRun(context.Background(), "ws_dsl", baseRun.ID)
+	if err != nil {
+		t.Fatalf("GetAgentRun() error = %v", err)
+	}
+	existing.ToolCalls = json.RawMessage(`[{"tool_name":"left"}]`)
+
+	workflow := &workflowdomain.Workflow{
+		ID:         "wf-1",
+		WorkspaceID: "ws_dsl",
+		Name:       "resume_workflow",
+		Version:    2,
+		Status:     workflowdomain.StatusActive,
+	}
+	input := schedulerdomain.WorkflowResumePayload{
+		WorkflowID:       "wf-1",
+		RunID:            baseRun.ID,
+		ResumeStepIndex:  3,
+	}
+
+	executor := &dslRuntimeExecutor{
+		pending:         true,
+		pendingApproval: &skillApprovalResult{ApprovalID: "appr-1"},
+		pendingOutput:   map[string]any{"action": pendingWaitAction, "resume_step_index": 3},
+		toolCalls:       []ToolCall{{ToolName: "right"}},
+	}
+	result := &DSLRuntimeResult{
+		Statements: []DSLStatementResult{{Type: "WAIT", Status: StatusAccepted}},
+	}
+
+	updated, err := runner.finalizeResumePending(context.Background(), rc, "ws_dsl", input, workflow, existing, result, executor)
+	if err != nil {
+		t.Fatalf("finalizeResumePending() error = %v", err)
+	}
+	if updated.Status != StatusAccepted {
+		t.Fatalf("status = %s, want %s", updated.Status, StatusAccepted)
+	}
+
+	var pendingOutput map[string]any
+	if err := json.Unmarshal(updated.Output, &pendingOutput); err != nil {
+		t.Fatalf("unmarshal pending output: %v", err)
+	}
+	if pendingOutput["approval_id"] != "appr-1" || pendingOutput["resumed"] != true {
+		t.Fatalf("unexpected pending output = %#v", pendingOutput)
+	}
+
+	result = &DSLRuntimeResult{
+		Statements: []DSLStatementResult{{Type: dslStatementTypeDispatch, Status: StatusDelegated}},
+	}
+	updated, err = runner.finalizeResumeDispatchTerminal(context.Background(), rc, "ws_dsl", input, workflow, existing, result, StatusDelegated)
+	if err != nil {
+		t.Fatalf("finalizeResumeDispatchTerminal() error = %v", err)
+	}
+	if updated.Status != StatusDelegated {
+		t.Fatalf("status = %s, want %s", updated.Status, StatusDelegated)
+	}
+}

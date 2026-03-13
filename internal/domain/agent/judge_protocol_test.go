@@ -98,3 +98,32 @@ func TestRunProtocolJudgeChecks_WarnsOnAmbiguousSurfaceView(t *testing.T) {
 		t.Fatalf("Code = %q, want surface_view_ambiguous", warnings[0].Code)
 	}
 }
+
+func TestJudgeProtocolLiteralValueCoverage(t *testing.T) {
+	t.Parallel()
+
+	obj := &ObjectLiteralExpr{Fields: []ObjectField{
+		{Key: "mode", Value: &LiteralExpr{Value: "dispatch"}},
+		{Key: "count", Value: &LiteralExpr{Value: 2}},
+	}}
+	arr := &ArrayLiteralExpr{Elements: []Expression{
+		&LiteralExpr{Value: "a"},
+		&IdentifierExpr{Name: "target_agent"},
+		obj,
+	}}
+
+	gotObj, ok := literalValue(obj).(map[string]any)
+	if !ok || gotObj["mode"] != "dispatch" || gotObj["count"] != 2 {
+		t.Fatalf("literalValue(object) = %#v", gotObj)
+	}
+	gotArr, ok := literalValue(arr).([]any)
+	if !ok || len(gotArr) != 3 {
+		t.Fatalf("literalValue(array) = %#v", gotArr)
+	}
+	if got := literalValue(&IdentifierExpr{Name: "workflow_name"}); got != "workflow_name" {
+		t.Fatalf("literalValue(identifier) = %#v", got)
+	}
+	if got := literalValue(nil); got != nil {
+		t.Fatalf("literalValue(nil) = %#v", got)
+	}
+}

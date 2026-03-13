@@ -33,6 +33,7 @@ const (
 	surfaceViewKey          = "view"
 	surfacePayloadValueKey  = "value"
 	waitUnitHours           = "hours"
+	waitUnitDay             = "day"
 	dispatchResultAccepted  = "accepted"
 	dispatchResultRejected  = "rejected"
 	dispatchResultDelegated = "delegated"
@@ -430,6 +431,9 @@ func surfaceMetadata(view string, value any, payload map[string]any) map[string]
 }
 
 func stringValue(value any) string {
+	if value == nil {
+		return ""
+	}
 	switch typed := value.(type) {
 	case string:
 		return typed
@@ -661,7 +665,7 @@ func waitDurationMultiplier(unit string) (time.Duration, error) {
 		return time.Minute, nil
 	case "h", "hr", "hrs", "hour", waitUnitHours:
 		return time.Hour, nil
-	case "d", "day", "days":
+	case "d", waitUnitDay, "days":
 		return 24 * time.Hour, nil
 	default:
 		return 0, fmt.Errorf("%w: unsupported WAIT duration unit %q", ErrDSLRuntimeFailed, unit)
