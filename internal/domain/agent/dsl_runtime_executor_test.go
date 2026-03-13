@@ -411,6 +411,68 @@ func TestDSLRuntimeExecutorRejectsDispatchOnDepthLimit(t *testing.T) {
 	}
 }
 
+func TestDSLRuntimeExecutorRejectsAgentCallOnLoop(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	now := time.Now().UTC()
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+		VALUES ('loop-agent-id', 'ws_dsl', 'loop-agent', 'nested', 'active', ?, ?)
+	`, now, now); err != nil {
+		t.Fatalf("insert agent: %v", err)
+	}
+
+	executor := newDSLRuntimeExecutor(&RunContext{
+		Orchestrator: &Orchestrator{},
+		DB:           db,
+		CallChain:    []string{"loop-agent-id"},
+	}, TriggerAgentInput{
+		WorkspaceID: "ws_dsl",
+		TriggerType: TriggerTypeManual,
+	}, nil, "", "")
+
+	_, err := executor.Execute(context.Background(), &RuntimeOperation{
+		Kind:      RuntimeOperationAgent,
+		AgentName: "loop-agent",
+		Params:    map[string]any{},
+	}, nil)
+	if !errors.Is(err, ErrDSLAgentLoopDetected) {
+		t.Fatalf("expected ErrDSLAgentLoopDetected, got %v", err)
+	}
+}
+
+func TestDSLRuntimeExecutorRejectsAgentCallOnDepthLimit(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	now := time.Now().UTC()
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+		VALUES ('depth-agent-id', 'ws_dsl', 'depth-agent', 'nested', 'active', ?, ?)
+	`, now, now); err != nil {
+		t.Fatalf("insert agent: %v", err)
+	}
+
+	executor := newDSLRuntimeExecutor(&RunContext{
+		Orchestrator: &Orchestrator{},
+		DB:           db,
+		CallDepth:    dslAgentCallDepthLimit,
+	}, TriggerAgentInput{
+		WorkspaceID: "ws_dsl",
+		TriggerType: TriggerTypeManual,
+	}, nil, "", "")
+
+	_, err := executor.Execute(context.Background(), &RuntimeOperation{
+		Kind:      RuntimeOperationAgent,
+		AgentName: "depth-agent",
+		Params:    map[string]any{},
+	}, nil)
+	if !errors.Is(err, ErrDSLAgentDepthExceeded) {
+		t.Fatalf("expected ErrDSLAgentDepthExceeded, got %v", err)
+	}
+}
+
 func TestDSLRuntimeExecutorDeniesSubAgentCallWhenPolicyRejects(t *testing.T) {
 	t.Parallel()
 
@@ -491,6 +553,47 @@ func TestDSLRuntimeExecutorCreatesSurfaceSignal(t *testing.T) {
 	}
 	if got := signalStringField(signals[0].Metadata, "view"); got != "salesperson.view" {
 		t.Fatalf("metadata.view = %q, want %q", got, "salesperson.view")
+	}
+}
+
+func TestDSLRuntimeExecutorHandlesSurfaceMissingSignalService(t *testing.T) {
+	t.Parallel()
+
+	executor := newDSLRuntimeExecutor(&RunContext{
+		SignalService: nil,
+	}, TriggerAgentInput{
+		WorkspaceID: "ws_dsl",
+		TriggerType: TriggerTypeManual,
+	}, nil, "", "")
+
+	_, err := executor.Execute(context.Background(), &RuntimeOperation{
+		Kind:   RuntimeOperationSurface,
+		Target: "case",
+		Params: map[string]any{"entity": "case", "view": "test.view", "value": "x"},
+	}, nil)
+	if !errors.Is(err, ErrDSLSignalServiceMissing) {
+		t.Fatalf("expected ErrDSLSignalServiceMissing, got %v", err)
+	}
+}
+
+func TestDSLRuntimeExecutorHandlesSurfaceMissingEntityID(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	executor := newDSLRuntimeExecutor(&RunContext{
+		SignalService: signaldomain.NewService(db),
+	}, TriggerAgentInput{
+		WorkspaceID: "ws_dsl",
+		TriggerType: TriggerTypeManual,
+	}, nil, "", "")
+
+	_, err := executor.Execute(context.Background(), &RuntimeOperation{
+		Kind:   RuntimeOperationSurface,
+		Target: "case",
+		Params: map[string]any{"entity": "case", "view": "test.view", "value": "x"},
+	}, map[string]any{}) // evalCtx vacío: entity ID no resuelto
+	if !errors.Is(err, ErrDSLRuntimeFailed) {
+		t.Fatalf("expected ErrDSLRuntimeFailed, got %v", err)
 	}
 }
 

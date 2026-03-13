@@ -223,8 +223,24 @@ func TestVerbMapperSurfaceAndDispatchValidationFailures(t *testing.T) {
 		Entity:  nil,
 		View:    &IdentifierExpr{Name: "salesperson"},
 		Payload: &LiteralExpr{Value: "review"},
-	}, nil); err == nil {
-		t.Fatal("expected surface validation error")
+	}, nil); !errors.Is(err, ErrVerbMappingFailed) {
+		t.Fatalf("nil entity: expected ErrVerbMappingFailed, got %v", err)
+	}
+
+	if _, err := mapper.MapStatement(&SurfaceStatement{
+		Entity:  &IdentifierExpr{Name: "case"},
+		View:    nil,
+		Payload: &LiteralExpr{Value: "review"},
+	}, nil); !errors.Is(err, ErrVerbMappingFailed) {
+		t.Fatalf("nil view: expected ErrVerbMappingFailed, got %v", err)
+	}
+
+	if _, err := mapper.MapStatement(&SurfaceStatement{
+		Entity:  &IdentifierExpr{Name: "case"},
+		View:    &IdentifierExpr{Name: "salesperson"},
+		Payload: nil,
+	}, nil); !errors.Is(err, ErrVerbMappingFailed) {
+		t.Fatalf("nil payload: expected ErrVerbMappingFailed, got %v", err)
 	}
 
 	if _, err := mapper.MapStatement(&DispatchStatement{
