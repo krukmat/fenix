@@ -83,6 +83,25 @@ type AgentStatement struct {
 func (n *AgentStatement) Pos() Position  { return n.Position }
 func (n *AgentStatement) statementNode() {}
 
+type DispatchStatement struct {
+	Target   *IdentifierExpr `json:"target"`
+	Payload  Expression      `json:"payload,omitempty"`
+	Position Position        `json:"position"`
+}
+
+func (n *DispatchStatement) Pos() Position  { return n.Position }
+func (n *DispatchStatement) statementNode() {}
+
+type SurfaceStatement struct {
+	Entity   *IdentifierExpr `json:"entity"`
+	View     *IdentifierExpr `json:"view"`
+	Payload  Expression      `json:"payload,omitempty"`
+	Position Position        `json:"position"`
+}
+
+func (n *SurfaceStatement) Pos() Position  { return n.Position }
+func (n *SurfaceStatement) statementNode() {}
+
 type WaitStatement struct {
 	Amount   int64    `json:"amount"`
 	Unit     string   `json:"unit,omitempty"`

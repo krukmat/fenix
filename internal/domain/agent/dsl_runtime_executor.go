@@ -6,26 +6,38 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
+	signaldomain "github.com/matiasleandrokruk/fenix/internal/domain/signal"
 )
 
 var (
-	ErrDSLToolRegistryMissing = errors.New("dsl runtime requires tool registry")
-	ErrDSLExecutorMissingDB   = errors.New("dsl runtime requires db")
-	ErrDSLSchedulerMissing    = errors.New("dsl runtime requires scheduler")
-	ErrDSLAgentLoopDetected   = errors.New("dsl runtime detected circular agent call")
-	ErrDSLAgentDepthExceeded  = errors.New("dsl runtime call depth exceeded")
-	ErrDSLAgentPolicyDenied   = errors.New("dsl runtime agent dispatch denied by policy")
+	ErrDSLToolRegistryMissing  = errors.New("dsl runtime requires tool registry")
+	ErrDSLExecutorMissingDB    = errors.New("dsl runtime requires db")
+	ErrDSLSchedulerMissing     = errors.New("dsl runtime requires scheduler")
+	ErrDSLAgentLoopDetected    = errors.New("dsl runtime detected circular agent call")
+	ErrDSLAgentDepthExceeded   = errors.New("dsl runtime call depth exceeded")
+	ErrDSLAgentPolicyDenied    = errors.New("dsl runtime agent dispatch denied by policy")
+	ErrDSLSignalServiceMissing = errors.New("dsl runtime requires signal service")
 )
 
 const (
-	dslAgentCallDepthLimit = 5
-	pendingApprovalAction  = "pending_approval"
-	pendingWaitAction      = "waiting"
-	waitUnitHours          = "hours"
+	dslAgentCallDepthLimit  = 5
+	pendingApprovalAction   = "pending_approval"
+	pendingDispatchAction   = "dispatch"
+	pendingWaitAction       = "waiting"
+	surfaceAction           = "surface"
+	surfaceViewKey          = "view"
+	surfacePayloadValueKey  = "value"
+	waitUnitHours           = "hours"
+	dispatchResultAccepted  = "accepted"
+	dispatchResultRejected  = "rejected"
+	dispatchResultDelegated = "delegated"
+	dispatchRejectLoop      = "circular_delegation_detected"
+	dispatchRejectDepth     = "delegation_depth_exceeded"
 )
 
 type dslRuntimeExecutor struct {
@@ -60,6 +72,10 @@ func (e *dslRuntimeExecutor) Execute(ctx context.Context, op *RuntimeOperation, 
 		return e.executeToolOperation(ctx, op)
 	case RuntimeOperationAgent:
 		return e.executeAgentOperation(ctx, op, evalCtx)
+	case RuntimeOperationDispatch:
+		return e.executeDispatchOperation(ctx, op, evalCtx)
+	case RuntimeOperationSurface:
+		return e.executeSurfaceOperation(ctx, op, evalCtx)
 	default:
 		return RuntimeExecutionResult{}, fmt.Errorf("%w: unsupported runtime operation kind %s", ErrDSLRuntimeFailed, op.Kind)
 	}
@@ -190,6 +206,296 @@ func (e *dslRuntimeExecutor) executeAgentOperation(ctx context.Context, op *Runt
 		return RuntimeExecutionResult{}, err
 	}
 	return e.buildAgentRunResult(target, stored)
+}
+
+func (e *dslRuntimeExecutor) executeDispatchOperation(ctx context.Context, op *RuntimeOperation, _ map[string]any) (RuntimeExecutionResult, error) {
+	if err := validateAgentExecutionContext(e.rc); err != nil {
+		return RuntimeExecutionResult{}, err
+	}
+	target, err := resolveActiveAgentDefinition(ctx, e.rc.DB, e.workspaceID, op.AgentName)
+	if err != nil {
+		return RuntimeExecutionResult{}, err
+	}
+	if callErr := validateAgentCallAllowed(e.rc, e.actorID, target); callErr != nil {
+		return rejectedDispatchExecutionResult(target, callErr), nil
+	}
+	if policyErr := checkMappedAgentPolicy(ctx, e.rc, e.actorID, target); policyErr != nil {
+		return RuntimeExecutionResult{}, policyErr
+	}
+	rawInputs, err := json.Marshal(op.Params)
+	if err != nil {
+		return RuntimeExecutionResult{}, err
+	}
+	stored, err := e.invokeSubAgent(ctx, target, rawInputs)
+	if err != nil {
+		return RuntimeExecutionResult{}, err
+	}
+	return e.buildDispatchResult(target, stored)
+}
+
+func rejectedDispatchExecutionResult(target *Definition, dispatchErr error) RuntimeExecutionResult {
+	output := baseDispatchOutput(target, nil)
+	output["dispatch_result"] = dispatchResultRejected
+	output["reason"] = dispatchRejectionCode(dispatchErr)
+	return RuntimeExecutionResult{
+		Output: output,
+		Status: StatusRejected,
+		Stop:   true,
+	}
+}
+
+func (e *dslRuntimeExecutor) executeSurfaceOperation(ctx context.Context, op *RuntimeOperation, evalCtx map[string]any) (RuntimeExecutionResult, error) {
+	if e.rc == nil || e.rc.SignalService == nil {
+		return RuntimeExecutionResult{}, ErrDSLSignalServiceMissing
+	}
+	input, err := buildSurfaceSignalInput(op, evalCtx, e.workspaceID, e.workflowID, e.runID)
+	if err != nil {
+		return RuntimeExecutionResult{}, err
+	}
+	created, err := e.rc.SignalService.Create(ctx, input)
+	if err != nil {
+		return RuntimeExecutionResult{}, err
+	}
+	return RuntimeExecutionResult{
+		Output: map[string]any{
+			"action":    surfaceAction,
+			"signal_id": created.ID,
+			"entity":    created.EntityType,
+			"entity_id": created.EntityID,
+			"signal":    created.SignalType,
+			"view":      surfaceView(op),
+		},
+	}, nil
+}
+
+func (e *dslRuntimeExecutor) buildDispatchResult(target *Definition, stored *Run) (RuntimeExecutionResult, error) {
+	output := baseDispatchOutput(target, stored)
+	switch stored.Status {
+	case StatusAccepted:
+		output["dispatch_result"] = dispatchResultAccepted
+		e.pending = true
+		e.pendingOutput = cloneRuntimeMap(output)
+		return RuntimeExecutionResult{
+			Output: output,
+			Status: StatusAccepted,
+			Stop:   true,
+		}, nil
+	case StatusRejected, StatusFailed:
+		output["dispatch_result"] = dispatchResultRejected
+		output["reason"] = dispatchRejectReason(stored)
+		return RuntimeExecutionResult{
+			Output: output,
+			Status: StatusRejected,
+			Stop:   true,
+		}, nil
+	default:
+		output["dispatch_result"] = dispatchResultDelegated
+		return RuntimeExecutionResult{
+			Output: output,
+			Status: StatusDelegated,
+			Stop:   true,
+		}, nil
+	}
+}
+
+func baseDispatchOutput(target *Definition, stored *Run) map[string]any {
+	output := map[string]any{
+		"action":           pendingDispatchAction,
+		"delegated_run_id": "",
+		"delegated_status": "",
+	}
+	if target != nil {
+		output["agent_id"] = target.ID
+		output["target_agent"] = target.Name
+	}
+	if stored != nil {
+		output["delegated_run_id"] = stored.ID
+		output["delegated_status"] = stored.Status
+	}
+	return output
+}
+
+func dispatchRejectReason(stored *Run) string {
+	if stored == nil {
+		return "dispatch rejected"
+	}
+	if stored.AbstentionReason != nil && strings.TrimSpace(*stored.AbstentionReason) != "" {
+		return strings.TrimSpace(*stored.AbstentionReason)
+	}
+	return fmt.Sprintf("target run returned %s", stored.Status)
+}
+
+func dispatchRejectionCode(err error) string {
+	switch {
+	case errors.Is(err, ErrDSLAgentLoopDetected):
+		return dispatchRejectLoop
+	case errors.Is(err, ErrDSLAgentDepthExceeded):
+		return dispatchRejectDepth
+	default:
+		return "dispatch_rejected"
+	}
+}
+
+func buildSurfaceSignalInput(op *RuntimeOperation, evalCtx map[string]any, workspaceID, workflowID, runID string) (signaldomain.CreateSignalInput, error) {
+	entityType := strings.TrimSpace(runtimeParamString(op, "entity"))
+	if entityType == "" {
+		entityType = strings.TrimSpace(op.Target)
+	}
+	entityID := resolveEntityID(evalCtx, entityType)
+	if entityID == "" {
+		return signaldomain.CreateSignalInput{}, fmt.Errorf("%w: SURFACE entity %s is missing id", ErrDSLRuntimeFailed, entityType)
+	}
+	view := surfaceView(op)
+	payload := cloneRuntimeMap(op.Params)
+	delete(payload, "entity")
+	delete(payload, surfaceViewKey)
+	value := payload[surfacePayloadValueKey]
+	delete(payload, surfacePayloadValueKey)
+	signalType := surfaceSignalType(view, payload)
+	metadata := surfaceMetadata(view, value, payload)
+	return signaldomain.CreateSignalInput{
+		WorkspaceID: workspaceID,
+		EntityType:  entityType,
+		EntityID:    entityID,
+		SignalType:  signalType,
+		Confidence:  surfaceConfidence(payload),
+		EvidenceIDs: surfaceEvidenceIDs(runID, payload),
+		SourceType:  "workflow",
+		SourceID:    strings.TrimSpace(firstNonEmpty(workflowID, runID)),
+		Metadata:    metadata,
+	}, nil
+}
+
+func surfaceView(op *RuntimeOperation) string {
+	return strings.TrimSpace(runtimeParamString(op, surfaceViewKey))
+}
+
+func runtimeParamString(op *RuntimeOperation, key string) string {
+	if op == nil || len(op.Params) == 0 {
+		return ""
+	}
+	value, ok := op.Params[key]
+	if !ok {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	default:
+		return strings.TrimSpace(fmt.Sprint(typed))
+	}
+}
+
+func surfaceSignalType(view string, payload map[string]any) string {
+	if override := strings.TrimSpace(stringValue(payload["signal_type"])); override != "" {
+		return override
+	}
+	normalized := strings.NewReplacer(".", "_", " ", "_").Replace(strings.TrimSpace(view))
+	if normalized == "" {
+		normalized = "generic"
+	}
+	return "surface." + normalized
+}
+
+func surfaceConfidence(payload map[string]any) float64 {
+	if value, ok := floatValue(payload["confidence"]); ok {
+		return value
+	}
+	return 1.0
+}
+
+func surfaceEvidenceIDs(runID string, payload map[string]any) []string {
+	if values, ok := stringSliceValue(payload["evidence_ids"]); ok && len(values) > 0 {
+		return values
+	}
+	if trimmed := strings.TrimSpace(runID); trimmed != "" {
+		return []string{trimmed}
+	}
+	return []string{"surface"}
+}
+
+func surfaceMetadata(view string, value any, payload map[string]any) map[string]any {
+	metadata := map[string]any{
+		"view": view,
+	}
+	if value != nil {
+		metadata["value"] = value
+	}
+	if provided, ok := payload["metadata"].(map[string]any); ok {
+		for key, item := range provided {
+			metadata[key] = item
+		}
+	}
+	return metadata
+}
+
+func stringValue(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	default:
+		return fmt.Sprint(value)
+	}
+}
+
+func floatValue(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return typed, true
+	case float32:
+		return float64(typed), true
+	case int:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case json.Number:
+		out, err := typed.Float64()
+		return out, err == nil
+	case string:
+		out, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
+		return out, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func stringSliceValue(value any) ([]string, bool) {
+	switch typed := value.(type) {
+	case []string:
+		out := trimNonEmptyStrings(typed)
+		return out, len(out) > 0
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			trimmed := strings.TrimSpace(stringValue(item))
+			if trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		return out, len(out) > 0
+	default:
+		return nil, false
+	}
+}
+
+func trimNonEmptyStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func validateAgentExecutionContext(rc *RunContext) error {

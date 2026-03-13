@@ -20,6 +20,7 @@ func (j *WorkflowJudge) Verify(ctx context.Context, workflow *workflowdomain.Wor
 	judgeResult := NewJudgeResult(syntaxResult.Violations, syntaxResult.Warnings)
 	appendMissingSpecSourceWarning(judgeResult, workflow)
 	appendInitialSpecConsistencyFindings(judgeResult, workflow, syntaxResult.Program)
+	appendProtocolJudgeFindings(judgeResult, syntaxResult.Program)
 	return judgeResult, nil
 }
 
@@ -45,6 +46,15 @@ func appendInitialSpecConsistencyFindings(result *JudgeResult, workflow *workflo
 	specSummary := ParsePartialSpec(*workflow.SpecSource)
 	appendWarnings(result, specSummary.Warnings)
 	violations, warnings := RunInitialSpecDSLChecks(specSummary, program)
+	appendViolations(result, violations)
+	appendWarnings(result, warnings)
+}
+
+func appendProtocolJudgeFindings(result *JudgeResult, program *Program) {
+	if result == nil || program == nil {
+		return
+	}
+	violations, warnings := RunProtocolJudgeChecks(program)
 	appendViolations(result, violations)
 	appendWarnings(result, warnings)
 }

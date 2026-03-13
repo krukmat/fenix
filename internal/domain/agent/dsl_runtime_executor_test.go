@@ -10,6 +10,7 @@ import (
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
 	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
+	signaldomain "github.com/matiasleandrokruk/fenix/internal/domain/signal"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -23,6 +24,27 @@ func (s stubNestedRunner) Run(ctx context.Context, rc *RunContext, input Trigger
 	}
 	output, _ := json.Marshal(map[string]any{"result": "nested_success"})
 	return rc.Orchestrator.UpdateAgentRun(ctx, input.WorkspaceID, run.ID, emptyTracesUpdate(StatusSuccess, output, json.RawMessage(emptyJSONArray), true))
+}
+
+type stubRejectedRunner struct{}
+
+func (s stubRejectedRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgentInput) (*Run, error) {
+	run, err := rc.Orchestrator.TriggerAgent(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	reason := "policy rejected delegated call"
+	output, _ := json.Marshal(map[string]any{"result": "rejected"})
+	return rc.Orchestrator.UpdateAgentRun(ctx, input.WorkspaceID, run.ID, RunUpdates{
+		Status:               StatusRejected,
+		Output:               output,
+		AbstentionReason:     &reason,
+		ReasoningTrace:       json.RawMessage(emptyJSONArray),
+		RetrievalQueries:     json.RawMessage(emptyJSONArray),
+		RetrievedEvidenceIDs: json.RawMessage(emptyJSONArray),
+		ToolCalls:            json.RawMessage(emptyJSONArray),
+		Completed:            true,
+	})
 }
 
 func TestDSLRuntimeExecutorExecutesToolOperation(t *testing.T) {
@@ -181,6 +203,214 @@ func TestDSLRuntimeExecutorExecutesSubAgentCall(t *testing.T) {
 	}
 }
 
+func TestDSLRuntimeExecutorExecutesInternalDispatch(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	now := time.Now().UTC()
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+		VALUES ('nested-dispatch-id', 'ws_dsl', 'dispatch-agent', 'nested', 'active', ?, ?)
+	`, now, now); err != nil {
+		t.Fatalf("insert dispatch agent: %v", err)
+	}
+
+	registry := NewRunnerRegistry()
+	if err := registry.Register("nested", stubNestedRunner{}); err != nil {
+		t.Fatalf("registry.Register() error = %v", err)
+	}
+	orch := NewOrchestratorWithRegistry(db, registry)
+	executor := newDSLRuntimeExecutor(&RunContext{
+		Orchestrator:   orch,
+		RunnerRegistry: registry,
+		DB:             db,
+	}, TriggerAgentInput{
+		WorkspaceID: "ws_dsl",
+		TriggerType: TriggerTypeManual,
+	}, map[string]any{"case": map[string]any{"id": "case-1"}}, "", "")
+
+	result, err := executor.Execute(context.Background(), &RuntimeOperation{
+		Kind:      RuntimeOperationDispatch,
+		AgentName: "dispatch-agent",
+		Params:    map[string]any{"case_id": "case-1"},
+	}, map[string]any{"case": map[string]any{"id": "case-1"}})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Stop != true || result.Status != StatusDelegated {
+		t.Fatalf("unexpected dispatch result = %#v", result)
+	}
+	if executor.IsPending() {
+		t.Fatal("executor pending = true, want false")
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok || output["dispatch_result"] != dispatchResultDelegated {
+		t.Fatalf("unexpected dispatch output = %#v", result.Output)
+	}
+}
+
+func TestDSLRuntimeExecutorMarksDispatchAcceptedWhenTargetAccepted(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	now := time.Now().UTC()
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+		VALUES ('nested-dispatch-accepted-id', 'ws_dsl', 'dispatch-pending-agent', 'nested_pending', 'active', ?, ?)
+	`, now, now); err != nil {
+		t.Fatalf("insert dispatch agent: %v", err)
+	}
+
+	registry := NewRunnerRegistry()
+	if err := registry.Register("nested_pending", stubPendingNestedRunner{}); err != nil {
+		t.Fatalf("registry.Register() error = %v", err)
+	}
+	orch := NewOrchestratorWithRegistry(db, registry)
+	executor := newDSLRuntimeExecutor(&RunContext{
+		Orchestrator:   orch,
+		RunnerRegistry: registry,
+		DB:             db,
+	}, TriggerAgentInput{
+		WorkspaceID: "ws_dsl",
+		TriggerType: TriggerTypeManual,
+	}, map[string]any{"case": map[string]any{"id": "case-1"}}, "", "")
+
+	result, err := executor.Execute(context.Background(), &RuntimeOperation{
+		Kind:      RuntimeOperationDispatch,
+		AgentName: "dispatch-pending-agent",
+		Params:    map[string]any{"case_id": "case-1"},
+	}, map[string]any{"case": map[string]any{"id": "case-1"}})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !executor.IsPending() || !result.Stop || result.Status != StatusAccepted {
+		t.Fatalf("unexpected dispatch result = %#v", result)
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok || output["dispatch_result"] != dispatchResultAccepted {
+		t.Fatalf("unexpected dispatch output = %#v", result.Output)
+	}
+}
+
+func TestDSLRuntimeExecutorMarksDispatchRejectedWithReason(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	now := time.Now().UTC()
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+		VALUES ('nested-dispatch-rejected-id', 'ws_dsl', 'dispatch-rejected-agent', 'nested_rejected', 'active', ?, ?)
+	`, now, now); err != nil {
+		t.Fatalf("insert dispatch agent: %v", err)
+	}
+
+	registry := NewRunnerRegistry()
+	if err := registry.Register("nested_rejected", stubRejectedRunner{}); err != nil {
+		t.Fatalf("registry.Register() error = %v", err)
+	}
+	orch := NewOrchestratorWithRegistry(db, registry)
+	executor := newDSLRuntimeExecutor(&RunContext{
+		Orchestrator:   orch,
+		RunnerRegistry: registry,
+		DB:             db,
+	}, TriggerAgentInput{
+		WorkspaceID: "ws_dsl",
+		TriggerType: TriggerTypeManual,
+	}, map[string]any{"case": map[string]any{"id": "case-1"}}, "", "")
+
+	result, err := executor.Execute(context.Background(), &RuntimeOperation{
+		Kind:      RuntimeOperationDispatch,
+		AgentName: "dispatch-rejected-agent",
+		Params:    map[string]any{"case_id": "case-1"},
+	}, map[string]any{"case": map[string]any{"id": "case-1"}})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Status != StatusRejected || !result.Stop {
+		t.Fatalf("unexpected dispatch result = %#v", result)
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok || output["dispatch_result"] != dispatchResultRejected {
+		t.Fatalf("unexpected dispatch output = %#v", result.Output)
+	}
+	if output["reason"] == "" {
+		t.Fatalf("expected rejection reason, got %#v", output)
+	}
+}
+
+func TestDSLRuntimeExecutorRejectsDispatchOnCircularDelegation(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	now := time.Now().UTC()
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+		VALUES ('nested-loop-id', 'ws_dsl', 'dispatch-loop-agent', 'nested', 'active', ?, ?)
+	`, now, now); err != nil {
+		t.Fatalf("insert dispatch agent: %v", err)
+	}
+
+	executor := newDSLRuntimeExecutor(&RunContext{
+		Orchestrator: &Orchestrator{},
+		DB:           db,
+		CallChain:    []string{"nested-loop-id"},
+	}, TriggerAgentInput{
+		WorkspaceID: "ws_dsl",
+		TriggerType: TriggerTypeManual,
+	}, map[string]any{"case": map[string]any{"id": "case-1"}}, "", "")
+
+	result, err := executor.Execute(context.Background(), &RuntimeOperation{
+		Kind:      RuntimeOperationDispatch,
+		AgentName: "dispatch-loop-agent",
+		Params:    map[string]any{"case_id": "case-1"},
+	}, map[string]any{"case": map[string]any{"id": "case-1"}})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Status != StatusRejected || !result.Stop {
+		t.Fatalf("unexpected dispatch result = %#v", result)
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok || output["reason"] != dispatchRejectLoop {
+		t.Fatalf("unexpected dispatch output = %#v", result.Output)
+	}
+}
+
+func TestDSLRuntimeExecutorRejectsDispatchOnDepthLimit(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	now := time.Now().UTC()
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+		VALUES ('nested-depth-id', 'ws_dsl', 'dispatch-depth-agent', 'nested', 'active', ?, ?)
+	`, now, now); err != nil {
+		t.Fatalf("insert dispatch agent: %v", err)
+	}
+
+	executor := newDSLRuntimeExecutor(&RunContext{
+		Orchestrator: &Orchestrator{},
+		DB:           db,
+		CallDepth:    dslAgentCallDepthLimit,
+	}, TriggerAgentInput{
+		WorkspaceID: "ws_dsl",
+		TriggerType: TriggerTypeManual,
+	}, map[string]any{"case": map[string]any{"id": "case-1"}}, "", "")
+
+	result, err := executor.Execute(context.Background(), &RuntimeOperation{
+		Kind:      RuntimeOperationDispatch,
+		AgentName: "dispatch-depth-agent",
+		Params:    map[string]any{"case_id": "case-1"},
+	}, map[string]any{"case": map[string]any{"id": "case-1"}})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok || output["reason"] != dispatchRejectDepth {
+		t.Fatalf("unexpected dispatch output = %#v", result.Output)
+	}
+}
+
 func TestDSLRuntimeExecutorDeniesSubAgentCallWhenPolicyRejects(t *testing.T) {
 	t.Parallel()
 
@@ -222,6 +452,48 @@ func TestDSLRuntimeExecutorDeniesSubAgentCallWhenPolicyRejects(t *testing.T) {
 	}
 }
 
+func TestDSLRuntimeExecutorCreatesSurfaceSignal(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	seedDSLRunnerCase(t, db, "case-1")
+	signalService := signaldomain.NewService(db)
+	executor := newDSLRuntimeExecutor(&RunContext{
+		SignalService: signalService,
+	}, TriggerAgentInput{
+		WorkspaceID: "ws_dsl",
+		TriggerType: TriggerTypeManual,
+	}, map[string]any{"case": map[string]any{"id": "case-1"}}, "workflow-1", "run-1")
+
+	result, err := executor.Execute(context.Background(), &RuntimeOperation{
+		Kind:   RuntimeOperationSurface,
+		Target: "case",
+		Params: map[string]any{
+			"entity": "case",
+			"view":   "salesperson.view",
+			"value":  "review",
+		},
+	}, map[string]any{"case": map[string]any{"id": "case-1"}})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output, ok := result.Output.(map[string]any)
+	if !ok || output["signal_id"] == "" {
+		t.Fatalf("unexpected surface output = %#v", result.Output)
+	}
+
+	signals, err := signalService.GetByEntity(context.Background(), "ws_dsl", "case", "case-1")
+	if err != nil {
+		t.Fatalf("GetByEntity() error = %v", err)
+	}
+	if len(signals) != 1 {
+		t.Fatalf("len(signals) = %d, want 1", len(signals))
+	}
+	if got := signalStringField(signals[0].Metadata, "view"); got != "salesperson.view" {
+		t.Fatalf("metadata.view = %q, want %q", got, "salesperson.view")
+	}
+}
+
 func setupDSLToolRegistry(t *testing.T, db *sql.DB) *tool.ToolRegistry {
 	t.Helper()
 
@@ -251,6 +523,23 @@ func setupDSLToolRegistry(t *testing.T, db *sql.DB) *tool.ToolRegistry {
 	}
 
 	return registry
+}
+
+func seedDSLRunnerCase(t *testing.T, db *sql.DB, caseID string) {
+	t.Helper()
+	mustExecDSLRunner(t, db, `
+		INSERT INTO case_ticket (id, workspace_id, owner_id, subject, priority, status, created_at, updated_at)
+		VALUES ('`+caseID+`', 'ws_dsl', 'owner-1', 'Surface case', 'medium', 'open', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`)
+}
+
+func signalStringField(metadata json.RawMessage, key string) string {
+	var payload map[string]any
+	if err := json.Unmarshal(metadata, &payload); err != nil {
+		return ""
+	}
+	value, _ := payload[key].(string)
+	return value
 }
 
 func seedDSLRunnerRole(t *testing.T, db *sql.DB, userID string, permissions string) {

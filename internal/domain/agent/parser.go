@@ -106,19 +106,22 @@ func (p *Parser) parseStatementList(stop TokenType) ([]Statement, error) {
 }
 
 func (p *Parser) parseStatement() (Statement, error) {
-	switch p.current().Type {
-	case TokenIf:
-		return p.parseIfStatement()
-	case TokenSet:
-		return p.parseSetStatement()
-	case TokenNotify:
-		return p.parseNotifyStatement()
-	case TokenAgent:
-		return p.parseAgentStatement()
-	case TokenWait:
-		return p.parseWaitStatement()
-	default:
+	parseFn, ok := statementParsers()[p.current().Type]
+	if !ok {
 		return nil, p.errorAt(p.current(), "unexpected statement")
+	}
+	return parseFn(p)
+}
+
+func statementParsers() map[TokenType]func(*Parser) (Statement, error) {
+	return map[TokenType]func(*Parser) (Statement, error){
+		TokenIf:       (*Parser).parseIfStatement,
+		TokenSet:      (*Parser).parseSetStatement,
+		TokenNotify:   (*Parser).parseNotifyStatement,
+		TokenAgent:    (*Parser).parseAgentStatement,
+		TokenDispatch: (*Parser).parseDispatchStatement,
+		TokenSurface:  (*Parser).parseSurfaceStatement,
+		TokenWait:     (*Parser).parseWaitStatement,
 	}
 }
 
@@ -238,6 +241,77 @@ func (p *Parser) parseAgentStatement() (Statement, error) {
 		Input:    input,
 		Position: positionFromToken(start),
 	}, nil
+}
+
+func (p *Parser) parseDispatchStatement() (Statement, error) {
+	start, err := p.expect(TokenDispatch, "expected DISPATCH")
+	if err != nil {
+		return nil, err
+	}
+	if _, parseErr := p.expect(TokenTo, "expected TO after DISPATCH"); parseErr != nil {
+		return nil, parseErr
+	}
+	target, err := p.expect(TokenIdentifier, "expected target agent after DISPATCH TO")
+	if err != nil {
+		return nil, err
+	}
+	if _, parseErr := p.expect(TokenWith, "expected WITH after DISPATCH target"); parseErr != nil {
+		return nil, parseErr
+	}
+	payload, err := p.parseExpression()
+	if err != nil {
+		return nil, err
+	}
+	if parseErr := p.expectNewline("expected newline after DISPATCH statement"); parseErr != nil {
+		return nil, parseErr
+	}
+	return &DispatchStatement{
+		Target:   &IdentifierExpr{Name: target.Literal, Position: positionFromToken(target)},
+		Payload:  payload,
+		Position: positionFromToken(start),
+	}, nil
+}
+
+func (p *Parser) parseSurfaceStatement() (Statement, error) {
+	start, err := p.expect(TokenSurface, "expected SURFACE")
+	if err != nil {
+		return nil, err
+	}
+	entity, view, err := p.parseSurfaceTarget()
+	if err != nil {
+		return nil, err
+	}
+	if _, parseErr := p.expect(TokenWith, "expected WITH after SURFACE target"); parseErr != nil {
+		return nil, parseErr
+	}
+	payload, err := p.parseExpression()
+	if err != nil {
+		return nil, err
+	}
+	if parseErr := p.expectNewline("expected newline after SURFACE statement"); parseErr != nil {
+		return nil, parseErr
+	}
+	return &SurfaceStatement{
+		Entity:   &IdentifierExpr{Name: entity.Literal, Position: positionFromToken(entity)},
+		View:     &IdentifierExpr{Name: view.Literal, Position: positionFromToken(view)},
+		Payload:  payload,
+		Position: positionFromToken(start),
+	}, nil
+}
+
+func (p *Parser) parseSurfaceTarget() (Token, Token, error) {
+	entity, err := p.expect(TokenIdentifier, "expected entity after SURFACE")
+	if err != nil {
+		return Token{}, Token{}, err
+	}
+	if _, parseErr := p.expect(TokenTo, "expected TO after SURFACE entity"); parseErr != nil {
+		return Token{}, Token{}, parseErr
+	}
+	view, err := p.expect(TokenIdentifier, "expected view target after SURFACE TO")
+	if err != nil {
+		return Token{}, Token{}, err
+	}
+	return entity, view, nil
 }
 
 func (p *Parser) parseWaitStatement() (Statement, error) {

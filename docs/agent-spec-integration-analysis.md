@@ -273,7 +273,7 @@ agent_run status                Add ACCEPTED/REJECTED/DELEGATED       Full proto
 
 ## Appendix C -- Interoperability Direction
 
-- `DISPATCH` externo debe ser A2A-first.
-- Exposicion y consumo de tools/contexto debe ser MCP-first.
+- `DISPATCH` externo debe ser A2A-first usando `a2aproject/a2a-go` como primera implementacion en Go.
+- Exposicion y consumo de tools/contexto debe ser MCP-first usando el SDK oficial de MCP para Go.
 - `ProtocolHandler` debe ser un puerto interno con adapters compatibles con estandares, no un protocolo propietario.
 - HTTP no es el contrato objetivo; es el transporte del estandar cuando aplique.

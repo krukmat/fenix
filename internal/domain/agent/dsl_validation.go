@@ -52,20 +52,36 @@ func validateStatementSlice(statements []Statement) error {
 }
 
 func validateStatement(statement Statement) error {
-	switch stmt := statement.(type) {
-	case *IfStatement:
-		return validateIfStatement(stmt)
-	case *SetStatement:
-		return validateSetStatement(stmt)
-	case *NotifyStatement:
-		return validateNotifyStatement(stmt)
-	case *AgentStatement:
-		return validateAgentStatement(stmt)
-	case *WaitStatement:
-		return validateWaitStatement(stmt)
-	default:
-		return validationError(statement.Pos(), "statement is not allowed in DSL v0")
+	if handled, err := validateLeafStatement(statement); handled {
+		return err
 	}
+	return validateStructuredStatement(statement)
+}
+
+func validateLeafStatement(statement Statement) (bool, error) {
+	switch stmt := statement.(type) {
+	case *SetStatement:
+		return true, validateSetStatement(stmt)
+	case *NotifyStatement:
+		return true, validateNotifyStatement(stmt)
+	case *AgentStatement:
+		return true, validateAgentStatement(stmt)
+	case *DispatchStatement:
+		return true, validateDispatchStatement(stmt)
+	case *SurfaceStatement:
+		return true, validateSurfaceStatement(stmt)
+	case *WaitStatement:
+		return true, validateWaitStatement(stmt)
+	default:
+		return false, nil
+	}
+}
+
+func validateStructuredStatement(statement Statement) error {
+	if stmt, ok := statement.(*IfStatement); ok {
+		return validateIfStatement(stmt)
+	}
+	return validationError(statement.Pos(), "statement is not allowed in DSL v0")
 }
 
 func validateIfStatement(stmt *IfStatement) error {
@@ -103,6 +119,41 @@ func validateAgentStatement(stmt *AgentStatement) error {
 		return validationError(stmt.Pos(), "AGENT name is required")
 	}
 	return nil
+}
+
+func validateDispatchStatement(stmt *DispatchStatement) error {
+	if stmt.Target == nil || strings.TrimSpace(stmt.Target.Name) == "" {
+		return validationError(stmt.Pos(), "DISPATCH target is required")
+	}
+	if stmt.Payload == nil {
+		return validationError(stmt.Pos(), "DISPATCH requires WITH payload")
+	}
+	return nil
+}
+
+func validateSurfaceStatement(stmt *SurfaceStatement) error {
+	if stmt.Entity == nil || strings.TrimSpace(stmt.Entity.Name) == "" {
+		return validationError(stmt.Pos(), "SURFACE entity is required")
+	}
+	if !isSupportedSurfaceEntity(stmt.Entity.Name) {
+		return validationError(stmt.Pos(), "SURFACE entity is not supported")
+	}
+	if stmt.View == nil || strings.TrimSpace(stmt.View.Name) == "" {
+		return validationError(stmt.Pos(), "SURFACE target view is required")
+	}
+	if stmt.Payload == nil {
+		return validationError(stmt.Pos(), "SURFACE requires WITH payload")
+	}
+	return nil
+}
+
+func isSupportedSurfaceEntity(name string) bool {
+	switch strings.TrimSpace(name) {
+	case "contact", "lead", "deal", bridgeEntityCase:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateWaitStatement(stmt *WaitStatement) error {

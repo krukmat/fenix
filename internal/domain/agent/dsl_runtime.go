@@ -144,7 +144,7 @@ func (r *DSLRuntime) executeStatement(ctx context.Context, stmt Statement, evalC
 		return r.executeIf(ctx, node, evalCtx, executor, out, startIndex, cursor)
 	case *WaitStatement:
 		return r.executeWait(ctx, node, evalCtx, executor, out, *cursor)
-	case *SetStatement, *NotifyStatement, *AgentStatement:
+	case *SetStatement, *NotifyStatement, *AgentStatement, *DispatchStatement, *SurfaceStatement:
 		return r.executeMappedStatement(ctx, stmt, evalCtx, executor, out)
 	default:
 		return false, fmt.Errorf("%w: unsupported statement type", ErrDSLRuntimeFailed)
@@ -273,19 +273,45 @@ func (r *DSLRuntime) applyExecutorResult(ctx context.Context, executor RuntimeOp
 }
 
 func runtimeStatementType(stmt Statement) string {
+	if statementType, ok := runtimeLeafStatementType(stmt); ok {
+		return statementType
+	}
+	return runtimeStructuredStatementType(stmt)
+}
+
+func runtimeLeafStatementType(stmt Statement) (string, bool) {
+	tokenType := runtimeStatementToken(stmt)
+	switch tokenType {
+	case TokenSet, TokenNotify, TokenAgent, TokenDispatch, TokenSurface, TokenWait:
+		return string(tokenType), true
+	default:
+		return "", false
+	}
+}
+
+func runtimeStructuredStatementType(stmt Statement) string {
+	if _, ok := stmt.(*IfStatement); ok {
+		return "IF"
+	}
+	return "UNKNOWN"
+}
+
+func runtimeStatementToken(stmt Statement) TokenType {
 	switch stmt.(type) {
 	case *SetStatement:
-		return "SET"
+		return TokenSet
 	case *NotifyStatement:
-		return "NOTIFY"
+		return TokenNotify
 	case *AgentStatement:
-		return "AGENT"
+		return TokenAgent
+	case *DispatchStatement:
+		return TokenDispatch
+	case *SurfaceStatement:
+		return TokenSurface
 	case *WaitStatement:
-		return "WAIT"
-	case *IfStatement:
-		return "IF"
+		return TokenWait
 	default:
-		return "UNKNOWN"
+		return TokenIllegal
 	}
 }
 
@@ -297,6 +323,10 @@ func runtimeStatementTarget(stmt Statement) string {
 		return identifierName(node.Target)
 	case *AgentStatement:
 		return identifierName(node.Name)
+	case *DispatchStatement:
+		return identifierName(node.Target)
+	case *SurfaceStatement:
+		return identifierName(node.View)
 	case *WaitStatement:
 		return formatWaitTarget(node)
 	}

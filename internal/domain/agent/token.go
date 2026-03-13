@@ -37,6 +37,7 @@ const (
 	TokenSet      TokenType = "SET"
 	TokenNotify   TokenType = "NOTIFY"
 	TokenWith     TokenType = "WITH"
+	TokenTo       TokenType = "TO"
 	TokenAgent    TokenType = "AGENT"
 	TokenIn       TokenType = "IN"
 
@@ -59,18 +60,18 @@ var dslKeywords = map[string]TokenType{
 	"SET":      TokenSet,
 	"NOTIFY":   TokenNotify,
 	"WITH":     TokenWith,
+	"TO":       TokenTo,
 	"AGENT":    TokenAgent,
 	"IN":       TokenIn,
 	"WAIT":     TokenWait,
+	"DISPATCH": TokenDispatch,
+	"SURFACE":  TokenSurface,
 	"TRUE":     TokenBoolean,
 	"FALSE":    TokenBoolean,
 	"NULL":     TokenNull,
 }
 
-var dslReservedKeywords = map[string]TokenType{
-	"DISPATCH": TokenDispatch,
-	"SURFACE":  TokenSurface,
-}
+var dslReservedKeywords = map[string]TokenType{}
 
 func LookupTokenType(literal string) TokenType {
 	normalized := strings.TrimSpace(strings.ToUpper(literal))

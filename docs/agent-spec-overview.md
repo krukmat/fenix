@@ -76,7 +76,7 @@ This keeps the naming consistent with what already exists and avoids mixing busi
 | `UC-A6` | Deferred Actions | `defer_action*` | `Scheduler`, resume handler | F6 |
 | `UC-A7` | Human Override and Approval | `human_override*` | `ApprovalService`, `agent_run`, audit | F1, F5 |
 | `UC-A8` | Workflow Versioning and Rollback | `version_workflow*` | `WorkflowService`, versioning lifecycle | F2, F5 |
-| `UC-A9` | Agent Delegation | `delegate_workflow*` | `ProtocolHandler`, A2A adapter, `RunnerRegistry` | F8 |
+| `UC-A9` | Agent Delegation | `delegate_workflow*` | `ProtocolHandler`, `a2aproject/a2a-go` adapter, `RunnerRegistry` | F8 |
 
 ---
 
@@ -95,8 +95,8 @@ The AGENT_SPEC effort is organized in three layers:
 
 3. Interoperability and external coordination
 - signals become first-class outputs
-- dispatch between agents uses A2A-first
-- tools and context use MCP-first
+- dispatch between agents uses A2A-first via `a2aproject/a2a-go`
+- tools and context use MCP-first via the official MCP Go SDK
 - represented by `UC-A5` and `UC-A9`
 
 High-level flow:

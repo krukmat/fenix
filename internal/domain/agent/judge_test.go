@@ -13,8 +13,8 @@ func TestWorkflowJudgeVerify_PassesForValidDSL(t *testing.T) {
 	judge := NewJudge()
 	spec := "CONTEXT\n  system = crm\nACTORS\n  admin\nBEHAVIOR resolve_support_case\n  GIVEN a workflow\nCONSTRAINTS\n  one active per name"
 	result, err := judge.Verify(context.Background(), &workflowdomain.Workflow{
-		ID:        "wf-valid",
-		DSLSource: "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		ID:         "wf-valid",
+		DSLSource:  "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
 		SpecSource: &spec,
 	})
 	if err != nil {
@@ -143,6 +143,40 @@ func TestWorkflowJudgeVerify_PassesWhenBehaviorCoverageMatches(t *testing.T) {
 	}
 	if !result.Passed {
 		t.Fatalf("Passed = false, want true; violations = %#v", result.Violations)
+	}
+}
+
+func TestWorkflowJudgeVerify_AddsProtocolFindings(t *testing.T) {
+	t.Parallel()
+
+	judge := NewJudge()
+	result, err := judge.Verify(context.Background(), &workflowdomain.Workflow{
+		ID:        "wf-protocol",
+		DSLSource: "WORKFLOW route_case\nON case.created\nDISPATCH TO support_agent WITH {\"case_id\":\"case-1\"}\nSURFACE case TO salesperson WITH {\"value\":\"review\"}",
+	})
+	if err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+	if result.Passed {
+		t.Fatal("Passed = true, want false")
+	}
+	foundViolation := false
+	foundWarning := false
+	for _, violation := range result.Violations {
+		if violation.Code == "dispatch_contract_missing" {
+			foundViolation = true
+		}
+	}
+	for _, warning := range result.Warnings {
+		if warning.Code == "surface_view_ambiguous" {
+			foundWarning = true
+		}
+	}
+	if !foundViolation {
+		t.Fatalf("Violations = %#v", result.Violations)
+	}
+	if !foundWarning {
+		t.Fatalf("Warnings = %#v", result.Warnings)
 	}
 }
 

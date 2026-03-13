@@ -12,6 +12,7 @@ func TestLookupTokenTypeRecognizesKeywords(t *testing.T) {
 		"SET":      TokenSet,
 		"notify":   TokenNotify,
 		"WITH":     TokenWith,
+		"to":       TokenTo,
 		"AGENT":    TokenAgent,
 		"in":       TokenIn,
 		"true":     TokenBoolean,
@@ -26,7 +27,7 @@ func TestLookupTokenTypeRecognizesKeywords(t *testing.T) {
 	}
 }
 
-func TestLookupTokenTypeRecognizesReservedKeywords(t *testing.T) {
+func TestLookupTokenTypeRecognizesExtendedKeywords(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]TokenType{
@@ -67,8 +68,17 @@ func TestTokenClassificationHelpers(t *testing.T) {
 	if !IsKeyword(TokenWait) {
 		t.Fatal("expected TokenWait to be executable keyword")
 	}
+	if !IsKeyword(TokenDispatch) {
+		t.Fatal("expected TokenDispatch to be executable keyword")
+	}
+	if !IsKeyword(TokenSurface) {
+		t.Fatal("expected TokenSurface to be executable keyword")
+	}
 	if IsReservedKeyword(TokenWait) {
 		t.Fatal("expected TokenWait not to be reserved keyword")
+	}
+	if IsReservedKeyword(TokenSurface) {
+		t.Fatal("expected TokenSurface not to be reserved keyword")
 	}
 	if !IsLiteralToken(TokenString) || !IsLiteralToken(TokenIdentifier) {
 		t.Fatal("expected literal token classification for string and identifier")

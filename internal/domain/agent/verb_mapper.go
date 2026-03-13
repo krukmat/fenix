@@ -12,8 +12,10 @@ var ErrVerbMappingFailed = fmt.Errorf("verb mapping failed")
 type RuntimeOperationKind string
 
 const (
-	RuntimeOperationTool  RuntimeOperationKind = "tool"
-	RuntimeOperationAgent RuntimeOperationKind = "agent"
+	RuntimeOperationTool     RuntimeOperationKind = "tool"
+	RuntimeOperationAgent    RuntimeOperationKind = "agent"
+	RuntimeOperationDispatch RuntimeOperationKind = "dispatch"
+	RuntimeOperationSurface  RuntimeOperationKind = "surface"
 )
 
 type RuntimeOperation struct {
@@ -34,24 +36,48 @@ func NewVerbMapper() *VerbMapper {
 }
 
 func (m *VerbMapper) MapStatement(stmt Statement, evalCtx map[string]any) (*RuntimeOperation, error) {
+	if handled, op, err := m.mapLeafStatement(stmt, evalCtx); handled {
+		return op, err
+	}
+	return nil, fmt.Errorf("%w: unsupported statement type", ErrVerbMappingFailed)
+}
+
+func (m *VerbMapper) mapLeafStatement(stmt Statement, evalCtx map[string]any) (bool, *RuntimeOperation, error) {
 	switch node := stmt.(type) {
 	case *SetStatement:
-		value, err := m.evaluator.Evaluate(node.Value, evalCtx)
-		if err != nil {
-			return nil, err
-		}
-		return mapSetOperation(node.Target.Name, value, evalCtx)
+		op, err := m.mapSetNode(node, evalCtx)
+		return true, op, err
 	case *NotifyStatement:
-		value, err := m.evaluator.Evaluate(node.Value, evalCtx)
-		if err != nil {
-			return nil, err
-		}
-		return mapNotifyOperation(node.Target.Name, value, evalCtx)
+		op, err := m.mapNotifyNode(node, evalCtx)
+		return true, op, err
 	case *AgentStatement:
-		return m.mapAgentStatement(node, evalCtx)
+		op, err := m.mapAgentStatement(node, evalCtx)
+		return true, op, err
+	case *DispatchStatement:
+		op, err := m.mapDispatchStatement(node, evalCtx)
+		return true, op, err
+	case *SurfaceStatement:
+		op, err := m.mapSurfaceStatement(node, evalCtx)
+		return true, op, err
 	default:
-		return nil, fmt.Errorf("%w: unsupported statement type", ErrVerbMappingFailed)
+		return false, nil, nil
 	}
+}
+
+func (m *VerbMapper) mapSetNode(node *SetStatement, evalCtx map[string]any) (*RuntimeOperation, error) {
+	value, err := m.evaluator.Evaluate(node.Value, evalCtx)
+	if err != nil {
+		return nil, err
+	}
+	return mapSetOperation(node.Target.Name, value, evalCtx)
+}
+
+func (m *VerbMapper) mapNotifyNode(node *NotifyStatement, evalCtx map[string]any) (*RuntimeOperation, error) {
+	value, err := m.evaluator.Evaluate(node.Value, evalCtx)
+	if err != nil {
+		return nil, err
+	}
+	return mapNotifyOperation(node.Target.Name, value, evalCtx)
 }
 
 func (m *VerbMapper) MapBridgeStep(step BridgeStep, evalCtx map[string]any) (*RuntimeOperation, error) {
@@ -92,6 +118,52 @@ func (m *VerbMapper) mapAgentStatement(stmt *AgentStatement, evalCtx map[string]
 		return nil, err
 	}
 	return mapAgentOperation(stmt.Name.Name, params), nil
+}
+
+func (m *VerbMapper) mapDispatchStatement(stmt *DispatchStatement, evalCtx map[string]any) (*RuntimeOperation, error) {
+	if stmt == nil || stmt.Target == nil || strings.TrimSpace(stmt.Target.Name) == "" {
+		return nil, fmt.Errorf("%w: DISPATCH requires target", ErrVerbMappingFailed)
+	}
+	if stmt.Payload == nil {
+		return nil, fmt.Errorf("%w: DISPATCH requires payload", ErrVerbMappingFailed)
+	}
+	value, err := m.evaluator.Evaluate(stmt.Payload, evalCtx)
+	if err != nil {
+		return nil, err
+	}
+	params, err := normalizeAgentInput(value)
+	if err != nil {
+		return nil, err
+	}
+	return mapDispatchOperation(stmt.Target.Name, params), nil
+}
+
+func (m *VerbMapper) mapSurfaceStatement(stmt *SurfaceStatement, evalCtx map[string]any) (*RuntimeOperation, error) {
+	if err := validateSurfaceMapping(stmt); err != nil {
+		return nil, err
+	}
+	value, err := m.evaluator.Evaluate(stmt.Payload, evalCtx)
+	if err != nil {
+		return nil, err
+	}
+	params, err := normalizeSurfacePayload(value)
+	if err != nil {
+		return nil, err
+	}
+	return mapSurfaceOperation(stmt.Entity.Name, stmt.View.Name, params), nil
+}
+
+func validateSurfaceMapping(stmt *SurfaceStatement) error {
+	switch {
+	case stmt == nil || stmt.Entity == nil || strings.TrimSpace(stmt.Entity.Name) == "":
+		return fmt.Errorf("%w: SURFACE requires entity", ErrVerbMappingFailed)
+	case stmt.View == nil || strings.TrimSpace(stmt.View.Name) == "":
+		return fmt.Errorf("%w: SURFACE requires target view", ErrVerbMappingFailed)
+	case stmt.Payload == nil:
+		return fmt.Errorf("%w: SURFACE requires payload", ErrVerbMappingFailed)
+	default:
+		return nil
+	}
 }
 
 func mapSetOperation(target string, value any, evalCtx map[string]any) (*RuntimeOperation, error) {
@@ -168,6 +240,36 @@ func mapAgentOperation(target string, params map[string]any) *RuntimeOperation {
 	}
 }
 
+func mapDispatchOperation(target string, params map[string]any) *RuntimeOperation {
+	if params == nil {
+		params = map[string]any{}
+	}
+	target = strings.TrimSpace(target)
+	return &RuntimeOperation{
+		Kind:      RuntimeOperationDispatch,
+		Verb:      "DISPATCH",
+		Target:    target,
+		AgentName: target,
+		Params:    params,
+	}
+}
+
+func mapSurfaceOperation(entity, view string, params map[string]any) *RuntimeOperation {
+	if params == nil {
+		params = map[string]any{}
+	}
+	entity = strings.TrimSpace(entity)
+	view = strings.TrimSpace(view)
+	params["entity"] = entity
+	params["view"] = view
+	return &RuntimeOperation{
+		Kind:   RuntimeOperationSurface,
+		Verb:   "SURFACE",
+		Target: entity,
+		Params: params,
+	}
+}
+
 func actionArg(args map[string]any, key string) (any, bool) {
 	if len(args) == 0 {
 		return nil, false
@@ -184,4 +286,14 @@ func normalizeAgentInput(value any) (map[string]any, error) {
 		return params, nil
 	}
 	return map[string]any{"input": value}, nil
+}
+
+func normalizeSurfacePayload(value any) (map[string]any, error) {
+	if value == nil {
+		return map[string]any{}, nil
+	}
+	if params, ok := value.(map[string]any); ok {
+		return params, nil
+	}
+	return map[string]any{"value": value}, nil
 }

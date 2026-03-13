@@ -48,7 +48,7 @@ Rule:
 | `UC-A6` | `defer_action*` | `Scheduler`, resume handler | F6 | overview, use cases, design, plan |
 | `UC-A7` | `human_override*` | `ApprovalService`, `agent_run`, audit | F1, F5 | overview, use cases, design, plan |
 | `UC-A8` | `version_workflow*` | `WorkflowService`, versioning lifecycle | F2, F5 | overview, use cases, design, plan |
-| `UC-A9` | `delegate_workflow*` | `ProtocolHandler`, A2A adapter, `RunnerRegistry` | F8 | overview, use cases, design, analysis, plan |
+| `UC-A9` | `delegate_workflow*` | `ProtocolHandler`, `a2aproject/a2a-go` adapter, `RunnerRegistry` | F8 | overview, use cases, design, analysis, plan |
 
 ---
 

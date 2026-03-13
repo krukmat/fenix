@@ -116,6 +116,47 @@ func TestParseDSLParsesWaitStatement(t *testing.T) {
 	}
 }
 
+func TestParseDSLParsesDispatchStatement(t *testing.T) {
+	t.Parallel()
+
+	program, err := ParseDSL("WORKFLOW delegate_case\nON case.created\nDISPATCH TO support_agent WITH {\"case_id\":\"case-1\"}")
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
+	}
+	dispatchStmt, ok := program.Workflow.Body[0].(*DispatchStatement)
+	if !ok {
+		t.Fatalf("body[0] type = %T, want *DispatchStatement", program.Workflow.Body[0])
+	}
+	if dispatchStmt.Target == nil || dispatchStmt.Target.Name != "support_agent" {
+		t.Fatalf("target = %#v, want support_agent", dispatchStmt.Target)
+	}
+	if _, ok := dispatchStmt.Payload.(*ObjectLiteralExpr); !ok {
+		t.Fatalf("payload type = %T, want *ObjectLiteralExpr", dispatchStmt.Payload)
+	}
+}
+
+func TestParseDSLParsesSurfaceStatement(t *testing.T) {
+	t.Parallel()
+
+	program, err := ParseDSL("WORKFLOW surface_case\nON case.created\nSURFACE case TO salesperson.view WITH {\"value\":\"review\",\"metadata\":{\"channel\":\"triage\"}}")
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
+	}
+	surfaceStmt, ok := program.Workflow.Body[0].(*SurfaceStatement)
+	if !ok {
+		t.Fatalf("body[0] type = %T, want *SurfaceStatement", program.Workflow.Body[0])
+	}
+	if surfaceStmt.Entity == nil || surfaceStmt.Entity.Name != "case" {
+		t.Fatalf("entity = %#v, want case", surfaceStmt.Entity)
+	}
+	if surfaceStmt.View == nil || surfaceStmt.View.Name != "salesperson.view" {
+		t.Fatalf("view = %#v, want salesperson.view", surfaceStmt.View)
+	}
+	if _, ok := surfaceStmt.Payload.(*ObjectLiteralExpr); !ok {
+		t.Fatalf("payload type = %T, want *ObjectLiteralExpr", surfaceStmt.Payload)
+	}
+}
+
 func TestParserErrorMessageAndError(t *testing.T) {
 	t.Parallel()
 

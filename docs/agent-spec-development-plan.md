@@ -177,19 +177,19 @@ Set canonico relacionado:
 - F8.1 Implementar `DISPATCH` interno usando `RunnerRegistry`.
 - F8.2 Registrar resultados `ACCEPTED`, `REJECTED`, `DELEGATED`.
 - F8.3 Implementar deteccion de loops de delegacion interna.
-- F8.4 Implementar `ProtocolHandler` como contrato interno alineado con A2A.
-- F8.5 Implementar `DISPATCH` externo A2A-first sobre HTTP(S) + JSON-RPC.
+- F8.4 Implementar `ProtocolHandler` como contrato interno alineado con A2A y preparado para `a2aproject/a2a-go`.
+- F8.5 Implementar `DISPATCH` externo A2A-first usando `a2aproject/a2a-go`.
 - F8.6 Definir timeouts, autenticacion, discovery y trazabilidad del dispatch externo.
 - F8.7 Implementar respuesta obligatoria con razon para `REJECTED`.
-- F8.8 Integrar MCP para exposicion y consumo de tools/contexto donde aplique.
+- F8.8 Integrar MCP para exposicion y consumo de tools/contexto usando el SDK oficial de MCP para Go.
 - F8.9 Integrar `SURFACE` con `SignalService` y capa de UI si aplica.
 - F8.10 Extender Judge con checks avanzados de protocolo y ambiguedad.
 - F8.11 Evaluar incorporacion futura de BPMN o NL -> DSL como capa de entrada.
 
 ### Regla de interoperabilidad
 
-- A2A es el objetivo para delegacion entre agentes.
-- MCP es el objetivo para tools, resources y contexto.
+- A2A es el objetivo para delegacion entre agentes, con `a2aproject/a2a-go` como primera implementacion.
+- MCP es el objetivo para tools, resources y contexto, usando el SDK oficial de MCP para Go.
 - No se debe introducir un protocolo propietario nuevo como contrato externo.
 
 ---

@@ -81,6 +81,37 @@ WAIT 48 hours`)
 	}
 }
 
+func TestParseAndValidateDSLAcceptsDispatchStatement(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseAndValidateDSL("WORKFLOW delegate_case\nON case.created\nDISPATCH TO support_agent WITH {\"case_id\":\"case-1\"}")
+	if err != nil {
+		t.Fatalf("ParseAndValidateDSL() error = %v", err)
+	}
+}
+
+func TestParseAndValidateDSLAcceptsSurfaceStatement(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseAndValidateDSL("WORKFLOW surface_case\nON case.created\nSURFACE case TO salesperson.view WITH {\"value\":\"review\"}")
+	if err != nil {
+		t.Fatalf("ParseAndValidateDSL() error = %v", err)
+	}
+}
+
+func TestParseAndValidateDSLRejectsUnsupportedSurfaceEntity(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseAndValidateDSL("WORKFLOW surface_case\nON case.created\nSURFACE invoice TO salesperson.view WITH {\"value\":\"review\"}")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var validationErr *DSLValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected DSLValidationError, got %T", err)
+	}
+}
+
 func TestParseAndValidateDSLRejectsNegativeWaitDuration(t *testing.T) {
 	t.Parallel()
 

@@ -445,6 +445,188 @@ NOTIFY contact WITH "done"', 1, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
 	}
 }
 
+func TestDSLRunnerRunDispatchesInternallyAndLeavesRunDelegated(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	mustExecDSLRunner(t, db, `INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+	VALUES ('agent_dsl_dispatch', 'ws_dsl', 'dsl dispatch', 'dsl', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	mustExecDSLRunner(t, db, `INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+	VALUES ('dispatch_target_id', 'ws_dsl', 'dispatch_target', 'nested', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	mustExecDSLRunner(t, db, `INSERT INTO workflow (id, workspace_id, agent_definition_id, name, dsl_source, version, status, created_at, updated_at)
+	VALUES ('wf_dsl_dispatch', 'ws_dsl', 'agent_dsl_dispatch', 'delegate_case', 'WORKFLOW delegate_case
+ON case.created
+DISPATCH TO dispatch_target WITH {"case_id":"case-1"}', 1, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+
+	registry := NewRunnerRegistry()
+	if err := registry.Register("nested", stubNestedRunner{}); err != nil {
+		t.Fatalf("registry.Register() error = %v", err)
+	}
+	orch := NewOrchestratorWithRegistry(db, registry)
+	runner := NewDSLRunner(db)
+
+	run, err := runner.Run(context.Background(), &RunContext{
+		Orchestrator:   orch,
+		RunnerRegistry: registry,
+		DB:             db,
+	}, TriggerAgentInput{
+		AgentID:        "agent_dsl_dispatch",
+		WorkspaceID:    "ws_dsl",
+		TriggerType:    TriggerTypeEvent,
+		TriggerContext: json.RawMessage(`{"case":{"id":"case-1"}}`),
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if run.Status != StatusDelegated {
+		t.Fatalf("status = %s, want %s", run.Status, StatusDelegated)
+	}
+
+	var output DSLRunOutput
+	if err := json.Unmarshal(run.Output, &output); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if len(output.Statements) != 1 {
+		t.Fatalf("len(statements) = %d, want 1", len(output.Statements))
+	}
+	stmtOutput, ok := output.Statements[0].Output.(map[string]any)
+	if !ok || stmtOutput["action"] != pendingDispatchAction || stmtOutput["dispatch_result"] != dispatchResultDelegated {
+		t.Fatalf("unexpected output = %#v", output)
+	}
+
+	steps, err := orch.ListRunSteps(context.Background(), "ws_dsl", run.ID)
+	if err != nil {
+		t.Fatalf("ListRunSteps() error = %v", err)
+	}
+	dslSteps := filterRunStepsByType(steps, StepTypeDSLStatement)
+	if len(dslSteps) != 1 {
+		t.Fatalf("len(dslSteps) = %d, want 1", len(dslSteps))
+	}
+	if dslSteps[0].Status != StepStatusSuccess {
+		t.Fatalf("step status = %s, want %s", dslSteps[0].Status, StepStatusSuccess)
+	}
+}
+
+func TestDSLRunnerRunDispatchAcceptedLeavesRunAccepted(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	mustExecDSLRunner(t, db, `INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+	VALUES ('agent_dsl_dispatch_pending', 'ws_dsl', 'dsl dispatch', 'dsl', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	mustExecDSLRunner(t, db, `INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+	VALUES ('dispatch_target_pending_id', 'ws_dsl', 'dispatch_target_pending', 'nested_pending', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	mustExecDSLRunner(t, db, `INSERT INTO workflow (id, workspace_id, agent_definition_id, name, dsl_source, version, status, created_at, updated_at)
+	VALUES ('wf_dsl_dispatch_pending', 'ws_dsl', 'agent_dsl_dispatch_pending', 'delegate_case_pending', 'WORKFLOW delegate_case_pending
+ON case.created
+DISPATCH TO dispatch_target_pending WITH {"case_id":"case-1"}', 1, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+
+	registry := NewRunnerRegistry()
+	if err := registry.Register("nested_pending", stubPendingNestedRunner{}); err != nil {
+		t.Fatalf("registry.Register() error = %v", err)
+	}
+	orch := NewOrchestratorWithRegistry(db, registry)
+	runner := NewDSLRunner(db)
+
+	run, err := runner.Run(context.Background(), &RunContext{
+		Orchestrator:   orch,
+		RunnerRegistry: registry,
+		DB:             db,
+	}, TriggerAgentInput{
+		AgentID:        "agent_dsl_dispatch_pending",
+		WorkspaceID:    "ws_dsl",
+		TriggerType:    TriggerTypeEvent,
+		TriggerContext: json.RawMessage(`{"case":{"id":"case-1"}}`),
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if run.Status != StatusAccepted {
+		t.Fatalf("status = %s, want %s", run.Status, StatusAccepted)
+	}
+
+	var output map[string]any
+	if err := json.Unmarshal(run.Output, &output); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if output["dispatch_result"] != dispatchResultAccepted {
+		t.Fatalf("unexpected output = %#v", output)
+	}
+
+	steps, err := orch.ListRunSteps(context.Background(), "ws_dsl", run.ID)
+	if err != nil {
+		t.Fatalf("ListRunSteps() error = %v", err)
+	}
+	dslSteps := filterRunStepsByType(steps, StepTypeDSLStatement)
+	if len(dslSteps) != 1 {
+		t.Fatalf("len(dslSteps) = %d, want 1", len(dslSteps))
+	}
+	if dslSteps[0].Status != StepStatusRunning {
+		t.Fatalf("step status = %s, want %s", dslSteps[0].Status, StepStatusRunning)
+	}
+}
+
+func TestDSLRunnerRunDispatchRejectedLeavesRunRejectedWithReason(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	mustExecDSLRunner(t, db, `INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+	VALUES ('agent_dsl_dispatch_rejected', 'ws_dsl', 'dsl dispatch', 'dsl', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	mustExecDSLRunner(t, db, `INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+	VALUES ('dispatch_target_rejected_id', 'ws_dsl', 'dispatch_target_rejected', 'nested_rejected', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	mustExecDSLRunner(t, db, `INSERT INTO workflow (id, workspace_id, agent_definition_id, name, dsl_source, version, status, created_at, updated_at)
+	VALUES ('wf_dsl_dispatch_rejected', 'ws_dsl', 'agent_dsl_dispatch_rejected', 'delegate_case_rejected', 'WORKFLOW delegate_case_rejected
+ON case.created
+DISPATCH TO dispatch_target_rejected WITH {"case_id":"case-1"}', 1, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+
+	registry := NewRunnerRegistry()
+	if err := registry.Register("nested_rejected", stubRejectedRunner{}); err != nil {
+		t.Fatalf("registry.Register() error = %v", err)
+	}
+	orch := NewOrchestratorWithRegistry(db, registry)
+	runner := NewDSLRunner(db)
+
+	run, err := runner.Run(context.Background(), &RunContext{
+		Orchestrator:   orch,
+		RunnerRegistry: registry,
+		DB:             db,
+	}, TriggerAgentInput{
+		AgentID:        "agent_dsl_dispatch_rejected",
+		WorkspaceID:    "ws_dsl",
+		TriggerType:    TriggerTypeEvent,
+		TriggerContext: json.RawMessage(`{"case":{"id":"case-1"}}`),
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if run.Status != StatusRejected {
+		t.Fatalf("status = %s, want %s", run.Status, StatusRejected)
+	}
+
+	var output DSLRunOutput
+	if err := json.Unmarshal(run.Output, &output); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if len(output.Statements) != 1 {
+		t.Fatalf("len(statements) = %d, want 1", len(output.Statements))
+	}
+	stmtOutput, ok := output.Statements[0].Output.(map[string]any)
+	if !ok || stmtOutput["dispatch_result"] != dispatchResultRejected || stmtOutput["reason"] == "" {
+		t.Fatalf("unexpected output = %#v", output)
+	}
+
+	steps, err := orch.ListRunSteps(context.Background(), "ws_dsl", run.ID)
+	if err != nil {
+		t.Fatalf("ListRunSteps() error = %v", err)
+	}
+	dslSteps := filterRunStepsByType(steps, StepTypeDSLStatement)
+	if len(dslSteps) != 1 {
+		t.Fatalf("len(dslSteps) = %d, want 1", len(dslSteps))
+	}
+	if dslSteps[0].Status != StepStatusFailed {
+		t.Fatalf("step status = %s, want %s", dslSteps[0].Status, StepStatusFailed)
+	}
+}
+
 func setupDSLRunnerDB(t *testing.T) *sql.DB {
 	t.Helper()
 

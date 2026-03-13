@@ -257,3 +257,80 @@ func TestDSLRuntimeExecuteProgramSchedulesWaitAndStops(t *testing.T) {
 		t.Fatalf("expected no mapped ops after WAIT, got %d", len(executor.ops))
 	}
 }
+
+func TestDSLRuntimeExecuteProgramDispatchesAndStops(t *testing.T) {
+	t.Parallel()
+
+	runtime := NewDSLRuntime()
+	executor := &stubRuntimeExecutor{
+		output: map[string]any{"dispatch_result": dispatchResultDelegated},
+		status: StatusDelegated,
+		stop:   true,
+	}
+	program := &Program{
+		Workflow: &WorkflowDecl{
+			Name: "delegate_case",
+			Body: []Statement{
+				&DispatchStatement{
+					Target:  &IdentifierExpr{Name: "support_agent"},
+					Payload: &ObjectLiteralExpr{},
+				},
+				&NotifyStatement{
+					Target: &IdentifierExpr{Name: "contact"},
+					Value:  &LiteralExpr{Value: "done"},
+				},
+			},
+		},
+	}
+
+	result, err := runtime.ExecuteProgram(context.Background(), program, nil, executor)
+	if err != nil {
+		t.Fatalf("ExecuteProgram() error = %v", err)
+	}
+	if len(result.Statements) != 1 {
+		t.Fatalf("len(statements) = %d, want 1", len(result.Statements))
+	}
+	if result.Statements[0].Type != "DISPATCH" || result.Statements[0].Status != StatusDelegated {
+		t.Fatalf("unexpected dispatch result = %#v", result.Statements[0])
+	}
+	if len(executor.ops) != 1 || executor.ops[0].Kind != RuntimeOperationDispatch {
+		t.Fatalf("unexpected operations = %#v", executor.ops)
+	}
+}
+
+func TestDSLRuntimeExecuteProgramSurfacesSignal(t *testing.T) {
+	t.Parallel()
+
+	runtime := NewDSLRuntime()
+	executor := &stubRuntimeExecutor{
+		output: map[string]any{"signal_id": "signal-1"},
+	}
+	program := &Program{
+		Workflow: &WorkflowDecl{
+			Name: "surface_case",
+			Body: []Statement{
+				&SurfaceStatement{
+					Entity:  &IdentifierExpr{Name: "case"},
+					View:    &IdentifierExpr{Name: "salesperson.view"},
+					Payload: &ObjectLiteralExpr{},
+				},
+			},
+		},
+	}
+
+	result, err := runtime.ExecuteProgram(context.Background(), program, map[string]any{
+		"case": map[string]any{"id": "case-1"},
+	}, executor)
+	if err != nil {
+		t.Fatalf("ExecuteProgram() error = %v", err)
+	}
+	if len(result.Statements) != 1 {
+		t.Fatalf("len(statements) = %d, want 1", len(result.Statements))
+	}
+	if result.Statements[0].Type != "SURFACE" || result.Statements[0].Target != "salesperson.view" {
+		t.Fatalf("unexpected SURFACE result = %#v", result.Statements[0])
+	}
+	if len(executor.ops) != 1 || executor.ops[0].Kind != RuntimeOperationSurface {
+		t.Fatalf("unexpected operations = %#v", executor.ops)
+	}
+}

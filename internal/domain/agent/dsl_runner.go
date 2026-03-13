@@ -20,6 +20,8 @@ var (
 	ErrDSLWorkflowNotActive         = errors.New("dsl workflow is not active")
 )
 
+const dslStatementTypeDispatch = "DISPATCH"
+
 type DSLRunner struct {
 	workflowService workflowResolver
 	runtime         *DSLRuntime
@@ -185,6 +187,9 @@ func (r *DSLRunner) finalizeRun(ctx context.Context, rc *RunContext, workspaceID
 	}
 	if defaultExecutor != nil && defaultExecutor.IsPending() {
 		return r.finalizePending(ctx, rc, workspaceID, runID, workflow, result, defaultExecutor)
+	}
+	if terminalStatus, ok := terminalDispatchStatus(result); ok {
+		return r.finalizeDispatchTerminal(ctx, rc, workspaceID, runID, workflow, result, toolCalls, terminalStatus)
 	}
 	return r.finalizeSuccess(ctx, rc, workspaceID, runID, workflow, result, toolCalls)
 }
@@ -377,7 +382,54 @@ func (r *DSLRunner) finalizeResumedRun(ctx context.Context, rc *RunContext, work
 	if defaultExecutor != nil && defaultExecutor.IsPending() {
 		return r.finalizeResumePending(ctx, rc, workspaceID, input, workflow, existing, result, defaultExecutor)
 	}
+	if terminalStatus, ok := terminalDispatchStatus(result); ok {
+		return r.finalizeResumeDispatchTerminal(ctx, rc, workspaceID, input, workflow, existing, result, terminalStatus)
+	}
 	return r.finalizeResumeSuccess(ctx, rc, workspaceID, runID, input, workflow, existing, result, toolCalls)
+}
+
+func terminalDispatchStatus(result *DSLRuntimeResult) (string, bool) {
+	if result == nil || len(result.Statements) == 0 {
+		return "", false
+	}
+	last := result.Statements[len(result.Statements)-1]
+	if last.Type != dslStatementTypeDispatch {
+		return "", false
+	}
+	switch last.Status {
+	case StatusDelegated, StatusRejected:
+		return last.Status, true
+	default:
+		return "", false
+	}
+}
+
+func (r *DSLRunner) finalizeDispatchTerminal(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *workflowdomain.Workflow, result *DSLRuntimeResult, toolCalls json.RawMessage, status string) (*Run, error) {
+	output, err := json.Marshal(DSLRunOutput{
+		WorkflowID:      workflow.ID,
+		WorkflowName:    workflow.Name,
+		WorkflowVersion: workflow.Version,
+		Statements:      result.Statements,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(status, output, toolCalls, true))
+}
+
+func (r *DSLRunner) finalizeResumeDispatchTerminal(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload, workflow *workflowdomain.Workflow, existing *Run, result *DSLRuntimeResult, status string) (*Run, error) {
+	output, err := json.Marshal(map[string]any{
+		"workflow_id":       workflow.ID,
+		"workflow_name":     workflow.Name,
+		"workflow_version":  workflow.Version,
+		"resume_step_index": input.ResumeStepIndex,
+		"statements":        result.Statements,
+		"resumed":           true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, input.RunID, emptyTracesUpdate(status, output, mergeRunToolCalls(existing.ToolCalls, json.RawMessage(emptyJSONArray)), true))
 }
 
 func mergeDSLContexts(trigger json.RawMessage, inputs json.RawMessage) map[string]any {

@@ -175,7 +175,7 @@ func isTerminalRunStatus(status string) bool {
 
 var allowedRunTransitions = map[string][]string{
 	StatusRunning:  {StatusAccepted, StatusRejected, StatusDelegated, StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusEscalated},
-	StatusAccepted: {StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusDelegated},
+	StatusAccepted: {StatusRejected, StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusDelegated},
 }
 
 func validateRunTransition(current, next string) error {

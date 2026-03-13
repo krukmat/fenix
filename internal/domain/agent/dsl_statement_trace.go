@@ -141,15 +141,23 @@ func normalizeDSLTraceStatus(status string, output any) string {
 	case "", StatusSuccess:
 		return StepStatusSuccess
 	case StatusAccepted:
-		if indicatesPendingApproval(output) {
-			return StepStatusRunning
-		}
-		return StepStatusRunning
+		return acceptedTraceStatus(output)
+	case StatusDelegated:
+		return StepStatusSuccess
+	case StatusRejected:
+		return StepStatusFailed
 	case StatusAbstained:
 		return StepStatusSuccess
 	default:
 		return status
 	}
+}
+
+func acceptedTraceStatus(output any) string {
+	if indicatesPendingApproval(output) || indicatesPendingDispatchAccepted(output) {
+		return StepStatusRunning
+	}
+	return StepStatusSuccess
 }
 
 func indicatesPendingApproval(output any) bool {
@@ -164,4 +172,14 @@ func indicatesPendingApproval(output any) bool {
 	default:
 		return false
 	}
+}
+
+func indicatesPendingDispatchAccepted(output any) bool {
+	payload, ok := output.(map[string]any)
+	if !ok {
+		return false
+	}
+	action, _ := payload["action"].(string)
+	result, _ := payload["dispatch_result"].(string)
+	return action == pendingDispatchAction && result == dispatchResultAccepted
 }
