@@ -142,25 +142,29 @@ func (s *DealService) List(ctx context.Context, workspaceID string, input ListDe
 		func() ([]*Deal, error) { return s.listFiltered(ctx, workspaceID, input) },
 		paginateDeals,
 		input.Offset, input.Limit,
-		func() (int64, error) {
-			n, err := s.querier.CountDealsByWorkspace(ctx, workspaceID)
-			if err != nil {
-				return 0, fmt.Errorf("count deals: %w", err)
-			}
-			return n, nil
-		},
-		func() ([]*Deal, error) {
-			rows, err := s.querier.ListDealsByWorkspace(ctx, sqlcgen.ListDealsByWorkspaceParams{
-				WorkspaceID: workspaceID,
-				Limit:       int64(input.Limit),
-				Offset:      int64(input.Offset),
-			})
-			if err != nil {
-				return nil, fmt.Errorf("list deals: %w", err)
-			}
-			return mapRows(rows, rowToDeal), nil
-		},
+		func() (int64, error) { return s.countDeals(ctx, workspaceID) },
+		func() ([]*Deal, error) { return s.pageDeals(ctx, workspaceID, input) },
 	)
+}
+
+func (s *DealService) countDeals(ctx context.Context, workspaceID string) (int64, error) {
+	n, err := s.querier.CountDealsByWorkspace(ctx, workspaceID)
+	if err != nil {
+		return 0, fmt.Errorf("count deals: %w", err)
+	}
+	return n, nil
+}
+
+func (s *DealService) pageDeals(ctx context.Context, workspaceID string, input ListDealsInput) ([]*Deal, error) {
+	rows, err := s.querier.ListDealsByWorkspace(ctx, sqlcgen.ListDealsByWorkspaceParams{
+		WorkspaceID: workspaceID,
+		Limit:       int64(input.Limit),
+		Offset:      int64(input.Offset),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list deals: %w", err)
+	}
+	return mapRows(rows, rowToDeal), nil
 }
 
 func shouldUseFilteredDealList(input ListDealsInput) bool {
