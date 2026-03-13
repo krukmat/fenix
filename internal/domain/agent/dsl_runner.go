@@ -137,8 +137,8 @@ func (r *DSLRunner) prepareResume(ctx context.Context, rc *RunContext, workspace
 	if err != nil {
 		return run, workflow, err
 	}
-	if err := validateResumeDefinition(run, workflow); err != nil {
-		return run, workflow, err
+	if validateErr := validateResumeDefinition(run, workflow); validateErr != nil {
+		return run, workflow, validateErr
 	}
 	if _, err = rc.Orchestrator.UpdateAgentRunStatus(ctx, workspaceID, input.RunID, StatusAccepted); err != nil {
 		return run, workflow, err
@@ -150,10 +150,7 @@ func validateResumeInput(rc *RunContext, workspaceID string, input schedulerdoma
 	if rc == nil || rc.Orchestrator == nil {
 		return ErrDSLRunnerMissingOrchestrator
 	}
-	if strings.TrimSpace(workspaceID) == "" {
-		return ErrDSLResumeInvalidInput
-	}
-	if strings.TrimSpace(input.WorkflowID) == "" || strings.TrimSpace(input.RunID) == "" {
+	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(input.WorkflowID) == "" || strings.TrimSpace(input.RunID) == "" {
 		return ErrDSLResumeInvalidInput
 	}
 	if input.ResumeStepIndex < 0 {
@@ -412,7 +409,7 @@ func mergeRunToolCalls(existing, next json.RawMessage) json.RawMessage {
 	if len(left) == 0 && len(right) == 0 {
 		return json.RawMessage(emptyJSONArray)
 	}
-	merged := append(left, right...)
+	merged := append(append([]ToolCall{}, left...), right...)
 	raw, err := json.Marshal(merged)
 	if err != nil {
 		return json.RawMessage(emptyJSONArray)

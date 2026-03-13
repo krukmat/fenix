@@ -13,6 +13,8 @@ var (
 	ErrScheduledJobNotFound = errors.New("scheduled job not found")
 )
 
+const scheduledJobEmptyPayload = "{}"
+
 type Status string
 
 const (
@@ -69,7 +71,7 @@ func (r *Repository) Create(ctx context.Context, input CreateInput) (*ScheduledJ
 		input.ID,
 		input.WorkspaceID,
 		string(input.JobType),
-		normalizeJSON(input.Payload, []byte("{}")),
+		normalizeJSON(input.Payload, []byte(scheduledJobEmptyPayload)),
 		formatTime(input.ExecuteAt),
 		string(input.Status),
 		input.SourceID,
@@ -213,7 +215,7 @@ func scanScheduledJob(row interface{ Scan(dest ...any) error }) (*ScheduledJob, 
 	}
 
 	out.JobType = JobType(jobType)
-	out.Payload = normalizeJSON(payload, []byte("{}"))
+	out.Payload = normalizeJSON(payload, []byte(scheduledJobEmptyPayload))
 	out.ExecuteAt = executeParsed
 	out.Status = Status(status)
 	out.CreatedAt = createdParsed
@@ -242,4 +244,3 @@ func scanScheduledJobRows(rows *sql.Rows) ([]*ScheduledJob, error) {
 	}
 	return out, nil
 }
-

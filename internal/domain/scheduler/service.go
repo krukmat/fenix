@@ -14,6 +14,10 @@ var (
 	ErrInvalidScheduleInput = errors.New("invalid schedule input")
 )
 
+const (
+	errScheduleWorkspaceRequired = "%w: workspace_id is required"
+)
+
 type ScheduleJobInput struct {
 	WorkspaceID string
 	JobType     JobType
@@ -118,12 +122,12 @@ func normalizeGenericResumePayload(payload any) (json.RawMessage, error) {
 }
 
 func invalidSchedulePayload(err error) error {
-	return fmt.Errorf("%w: payload: %v", ErrInvalidScheduleInput, err)
+	return fmt.Errorf("%w: payload: %w", ErrInvalidScheduleInput, err)
 }
 
 func (s *Service) Cancel(ctx context.Context, workspaceID, jobID string) (*ScheduledJob, error) {
 	if workspaceID == "" {
-		return nil, fmt.Errorf("%w: workspace_id is required", ErrInvalidScheduleInput)
+		return nil, fmt.Errorf(errScheduleWorkspaceRequired, ErrInvalidScheduleInput)
 	}
 	if jobID == "" {
 		return nil, fmt.Errorf("%w: job_id is required", ErrInvalidScheduleInput)
@@ -133,7 +137,7 @@ func (s *Service) Cancel(ctx context.Context, workspaceID, jobID string) (*Sched
 
 func (s *Service) CancelBySource(ctx context.Context, workspaceID, sourceID string) (int64, error) {
 	if workspaceID == "" {
-		return 0, fmt.Errorf("%w: workspace_id is required", ErrInvalidScheduleInput)
+		return 0, fmt.Errorf(errScheduleWorkspaceRequired, ErrInvalidScheduleInput)
 	}
 	if sourceID == "" {
 		return 0, fmt.Errorf("%w: source_id is required", ErrInvalidScheduleInput)
@@ -144,7 +148,7 @@ func (s *Service) CancelBySource(ctx context.Context, workspaceID, sourceID stri
 func validateScheduleJobInput(job ScheduleJobInput) error {
 	switch {
 	case job.WorkspaceID == "":
-		return fmt.Errorf("%w: workspace_id is required", ErrInvalidScheduleInput)
+		return fmt.Errorf(errScheduleWorkspaceRequired, ErrInvalidScheduleInput)
 	case job.JobType == "":
 		return fmt.Errorf("%w: job_type is required", ErrInvalidScheduleInput)
 	case job.SourceID == "":

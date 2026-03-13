@@ -51,8 +51,10 @@ func (w *Worker) Start(ctx context.Context) error {
 	w.normalizeConfig()
 
 	for {
-		if err := w.RunCycle(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			// worker is best-effort at this phase; next cycle may still progress
+		if cycleErr := w.RunCycle(ctx); cycleErr != nil {
+			if errors.Is(cycleErr, context.Canceled) {
+				return cycleErr
+			}
 		}
 		if err := w.sleepFn(ctx, w.pollInterval); err != nil {
 			return err
@@ -122,15 +124,14 @@ func (w *Worker) runJobs(ctx context.Context, jobs []*ScheduledJob, limit int) e
 }
 
 func (w *Worker) startJob(ctx context.Context, job *ScheduledJob, sem chan struct{}, done chan struct{}, resultCh chan workerJobResult) {
-	job = job
 	sem <- struct{}{}
-	go func() {
+	go func(currentJob *ScheduledJob) {
 		defer func() {
 			<-sem
 			done <- struct{}{}
 		}()
-		resultCh <- w.processJob(ctx, job)
-	}()
+		resultCh <- w.processJob(ctx, currentJob)
+	}(job)
 }
 
 func waitForJobs(ctx context.Context, jobs []*ScheduledJob, done chan struct{}) error {

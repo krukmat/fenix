@@ -25,6 +25,7 @@ const (
 	dslAgentCallDepthLimit = 5
 	pendingApprovalAction  = "pending_approval"
 	pendingWaitAction      = "waiting"
+	waitUnitHours          = "hours"
 )
 
 type dslRuntimeExecutor struct {
@@ -352,7 +353,7 @@ func waitDurationMultiplier(unit string) (time.Duration, error) {
 		return time.Second, nil
 	case "m", "min", "mins", "minute", "minutes":
 		return time.Minute, nil
-	case "h", "hr", "hrs", "hour", "hours":
+	case "h", "hr", "hrs", "hour", waitUnitHours:
 		return time.Hour, nil
 	case "d", "day", "days":
 		return 24 * time.Hour, nil

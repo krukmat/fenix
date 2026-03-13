@@ -171,8 +171,8 @@ func (s *Service) SetStatus(ctx context.Context, workspaceID, workflowID string,
 	if err != nil {
 		return nil, err
 	}
-	if err := s.afterStatusChange(ctx, updated, next); err != nil {
-		return nil, err
+	if postErr := s.afterStatusChange(ctx, updated, next); postErr != nil {
+		return nil, postErr
 	}
 	return updated, nil
 }
