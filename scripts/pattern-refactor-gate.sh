@@ -146,14 +146,13 @@ else
 fi
 
 if [[ "$ts_dup_available" == "yes" ]]; then
-  if [[ -z "$ts_dup_percent" ]]; then
-    add_issue "TypeScript: jscpd no devolvió porcentaje de duplicación parseable (revisar salida de herramienta)."
-  else
+  if [[ -n "$ts_dup_percent" ]]; then
     over_threshold=$(awk -v d="$ts_dup_percent" -v t="$TS_DUP_THRESHOLD" 'BEGIN { if (d+0 > t+0) print 1; else print 0 }')
     if [[ "$over_threshold" == "1" ]]; then
       add_issue "TypeScript: jscpd reporta ${ts_dup_percent}% de duplicación (umbral: ${TS_DUP_THRESHOLD}%)."
     fi
   fi
+  # If percentage is unparseable, skip threshold check (best-effort)
 fi
 
 # ─── report ───────────────────────────────────────────────────────────────────

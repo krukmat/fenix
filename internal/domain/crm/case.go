@@ -157,33 +157,30 @@ func (s *CaseService) List(ctx context.Context, workspaceID string, input ListCa
 	if input.Sort == "" {
 		input.Sort = caseSortCreatedAtDesc
 	}
-
-	if shouldUseFilteredCaseList(input) {
-		filtered, err := s.listFiltered(ctx, workspaceID, input)
-		if err != nil {
-			return nil, 0, err
-		}
-		total := len(filtered)
-		paged := paginateCases(filtered, input.Offset, input.Limit)
-		return paged, total, nil
-	}
-
-	total, err := s.querier.CountCasesByWorkspace(ctx, workspaceID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count cases: %w", err)
-	}
-
-	rows, err := s.querier.ListCasesByWorkspace(ctx, sqlcgen.ListCasesByWorkspaceParams{
-		WorkspaceID: workspaceID,
-		Limit:       int64(input.Limit),
-		Offset:      int64(input.Offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("list cases: %w", err)
-	}
-	out := mapRows(rows, rowToCaseTicket)
-
-	return out, int(total), nil
+	return listFilteredOrPaged(
+		shouldUseFilteredCaseList(input),
+		func() ([]*CaseTicket, error) { return s.listFiltered(ctx, workspaceID, input) },
+		paginateCases,
+		input.Offset, input.Limit,
+		func() (int64, error) {
+			n, err := s.querier.CountCasesByWorkspace(ctx, workspaceID)
+			if err != nil {
+				return 0, fmt.Errorf("count cases: %w", err)
+			}
+			return n, nil
+		},
+		func() ([]*CaseTicket, error) {
+			rows, err := s.querier.ListCasesByWorkspace(ctx, sqlcgen.ListCasesByWorkspaceParams{
+				WorkspaceID: workspaceID,
+				Limit:       int64(input.Limit),
+				Offset:      int64(input.Offset),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("list cases: %w", err)
+			}
+			return mapRows(rows, rowToCaseTicket), nil
+		},
+	)
 }
 
 func shouldUseFilteredCaseList(input ListCasesInput) bool {

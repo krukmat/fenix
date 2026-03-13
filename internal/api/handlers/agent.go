@@ -392,6 +392,39 @@ func (h *SupportAgentHandler) TriggerSupportAgent(w http.ResponseWriter, r *http
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": agentRunToResponse(run)})
 }
 
+// extractAgentContext pulls workspace and user IDs from the request context.
+// Returns ok=false and writes an error response when workspace is missing.
+func extractAgentContext(w http.ResponseWriter, r *http.Request) (workspaceID, userID string, ok bool) {
+	wid, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
+	if !ok || wid == "" {
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+		return "", "", false
+	}
+	uid, _ := r.Context().Value(ctxkeys.UserID).(string)
+	return wid, uid, true
+}
+
+// decodeAgentRequest decodes a JSON request body into dst.
+// Returns false and writes a 400 error response on decode failure.
+func decodeAgentRequest[T any](w http.ResponseWriter, r *http.Request, dst *T) bool {
+	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+		writeError(w, http.StatusBadRequest, errInvalidBody)
+		return false
+	}
+	return true
+}
+
+// writeAgentQueuedResponse writes a 201 Created JSON response for a queued agent run.
+func writeAgentQueuedResponse(w http.ResponseWriter, runID, agentName string) {
+	w.Header().Set(headerContentType, mimeJSON)
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"run_id": runID,
+		"status": "queued",
+		"agent":  agentName,
+	})
+}
+
 // ProspectingAgentHandler handles Prospecting Agent specific endpoints.
 // Task 4.5b — FR-231: Prospecting Agent trigger endpoint.
 type ProspectingAgentHandler struct {
@@ -430,16 +463,13 @@ func withProspectingTriggeredBy(config agents.ProspectingAgentConfig, userID str
 
 // TriggerProspectingAgent handles POST /api/v1/agents/prospecting/trigger.
 func (h *ProspectingAgentHandler) TriggerProspectingAgent(w http.ResponseWriter, r *http.Request) {
-	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
-	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+	workspaceID, userID, ok := extractAgentContext(w, r)
+	if !ok {
 		return
 	}
-	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
 
 	var req prospectingAgentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
+	if !decodeAgentRequest(w, r, &req) {
 		return
 	}
 
@@ -458,13 +488,7 @@ func (h *ProspectingAgentHandler) TriggerProspectingAgent(w http.ResponseWriter,
 		return
 	}
 
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"run_id": run.ID,
-		"status": "queued",
-		"agent":  "prospecting",
-	})
+	writeAgentQueuedResponse(w, run.ID, "prospecting")
 }
 
 func handleProspectingRunError(w http.ResponseWriter, err error) bool {
@@ -521,16 +545,13 @@ func withKBTriggeredBy(config agents.KBAgentConfig, userID string) agents.KBAgen
 
 // TriggerKBAgent handles POST /api/v1/agents/kb/trigger.
 func (h *KBAgentHandler) TriggerKBAgent(w http.ResponseWriter, r *http.Request) {
-	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
-	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+	workspaceID, userID, ok := extractAgentContext(w, r)
+	if !ok {
 		return
 	}
-	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
 
 	var req kbAgentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
+	if !decodeAgentRequest(w, r, &req) {
 		return
 	}
 
@@ -549,13 +570,7 @@ func (h *KBAgentHandler) TriggerKBAgent(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"run_id": run.ID,
-		"status": "queued",
-		"agent":  "kb",
-	})
+	writeAgentQueuedResponse(w, run.ID, "kb")
 }
 
 func handleKBRunError(w http.ResponseWriter, err error) bool {

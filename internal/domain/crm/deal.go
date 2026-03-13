@@ -137,33 +137,30 @@ func (s *DealService) List(ctx context.Context, workspaceID string, input ListDe
 	if input.Sort == "" {
 		input.Sort = sortCreatedAtDesc
 	}
-
-	if shouldUseFilteredDealList(input) {
-		filtered, err := s.listFiltered(ctx, workspaceID, input)
-		if err != nil {
-			return nil, 0, err
-		}
-		total := len(filtered)
-		paged := paginateDeals(filtered, input.Offset, input.Limit)
-		return paged, total, nil
-	}
-
-	total, err := s.querier.CountDealsByWorkspace(ctx, workspaceID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count deals: %w", err)
-	}
-
-	rows, err := s.querier.ListDealsByWorkspace(ctx, sqlcgen.ListDealsByWorkspaceParams{
-		WorkspaceID: workspaceID,
-		Limit:       int64(input.Limit),
-		Offset:      int64(input.Offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("list deals: %w", err)
-	}
-	out := mapRows(rows, rowToDeal)
-
-	return out, int(total), nil
+	return listFilteredOrPaged(
+		shouldUseFilteredDealList(input),
+		func() ([]*Deal, error) { return s.listFiltered(ctx, workspaceID, input) },
+		paginateDeals,
+		input.Offset, input.Limit,
+		func() (int64, error) {
+			n, err := s.querier.CountDealsByWorkspace(ctx, workspaceID)
+			if err != nil {
+				return 0, fmt.Errorf("count deals: %w", err)
+			}
+			return n, nil
+		},
+		func() ([]*Deal, error) {
+			rows, err := s.querier.ListDealsByWorkspace(ctx, sqlcgen.ListDealsByWorkspaceParams{
+				WorkspaceID: workspaceID,
+				Limit:       int64(input.Limit),
+				Offset:      int64(input.Offset),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("list deals: %w", err)
+			}
+			return mapRows(rows, rowToDeal), nil
+		},
+	)
 }
 
 func shouldUseFilteredDealList(input ListDealsInput) bool {
