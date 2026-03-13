@@ -167,6 +167,42 @@ func TestWorkerStartRequiresDependencies(t *testing.T) {
 	}
 }
 
+func TestWorkerStartReturnsSleepErrorAfterCycle(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+	worker := NewWorker(repo, func(context.Context, *ScheduledJob) error { return nil })
+	worker.pollInterval = 0
+	worker.maxConcurrency = 0
+	worker.sleepFn = func(context.Context, time.Duration) error {
+		return context.Canceled
+	}
+
+	err := worker.Start(context.Background())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Start() err = %v, want context.Canceled", err)
+	}
+	if worker.pollInterval != 10*time.Second {
+		t.Fatalf("pollInterval = %s, want 10s", worker.pollInterval)
+	}
+	if worker.maxConcurrency != 10 {
+		t.Fatalf("maxConcurrency = %d, want 10", worker.maxConcurrency)
+	}
+}
+
+func TestWaitForJobsReturnsContextError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := waitForJobs(ctx, []*ScheduledJob{{ID: "job-1"}}, make(chan struct{}))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("waitForJobs() err = %v, want context.Canceled", err)
+	}
+}
+
 func TestWorkerRunCycleDrainsDueJobsAcrossMultipleCycles(t *testing.T) {
 	t.Parallel()
 

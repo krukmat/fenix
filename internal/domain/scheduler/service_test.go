@@ -8,6 +8,21 @@ import (
 	"time"
 )
 
+func TestNewServiceProvidesDefaults(t *testing.T) {
+	t.Parallel()
+
+	svc := NewService(NewRepository(setupTestDB(t)))
+	if svc.repo == nil {
+		t.Fatal("repo = nil")
+	}
+	if svc.nowFn == nil {
+		t.Fatal("nowFn = nil")
+	}
+	if svc.idFn == nil {
+		t.Fatal("idFn = nil")
+	}
+}
+
 func TestServiceScheduleCreatesPendingJob(t *testing.T) {
 	t.Parallel()
 
@@ -129,6 +144,30 @@ func TestNormalizeScheduledPayloadAcceptsGenericPayloadForNonResumeJobs(t *testi
 	}
 }
 
+func TestNormalizeScheduledPayloadNormalizesGenericResumePayload(t *testing.T) {
+	t.Parallel()
+
+	raw, err := normalizeScheduledPayload(ScheduleJobInput{
+		JobType: JobTypeWorkflowResume,
+		Payload: map[string]any{
+			"workflow_id":       "wf-1",
+			"run_id":            "run-1",
+			"resume_step_index": 2,
+		},
+	})
+	if err != nil {
+		t.Fatalf("normalizeScheduledPayload() error = %v", err)
+	}
+
+	decoded, err := DecodeWorkflowResumePayload(raw)
+	if err != nil {
+		t.Fatalf("DecodeWorkflowResumePayload() error = %v", err)
+	}
+	if decoded.ResumeStepIndex != 2 {
+		t.Fatalf("resumeStepIndex = %d, want 2", decoded.ResumeStepIndex)
+	}
+}
+
 func TestServiceCancelCancelsPendingJob(t *testing.T) {
 	t.Parallel()
 
@@ -234,5 +273,20 @@ func TestServiceCancelBySourceRejectsInvalidInput(t *testing.T) {
 	_, err := svc.CancelBySource(context.Background(), "ws_test", "")
 	if !errors.Is(err, ErrInvalidScheduleInput) {
 		t.Fatalf("expected ErrInvalidScheduleInput, got %v", err)
+	}
+}
+
+func TestValidateScheduleJobInputRejectsMissingFields(t *testing.T) {
+	t.Parallel()
+
+	testCases := []ScheduleJobInput{
+		{WorkspaceID: "ws_test", SourceID: "src"},
+		{WorkspaceID: "ws_test", JobType: JobTypeWorkflowResume},
+	}
+
+	for _, job := range testCases {
+		if err := validateScheduleJobInput(job); !errors.Is(err, ErrInvalidScheduleInput) {
+			t.Fatalf("validateScheduleJobInput(%+v) expected ErrInvalidScheduleInput, got %v", job, err)
+		}
 	}
 }
