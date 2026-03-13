@@ -342,7 +342,13 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			searchSvc,
 			db,
 		)
-		insightsAgentHandler := handlers.NewInsightsAgentHandler(insightsAgent)
+		insightsAgentHandler := handlers.NewInsightsAgentHandlerWithShadow(
+			insightsAgent,
+			dslRunner,
+			agentOrchestrator,
+			toolRegistry,
+			db,
+		)
 
 		_ = agents.RegisterCurrentGoRunners(runnerRegistry, agents.GoAgentRunners{
 			Support:     supportAgent,

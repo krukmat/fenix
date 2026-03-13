@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent/agents"
+	tooldomain "github.com/matiasleandrokruk/fenix/internal/domain/tool"
 )
 
 const (
@@ -327,10 +329,12 @@ type kbAgentRequest struct {
 }
 
 type insightsAgentRequest struct {
-	Query    string `json:"query"`
-	DateFrom string `json:"date_from,omitempty"`
-	DateTo   string `json:"date_to,omitempty"`
-	Language string `json:"language,omitempty"`
+	Query         string `json:"query"`
+	DateFrom      string `json:"date_from,omitempty"`
+	DateTo        string `json:"date_to,omitempty"`
+	Language      string `json:"language,omitempty"`
+	ShadowMode    bool   `json:"shadow_mode,omitempty"`
+	ShadowAgentID string `json:"shadow_agent_id,omitempty"`
 }
 
 // buildSupportConfig validates and converts an HTTP request into a SupportAgentConfig.
@@ -578,11 +582,29 @@ func handleKBRunError(w http.ResponseWriter, err error) bool {
 // Task 4.5d — FR-231: Insights Agent trigger endpoint.
 type InsightsAgentHandler struct {
 	insightsAgent *agents.InsightsAgent
+	shadow        *insightsShadowExecutor
+	db            *sql.DB
 }
 
 // NewInsightsAgentHandler creates a new InsightsAgentHandler.
 func NewInsightsAgentHandler(insightsAgent *agents.InsightsAgent) *InsightsAgentHandler {
 	return &InsightsAgentHandler{insightsAgent: insightsAgent}
+}
+
+// NewInsightsAgentHandlerWithShadow creates an InsightsAgentHandler with
+// optional shadow-mode execution support for the declarative pilot.
+func NewInsightsAgentHandlerWithShadow(
+	insightsAgent *agents.InsightsAgent,
+	shadowRunner *agent.DSLRunner,
+	orchestrator *agent.Orchestrator,
+	toolRegistry *tooldomain.ToolRegistry,
+	db *sql.DB,
+) *InsightsAgentHandler {
+	return &InsightsAgentHandler{
+		insightsAgent: insightsAgent,
+		shadow:        newInsightsShadowExecutor(shadowRunner, orchestrator, toolRegistry, db),
+		db:            db,
+	}
 }
 
 func buildInsightsConfig(w http.ResponseWriter, req insightsAgentRequest, workspaceID string) (agents.InsightsAgentConfig, bool) {
@@ -656,6 +678,12 @@ func (h *InsightsAgentHandler) TriggerInsightsAgent(w http.ResponseWriter, r *ht
 	}
 	config = withInsightsTriggeredBy(config, userID)
 
+	rollout := loadInsightsRolloutConfig(r.Context(), h.db, workspaceID)
+	if rollout.Enabled && rollout.DeclarativePrimary {
+		h.triggerInsightsDeclarativePrimary(w, r, config, rollout)
+		return
+	}
+
 	run, err := h.insightsAgent.Run(r.Context(), config)
 	if err != nil {
 		if handled := handleInsightsRunError(w, err); handled {
@@ -665,13 +693,53 @@ func (h *InsightsAgentHandler) TriggerInsightsAgent(w http.ResponseWriter, r *ht
 		return
 	}
 
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	response := map[string]any{
 		"run_id": run.ID,
 		"status": "queued",
 		"agent":  "insights",
-	})
+	}
+	if rollout.Enabled {
+		response["rollout"] = buildInsightsRolloutResponse(rollout, run, run)
+	}
+	if req.ShadowMode {
+		response["shadow"] = h.executeInsightsShadow(r.Context(), config, req.ShadowAgentID, run)
+	}
+
+	w.Header().Set(headerContentType, mimeJSON)
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+func (h *InsightsAgentHandler) triggerInsightsDeclarativePrimary(
+	w http.ResponseWriter,
+	r *http.Request,
+	config agents.InsightsAgentConfig,
+	rollout insightsRolloutConfig,
+) {
+	if h == nil || h.shadow == nil {
+		writeError(w, http.StatusInternalServerError, "declarative insights rollout is not configured")
+		return
+	}
+	execution, err := h.shadow.ExecutePrimary(r.Context(), config, rollout.AgentID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to run declarative insights workflow")
+		return
+	}
+	run := execution.WrapperRun
+	effective := execution.EffectiveRun
+	if effective == nil {
+		effective = run
+	}
+	response := map[string]any{
+		"run_id":  run.ID,
+		"status":  "queued",
+		"agent":   "insights",
+		"rollout": buildInsightsRolloutResponse(rollout, run, effective),
+	}
+
+	w.Header().Set(headerContentType, mimeJSON)
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func handleInsightsRunError(w http.ResponseWriter, err error) bool {

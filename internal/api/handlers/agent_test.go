@@ -19,6 +19,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -160,13 +161,79 @@ func newTestInsightsAgentHandler(t *testing.T, db *sql.DB, wsID string) *Insight
 
 	_, err := db.ExecContext(context.Background(),
 		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
-		 VALUES ('insights-agent', ?, 'Insights Agent', 'insights', 'active')`, wsID)
+		 VALUES ('insights-agent', ?, 'insights_agent', 'insights', 'active')`, wsID)
 	if err != nil {
 		t.Fatalf("insert insights agent_definition: %v", err)
 	}
 
 	insightsAgent := agents.NewInsightsAgent(orch, reg, &mockKnowledgeSearchHandler{}, db)
 	return NewInsightsAgentHandler(insightsAgent)
+}
+
+func newTestInsightsAgentHandlerWithShadow(t *testing.T, db *sql.DB, wsID string) *InsightsAgentHandler {
+	t.Helper()
+	runnerRegistry := agent.NewRunnerRegistry()
+	orch := agent.NewOrchestratorWithRegistry(db, runnerRegistry)
+	reg := tool.NewToolRegistry(db)
+	if regErr := reg.Register(tool.BuiltinQueryMetrics, tool.NewQueryMetricsExecutor(db)); regErr != nil {
+		t.Fatalf("register query_metrics executor: %v", regErr)
+	}
+
+	_, err := db.ExecContext(context.Background(),
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('insights-agent', ?, 'insights_agent', 'insights', 'active')`, wsID)
+	if err != nil {
+		t.Fatalf("insert insights agent_definition: %v", err)
+	}
+	_, err = db.ExecContext(context.Background(),
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES (?, ?, 'Insights Shadow Agent', 'dsl', 'active')`, defaultInsightsShadowAgentID, wsID)
+	if err != nil {
+		t.Fatalf("insert insights shadow agent_definition: %v", err)
+	}
+
+	workflowSvc := workflowdomain.NewService(db)
+	shadowWorkflow, err := workflowSvc.Create(context.Background(), workflowdomain.CreateWorkflowInput{
+		WorkspaceID:       wsID,
+		AgentDefinitionID: testStringPtr(defaultInsightsShadowAgentID),
+		Name:              "insights_shadow_pilot",
+		DSLSource: `WORKFLOW insights_shadow_pilot
+ON insights.query_received
+AGENT insights_agent WITH {"workspace_id": workspace_id, "query": query, "language": language}`,
+	})
+	if err != nil {
+		t.Fatalf("create shadow workflow: %v", err)
+	}
+	if _, err = workflowSvc.MarkTesting(context.Background(), wsID, shadowWorkflow.ID); err != nil {
+		t.Fatalf("mark shadow workflow testing: %v", err)
+	}
+	if _, err = workflowSvc.Activate(context.Background(), wsID, shadowWorkflow.ID); err != nil {
+		t.Fatalf("activate shadow workflow: %v", err)
+	}
+
+	insightsAgent := agents.NewInsightsAgent(orch, reg, &mockKnowledgeSearchHandler{}, db)
+	dslRunner := agent.NewDSLRunner(db)
+	if err := runnerRegistry.Register(agents.AgentTypeInsights, &agents.InsightsRunner{Agent: insightsAgent}); err != nil {
+		t.Fatalf("register insights runner: %v", err)
+	}
+	if err := agents.RegisterDSLRunner(runnerRegistry, dslRunner); err != nil {
+		t.Fatalf("register dsl runner: %v", err)
+	}
+	return NewInsightsAgentHandlerWithShadow(insightsAgent, dslRunner, orch, reg, db)
+}
+
+func testStringPtr(v string) *string { return &v }
+
+func setWorkspaceSettings(t *testing.T, db *sql.DB, workspaceID string, settings string) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(), `
+		UPDATE workspace
+		SET settings = ?, updated_at = datetime('now')
+		WHERE id = ?
+	`, settings, workspaceID)
+	if err != nil {
+		t.Fatalf("set workspace settings: %v", err)
+	}
 }
 
 // insertTestAgentDef inserts an agent_definition for handler tests.
@@ -898,6 +965,381 @@ func TestInsightsAgentHandler_TriggerInsights_200(t *testing.T) {
 	}
 	if got, _ := resp["agent"].(string); got != "insights" {
 		t.Fatalf("expected agent=insights, got=%q", got)
+	}
+}
+
+func TestInsightsAgentHandler_TriggerInsights_DeclarativeRolloutSegment(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	setWorkspaceSettings(t, db, wsID, `{
+		"agent_spec": {
+			"pilots": {
+				"insights": {
+					"enabled": true,
+					"mode": "declarative",
+					"shadow_agent_id": "insights-shadow-agent"
+				}
+			}
+		}
+	}`)
+	h := newTestInsightsAgentHandlerWithShadow(t, db, wsID)
+
+	body, _ := json.Marshal(map[string]any{"query": "cuántos deals", "language": "es"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerInsightsAgent(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		RunID   string `json:"run_id"`
+		Status  string `json:"status"`
+		Agent   string `json:"agent"`
+		Rollout struct {
+			Enabled           bool   `json:"enabled"`
+			Selected          bool   `json:"selected"`
+			Mode              string `json:"mode"`
+			Source            string `json:"source"`
+			AgentDefinitionID string `json:"agent_definition_id"`
+			EffectiveRunID    string `json:"effective_run_id"`
+			EffectiveStatus   string `json:"effective_status"`
+		} `json:"rollout"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.RunID == "" || resp.Status != "queued" || resp.Agent != "insights" {
+		t.Fatalf("unexpected rollout response: %+v", resp)
+	}
+	if !resp.Rollout.Enabled || !resp.Rollout.Selected {
+		t.Fatalf("expected active rollout, got %+v", resp.Rollout)
+	}
+	if resp.Rollout.Mode != "declarative_primary" || resp.Rollout.Source != "workspace.settings" {
+		t.Fatalf("unexpected rollout metadata: %+v", resp.Rollout)
+	}
+	if resp.Rollout.EffectiveRunID == "" {
+		t.Fatalf("expected effective run id, got %+v", resp.Rollout)
+	}
+
+	var definitionID string
+	err := db.QueryRowContext(context.Background(), `
+		SELECT agent_definition_id
+		FROM agent_run
+		WHERE id = ?
+	`, resp.RunID).Scan(&definitionID)
+	if err != nil {
+		t.Fatalf("load primary rollout run: %v", err)
+	}
+	if definitionID != defaultInsightsShadowAgentID {
+		t.Fatalf("expected declarative primary run on %q, got %q", defaultInsightsShadowAgentID, definitionID)
+	}
+}
+
+func TestInsightsAgentHandler_TriggerInsights_RollbackToGoSegment(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestInsightsAgentHandlerWithShadow(t, db, wsID)
+
+	setWorkspaceSettings(t, db, wsID, `{
+		"agent_spec": {
+			"pilots": {
+				"insights": {
+					"enabled": true,
+					"mode": "declarative",
+					"shadow_agent_id": "insights-shadow-agent"
+				}
+			}
+		}
+	}`)
+
+	body, _ := json.Marshal(map[string]any{"query": "cuántos deals", "language": "es"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.TriggerInsightsAgent(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("declarative leg expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var firstResp struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &firstResp); err != nil {
+		t.Fatalf("decode first response: %v", err)
+	}
+	var firstDefinitionID string
+	if err := db.QueryRowContext(context.Background(), `
+		SELECT agent_definition_id
+		FROM agent_run
+		WHERE id = ?
+	`, firstResp.RunID).Scan(&firstDefinitionID); err != nil {
+		t.Fatalf("load first run definition: %v", err)
+	}
+	if firstDefinitionID != defaultInsightsShadowAgentID {
+		t.Fatalf("expected declarative first leg on %q, got %q", defaultInsightsShadowAgentID, firstDefinitionID)
+	}
+
+	setWorkspaceSettings(t, db, wsID, `{
+		"agent_spec": {
+			"pilots": {
+				"insights": {
+					"enabled": true,
+					"mode": "go",
+					"shadow_agent_id": "insights-shadow-agent"
+				}
+			}
+		}
+	}`)
+
+	req = httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr = httptest.NewRecorder()
+	h.TriggerInsightsAgent(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("rollback leg expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var secondResp struct {
+		RunID   string `json:"run_id"`
+		Status  string `json:"status"`
+		Agent   string `json:"agent"`
+		Rollout struct {
+			Enabled           bool   `json:"enabled"`
+			Selected          bool   `json:"selected"`
+			Mode              string `json:"mode"`
+			Source            string `json:"source"`
+			AgentDefinitionID string `json:"agent_definition_id"`
+			EffectiveRunID    string `json:"effective_run_id"`
+			EffectiveStatus   string `json:"effective_status"`
+		} `json:"rollout"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &secondResp); err != nil {
+		t.Fatalf("decode second response: %v", err)
+	}
+	if secondResp.RunID == "" || secondResp.Status != "queued" || secondResp.Agent != "insights" {
+		t.Fatalf("unexpected rollback response: %+v", secondResp)
+	}
+	if !secondResp.Rollout.Enabled || secondResp.Rollout.Selected {
+		t.Fatalf("expected go rollback rollout metadata, got %+v", secondResp.Rollout)
+	}
+	if secondResp.Rollout.Mode != "go_primary" || secondResp.Rollout.Source != "workspace.settings" {
+		t.Fatalf("unexpected rollback rollout metadata: %+v", secondResp.Rollout)
+	}
+
+	var secondDefinitionID string
+	if err := db.QueryRowContext(context.Background(), `
+		SELECT agent_definition_id
+		FROM agent_run
+		WHERE id = ?
+	`, secondResp.RunID).Scan(&secondDefinitionID); err != nil {
+		t.Fatalf("load second run definition: %v", err)
+	}
+	if secondDefinitionID != "insights-agent" {
+		t.Fatalf("expected rollback to Go agent definition %q, got %q", "insights-agent", secondDefinitionID)
+	}
+}
+
+func TestInsightsAgentHandler_TriggerInsights_ShadowMode(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestInsightsAgentHandlerWithShadow(t, db, wsID)
+
+	body, _ := json.Marshal(map[string]any{
+		"query":       "cuántos deals",
+		"language":    "es",
+		"shadow_mode": true,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerInsightsAgent(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		RunID  string `json:"run_id"`
+		Status string `json:"status"`
+		Agent  string `json:"agent"`
+		Shadow struct {
+			Enabled           bool   `json:"enabled"`
+			RunID             string `json:"run_id"`
+			EffectiveRunID    string `json:"effective_run_id"`
+			Status            string `json:"status"`
+			AgentDefinitionID string `json:"agent_definition_id"`
+			Error             string `json:"error"`
+			Comparison        struct {
+				PrimaryRunID         string `json:"primary_run_id"`
+				ShadowRunID          string `json:"shadow_run_id"`
+				EffectiveShadowRunID string `json:"effective_shadow_run_id"`
+				Matched              bool   `json:"matched"`
+				Differences          []struct {
+					Check    string `json:"check"`
+					Severity string `json:"severity"`
+				} `json:"differences"`
+			} `json:"comparison"`
+		} `json:"shadow"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.RunID == "" || resp.Agent != "insights" || resp.Status != "queued" {
+		t.Fatalf("unexpected primary response: %+v", resp)
+	}
+	if !resp.Shadow.Enabled {
+		t.Fatal("expected shadow enabled=true")
+	}
+	if resp.Shadow.RunID == "" {
+		t.Fatalf("expected shadow run_id, got response=%s", rr.Body.String())
+	}
+	if resp.Shadow.Error != "" {
+		t.Fatalf("unexpected shadow error: %s", resp.Shadow.Error)
+	}
+	if resp.Shadow.Comparison.PrimaryRunID != resp.RunID {
+		t.Fatalf("comparison.primary_run_id = %q, want %q", resp.Shadow.Comparison.PrimaryRunID, resp.RunID)
+	}
+	if resp.Shadow.Comparison.ShadowRunID != resp.Shadow.RunID {
+		t.Fatalf("comparison.shadow_run_id = %q, want %q", resp.Shadow.Comparison.ShadowRunID, resp.Shadow.RunID)
+	}
+	if resp.Shadow.EffectiveRunID == "" {
+		t.Fatal("expected shadow effective_run_id")
+	}
+	if resp.Shadow.Comparison.EffectiveShadowRunID == "" {
+		t.Fatal("expected effective shadow run id")
+	}
+	if !resp.Shadow.Comparison.Matched {
+		t.Fatalf("expected matched comparison, got %+v", resp.Shadow.Comparison.Differences)
+	}
+
+	var triggerContextRaw string
+	err := db.QueryRowContext(context.Background(), `
+		SELECT trigger_context
+		FROM agent_run
+		WHERE id = ?
+	`, resp.Shadow.RunID).Scan(&triggerContextRaw)
+	if err != nil {
+		t.Fatalf("load shadow run trigger_context: %v", err)
+	}
+	var triggerContext map[string]any
+	if err := json.Unmarshal([]byte(triggerContextRaw), &triggerContext); err != nil {
+		t.Fatalf("decode shadow trigger_context: %v", err)
+	}
+	if got, _ := triggerContext["shadow_of_run_id"].(string); got != resp.RunID {
+		t.Fatalf("shadow_of_run_id = %q, want %q", got, resp.RunID)
+	}
+	if got, _ := triggerContext["pilot"].(string); got != "insights" {
+		t.Fatalf("pilot = %q, want insights", got)
+	}
+}
+
+func TestInsightsAgentHandler_TriggerInsights_ShadowMode_NotConfigured(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestInsightsAgentHandler(t, db, wsID)
+
+	body, _ := json.Marshal(map[string]any{
+		"query":       "cuántos deals",
+		"shadow_mode": true,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/agents/insights/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerInsightsAgent(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	shadow, ok := resp["shadow"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected shadow object, got %T", resp["shadow"])
+	}
+	if got, _ := shadow["error"].(string); got == "" {
+		t.Fatalf("expected shadow error in response, got %v", shadow)
+	}
+}
+
+func TestBuildInsightsShadowComparison_ClassifiesMismatch(t *testing.T) {
+	t.Parallel()
+
+	primaryCost := 0.01
+	shadowCost := 0.02
+	report := buildInsightsShadowComparison(context.Background(), nil, "ws", &agent.Run{
+		ID:        "go-run",
+		Status:    agent.StatusSuccess,
+		Output:    json.RawMessage(`{"action":"answer","confidence":"high","evidence_ids":["kb-1"]}`),
+		ToolCalls: json.RawMessage(`[{"tool_name":"query_metrics"},{"tool_name":"search_knowledge"}]`),
+		TotalCost: &primaryCost,
+	}, &agent.Run{
+		ID:        "shadow-run",
+		Status:    agent.StatusFailed,
+		Output:    json.RawMessage(`{"action":"abstain","confidence":"low","evidence_ids":[]}`),
+		ToolCalls: json.RawMessage(`[{"tool_name":"query_metrics"}]`),
+		TotalCost: &shadowCost,
+	})
+
+	if report.Matched {
+		t.Fatal("expected mismatched report")
+	}
+	if len(report.Differences) == 0 {
+		t.Fatal("expected differences")
+	}
+	var hasHigh bool
+	for _, diff := range report.Differences {
+		if diff.Severity == "high" {
+			hasHigh = true
+			break
+		}
+	}
+	if !hasHigh {
+		t.Fatalf("expected at least one high severity difference, got %+v", report.Differences)
+	}
+}
+
+func TestBuildInsightsShadowComparison_MatchedRuns(t *testing.T) {
+	t.Parallel()
+
+	cost := 0.01
+	rawOutput := json.RawMessage(`{"action":"answer","confidence":"high","evidence_ids":["kb-1"]}`)
+	rawToolCalls := json.RawMessage(`[{"tool_name":"query_metrics"},{"tool_name":"search_knowledge"}]`)
+	report := buildInsightsShadowComparison(context.Background(), nil, "ws", &agent.Run{
+		ID:        "go-run",
+		Status:    agent.StatusSuccess,
+		Output:    rawOutput,
+		ToolCalls: rawToolCalls,
+		TotalCost: &cost,
+	}, &agent.Run{
+		ID:        "shadow-run",
+		Status:    agent.StatusSuccess,
+		Output:    rawOutput,
+		ToolCalls: rawToolCalls,
+		TotalCost: &cost,
+	})
+
+	if !report.Matched {
+		t.Fatalf("expected matched report, got %+v", report.Differences)
+	}
+	if len(report.Differences) != 0 {
+		t.Fatalf("expected no differences, got %+v", report.Differences)
 	}
 }
 
