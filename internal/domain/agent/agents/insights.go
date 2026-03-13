@@ -28,6 +28,7 @@ type InsightsAgentConfig struct {
 }
 
 const insightsBaseRunCostEuros = 0.01 // Task 4.5d — sin LLM en MVP.
+const metricSalesFunnel = "sales_funnel"
 const insightsDefaultLanguage = "es"
 
 // InsightsAgent implements FR-231 insights flow.
@@ -199,9 +200,9 @@ func parseQueryIntent(query string) string {
 	case strings.Contains(q, "mttr"), strings.Contains(q, "resolución"), strings.Contains(q, "tiempo"):
 		return "mttr"
 	case strings.Contains(q, "deal"), strings.Contains(q, "venta"), strings.Contains(q, "funnel"):
-		return "sales_funnel"
+		return metricSalesFunnel
 	default:
-		return "sales_funnel"
+		return metricSalesFunnel
 	}
 }
 
