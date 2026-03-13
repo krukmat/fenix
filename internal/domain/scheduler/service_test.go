@@ -111,6 +111,24 @@ func TestServiceScheduleRejectsInvalidWorkflowResumePayload(t *testing.T) {
 	}
 }
 
+func TestNormalizeScheduledPayloadAcceptsGenericPayloadForNonResumeJobs(t *testing.T) {
+	t.Parallel()
+
+	raw, err := normalizeScheduledPayload(ScheduleJobInput{
+		JobType:  JobType("custom_job"),
+		Payload: map[string]any{
+			"kind": "generic",
+			"ok":   true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("normalizeScheduledPayload() error = %v", err)
+	}
+	if string(raw) == "" {
+		t.Fatal("payload = empty, want marshaled payload")
+	}
+}
+
 func TestServiceCancelCancelsPendingJob(t *testing.T) {
 	t.Parallel()
 
@@ -188,6 +206,32 @@ func TestServiceCancelRejectsInvalidInput(t *testing.T) {
 	svc := NewService(repo)
 
 	_, err := svc.Cancel(context.Background(), "", "job-1")
+	if !errors.Is(err, ErrInvalidScheduleInput) {
+		t.Fatalf("expected ErrInvalidScheduleInput, got %v", err)
+	}
+}
+
+func TestServiceCancelRejectsMissingJobID(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+	svc := NewService(repo)
+
+	_, err := svc.Cancel(context.Background(), "ws_test", "")
+	if !errors.Is(err, ErrInvalidScheduleInput) {
+		t.Fatalf("expected ErrInvalidScheduleInput, got %v", err)
+	}
+}
+
+func TestServiceCancelBySourceRejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+	svc := NewService(repo)
+
+	_, err := svc.CancelBySource(context.Background(), "ws_test", "")
 	if !errors.Is(err, ErrInvalidScheduleInput) {
 		t.Fatalf("expected ErrInvalidScheduleInput, got %v", err)
 	}

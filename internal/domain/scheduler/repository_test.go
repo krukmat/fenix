@@ -155,6 +155,18 @@ func TestRepository_MarkExecuted(t *testing.T) {
 	}
 }
 
+func TestRepository_MarkExecuted_NotFound(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	_, err := repo.MarkExecuted(context.Background(), "ws_test", "missing", time.Now().UTC())
+	if !errors.Is(err, ErrScheduledJobNotFound) {
+		t.Fatalf("expected ErrScheduledJobNotFound, got %v", err)
+	}
+}
+
 func TestRepository_Cancel(t *testing.T) {
 	t.Parallel()
 
@@ -180,6 +192,18 @@ func TestRepository_Cancel(t *testing.T) {
 	}
 	if cancelled.Status != StatusCancelled {
 		t.Fatalf("status = %s, want %s", cancelled.Status, StatusCancelled)
+	}
+}
+
+func TestRepository_Cancel_NotFound(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+
+	_, err := repo.Cancel(context.Background(), "ws_test", "missing")
+	if !errors.Is(err, ErrScheduledJobNotFound) {
+		t.Fatalf("expected ErrScheduledJobNotFound, got %v", err)
 	}
 }
 

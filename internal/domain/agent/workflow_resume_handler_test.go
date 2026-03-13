@@ -162,3 +162,49 @@ NOTIFY contact WITH "done"', 1, 'archived', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 		t.Fatalf("expected archived workflow error in output, got %#v", output)
 	}
 }
+
+func TestWorkflowResumeHandlerHandleRejectsInvalidJob(t *testing.T) {
+	t.Parallel()
+
+	handler := NewWorkflowResumeHandler(NewDSLRunner(setupDSLRunnerDB(t)), &RunContext{})
+
+	err := handler.Handle(context.Background(), &schedulerdomain.ScheduledJob{
+		ID:          "job-invalid",
+		WorkspaceID: "",
+		JobType:     schedulerdomain.JobTypeWorkflowResume,
+		Payload:     json.RawMessage(`{}`),
+	})
+	if !errors.Is(err, ErrWorkflowResumeJobInvalid) {
+		t.Fatalf("expected ErrWorkflowResumeJobInvalid, got %v", err)
+	}
+}
+
+func TestWorkflowResumeHandlerHandleRejectsMissingRunner(t *testing.T) {
+	t.Parallel()
+
+	handler := NewWorkflowResumeHandler(nil, &RunContext{})
+	err := handler.Handle(context.Background(), &schedulerdomain.ScheduledJob{
+		ID:          "job-missing-runner",
+		WorkspaceID: "ws_dsl",
+		JobType:     schedulerdomain.JobTypeWorkflowResume,
+		Payload:     json.RawMessage(`{"workflow_id":"wf-1","run_id":"run-1","resume_step_index":0}`),
+	})
+	if !errors.Is(err, ErrWorkflowResumeHandlerMissingRunner) {
+		t.Fatalf("expected ErrWorkflowResumeHandlerMissingRunner, got %v", err)
+	}
+}
+
+func TestWorkflowResumeHandlerHandleRejectsInvalidPayload(t *testing.T) {
+	t.Parallel()
+
+	handler := NewWorkflowResumeHandler(NewDSLRunner(setupDSLRunnerDB(t)), &RunContext{})
+	err := handler.Handle(context.Background(), &schedulerdomain.ScheduledJob{
+		ID:          "job-invalid-payload",
+		WorkspaceID: "ws_dsl",
+		JobType:     schedulerdomain.JobTypeWorkflowResume,
+		Payload:     json.RawMessage(`{`),
+	})
+	if err == nil {
+		t.Fatal("Handle() expected error")
+	}
+}

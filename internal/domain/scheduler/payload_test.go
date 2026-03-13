@@ -42,6 +42,32 @@ func TestWorkflowResumePayloadRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestDecodeWorkflowResumePayloadRejectsInvalidRawPayload(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		raw  []byte
+	}{
+		{name: "empty", raw: nil},
+		{name: "invalid json", raw: []byte(`{`)},
+		{name: "missing run id", raw: []byte(`{"workflow_id":"wf-1","resume_step_index":1}`)},
+		{name: "negative index", raw: []byte(`{"workflow_id":"wf-1","run_id":"run-1","resume_step_index":-1}`)},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := DecodeWorkflowResumePayload(tc.raw)
+			if err == nil {
+				t.Fatal("DecodeWorkflowResumePayload() expected error")
+			}
+		})
+	}
+}
+
 func TestWorkflowResumePayloadPersistsThroughScheduledJob(t *testing.T) {
 	t.Parallel()
 
