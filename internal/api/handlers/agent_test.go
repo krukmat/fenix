@@ -1278,6 +1278,84 @@ func TestInsightsAgentHandler_TriggerInsights_ShadowMode_NotConfigured(t *testin
 	}
 }
 
+func TestHandleInsightsRunError(t *testing.T) {
+	t.Parallel()
+
+	rr := httptest.NewRecorder()
+	if !handleInsightsRunError(rr, agents.ErrInsightsQueryRequired) {
+		t.Fatal("expected query-required error to be handled")
+	}
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+
+	rr = httptest.NewRecorder()
+	if !handleInsightsRunError(rr, agents.ErrInsightsDailyLimitExceeded) {
+		t.Fatal("expected daily-limit error to be handled")
+	}
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", rr.Code)
+	}
+
+	rr = httptest.NewRecorder()
+	if handleInsightsRunError(rr, errors.New("other")) {
+		t.Fatal("expected unrelated error to be unhandled")
+	}
+}
+
+func TestBuildInsightsPrimaryResponseAndEnrich(t *testing.T) {
+	t.Parallel()
+
+	run := &agent.Run{ID: "run-1", DefinitionID: "insights-agent", Status: agent.StatusSuccess}
+	resp := buildInsightsPrimaryResponse(run)
+	if got := resp["run_id"]; got != "run-1" {
+		t.Fatalf("run_id = %v, want run-1", got)
+	}
+
+	rollout := insightsRolloutConfig{
+		Enabled:            true,
+		DeclarativePrimary: false,
+		Source:             "workspace.settings",
+	}
+	shadow := map[string]any{"enabled": true, "run_id": "shadow-1"}
+	enrichInsightsPrimaryResponse(resp, rollout, run, true, shadow)
+
+	rolloutResp, ok := resp["rollout"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected rollout map, got %T", resp["rollout"])
+	}
+	if rolloutResp["mode"] != "go_primary" {
+		t.Fatalf("mode = %v, want go_primary", rolloutResp["mode"])
+	}
+	if _, ok := resp["shadow"].(map[string]any); !ok {
+		t.Fatalf("expected shadow map, got %T", resp["shadow"])
+	}
+}
+
+func TestBuildInsightsShadowPayload_Disabled(t *testing.T) {
+	t.Parallel()
+
+	got := buildInsightsShadowPayload(nil, httptest.NewRequest(http.MethodPost, "/", nil), agents.InsightsAgentConfig{}, insightsAgentRequest{}, &agent.Run{ID: "run"})
+	if got != nil {
+		t.Fatalf("expected nil shadow payload, got %v", got)
+	}
+}
+
+func TestBuildInsightsShadowSuccessResponse_UsesFallbackRun(t *testing.T) {
+	t.Parallel()
+
+	primary := &agent.Run{ID: "go-run"}
+	wrapper := &agent.Run{ID: "dsl-run", DefinitionID: "insights-shadow-agent", Status: agent.StatusSuccess}
+	resp := buildInsightsShadowSuccessResponse(primary, &insightsShadowExecution{WrapperRun: wrapper})
+
+	if got := resp["status"]; got != agent.StatusSuccess {
+		t.Fatalf("status = %v, want %s", got, agent.StatusSuccess)
+	}
+	if got := resp["effective_run_id"]; got != "dsl-run" {
+		t.Fatalf("effective_run_id = %v, want dsl-run", got)
+	}
+}
+
 func TestBuildInsightsShadowComparison_ClassifiesMismatch(t *testing.T) {
 	t.Parallel()
 
