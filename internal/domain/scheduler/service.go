@@ -70,43 +70,55 @@ func (s *Service) Schedule(ctx context.Context, job ScheduleJobInput) (*Schedule
 
 func normalizeScheduledPayload(job ScheduleJobInput) (json.RawMessage, error) {
 	if job.JobType != JobTypeWorkflowResume {
-		payload, err := json.Marshal(job.Payload)
-		if err != nil {
-			return nil, fmt.Errorf("%w: payload: %v", ErrInvalidScheduleInput, err)
-		}
-		return payload, nil
+		return marshalScheduledPayload(job.Payload)
 	}
 
 	switch payload := job.Payload.(type) {
 	case WorkflowResumePayload:
-		raw, err := EncodeWorkflowResumePayload(payload)
-		if err != nil {
-			return nil, fmt.Errorf("%w: payload: %v", ErrInvalidScheduleInput, err)
-		}
-		return raw, nil
+		return encodeResumePayload(payload)
 	case json.RawMessage:
-		decoded, err := DecodeWorkflowResumePayload(payload)
-		if err != nil {
-			return nil, fmt.Errorf("%w: payload: %v", ErrInvalidScheduleInput, err)
-		}
-		return EncodeWorkflowResumePayload(decoded)
+		return decodeAndEncodeResumePayload(payload)
 	case []byte:
-		decoded, err := DecodeWorkflowResumePayload(payload)
-		if err != nil {
-			return nil, fmt.Errorf("%w: payload: %v", ErrInvalidScheduleInput, err)
-		}
-		return EncodeWorkflowResumePayload(decoded)
+		return decodeAndEncodeResumePayload(payload)
 	default:
-		raw, err := json.Marshal(job.Payload)
-		if err != nil {
-			return nil, fmt.Errorf("%w: payload: %v", ErrInvalidScheduleInput, err)
-		}
-		decoded, err := DecodeWorkflowResumePayload(raw)
-		if err != nil {
-			return nil, fmt.Errorf("%w: payload: %v", ErrInvalidScheduleInput, err)
-		}
-		return EncodeWorkflowResumePayload(decoded)
+		return normalizeGenericResumePayload(job.Payload)
 	}
+}
+
+func marshalScheduledPayload(payload any) (json.RawMessage, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, invalidSchedulePayload(err)
+	}
+	return raw, nil
+}
+
+func encodeResumePayload(payload WorkflowResumePayload) (json.RawMessage, error) {
+	raw, err := EncodeWorkflowResumePayload(payload)
+	if err != nil {
+		return nil, invalidSchedulePayload(err)
+	}
+	return raw, nil
+}
+
+func decodeAndEncodeResumePayload(payload []byte) (json.RawMessage, error) {
+	decoded, err := DecodeWorkflowResumePayload(payload)
+	if err != nil {
+		return nil, invalidSchedulePayload(err)
+	}
+	return encodeResumePayload(decoded)
+}
+
+func normalizeGenericResumePayload(payload any) (json.RawMessage, error) {
+	raw, err := marshalScheduledPayload(payload)
+	if err != nil {
+		return nil, err
+	}
+	return decodeAndEncodeResumePayload(raw)
+}
+
+func invalidSchedulePayload(err error) error {
+	return fmt.Errorf("%w: payload: %v", ErrInvalidScheduleInput, err)
 }
 
 func (s *Service) Cancel(ctx context.Context, workspaceID, jobID string) (*ScheduledJob, error) {

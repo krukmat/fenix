@@ -163,32 +163,46 @@ func (s *Service) SetStatus(ctx context.Context, workspaceID, workflowID string,
 		return nil, err
 	}
 
-	if !isValidStatusTransition(existing.Status, next) {
-		return nil, ErrInvalidStatusTransition
-	}
-	if next == StatusActive {
-		if err = s.ensureNoOtherActiveWorkflow(ctx, existing); err != nil {
-			return nil, err
-		}
+	if err := s.validateStatusChange(ctx, existing, next); err != nil {
+		return nil, err
 	}
 
-	updated, err := s.repo.Update(ctx, workspaceID, workflowID, UpdateInput{
-		AgentDefinitionID: existing.AgentDefinitionID,
-		Description:       existing.Description,
-		DSLSource:         existing.DSLSource,
-		SpecSource:        existing.SpecSource,
-		Status:            next,
-		ArchivedAt:        archivedAtForStatus(next, existing.ArchivedAt),
-	})
+	updated, err := s.persistStatusChange(ctx, existing, next)
 	if err != nil {
 		return nil, err
 	}
-	if next == StatusArchived {
-		if err = s.cancelScheduledJobsForWorkflow(ctx, updated); err != nil {
-			return nil, err
-		}
+	if err := s.afterStatusChange(ctx, updated, next); err != nil {
+		return nil, err
 	}
 	return updated, nil
+}
+
+func (s *Service) validateStatusChange(ctx context.Context, existing *Workflow, next Status) error {
+	if !isValidStatusTransition(existing.Status, next) {
+		return ErrInvalidStatusTransition
+	}
+	if next != StatusActive {
+		return nil
+	}
+	return s.ensureNoOtherActiveWorkflow(ctx, existing)
+}
+
+func (s *Service) persistStatusChange(ctx context.Context, workflow *Workflow, next Status) (*Workflow, error) {
+	return s.repo.Update(ctx, workflow.WorkspaceID, workflow.ID, UpdateInput{
+		AgentDefinitionID: workflow.AgentDefinitionID,
+		Description:       workflow.Description,
+		DSLSource:         workflow.DSLSource,
+		SpecSource:        workflow.SpecSource,
+		Status:            next,
+		ArchivedAt:        archivedAtForStatus(next, workflow.ArchivedAt),
+	})
+}
+
+func (s *Service) afterStatusChange(ctx context.Context, workflow *Workflow, next Status) error {
+	if next != StatusArchived {
+		return nil
+	}
+	return s.cancelScheduledJobsForWorkflow(ctx, workflow)
 }
 
 func (s *Service) MarkTesting(ctx context.Context, workspaceID, workflowID string) (*Workflow, error) {

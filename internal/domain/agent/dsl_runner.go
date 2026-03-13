@@ -92,24 +92,12 @@ func (r *DSLRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgentI
 }
 
 func (r *DSLRunner) Resume(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload) (*Run, error) {
-	if rc == nil || rc.Orchestrator == nil {
-		return nil, ErrDSLRunnerMissingOrchestrator
-	}
-	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(input.WorkflowID) == "" || strings.TrimSpace(input.RunID) == "" || input.ResumeStepIndex < 0 {
-		return nil, ErrDSLResumeInvalidInput
-	}
-
-	run, err := rc.Orchestrator.GetAgentRun(ctx, workspaceID, input.RunID)
+	run, workflow, err := r.prepareResume(ctx, rc, workspaceID, input)
 	if err != nil {
+		if run != nil {
+			return r.failResumeAndReturnErr(ctx, rc, workspaceID, input, workflow, run, err)
+		}
 		return nil, err
-	}
-	workflow, err := r.loadWorkflowForResume(ctx, workspaceID, input.WorkflowID)
-	if err != nil {
-		return r.failResumeAndReturnErr(ctx, rc, workspaceID, input, workflow, run, err)
-	}
-	if workflow.AgentDefinitionID == nil || *workflow.AgentDefinitionID != run.DefinitionID {
-		err = fmt.Errorf("%w: run/workflow definition mismatch", ErrDSLResumeInvalidInput)
-		return r.failResumeAndReturnErr(ctx, rc, workspaceID, input, workflow, run, err)
 	}
 
 	program, err := r.loadProgram(workflow)
@@ -134,6 +122,51 @@ func (r *DSLRunner) Resume(ctx context.Context, rc *RunContext, workspaceID stri
 	executor := wrapWithTrace(workspaceID, input.RunID, execCtx, r.runtime, baseExecutor, defaultExecutor)
 	result, execErr := r.runtime.ExecuteProgramFromIndex(ctx, program, input.ResumeStepIndex, evalCtx, executor)
 	return r.finalizeResumedRun(ctx, rc, workspaceID, input.RunID, input, workflow, run, result, defaultExecutor, execErr)
+}
+
+func (r *DSLRunner) prepareResume(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload) (*Run, *workflowdomain.Workflow, error) {
+	if err := validateResumeInput(rc, workspaceID, input); err != nil {
+		return nil, nil, err
+	}
+
+	run, err := rc.Orchestrator.GetAgentRun(ctx, workspaceID, input.RunID)
+	if err != nil {
+		return nil, nil, err
+	}
+	workflow, err := r.loadWorkflowForResume(ctx, workspaceID, input.WorkflowID)
+	if err != nil {
+		return run, workflow, err
+	}
+	if err := validateResumeDefinition(run, workflow); err != nil {
+		return run, workflow, err
+	}
+	if _, err = rc.Orchestrator.UpdateAgentRunStatus(ctx, workspaceID, input.RunID, StatusAccepted); err != nil {
+		return run, workflow, err
+	}
+	return run, workflow, nil
+}
+
+func validateResumeInput(rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload) error {
+	if rc == nil || rc.Orchestrator == nil {
+		return ErrDSLRunnerMissingOrchestrator
+	}
+	if strings.TrimSpace(workspaceID) == "" {
+		return ErrDSLResumeInvalidInput
+	}
+	if strings.TrimSpace(input.WorkflowID) == "" || strings.TrimSpace(input.RunID) == "" {
+		return ErrDSLResumeInvalidInput
+	}
+	if input.ResumeStepIndex < 0 {
+		return ErrDSLResumeInvalidInput
+	}
+	return nil
+}
+
+func validateResumeDefinition(run *Run, workflow *workflowdomain.Workflow) error {
+	if workflow.AgentDefinitionID != nil && *workflow.AgentDefinitionID == run.DefinitionID {
+		return nil
+	}
+	return fmt.Errorf("%w: run/workflow definition mismatch", ErrDSLResumeInvalidInput)
 }
 
 func (r *DSLRunner) buildBaseExecutor(rc *RunContext, input TriggerAgentInput, evalCtx map[string]any, workflowID, runID string) (RuntimeOperationExecutor, *dslRuntimeExecutor) {

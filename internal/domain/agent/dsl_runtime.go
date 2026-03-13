@@ -95,16 +95,17 @@ func (r *DSLRuntime) executeStatements(ctx context.Context, statements []Stateme
 	for _, stmt := range statements {
 		index := *cursor
 		*cursor++
-		if index < startIndex {
-			if ifStmt, ok := stmt.(*IfStatement); ok {
-				stop, err := r.executeStatements(ctx, ifStmt.Body, evalCtx, executor, out, startIndex, cursor)
-				if err != nil {
-					return false, err
-				}
-				if stop {
-					return true, nil
-				}
+		if index < startIndex && shouldDescendIntoSkippedStatement(stmt) {
+			stop, err := r.executeSkippedSubtree(ctx, stmt, evalCtx, executor, out, startIndex, cursor)
+			if err != nil {
+				return false, err
 			}
+			if stop {
+				return true, nil
+			}
+			continue
+		}
+		if index < startIndex {
 			continue
 		}
 
@@ -117,6 +118,19 @@ func (r *DSLRuntime) executeStatements(ctx context.Context, statements []Stateme
 		}
 	}
 	return false, nil
+}
+
+func shouldDescendIntoSkippedStatement(stmt Statement) bool {
+	_, ok := stmt.(*IfStatement)
+	return ok
+}
+
+func (r *DSLRuntime) executeSkippedSubtree(ctx context.Context, stmt Statement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult, startIndex int, cursor *int) (bool, error) {
+	ifStmt, ok := stmt.(*IfStatement)
+	if !ok {
+		return false, nil
+	}
+	return r.executeStatements(ctx, ifStmt.Body, evalCtx, executor, out, startIndex, cursor)
 }
 
 func (r *DSLRuntime) executeStatement(ctx context.Context, stmt Statement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult, startIndex int, cursor *int) (bool, error) {
@@ -273,21 +287,22 @@ func runtimeStatementType(stmt Statement) string {
 func runtimeStatementTarget(stmt Statement) string {
 	switch node := stmt.(type) {
 	case *SetStatement:
-		if node.Target != nil {
-			return node.Target.Name
-		}
+		return identifierName(node.Target)
 	case *NotifyStatement:
-		if node.Target != nil {
-			return node.Target.Name
-		}
+		return identifierName(node.Target)
 	case *AgentStatement:
-		if node.Name != nil {
-			return node.Name.Name
-		}
+		return identifierName(node.Name)
 	case *WaitStatement:
 		return formatWaitTarget(node)
 	}
 	return ""
+}
+
+func identifierName(id *IdentifierExpr) string {
+	if id == nil {
+		return ""
+	}
+	return id.Name
 }
 
 func formatWaitTarget(stmt *WaitStatement) string {

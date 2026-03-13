@@ -45,18 +45,10 @@ func NewWorker(repo *Repository, handler JobHandler) *Worker {
 }
 
 func (w *Worker) Start(ctx context.Context) error {
-	if w.repo == nil {
-		return ErrWorkerMissingRepository
+	if err := w.validate(); err != nil {
+		return err
 	}
-	if w.handler == nil {
-		return ErrWorkerMissingHandler
-	}
-	if w.maxConcurrency <= 0 {
-		w.maxConcurrency = 10
-	}
-	if w.pollInterval <= 0 {
-		w.pollInterval = 10 * time.Second
-	}
+	w.normalizeConfig()
 
 	for {
 		if err := w.RunCycle(ctx); err != nil && !errors.Is(err, context.Canceled) {
@@ -69,19 +61,7 @@ func (w *Worker) Start(ctx context.Context) error {
 }
 
 func (w *Worker) RunCycle(ctx context.Context) error {
-	if w.repo == nil {
-		return ErrWorkerMissingRepository
-	}
-	if w.handler == nil {
-		return ErrWorkerMissingHandler
-	}
-
-	limit := w.maxConcurrency
-	if limit <= 0 {
-		limit = 10
-	}
-
-	jobs, err := w.repo.ListDue(ctx, w.nowFn(), limit)
+	limit, jobs, err := w.loadDueJobs(ctx)
 	if err != nil {
 		return err
 	}
@@ -89,22 +69,71 @@ func (w *Worker) RunCycle(ctx context.Context) error {
 		return nil
 	}
 
+	return w.runJobs(ctx, jobs, limit)
+}
+
+func (w *Worker) validate() error {
+	if w.repo == nil {
+		return ErrWorkerMissingRepository
+	}
+	if w.handler == nil {
+		return ErrWorkerMissingHandler
+	}
+	return nil
+}
+
+func (w *Worker) normalizeConfig() {
+	if w.maxConcurrency <= 0 {
+		w.maxConcurrency = 10
+	}
+	if w.pollInterval <= 0 {
+		w.pollInterval = 10 * time.Second
+	}
+}
+
+func (w *Worker) loadDueJobs(ctx context.Context) (int, []*ScheduledJob, error) {
+	if err := w.validate(); err != nil {
+		return 0, nil, err
+	}
+	limit := w.maxConcurrency
+	if limit <= 0 {
+		limit = 10
+	}
+	jobs, err := w.repo.ListDue(ctx, w.nowFn(), limit)
+	if err != nil {
+		return 0, nil, err
+	}
+	return limit, jobs, nil
+}
+
+func (w *Worker) runJobs(ctx context.Context, jobs []*ScheduledJob, limit int) error {
 	resultCh := make(chan workerJobResult, len(jobs))
 	sem := make(chan struct{}, limit)
 	done := make(chan struct{}, len(jobs))
 
 	for _, job := range jobs {
-		job := job
-		sem <- struct{}{}
-		go func() {
-			defer func() {
-				<-sem
-				done <- struct{}{}
-			}()
-			resultCh <- w.processJob(ctx, job)
-		}()
+		w.startJob(ctx, job, sem, done, resultCh)
 	}
 
+	if err := waitForJobs(ctx, jobs, done); err != nil {
+		return err
+	}
+	return collectJobResults(resultCh)
+}
+
+func (w *Worker) startJob(ctx context.Context, job *ScheduledJob, sem chan struct{}, done chan struct{}, resultCh chan workerJobResult) {
+	job = job
+	sem <- struct{}{}
+	go func() {
+		defer func() {
+			<-sem
+			done <- struct{}{}
+		}()
+		resultCh <- w.processJob(ctx, job)
+	}()
+}
+
+func waitForJobs(ctx context.Context, jobs []*ScheduledJob, done chan struct{}) error {
 	for range jobs {
 		select {
 		case <-ctx.Done():
@@ -112,14 +141,16 @@ func (w *Worker) RunCycle(ctx context.Context) error {
 		case <-done:
 		}
 	}
+	return nil
+}
 
+func collectJobResults(resultCh chan workerJobResult) error {
 	close(resultCh)
 	for result := range resultCh {
 		if result.err != nil {
 			return result.err
 		}
 	}
-
 	return nil
 }
 
