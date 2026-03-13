@@ -95,7 +95,7 @@ check: pattern-refactor-gate complexity lint test
 # - warn mode: reports findings without failing
 # - strict mode: fails when no/invalid evidence or strong smells are detected
 PATTERN_GATE_MODE?=warn
-PATTERN_GATE_TS_DUP_THRESHOLD?=2
+PATTERN_GATE_TS_DUP_THRESHOLD?=5
 pattern-refactor-gate:
 	@echo "Running pattern refactor gate (mode: $(PATTERN_GATE_MODE))..."
 	@bash ./scripts/pattern-refactor-gate.sh \

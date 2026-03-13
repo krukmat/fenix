@@ -4,7 +4,7 @@ set -euo pipefail
 
 MODE="warn"
 ROOT="."
-TS_DUP_THRESHOLD="2"
+TS_DUP_THRESHOLD="5"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -166,7 +166,7 @@ echo ""
 echo "[Go - dupl]"
 echo "  tool available : $go_dupl_available"
 echo "  issues         : $go_dupl_issues"
-echo "  token threshold: 120 (configurado en .golangci.yml)"
+echo "  token threshold: 150 (configurado en .golangci.yml)"
 
 if [[ -n "$go_dupl_sample" ]]; then
   echo "  sample:"

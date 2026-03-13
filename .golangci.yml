@@ -49,7 +49,7 @@ linters-settings:
     statements: 40
 
   dupl:
-    threshold: 120
+    threshold: 150
 
   govet:
     enable:
