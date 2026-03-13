@@ -53,36 +53,53 @@ func (h *InsightsAgentHandler) executeInsightsShadow(
 	shadowAgentID string,
 	primaryRun *agent.Run,
 ) map[string]any {
+	if errResp := ensureInsightsShadowConfigured(h); errResp != nil {
+		return errResp
+	}
+	primaryStored := h.loadPrimaryShadowRun(ctx, config.WorkspaceID, primaryRun)
+	execution, err := h.shadow.Execute(ctx, config, shadowAgentID, primaryRun.ID)
+	if err != nil {
+		return buildInsightsShadowErrorResponse(err, execution)
+	}
+	return buildInsightsShadowSuccessResponse(primaryStored, execution)
+}
+
+func ensureInsightsShadowConfigured(h *InsightsAgentHandler) map[string]any {
 	if h == nil || h.shadow == nil {
 		return map[string]any{
 			"enabled": true,
 			"error":   ErrInsightsShadowNotConfigured.Error(),
 		}
 	}
-	primaryStored := primaryRun
-	if primaryRun != nil && h.shadow.orchestrator != nil {
-		stored, err := h.shadow.orchestrator.GetAgentRun(ctx, config.WorkspaceID, primaryRun.ID)
-		if err == nil && stored != nil {
-			primaryStored = stored
-		}
+	return nil
+}
+
+func (h *InsightsAgentHandler) loadPrimaryShadowRun(ctx context.Context, workspaceID string, primaryRun *agent.Run) *agent.Run {
+	if primaryRun == nil || h == nil || h.shadow == nil || h.shadow.orchestrator == nil {
+		return primaryRun
 	}
-	execution, err := h.shadow.Execute(ctx, config, shadowAgentID, primaryRun.ID)
-	if err != nil {
-		resp := map[string]any{
-			"enabled": true,
-			"error":   err.Error(),
-		}
-		if execution != nil && execution.WrapperRun != nil {
-			resp["run_id"] = execution.WrapperRun.ID
-			resp["status"] = execution.WrapperRun.Status
-		}
-		return resp
+	stored, err := h.shadow.orchestrator.GetAgentRun(ctx, workspaceID, primaryRun.ID)
+	if err != nil || stored == nil {
+		return primaryRun
 	}
+	return stored
+}
+
+func buildInsightsShadowErrorResponse(err error, execution *insightsShadowExecution) map[string]any {
+	resp := map[string]any{
+		"enabled": true,
+		"error":   err.Error(),
+	}
+	if execution != nil && execution.WrapperRun != nil {
+		resp["run_id"] = execution.WrapperRun.ID
+		resp["status"] = execution.WrapperRun.Status
+	}
+	return resp
+}
+
+func buildInsightsShadowSuccessResponse(primaryStored *agent.Run, execution *insightsShadowExecution) map[string]any {
 	run := execution.WrapperRun
-	effective := execution.EffectiveRun
-	if effective == nil {
-		effective = run
-	}
+	effective := coalesceShadowRun(execution.EffectiveRun, run)
 	resp := map[string]any{
 		"enabled":             true,
 		"run_id":              run.ID,
@@ -94,6 +111,13 @@ func (h *InsightsAgentHandler) executeInsightsShadow(
 	}
 	resp["comparison"] = buildInsightsShadowComparisonFromRuns(primaryStored, run, effective)
 	return resp
+}
+
+func coalesceShadowRun(effective, fallback *agent.Run) *agent.Run {
+	if effective != nil {
+		return effective
+	}
+	return fallback
 }
 
 func (e *insightsShadowExecutor) Execute(

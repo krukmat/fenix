@@ -659,55 +659,104 @@ func parseDateTimeValue(v string) (*time.Time, error) {
 
 // TriggerInsightsAgent handles POST /api/v1/agents/insights/trigger.
 func (h *InsightsAgentHandler) TriggerInsightsAgent(w http.ResponseWriter, r *http.Request) {
-	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
-	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+	workspaceID, req, config, ok := h.prepareInsightsRequest(w, r)
+	if !ok {
 		return
 	}
-	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
-
-	var req insightsAgentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
-		return
-	}
-
-	config, valid := buildInsightsConfig(w, req, workspaceID)
-	if !valid {
-		return
-	}
-	config = withInsightsTriggeredBy(config, userID)
-
 	rollout := loadInsightsRolloutConfig(r.Context(), h.db, workspaceID)
 	if rollout.Enabled && rollout.DeclarativePrimary {
 		h.triggerInsightsDeclarativePrimary(w, r, config, rollout)
 		return
 	}
 
-	run, err := h.insightsAgent.Run(r.Context(), config)
-	if err != nil {
-		if handled := handleInsightsRunError(w, err); handled {
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "failed to run insights agent")
+	run, ok := h.runInsightsPrimary(w, r, config)
+	if !ok {
 		return
 	}
 
-	response := map[string]any{
-		"run_id": run.ID,
-		"status": "queued",
-		"agent":  "insights",
-	}
-	if rollout.Enabled {
-		response["rollout"] = buildInsightsRolloutResponse(rollout, run, run)
-	}
-	if req.ShadowMode {
-		response["shadow"] = h.executeInsightsShadow(r.Context(), config, req.ShadowAgentID, run)
-	}
+	response := buildInsightsPrimaryResponse(run)
+	shadow := buildInsightsShadowPayload(h, r, config, req, run)
+	enrichInsightsPrimaryResponse(response, rollout, run, req.ShadowMode, shadow)
 
 	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(response)
+}
+
+func (h *InsightsAgentHandler) prepareInsightsRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+) (string, insightsAgentRequest, agents.InsightsAgentConfig, bool) {
+	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
+	if !ok || workspaceID == "" {
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+		return "", insightsAgentRequest{}, agents.InsightsAgentConfig{}, false
+	}
+	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
+
+	var req insightsAgentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, errInvalidBody)
+		return "", insightsAgentRequest{}, agents.InsightsAgentConfig{}, false
+	}
+
+	config, valid := buildInsightsConfig(w, req, workspaceID)
+	if !valid {
+		return "", insightsAgentRequest{}, agents.InsightsAgentConfig{}, false
+	}
+	return workspaceID, req, withInsightsTriggeredBy(config, userID), true
+}
+
+func (h *InsightsAgentHandler) runInsightsPrimary(
+	w http.ResponseWriter,
+	r *http.Request,
+	config agents.InsightsAgentConfig,
+) (*agent.Run, bool) {
+	run, err := h.insightsAgent.Run(r.Context(), config)
+	if err == nil {
+		return run, true
+	}
+	if handled := handleInsightsRunError(w, err); handled {
+		return nil, false
+	}
+	writeError(w, http.StatusInternalServerError, "failed to run insights agent")
+	return nil, false
+}
+
+func buildInsightsPrimaryResponse(run *agent.Run) map[string]any {
+	return map[string]any{
+		"run_id": run.ID,
+		"status": "queued",
+		"agent":  "insights",
+	}
+}
+
+func buildInsightsShadowPayload(
+	h *InsightsAgentHandler,
+	r *http.Request,
+	config agents.InsightsAgentConfig,
+	req insightsAgentRequest,
+	run *agent.Run,
+) map[string]any {
+	if !req.ShadowMode {
+		return nil
+	}
+	return h.executeInsightsShadow(r.Context(), config, req.ShadowAgentID, run)
+}
+
+func enrichInsightsPrimaryResponse(
+	response map[string]any,
+	rollout insightsRolloutConfig,
+	run *agent.Run,
+	shadowMode bool,
+	shadow map[string]any,
+) {
+	if rollout.Enabled {
+		response["rollout"] = buildInsightsRolloutResponse(rollout, run, run)
+	}
+	if shadowMode {
+		response["shadow"] = shadow
+	}
 }
 
 func (h *InsightsAgentHandler) triggerInsightsDeclarativePrimary(

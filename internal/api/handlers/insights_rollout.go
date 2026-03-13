@@ -47,25 +47,35 @@ func parseInsightsRolloutConfig(settings map[string]any) insightsRolloutConfig {
 		return insightsRolloutConfig{}
 	}
 
-	mode, _ := pilot["mode"].(string)
-	enabled, _ := pilot["enabled"].(bool)
-	trimmedMode := strings.TrimSpace(mode)
-	isDeclarative := strings.EqualFold(trimmedMode, insightsRolloutModeDeclarative)
-	isGo := strings.EqualFold(trimmedMode, insightsRolloutModeGo)
+	_, enabled, isDeclarative, isGo := classifyInsightsRolloutMode(pilot)
 	if !enabled && !isDeclarative && !isGo {
 		return insightsRolloutConfig{}
-	}
-
-	agentID, _ := pilot["shadow_agent_id"].(string)
-	if strings.TrimSpace(agentID) == "" {
-		agentID = defaultInsightsShadowAgentID
 	}
 	return insightsRolloutConfig{
 		Enabled:            true,
 		DeclarativePrimary: isDeclarative || (enabled && !isGo),
-		AgentID:            strings.TrimSpace(agentID),
+		AgentID:            rolloutAgentID(pilot),
 		Source:             "workspace.settings",
 	}
+}
+
+func classifyInsightsRolloutMode(pilot map[string]any) (string, bool, bool, bool) {
+	mode, _ := pilot["mode"].(string)
+	enabled, _ := pilot["enabled"].(bool)
+	trimmedMode := strings.TrimSpace(mode)
+	return trimmedMode,
+		enabled,
+		strings.EqualFold(trimmedMode, insightsRolloutModeDeclarative),
+		strings.EqualFold(trimmedMode, insightsRolloutModeGo)
+}
+
+func rolloutAgentID(pilot map[string]any) string {
+	agentID, _ := pilot["shadow_agent_id"].(string)
+	agentID = strings.TrimSpace(agentID)
+	if agentID == "" {
+		return defaultInsightsShadowAgentID
+	}
+	return agentID
 }
 
 func nestedMap(input map[string]any, path ...string) map[string]any {

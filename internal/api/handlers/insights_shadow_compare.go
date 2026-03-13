@@ -86,17 +86,29 @@ func resolveEffectiveShadowRun(ctx context.Context, orch *agent.Orchestrator, wo
 }
 
 func extractChildRunID(raw json.RawMessage) string {
-	if len(raw) == 0 || !json.Valid(raw) {
-		return ""
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal(raw, &decoded); err != nil {
+	decoded, ok := decodeChildRunPayload(raw)
+	if !ok {
 		return ""
 	}
 	if runID, ok := extractChildRunIDFromMap(decoded); ok {
 		return runID
 	}
-	statements, _ := decoded["statements"].([]any)
+	return extractChildRunIDFromStatements(decoded["statements"])
+}
+
+func decodeChildRunPayload(raw json.RawMessage) (map[string]any, bool) {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return nil, false
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil, false
+	}
+	return decoded, true
+}
+
+func extractChildRunIDFromStatements(value any) string {
+	statements, _ := value.([]any)
 	for _, statement := range statements {
 		statementMap, ok := statement.(map[string]any)
 		if !ok {
