@@ -12,6 +12,8 @@ import (
 const insightsRolloutModeDeclarative = "declarative"
 const insightsRolloutModeGo = "go"
 const insightsPilotKey = "insights"
+const insightsPrimaryModeGo = "go_primary"
+const insightsPrimaryModeDeclarative = "declarative_primary"
 
 type insightsRolloutConfig struct {
 	Enabled            bool
@@ -92,9 +94,9 @@ func nestedMap(input map[string]any, path ...string) map[string]any {
 }
 
 func buildInsightsRolloutResponse(config insightsRolloutConfig, wrapperRun, effectiveRun *agent.Run) map[string]any {
-	mode := "go_primary"
+	mode := insightsPrimaryModeGo
 	if config.DeclarativePrimary {
-		mode = "declarative_primary"
+		mode = insightsPrimaryModeDeclarative
 	}
 	resp := map[string]any{
 		"enabled":  config.Enabled,
