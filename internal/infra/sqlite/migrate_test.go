@@ -443,6 +443,82 @@ func TestMigrate_SignalStatusCheck(t *testing.T) {
 	}
 }
 
+func TestMigrate_ScheduledJobTableCreated(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	assertTableExists(t, db, "scheduled_job")
+}
+
+func TestMigrate_ScheduledJobStatusCheck(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-scheduled-job-status', 'Scheduled Job Workspace', 'scheduled-job-workspace', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO scheduled_job (id, workspace_id, job_type, payload, execute_at, status, source_id)
+		VALUES ('job-status', 'ws-scheduled-job-status', 'workflow_resume', '{}', datetime('now', '+1 hour'), 'broken', 'workflow-1')
+	`)
+	if err == nil {
+		t.Error("scheduled_job insert with invalid status succeeded; want CHECK constraint error")
+	}
+}
+
+func TestMigrate_ScheduledJobTypeCheck(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-scheduled-job-type', 'Scheduled Job Type Workspace', 'scheduled-job-type-workspace', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO scheduled_job (id, workspace_id, job_type, payload, execute_at, status, source_id)
+		VALUES ('job-type', 'ws-scheduled-job-type', 'unsupported', '{}', datetime('now', '+1 hour'), 'pending', 'workflow-1')
+	`)
+	if err == nil {
+		t.Error("scheduled_job insert with invalid job_type succeeded; want CHECK constraint error")
+	}
+}
+
+func TestMigrate_ScheduledJobWorkspaceForeignKey(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO scheduled_job (id, workspace_id, job_type, payload, execute_at, status, source_id)
+		VALUES ('job-fk', 'missing-workspace', 'workflow_resume', '{}', datetime('now', '+1 hour'), 'pending', 'workflow-1')
+	`)
+	if err == nil {
+		t.Error("scheduled_job insert with invalid workspace_id succeeded; want FK constraint error")
+	}
+}
+
 // assertTableExists fails the test if the given table doesn't exist in the DB.
 func assertTableExists(t *testing.T, db *sql.DB, tableName string) {
 	t.Helper()

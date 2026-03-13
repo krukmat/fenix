@@ -11,6 +11,10 @@ type RuntimeOperationExecutor interface {
 	Execute(ctx context.Context, op *RuntimeOperation, evalCtx map[string]any) (RuntimeExecutionResult, error)
 }
 
+type RuntimeWaitExecutor interface {
+	ExecuteWait(ctx context.Context, stmt *WaitStatement, nextStatementIndex int, evalCtx map[string]any) (RuntimeExecutionResult, error)
+}
+
 type RuntimeStatementTracer interface {
 	StartStatementTrace(ctx context.Context, stmt Statement) (string, error)
 	FinishStatementTrace(ctx context.Context, traceID string, result DSLStatementResult, stepErr error) error
@@ -58,8 +62,18 @@ func (r *DSLRuntime) Evaluator() *ExpressionEvaluator {
 }
 
 func (r *DSLRuntime) ExecuteProgram(ctx context.Context, program *Program, evalCtx map[string]any, executor RuntimeOperationExecutor) (*DSLRuntimeResult, error) {
+	return r.ExecuteProgramFromIndex(ctx, program, 0, evalCtx, executor)
+}
+
+func (r *DSLRuntime) ExecuteProgramFromIndex(ctx context.Context, program *Program, startIndex int, evalCtx map[string]any, executor RuntimeOperationExecutor) (*DSLRuntimeResult, error) {
 	if program == nil || program.Workflow == nil {
 		return nil, fmt.Errorf("%w: program is required", ErrDSLRuntimeFailed)
+	}
+	if startIndex < 0 {
+		return nil, fmt.Errorf("%w: start index must be >= 0", ErrDSLRuntimeFailed)
+	}
+	if startIndex > len(program.Workflow.Body) {
+		return nil, fmt.Errorf("%w: start index %d out of range", ErrDSLRuntimeFailed, startIndex)
 	}
 
 	result := &DSLRuntimeResult{
@@ -69,15 +83,32 @@ func (r *DSLRuntime) ExecuteProgram(ctx context.Context, program *Program, evalC
 		result.TriggerEvent = program.Workflow.Trigger.Event
 	}
 
-	if _, err := r.executeStatements(ctx, program.Workflow.Body, evalCtx, executor, &result.Statements); err != nil {
+	statements := program.Workflow.Body
+	cursor := 0
+	if _, err := r.executeStatements(ctx, statements, evalCtx, executor, &result.Statements, startIndex, &cursor); err != nil {
 		return result, err
 	}
 	return result, nil
 }
 
-func (r *DSLRuntime) executeStatements(ctx context.Context, statements []Statement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult) (bool, error) {
+func (r *DSLRuntime) executeStatements(ctx context.Context, statements []Statement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult, startIndex int, cursor *int) (bool, error) {
 	for _, stmt := range statements {
-		stop, err := r.executeStatement(ctx, stmt, evalCtx, executor, out)
+		index := *cursor
+		*cursor++
+		if index < startIndex {
+			if ifStmt, ok := stmt.(*IfStatement); ok {
+				stop, err := r.executeStatements(ctx, ifStmt.Body, evalCtx, executor, out, startIndex, cursor)
+				if err != nil {
+					return false, err
+				}
+				if stop {
+					return true, nil
+				}
+			}
+			continue
+		}
+
+		stop, err := r.executeStatement(ctx, stmt, evalCtx, executor, out, startIndex, cursor)
 		if err != nil {
 			return false, err
 		}
@@ -88,10 +119,12 @@ func (r *DSLRuntime) executeStatements(ctx context.Context, statements []Stateme
 	return false, nil
 }
 
-func (r *DSLRuntime) executeStatement(ctx context.Context, stmt Statement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult) (bool, error) {
+func (r *DSLRuntime) executeStatement(ctx context.Context, stmt Statement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult, startIndex int, cursor *int) (bool, error) {
 	switch node := stmt.(type) {
 	case *IfStatement:
-		return r.executeIf(ctx, node, evalCtx, executor, out)
+		return r.executeIf(ctx, node, evalCtx, executor, out, startIndex, cursor)
+	case *WaitStatement:
+		return r.executeWait(ctx, node, evalCtx, executor, out, *cursor)
 	case *SetStatement, *NotifyStatement, *AgentStatement:
 		return r.executeMappedStatement(ctx, stmt, evalCtx, executor, out)
 	default:
@@ -116,7 +149,7 @@ func finishStatementTrace(ctx context.Context, executor RuntimeOperationExecutor
 	}
 }
 
-func (r *DSLRuntime) executeIf(ctx context.Context, stmt *IfStatement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult) (bool, error) {
+func (r *DSLRuntime) executeIf(ctx context.Context, stmt *IfStatement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult, startIndex int, cursor *int) (bool, error) {
 	traceID, traceErr := startStatementTrace(ctx, executor, stmt)
 	if traceErr != nil {
 		return false, traceErr
@@ -137,7 +170,42 @@ func (r *DSLRuntime) executeIf(ctx context.Context, stmt *IfStatement, evalCtx m
 	result := DSLStatementResult{Type: "IF", Status: StepStatusSuccess, Position: stmt.Pos()}
 	*out = append(*out, result)
 	finishStatementTrace(ctx, executor, traceID, result, nil)
-	return r.executeStatements(ctx, stmt.Body, evalCtx, executor, out)
+	return r.executeStatements(ctx, stmt.Body, evalCtx, executor, out, startIndex, cursor)
+}
+
+func (r *DSLRuntime) executeWait(ctx context.Context, stmt *WaitStatement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult, nextStatementIndex int) (bool, error) {
+	traceID, traceErr := startStatementTrace(ctx, executor, stmt)
+	if traceErr != nil {
+		return false, traceErr
+	}
+	waitExecutor, ok := executor.(RuntimeWaitExecutor)
+	if !ok {
+		err := fmt.Errorf("%w: WAIT requires scheduler executor", ErrDSLRuntimeFailed)
+		result := DSLStatementResult{Type: "WAIT", Target: formatWaitTarget(stmt), Status: StepStatusFailed, Position: stmt.Pos()}
+		*out = append(*out, result)
+		finishStatementTrace(ctx, executor, traceID, result, err)
+		return false, err
+	}
+	execResult, execErr := waitExecutor.ExecuteWait(ctx, stmt, nextStatementIndex, evalCtx)
+	result := DSLStatementResult{
+		Type:     "WAIT",
+		Target:   formatWaitTarget(stmt),
+		Status:   StepStatusSuccess,
+		Position: stmt.Pos(),
+		Output:   execResult.Output,
+	}
+	if execResult.Status != "" {
+		result.Status = execResult.Status
+	}
+	if execErr != nil {
+		result.Status = StepStatusFailed
+		*out = append(*out, result)
+		finishStatementTrace(ctx, executor, traceID, result, execErr)
+		return false, execErr
+	}
+	*out = append(*out, result)
+	finishStatementTrace(ctx, executor, traceID, result, nil)
+	return execResult.Stop, nil
 }
 
 func (r *DSLRuntime) executeMappedStatement(ctx context.Context, stmt Statement, evalCtx map[string]any, executor RuntimeOperationExecutor, out *[]DSLStatementResult) (bool, error) {
@@ -193,6 +261,8 @@ func runtimeStatementType(stmt Statement) string {
 		return "NOTIFY"
 	case *AgentStatement:
 		return "AGENT"
+	case *WaitStatement:
+		return "WAIT"
 	case *IfStatement:
 		return "IF"
 	default:
@@ -214,6 +284,18 @@ func runtimeStatementTarget(stmt Statement) string {
 		if node.Name != nil {
 			return node.Name.Name
 		}
+	case *WaitStatement:
+		return formatWaitTarget(node)
 	}
 	return ""
+}
+
+func formatWaitTarget(stmt *WaitStatement) string {
+	if stmt == nil {
+		return ""
+	}
+	if stmt.Unit == "" {
+		return fmt.Sprintf("%d", stmt.Amount)
+	}
+	return fmt.Sprintf("%d %s", stmt.Amount, stmt.Unit)
 }

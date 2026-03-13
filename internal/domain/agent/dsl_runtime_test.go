@@ -12,6 +12,13 @@ type stubRuntimeExecutor struct {
 	err    error
 	stop   bool
 	status string
+	waits  []stubWaitCall
+}
+
+type stubWaitCall struct {
+	Amount    int64
+	Unit      string
+	NextIndex int
 }
 
 func (s *stubRuntimeExecutor) Execute(_ context.Context, op *RuntimeOperation, _ map[string]any) (RuntimeExecutionResult, error) {
@@ -71,6 +78,22 @@ func TestDSLRuntimeExecuteProgramRunsMappedStatementsInOrder(t *testing.T) {
 	if executor.ops[1].ToolName != "send_reply" {
 		t.Fatalf("second op tool = %s", executor.ops[1].ToolName)
 	}
+}
+
+func (s *stubRuntimeExecutor) ExecuteWait(_ context.Context, stmt *WaitStatement, nextStatementIndex int, _ map[string]any) (RuntimeExecutionResult, error) {
+	s.waits = append(s.waits, stubWaitCall{
+		Amount:    stmt.Amount,
+		Unit:      stmt.Unit,
+		NextIndex: nextStatementIndex,
+	})
+	if s.err != nil {
+		return RuntimeExecutionResult{}, s.err
+	}
+	return RuntimeExecutionResult{
+		Output: s.output,
+		Status: s.status,
+		Stop:   s.stop,
+	}, nil
 }
 
 func TestDSLRuntimeExecuteProgramSkipsIfBodyWhenFalse(t *testing.T) {
@@ -189,5 +212,48 @@ func TestDSLRuntimeMapperAndEvaluatorAccessors(t *testing.T) {
 	}
 	if rt.Evaluator() == nil {
 		t.Fatal("Evaluator() returned nil")
+	}
+}
+
+func TestDSLRuntimeExecuteProgramSchedulesWaitAndStops(t *testing.T) {
+	t.Parallel()
+
+	runtime := NewDSLRuntime()
+	executor := &stubRuntimeExecutor{
+		output: map[string]any{"action": "waiting", "resume_step_index": 1},
+		status: StatusAccepted,
+		stop:   true,
+	}
+	program := &Program{
+		Workflow: &WorkflowDecl{
+			Name: "wait_case",
+			Body: []Statement{
+				&WaitStatement{Amount: 48, Unit: "hours"},
+				&NotifyStatement{
+					Target: &IdentifierExpr{Name: "contact"},
+					Value:  &LiteralExpr{Value: "done"},
+				},
+			},
+		},
+	}
+
+	result, err := runtime.ExecuteProgram(context.Background(), program, nil, executor)
+	if err != nil {
+		t.Fatalf("ExecuteProgram() error = %v", err)
+	}
+	if len(result.Statements) != 1 {
+		t.Fatalf("len(statements) = %d, want 1", len(result.Statements))
+	}
+	if result.Statements[0].Type != "WAIT" || result.Statements[0].Status != StatusAccepted {
+		t.Fatalf("unexpected WAIT result = %#v", result.Statements[0])
+	}
+	if len(executor.waits) != 1 {
+		t.Fatalf("len(waits) = %d, want 1", len(executor.waits))
+	}
+	if executor.waits[0].NextIndex != 1 {
+		t.Fatalf("nextIndex = %d, want 1", executor.waits[0].NextIndex)
+	}
+	if len(executor.ops) != 0 {
+		t.Fatalf("expected no mapped ops after WAIT, got %d", len(executor.ops))
 	}
 }

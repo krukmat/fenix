@@ -17,19 +17,19 @@ const (
 	TokenBoolean    TokenType = "BOOLEAN"
 	TokenNull       TokenType = "NULL"
 
-	TokenAssign     TokenType = "="
-	TokenEqual      TokenType = "=="
-	TokenNotEqual   TokenType = "!="
-	TokenGT         TokenType = ">"
-	TokenLT         TokenType = "<"
-	TokenGTE        TokenType = ">="
-	TokenLTE        TokenType = "<="
-	TokenColon      TokenType = ":"
-	TokenComma      TokenType = ","
-	TokenLBracket   TokenType = "["
-	TokenRBracket   TokenType = "]"
-	TokenLBrace     TokenType = "{"
-	TokenRBrace     TokenType = "}"
+	TokenAssign   TokenType = "="
+	TokenEqual    TokenType = "=="
+	TokenNotEqual TokenType = "!="
+	TokenGT       TokenType = ">"
+	TokenLT       TokenType = "<"
+	TokenGTE      TokenType = ">="
+	TokenLTE      TokenType = "<="
+	TokenColon    TokenType = ":"
+	TokenComma    TokenType = ","
+	TokenLBracket TokenType = "["
+	TokenRBracket TokenType = "]"
+	TokenLBrace   TokenType = "{"
+	TokenRBrace   TokenType = "}"
 
 	TokenWorkflow TokenType = "WORKFLOW"
 	TokenOn       TokenType = "ON"
@@ -61,13 +61,13 @@ var dslKeywords = map[string]TokenType{
 	"WITH":     TokenWith,
 	"AGENT":    TokenAgent,
 	"IN":       TokenIn,
+	"WAIT":     TokenWait,
 	"TRUE":     TokenBoolean,
 	"FALSE":    TokenBoolean,
 	"NULL":     TokenNull,
 }
 
 var dslReservedKeywords = map[string]TokenType{
-	"WAIT":     TokenWait,
 	"DISPATCH": TokenDispatch,
 	"SURFACE":  TokenSurface,
 }

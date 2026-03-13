@@ -83,6 +83,15 @@ type AgentStatement struct {
 func (n *AgentStatement) Pos() Position  { return n.Position }
 func (n *AgentStatement) statementNode() {}
 
+type WaitStatement struct {
+	Amount   int64    `json:"amount"`
+	Unit     string   `json:"unit,omitempty"`
+	Position Position `json:"position"`
+}
+
+func (n *WaitStatement) Pos() Position  { return n.Position }
+func (n *WaitStatement) statementNode() {}
+
 type IdentifierExpr struct {
 	Name     string   `json:"name"`
 	Position Position `json:"position"`

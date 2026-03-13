@@ -6,6 +6,7 @@ import (
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
+	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 )
@@ -20,6 +21,7 @@ type RunContext struct {
 	ToolRegistry    *tool.ToolRegistry
 	PolicyEngine    *policy.PolicyEngine
 	ApprovalService *policy.ApprovalService
+	Scheduler       schedulerdomain.Scheduler
 	AuditService    *audit.AuditService
 	EventBus        eventbus.EventBus
 	RunnerRegistry  *RunnerRegistry

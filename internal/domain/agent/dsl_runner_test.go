@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
+	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
 	isqlite "github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 	_ "modernc.org/sqlite"
@@ -381,6 +383,65 @@ SET case.status = "resolved"', 1, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 	}
 	if _, ok := secondProgram.Workflow.Body[0].(*NotifyStatement); !ok {
 		t.Fatalf("expected invalidated cache to reload NOTIFY statement, got %#v", secondProgram.Workflow.Body[0])
+	}
+}
+
+func TestDSLRunnerRunSchedulesWaitAndLeavesRunAccepted(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	mustExecDSLRunner(t, db, `INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+	VALUES ('agent_dsl_wait', 'ws_dsl', 'dsl support', 'dsl', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	mustExecDSLRunner(t, db, `INSERT INTO workflow (id, workspace_id, agent_definition_id, name, dsl_source, version, status, created_at, updated_at)
+	VALUES ('wf_dsl_wait', 'ws_dsl', 'agent_dsl_wait', 'wait_support_case', 'WORKFLOW wait_support_case
+ON case.created
+WAIT 0
+NOTIFY contact WITH "done"', 1, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+
+	repo := schedulerdomain.NewRepository(db)
+	scheduler := schedulerdomain.NewService(repo)
+	orch := NewOrchestratorWithRegistry(db, NewRunnerRegistry())
+	runner := NewDSLRunner(db)
+
+	run, err := runner.Run(context.Background(), &RunContext{
+		Orchestrator: orch,
+		Scheduler:    scheduler,
+		ToolRegistry: setupDSLToolRegistry(t, db),
+		DB:           db,
+	}, TriggerAgentInput{
+		AgentID:        "agent_dsl_wait",
+		WorkspaceID:    "ws_dsl",
+		TriggerType:    TriggerTypeEvent,
+		TriggerContext: json.RawMessage(`{"case":{"id":"case-1"}}`),
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if run.Status != StatusAccepted {
+		t.Fatalf("status = %s, want %s", run.Status, StatusAccepted)
+	}
+
+	var output map[string]any
+	if err := json.Unmarshal(run.Output, &output); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if output["action"] != pendingWaitAction {
+		t.Fatalf("action = %v, want %s", output["action"], pendingWaitAction)
+	}
+
+	jobs, err := repo.ListDue(context.Background(), time.Now().UTC().Add(time.Second), 10)
+	if err != nil {
+		t.Fatalf("ListDue() error = %v", err)
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("len(jobs) = %d, want 1", len(jobs))
+	}
+	payload, err := schedulerdomain.DecodeWorkflowResumePayload(jobs[0].Payload)
+	if err != nil {
+		t.Fatalf("DecodeWorkflowResumePayload() error = %v", err)
+	}
+	if payload.ResumeStepIndex != 1 {
+		t.Fatalf("resume_step_index = %d, want 1", payload.ResumeStepIndex)
 	}
 }
 

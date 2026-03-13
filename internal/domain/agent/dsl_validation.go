@@ -61,6 +61,8 @@ func validateStatement(statement Statement) error {
 		return validateNotifyStatement(stmt)
 	case *AgentStatement:
 		return validateAgentStatement(stmt)
+	case *WaitStatement:
+		return validateWaitStatement(stmt)
 	default:
 		return validationError(statement.Pos(), "statement is not allowed in DSL v0")
 	}
@@ -101,6 +103,27 @@ func validateAgentStatement(stmt *AgentStatement) error {
 		return validationError(stmt.Pos(), "AGENT name is required")
 	}
 	return nil
+}
+
+func validateWaitStatement(stmt *WaitStatement) error {
+	if stmt.Amount < 0 {
+		return validationError(stmt.Pos(), "WAIT duration must be >= 0")
+	}
+	if stmt.Amount > 0 && strings.TrimSpace(stmt.Unit) == "" {
+		return validationError(stmt.Pos(), "WAIT duration unit is required for non-zero durations")
+	}
+	if strings.TrimSpace(stmt.Unit) == "" {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(stmt.Unit)) {
+	case "s", "sec", "secs", "second", "seconds",
+		"m", "min", "mins", "minute", "minutes",
+		"h", "hr", "hrs", "hour", "hours",
+		"d", "day", "days":
+		return nil
+	default:
+		return validationError(stmt.Pos(), "WAIT duration unit is not supported")
+	}
 }
 
 func validationError(pos Position, reason string) error {

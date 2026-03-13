@@ -64,11 +64,11 @@ func TestTokenClassificationHelpers(t *testing.T) {
 	if !IsKeyword(TokenWorkflow) {
 		t.Fatal("expected TokenWorkflow to be keyword")
 	}
-	if IsKeyword(TokenWait) {
-		t.Fatal("expected TokenWait to be reserved, not executable keyword")
+	if !IsKeyword(TokenWait) {
+		t.Fatal("expected TokenWait to be executable keyword")
 	}
-	if !IsReservedKeyword(TokenWait) {
-		t.Fatal("expected TokenWait to be reserved keyword")
+	if IsReservedKeyword(TokenWait) {
+		t.Fatal("expected TokenWait not to be reserved keyword")
 	}
 	if !IsLiteralToken(TokenString) || !IsLiteralToken(TokenIdentifier) {
 		t.Fatal("expected literal token classification for string and identifier")

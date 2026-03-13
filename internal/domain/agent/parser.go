@@ -115,6 +115,8 @@ func (p *Parser) parseStatement() (Statement, error) {
 		return p.parseNotifyStatement()
 	case TokenAgent:
 		return p.parseAgentStatement()
+	case TokenWait:
+		return p.parseWaitStatement()
 	default:
 		return nil, p.errorAt(p.current(), "unexpected statement")
 	}
@@ -234,6 +236,38 @@ func (p *Parser) parseAgentStatement() (Statement, error) {
 	return &AgentStatement{
 		Name:     &IdentifierExpr{Name: name.Literal, Position: positionFromToken(name)},
 		Input:    input,
+		Position: positionFromToken(start),
+	}, nil
+}
+
+func (p *Parser) parseWaitStatement() (Statement, error) {
+	start, err := p.expect(TokenWait, "expected WAIT")
+	if err != nil {
+		return nil, err
+	}
+	amountTok, err := p.expect(TokenNumber, "expected duration amount after WAIT")
+	if err != nil {
+		return nil, err
+	}
+	if strings.Contains(amountTok.Literal, ".") {
+		return nil, p.errorAt(amountTok, "WAIT duration must be an integer")
+	}
+	amount, err := strconv.ParseInt(amountTok.Literal, 10, 64)
+	if err != nil {
+		return nil, p.errorAt(amountTok, "invalid WAIT duration amount")
+	}
+
+	unit := ""
+	if p.current().Type == TokenIdentifier {
+		unit = p.current().Literal
+		p.advance()
+	}
+	if parseErr := p.expectNewline("expected newline after WAIT statement"); parseErr != nil {
+		return nil, parseErr
+	}
+	return &WaitStatement{
+		Amount:   amount,
+		Unit:     unit,
 		Position: positionFromToken(start),
 	}, nil
 }

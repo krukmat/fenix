@@ -7,19 +7,24 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
+
+	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 )
 
 var (
 	ErrDSLToolRegistryMissing = errors.New("dsl runtime requires tool registry")
 	ErrDSLExecutorMissingDB   = errors.New("dsl runtime requires db")
+	ErrDSLSchedulerMissing    = errors.New("dsl runtime requires scheduler")
 	ErrDSLAgentLoopDetected   = errors.New("dsl runtime detected circular agent call")
 	ErrDSLAgentDepthExceeded  = errors.New("dsl runtime call depth exceeded")
 	ErrDSLAgentPolicyDenied   = errors.New("dsl runtime agent dispatch denied by policy")
 )
 
 const (
-	dslAgentCallDepthLimit  = 5
-	pendingApprovalAction = "pending_approval"
+	dslAgentCallDepthLimit = 5
+	pendingApprovalAction  = "pending_approval"
+	pendingWaitAction      = "waiting"
 )
 
 type dslRuntimeExecutor struct {
@@ -31,15 +36,20 @@ type dslRuntimeExecutor struct {
 	toolCalls       []ToolCall
 	pending         bool
 	pendingApproval *skillApprovalResult
+	pendingOutput   map[string]any
+	workflowID      string
+	runID           string
 }
 
-func newDSLRuntimeExecutor(rc *RunContext, input TriggerAgentInput, evalCtx map[string]any) *dslRuntimeExecutor {
+func newDSLRuntimeExecutor(rc *RunContext, input TriggerAgentInput, evalCtx map[string]any, workflowID, runID string) *dslRuntimeExecutor {
 	return &dslRuntimeExecutor{
 		rc:          rc,
 		workspaceID: input.WorkspaceID,
 		actorID:     actorIDFromInput(input, evalCtx),
 		triggerCtx:  marshalRuntimeContext(evalCtx),
 		toolCalls:   make([]ToolCall, 0),
+		workflowID:  workflowID,
+		runID:       runID,
 	}
 }
 
@@ -60,6 +70,10 @@ func (e *dslRuntimeExecutor) ToolCallsJSON() json.RawMessage {
 
 func (e *dslRuntimeExecutor) PendingApproval() *skillApprovalResult {
 	return e.pendingApproval
+}
+
+func (e *dslRuntimeExecutor) PendingOutput() map[string]any {
+	return cloneRuntimeMap(e.pendingOutput)
 }
 
 func (e *dslRuntimeExecutor) IsPending() bool {
@@ -93,6 +107,12 @@ func (e *dslRuntimeExecutor) executeToolWithApproval(ctx context.Context, mapped
 	}
 	e.pending = true
 	e.pendingApproval = pendingApproval
+	e.pendingOutput = map[string]any{
+		"action": pendingApprovalAction,
+	}
+	if pendingApproval != nil {
+		e.pendingOutput["approval_id"] = pendingApproval.ApprovalID
+	}
 	return RuntimeExecutionResult{Output: decodeRuntimeOutput(output), Status: StatusAccepted, Stop: true}, nil
 }
 
@@ -105,6 +125,45 @@ func (e *dslRuntimeExecutor) executeToolDirect(ctx context.Context, mapped mappe
 		return RuntimeExecutionResult{}, err
 	}
 	return RuntimeExecutionResult{Output: decodeRuntimeOutput(output)}, nil
+}
+
+func (e *dslRuntimeExecutor) ExecuteWait(ctx context.Context, stmt *WaitStatement, nextStatementIndex int, _ map[string]any) (RuntimeExecutionResult, error) {
+	if e.rc == nil || e.rc.Scheduler == nil {
+		return RuntimeExecutionResult{}, ErrDSLSchedulerMissing
+	}
+	if strings.TrimSpace(e.workflowID) == "" || strings.TrimSpace(e.runID) == "" {
+		return RuntimeExecutionResult{}, ErrDSLResumeInvalidInput
+	}
+	delay, err := waitStatementDuration(stmt)
+	if err != nil {
+		return RuntimeExecutionResult{}, err
+	}
+	job, err := e.rc.Scheduler.Schedule(ctx, schedulerdomain.ScheduleJobInput{
+		WorkspaceID: e.workspaceID,
+		JobType:     schedulerdomain.JobTypeWorkflowResume,
+		Payload: schedulerdomain.WorkflowResumePayload{
+			WorkflowID:      e.workflowID,
+			RunID:           e.runID,
+			ResumeStepIndex: nextStatementIndex,
+		},
+		ExecuteAt: time.Now().UTC().Add(delay),
+		SourceID:  e.workflowID,
+	})
+	if err != nil {
+		return RuntimeExecutionResult{}, err
+	}
+	e.pending = true
+	e.pendingOutput = map[string]any{
+		"action":            pendingWaitAction,
+		"scheduled_job_id":  job.ID,
+		"resume_step_index": nextStatementIndex,
+		"workflow_id":       e.workflowID,
+	}
+	return RuntimeExecutionResult{
+		Output: cloneRuntimeMap(e.pendingOutput),
+		Status: StatusAccepted,
+		Stop:   true,
+	}, nil
 }
 
 func (e *dslRuntimeExecutor) executeAgentOperation(ctx context.Context, op *RuntimeOperation, _ map[string]any) (RuntimeExecutionResult, error) {
@@ -271,6 +330,46 @@ func mergePendingApprovalMetadata(output map[string]any, raw json.RawMessage) {
 	if approvalID, ok := decoded["approval_id"]; ok {
 		output["approval_id"] = approvalID
 	}
+}
+
+func waitStatementDuration(stmt *WaitStatement) (time.Duration, error) {
+	if stmt == nil {
+		return 0, fmt.Errorf("%w: WAIT statement is required", ErrDSLRuntimeFailed)
+	}
+	if stmt.Amount == 0 {
+		return 0, nil
+	}
+	multiplier, err := waitDurationMultiplier(stmt.Unit)
+	if err != nil {
+		return 0, err
+	}
+	return time.Duration(stmt.Amount) * multiplier, nil
+}
+
+func waitDurationMultiplier(unit string) (time.Duration, error) {
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case "s", "sec", "secs", "second", "seconds":
+		return time.Second, nil
+	case "m", "min", "mins", "minute", "minutes":
+		return time.Minute, nil
+	case "h", "hr", "hrs", "hour", "hours":
+		return time.Hour, nil
+	case "d", "day", "days":
+		return 24 * time.Hour, nil
+	default:
+		return 0, fmt.Errorf("%w: unsupported WAIT duration unit %q", ErrDSLRuntimeFailed, unit)
+	}
+}
+
+func cloneRuntimeMap(in map[string]any) map[string]any {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 func checkMappedAgentPolicy(ctx context.Context, rc *RunContext, actorID string, target *Definition) error {

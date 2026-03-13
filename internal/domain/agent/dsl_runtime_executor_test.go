@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
+	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -36,7 +37,7 @@ func TestDSLRuntimeExecutorExecutesToolOperation(t *testing.T) {
 		TriggerType: TriggerTypeEvent,
 	}, map[string]any{
 		"case": map[string]any{"id": "case-1"},
-	})
+	}, "", "")
 
 	result, err := executor.Execute(context.Background(), &RuntimeOperation{
 		Kind:     RuntimeOperationTool,
@@ -76,7 +77,7 @@ func TestDSLRuntimeExecutorHonorsPolicyDeny(t *testing.T) {
 		TriggerType: TriggerTypeEvent,
 	}, map[string]any{
 		"case": map[string]any{"id": "case-1"},
-	})
+	}, "", "")
 
 	_, err := executor.Execute(context.Background(), &RuntimeOperation{
 		Kind:     RuntimeOperationTool,
@@ -107,7 +108,7 @@ func TestDSLRuntimeExecutorCreatesApprovalRequestWhenRequired(t *testing.T) {
 		TriggerType: TriggerTypeEvent,
 	}, map[string]any{
 		"case": map[string]any{"id": "case-1"},
-	})
+	}, "", "")
 
 	result, err := executor.Execute(context.Background(), &RuntimeOperation{
 		Kind:     RuntimeOperationTool,
@@ -165,7 +166,7 @@ func TestDSLRuntimeExecutorExecutesSubAgentCall(t *testing.T) {
 	}, TriggerAgentInput{
 		WorkspaceID: "ws_dsl",
 		TriggerType: TriggerTypeManual,
-	}, map[string]any{"case": map[string]any{"id": "case-1"}})
+	}, map[string]any{"case": map[string]any{"id": "case-1"}}, "", "")
 
 	result, err := executor.Execute(context.Background(), &RuntimeOperation{
 		Kind:      RuntimeOperationAgent,
@@ -209,7 +210,7 @@ func TestDSLRuntimeExecutorDeniesSubAgentCallWhenPolicyRejects(t *testing.T) {
 		WorkspaceID: "ws_dsl",
 		TriggeredBy: &triggeredBy,
 		TriggerType: TriggerTypeManual,
-	}, map[string]any{"case": map[string]any{"id": "case-1"}})
+	}, map[string]any{"case": map[string]any{"id": "case-1"}}, "", "")
 
 	_, err := executor.Execute(context.Background(), &RuntimeOperation{
 		Kind:      RuntimeOperationAgent,
@@ -299,6 +300,46 @@ func TestValidateAgentExecutionContextErrors(t *testing.T) {
 	// valid
 	if err := validateAgentExecutionContext(&RunContext{Orchestrator: &Orchestrator{}, DB: &sql.DB{}}); err != nil {
 		t.Fatalf("valid: unexpected error %v", err)
+	}
+}
+
+func TestDSLRuntimeExecutorSchedulesWait(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	repo := schedulerdomain.NewRepository(db)
+	scheduler := schedulerdomain.NewService(repo)
+	executor := newDSLRuntimeExecutor(&RunContext{
+		Scheduler: scheduler,
+	}, TriggerAgentInput{
+		WorkspaceID: "ws_dsl",
+		TriggerType: TriggerTypeManual,
+	}, map[string]any{}, "wf_wait", "run_wait")
+
+	result, err := executor.ExecuteWait(context.Background(), &WaitStatement{
+		Amount: 48,
+		Unit:   "hours",
+	}, 3, nil)
+	if err != nil {
+		t.Fatalf("ExecuteWait() error = %v", err)
+	}
+	if !executor.IsPending() || !result.Stop || result.Status != StatusAccepted {
+		t.Fatalf("unexpected wait result = %#v", result)
+	}
+
+	jobs, err := repo.ListDue(context.Background(), time.Now().UTC().Add(49*time.Hour), 10)
+	if err != nil {
+		t.Fatalf("ListDue() error = %v", err)
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("len(jobs) = %d, want 1", len(jobs))
+	}
+	payload, err := schedulerdomain.DecodeWorkflowResumePayload(jobs[0].Payload)
+	if err != nil {
+		t.Fatalf("DecodeWorkflowResumePayload() error = %v", err)
+	}
+	if payload.ResumeStepIndex != 3 || payload.WorkflowID != "wf_wait" || payload.RunID != "run_wait" {
+		t.Fatalf("unexpected payload = %#v", payload)
 	}
 }
 

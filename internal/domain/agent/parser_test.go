@@ -100,19 +100,19 @@ func TestParseDSLRejectsIfWithoutIndentedBlock(t *testing.T) {
 	}
 }
 
-func TestParseDSLRejectsReservedStatementInV0(t *testing.T) {
+func TestParseDSLParsesWaitStatement(t *testing.T) {
 	t.Parallel()
 
-	_, err := ParseDSL("WORKFLOW x\nON case.created\nWAIT 48")
-	if err == nil {
-		t.Fatal("expected parser error")
+	program, err := ParseDSL("WORKFLOW x\nON case.created\nWAIT 48 hours")
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
 	}
-	var parseErr *ParserError
-	if !errors.As(err, &parseErr) {
-		t.Fatalf("expected ParserError, got %T", err)
+	waitStmt, ok := program.Workflow.Body[0].(*WaitStatement)
+	if !ok {
+		t.Fatalf("body[0] type = %T, want *WaitStatement", program.Workflow.Body[0])
 	}
-	if parseErr.UnexpectedToken().Type != TokenWait {
-		t.Fatalf("UnexpectedToken.Type = %s, want %s", parseErr.UnexpectedToken().Type, TokenWait)
+	if waitStmt.Amount != 48 || waitStmt.Unit != "hours" {
+		t.Fatalf("wait = %#v, want amount=48 unit=hours", waitStmt)
 	}
 }
 

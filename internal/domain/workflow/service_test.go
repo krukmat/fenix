@@ -5,6 +5,9 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
+
+	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 )
 
 func TestService_Create_SetsDraftV1(t *testing.T) {
@@ -668,5 +671,91 @@ func TestService_Activate_RejectsNonTestingWorkflow(t *testing.T) {
 	_, err = svc.Activate(context.Background(), "ws_test", created.ID)
 	if !errors.Is(err, ErrInvalidStatusTransition) {
 		t.Fatalf("expected ErrInvalidStatusTransition, got %v", err)
+	}
+}
+
+func TestService_MarkArchived_CancelsPendingScheduledJobs(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+	schedulerRepo := schedulerdomain.NewRepository(db)
+	schedulerSvc := schedulerdomain.NewService(schedulerRepo)
+	svc := NewServiceWithDependencies(repo, schedulerSvc)
+
+	created, err := svc.Create(context.Background(), CreateWorkflowInput{
+		WorkspaceID: "ws_test",
+		Name:        "qualify_lead",
+		DSLSource:   "ON lead.created",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := svc.MarkTesting(context.Background(), "ws_test", created.ID); err != nil {
+		t.Fatalf("MarkTesting() error = %v", err)
+	}
+	if _, err := svc.MarkActive(context.Background(), "ws_test", created.ID); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	for _, payload := range []schedulerdomain.WorkflowResumePayload{
+		{WorkflowID: created.ID, RunID: "run-1", ResumeStepIndex: 1},
+		{WorkflowID: created.ID, RunID: "run-2", ResumeStepIndex: 2},
+	} {
+		if _, err := schedulerSvc.Schedule(context.Background(), schedulerdomain.ScheduleJobInput{
+			WorkspaceID: "ws_test",
+			JobType:     schedulerdomain.JobTypeWorkflowResume,
+			Payload:     payload,
+			ExecuteAt:   time.Now().UTC().Add(1 * time.Hour),
+			SourceID:    created.ID,
+		}); err != nil {
+			t.Fatalf("Schedule() error = %v", err)
+		}
+	}
+
+	archived, err := svc.MarkArchived(context.Background(), "ws_test", created.ID)
+	if err != nil {
+		t.Fatalf("MarkArchived() error = %v", err)
+	}
+	if archived.Status != StatusArchived {
+		t.Fatalf("status = %s, want %s", archived.Status, StatusArchived)
+	}
+
+	due, err := schedulerRepo.ListDue(context.Background(), time.Now().UTC().Add(2*time.Hour), 10)
+	if err != nil {
+		t.Fatalf("ListDue() error = %v", err)
+	}
+	if len(due) != 0 {
+		t.Fatalf("len(due) = %d, want 0 after archive cancellation", len(due))
+	}
+}
+
+func TestService_MarkArchived_WithoutSchedulerStillArchives(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	svc := NewService(db)
+
+	created, err := svc.Create(context.Background(), CreateWorkflowInput{
+		WorkspaceID: "ws_test",
+		Name:        "qualify_lead",
+		DSLSource:   "ON lead.created",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := svc.MarkTesting(context.Background(), "ws_test", created.ID); err != nil {
+		t.Fatalf("MarkTesting() error = %v", err)
+	}
+	if _, err := svc.MarkActive(context.Background(), "ws_test", created.ID); err != nil {
+		t.Fatalf("MarkActive() error = %v", err)
+	}
+
+	archived, err := svc.MarkArchived(context.Background(), "ws_test", created.ID)
+	if err != nil {
+		t.Fatalf("MarkArchived() error = %v", err)
+	}
+	if archived.Status != StatusArchived {
+		t.Fatalf("status = %s, want %s", archived.Status, StatusArchived)
 	}
 }

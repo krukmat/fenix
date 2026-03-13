@@ -109,6 +109,14 @@ func (e *tracedDSLExecutor) Execute(ctx context.Context, op *RuntimeOperation, e
 	return e.delegate.Execute(ctx, op, evalCtx)
 }
 
+func (e *tracedDSLExecutor) ExecuteWait(ctx context.Context, stmt *WaitStatement, nextStatementIndex int, evalCtx map[string]any) (RuntimeExecutionResult, error) {
+	waitExecutor, ok := e.delegate.(RuntimeWaitExecutor)
+	if !ok {
+		return RuntimeExecutionResult{}, ErrDSLRuntimeFailed
+	}
+	return waitExecutor.ExecuteWait(ctx, stmt, nextStatementIndex, evalCtx)
+}
+
 func (e *tracedDSLExecutor) StartStatementTrace(ctx context.Context, stmt Statement) (string, error) {
 	return insertDSLRunStep(ctx, e.rc, e.workspaceID, e.runID, marshalDSLStatementInput(stmt))
 }

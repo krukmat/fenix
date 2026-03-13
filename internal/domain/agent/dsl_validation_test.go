@@ -70,18 +70,29 @@ func TestValidateDSLProgramRejectsEmptyWorkflowBody(t *testing.T) {
 	}
 }
 
-func TestParseAndValidateDSLRejectsReservedStatementInV0(t *testing.T) {
+func TestParseAndValidateDSLAcceptsWaitStatement(t *testing.T) {
 	t.Parallel()
 
 	_, err := ParseAndValidateDSL(`WORKFLOW follow_up_case
 ON case.created
-WAIT 48`)
+WAIT 48 hours`)
+	if err != nil {
+		t.Fatalf("ParseAndValidateDSL() error = %v", err)
+	}
+}
+
+func TestParseAndValidateDSLRejectsNegativeWaitDuration(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseAndValidateDSL(`WORKFLOW follow_up_case
+ON case.created
+WAIT -1 hours`)
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	var parseErr *ParserError
-	if !errors.As(err, &parseErr) {
-		t.Fatalf("expected ParserError, got %T", err)
+	var validationErr *DSLValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected DSLValidationError, got %T", err)
 	}
 }
 

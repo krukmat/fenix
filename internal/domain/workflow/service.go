@@ -48,7 +48,12 @@ type ListWorkflowsInput struct {
 }
 
 type Service struct {
-	repo *Repository
+	repo      *Repository
+	scheduler workflowScheduler
+}
+
+type workflowScheduler interface {
+	CancelBySource(ctx context.Context, workspaceID, sourceID string) (int64, error)
 }
 
 func NewService(db *sql.DB) *Service {
@@ -57,6 +62,13 @@ func NewService(db *sql.DB) *Service {
 
 func NewServiceWithRepository(repo *Repository) *Service {
 	return &Service{repo: repo}
+}
+
+func NewServiceWithDependencies(repo *Repository, scheduler workflowScheduler) *Service {
+	return &Service{
+		repo:      repo,
+		scheduler: scheduler,
+	}
 }
 
 func (s *Service) Create(ctx context.Context, input CreateWorkflowInput) (*Workflow, error) {
@@ -170,6 +182,11 @@ func (s *Service) SetStatus(ctx context.Context, workspaceID, workflowID string,
 	})
 	if err != nil {
 		return nil, err
+	}
+	if next == StatusArchived {
+		if err = s.cancelScheduledJobsForWorkflow(ctx, updated); err != nil {
+			return nil, err
+		}
 	}
 	return updated, nil
 }
@@ -412,4 +429,12 @@ func archivedAtForStatus(next Status, existing *time.Time) *time.Time {
 		return &now
 	}
 	return existing
+}
+
+func (s *Service) cancelScheduledJobsForWorkflow(ctx context.Context, workflow *Workflow) error {
+	if s == nil || s.scheduler == nil || workflow == nil {
+		return nil
+	}
+	_, err := s.scheduler.CancelBySource(ctx, workflow.WorkspaceID, workflow.ID)
+	return err
 }
