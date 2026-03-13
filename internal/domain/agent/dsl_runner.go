@@ -150,10 +150,7 @@ func validateResumeInput(rc *RunContext, workspaceID string, input schedulerdoma
 	if rc == nil || rc.Orchestrator == nil {
 		return ErrDSLRunnerMissingOrchestrator
 	}
-	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(input.WorkflowID) == "" || strings.TrimSpace(input.RunID) == "" {
-		return ErrDSLResumeInvalidInput
-	}
-	if input.ResumeStepIndex < 0 {
+	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(input.WorkflowID) == "" || strings.TrimSpace(input.RunID) == "" || input.ResumeStepIndex < 0 {
 		return ErrDSLResumeInvalidInput
 	}
 	return nil

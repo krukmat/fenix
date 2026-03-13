@@ -163,8 +163,8 @@ func (s *Service) SetStatus(ctx context.Context, workspaceID, workflowID string,
 		return nil, err
 	}
 
-	if err := s.validateStatusChange(ctx, existing, next); err != nil {
-		return nil, err
+	if validateErr := s.validateStatusChange(ctx, existing, next); validateErr != nil {
+		return nil, validateErr
 	}
 
 	updated, err := s.persistStatusChange(ctx, existing, next)
