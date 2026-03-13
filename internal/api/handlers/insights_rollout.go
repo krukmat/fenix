@@ -11,6 +11,7 @@ import (
 
 const insightsRolloutModeDeclarative = "declarative"
 const insightsRolloutModeGo = "go"
+const insightsPilotKey = "insights"
 
 type insightsRolloutConfig struct {
 	Enabled            bool
@@ -42,7 +43,7 @@ func loadInsightsRolloutConfig(ctx context.Context, db *sql.DB, workspaceID stri
 }
 
 func parseInsightsRolloutConfig(settings map[string]any) insightsRolloutConfig {
-	pilot := nestedMap(settings, "agent_spec", "pilots", "insights")
+	pilot := nestedMap(settings, "agent_spec", "pilots", insightsPilotKey)
 	if len(pilot) == 0 {
 		return insightsRolloutConfig{}
 	}

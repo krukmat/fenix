@@ -23,6 +23,7 @@ const (
 	errFailedToQueryAudit   = "failed to query audit events: %v"
 	errFailedToGetAudit     = "failed to get audit event: %v"
 	errFormatMustBeCSV      = "format must be csv"
+	queryParamAction        = "action"
 	queryParamFormat        = "format"
 	formatCSV               = "csv"
 )
@@ -44,7 +45,7 @@ func (h *AuditHandler) Query(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID: wsID,
 		ActorID:     r.URL.Query().Get("actor_id"),
 		EntityType:  r.URL.Query().Get(paramEntityType),
-		Action:      r.URL.Query().Get("action"),
+		Action:      r.URL.Query().Get(queryParamAction),
 		Outcome:     r.URL.Query().Get("outcome"),
 		DateFrom:    r.URL.Query().Get("date_from"),
 		DateTo:      r.URL.Query().Get("date_to"),
@@ -105,7 +106,7 @@ func (h *AuditHandler) Export(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID: wsID,
 		ActorID:     r.URL.Query().Get("actor_id"),
 		EntityType:  r.URL.Query().Get(paramEntityType),
-		Action:      r.URL.Query().Get("action"),
+		Action:      r.URL.Query().Get(queryParamAction),
 		Outcome:     r.URL.Query().Get("outcome"),
 		DateFrom:    r.URL.Query().Get("date_from"),
 		DateTo:      r.URL.Query().Get("date_to"),

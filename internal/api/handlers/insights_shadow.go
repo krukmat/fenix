@@ -100,10 +100,14 @@ func buildInsightsShadowErrorResponse(err error, execution *insightsShadowExecut
 func buildInsightsShadowSuccessResponse(primaryStored *agent.Run, execution *insightsShadowExecution) map[string]any {
 	run := execution.WrapperRun
 	effective := coalesceShadowRun(execution.EffectiveRun, run)
+	status := ""
+	if effective != nil {
+		status = effective.Status
+	}
 	resp := map[string]any{
 		"enabled":             true,
 		"run_id":              run.ID,
-		"status":              effective.Status,
+		"status":              status,
 		"agent_definition_id": run.DefinitionID,
 	}
 	if effective != nil {

@@ -90,7 +90,7 @@ func extractChildRunID(raw json.RawMessage) string {
 	if !ok {
 		return ""
 	}
-	if runID, ok := extractChildRunIDFromMap(decoded); ok {
+	if runID, found := extractChildRunIDFromMap(decoded); found {
 		return runID
 	}
 	return extractChildRunIDFromStatements(decoded["statements"])
@@ -115,7 +115,7 @@ func extractChildRunIDFromStatements(value any) string {
 			continue
 		}
 		outputMap, _ := statementMap["output"].(map[string]any)
-		if runID, ok := extractChildRunIDFromMap(outputMap); ok {
+		if runID, found := extractChildRunIDFromMap(outputMap); found {
 			return runID
 		}
 	}
@@ -235,7 +235,7 @@ func normalizeStringSlice(value any) []string {
 	}
 	out := make([]string, 0, len(rawItems))
 	for _, item := range rawItems {
-		if current, ok := item.(string); ok && current != "" {
+		if current, isString := item.(string); isString && current != "" {
 			out = append(out, current)
 		}
 	}
