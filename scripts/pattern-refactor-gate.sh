@@ -119,26 +119,31 @@ ts_jscpd_report_dir=".tmp/pattern-gate/jscpd"
 mkdir -p "$ts_jscpd_report_dir"
 
 if command -v npx >/dev/null 2>&1; then
-  ts_jscpd_out=$(npx --yes jscpd mobile/src bff/src \
+  npx --yes jscpd mobile/src bff/src \
     --min-lines 5 \
     --min-tokens 50 \
     --threshold 100 \
-    --reporters console \
+    --reporters json \
     --output "$ts_jscpd_report_dir" \
     --ignore "**/__tests__/**,**/*.test.ts,**/*.test.tsx,**/coverage/**,**/node_modules/**,**/dist/**,**/.expo/**" \
-    2>&1 || true)
+    >/dev/null 2>&1 || true
 
-  ts_dup_percent=$(printf '%s\n' "$ts_jscpd_out" | sed -nE 's/.*\(([0-9]+([.][0-9]+)?)%\)[[:space:]]duplicated.*/\1/p' | tail -n1)
-  ts_dup_clones=$(printf '%s\n' "$ts_jscpd_out" | sed -nE 's/.*Found[[:space:]]+([0-9]+)[[:space:]]+clones?.*/\1/p' | tail -n1)
-
-  if [[ -z "$ts_dup_percent" ]]; then
-    fallback_pct_line=$(printf '%s\n' "$ts_jscpd_out" | grep -Ei 'duplicat' | tail -n1 || true)
-    ts_dup_percent=$(extract_first_number "$fallback_pct_line")
-  fi
-
-  if [[ -z "$ts_dup_clones" ]]; then
-    fallback_clone_line=$(printf '%s\n' "$ts_jscpd_out" | grep -Ei 'found[[:space:]]+[0-9]+[[:space:]]+clone' | tail -n1 || true)
-    ts_dup_clones=$(extract_first_number "$fallback_clone_line")
+  ts_jscpd_json="$ts_jscpd_report_dir/jscpd-report.json"
+  if [[ -f "$ts_jscpd_json" ]] && command -v node >/dev/null 2>&1; then
+    ts_dup_percent=$(node -e "
+      try {
+        const r = JSON.parse(require('fs').readFileSync('$ts_jscpd_json','utf8'));
+        const pct = r.statistics && r.statistics.total && r.statistics.total.percentage;
+        process.stdout.write(pct != null ? String(Math.round(pct * 100) / 100) : '');
+      } catch(e) { process.stdout.write(''); }
+    " 2>/dev/null || true)
+    ts_dup_clones=$(node -e "
+      try {
+        const r = JSON.parse(require('fs').readFileSync('$ts_jscpd_json','utf8'));
+        const n = r.duplicates && r.duplicates.length;
+        process.stdout.write(n != null ? String(n) : '');
+      } catch(e) { process.stdout.write(''); }
+    " 2>/dev/null || true)
   fi
 else
   ts_dup_available="no"
