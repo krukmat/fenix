@@ -360,6 +360,8 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			Insights:    insightsAgent,
 		})
 		_ = agents.RegisterDSLRunner(runnerRegistry, dslRunner)
+		skillRunner := agent.NewSkillRunner(db)
+		_ = agents.RegisterSkillRunner(runnerRegistry, skillRunner)
 
 		resumeRC := &agent.RunContext{
 			Orchestrator:    agentOrchestrator,
