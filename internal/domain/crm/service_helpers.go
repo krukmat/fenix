@@ -61,6 +61,21 @@ func softDeleteWithSideEffects(
 	return nil
 }
 
+func softDeleteWithAudit(
+	ctx context.Context,
+	auditSvc auditLogger,
+	workspaceID, entityType, entityID, ownerID string,
+	deleteAction string,
+	softDelete func(string) error,
+) error {
+	now := nowRFC3339()
+	if err := softDelete(now); err != nil {
+		return fmt.Errorf("soft delete %s: %w", entityType, err)
+	}
+	logCRMAudit(ctx, auditSvc, workspaceID, ownerID, deleteAction, entityType, entityID)
+	return nil
+}
+
 // listFilteredOrPaged implements the CRM "filtered shortcut vs DB-paginated" list pattern.
 // When useFiltered is true it loads all matching items in memory and applies in-process pagination;
 // otherwise it delegates counting and paging to the database.

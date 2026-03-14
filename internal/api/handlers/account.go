@@ -148,34 +148,12 @@ func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 // ListAccounts handles GET /api/v1/accounts with pagination
 // Task 1.3.7: List accounts with pagination filters
 func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-
-	// Parse + validate pagination params (extracted to reduce cyclomatic complexity)
-	page := parsePaginationParams(r)
-
-	// List accounts via service
-	accounts, total, listErr := h.accountService.List(ctx, wsID, crm.ListAccountsInput{
-		Limit:  page.Limit,
-		Offset: page.Offset,
-	})
-	if listErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list accounts: %v", listErr))
-		return
-	}
-
-	// Build response
-	responses := make([]AccountResponse, len(accounts))
-	for i, acc := range accounts {
-		responses[i] = accountToResponse(acc)
-	}
-
-	if !writePaginatedOr500(w, responses, total, page) {
-		return
-	}
+	handleMappedListWithPagination(w, r, "failed to list accounts: %v",
+		func(ctx context.Context, wsID string, limit, offset int) ([]*crm.Account, int, error) {
+			return h.accountService.List(ctx, wsID, crm.ListAccountsInput{Limit: limit, Offset: offset})
+		},
+		accountToResponse,
+	)
 }
 
 // UpdateAccount handles PUT /api/v1/accounts/{id}

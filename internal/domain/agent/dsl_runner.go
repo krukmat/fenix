@@ -252,40 +252,22 @@ func (r *DSLRunner) loadProgram(workflow *workflowdomain.Workflow) (*Program, er
 }
 
 func (r *DSLRunner) finalizeSuccess(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *workflowdomain.Workflow, result *DSLRuntimeResult, toolCalls json.RawMessage) (*Run, error) {
-	output, err := json.Marshal(buildDSLRunOutputPayload(workflow, result))
-	if err != nil {
-		return nil, err
-	}
-	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(StatusSuccess, output, toolCalls, true))
+	return r.updateRunWithPayload(ctx, rc, workspaceID, runID, StatusSuccess, buildDSLRunOutputPayload(workflow, result), toolCalls, true)
 }
 
 func (r *DSLRunner) finalizeResumeSuccess(ctx context.Context, rc *RunContext, workspaceID, runID string, input schedulerdomain.WorkflowResumePayload, workflow *workflowdomain.Workflow, existing *Run, result *DSLRuntimeResult, toolCalls json.RawMessage) (*Run, error) {
-	output, err := json.Marshal(buildDSLResumePayload(workflow, input.ResumeStepIndex, result))
-	if err != nil {
-		return nil, err
-	}
-	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(StatusSuccess, output, mergeRunToolCalls(existing.ToolCalls, toolCalls), true))
+	return r.updateRunWithPayload(ctx, rc, workspaceID, runID, StatusSuccess, buildDSLResumePayload(workflow, input.ResumeStepIndex, result), mergeRunToolCalls(existing.ToolCalls, toolCalls), true)
 }
 
 func (r *DSLRunner) finalizeFailure(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *workflowdomain.Workflow, result *DSLRuntimeResult, toolCalls json.RawMessage, execErr error) (*Run, error) {
-	payload := buildDSLFailurePayload(workflow, result, execErr)
-	output, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(StatusFailed, output, toolCalls, true))
+	return r.updateRunWithPayload(ctx, rc, workspaceID, runID, StatusFailed, buildDSLFailurePayload(workflow, result, execErr), toolCalls, true)
 }
 
 func (r *DSLRunner) finalizeResumeFailure(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload, workflow *workflowdomain.Workflow, existing *Run, execErr error) (*Run, error) {
 	if rc == nil || rc.Orchestrator == nil || existing == nil {
 		return nil, execErr
 	}
-	payload := buildDSLResumeFailurePayload(input, workflow, execErr)
-	output, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, input.RunID, emptyTracesUpdate(StatusFailed, output, existing.ToolCalls, true))
+	return r.updateRunWithPayload(ctx, rc, workspaceID, input.RunID, StatusFailed, buildDSLResumeFailurePayload(input, workflow, execErr), existing.ToolCalls, true)
 }
 
 func (r *DSLRunner) failResumeAndReturnErr(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload, workflow *workflowdomain.Workflow, existing *Run, resumeErr error) (*Run, error) {
@@ -297,21 +279,11 @@ func (r *DSLRunner) failResumeAndReturnErr(ctx context.Context, rc *RunContext, 
 }
 
 func (r *DSLRunner) finalizePending(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *workflowdomain.Workflow, result *DSLRuntimeResult, executor *dslRuntimeExecutor) (*Run, error) {
-	payload := buildPendingPayload(buildDSLWorkflowPayload(workflow, result), executor)
-	output, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(StatusAccepted, output, executor.ToolCallsJSON(), false))
+	return r.updateRunWithPayload(ctx, rc, workspaceID, runID, StatusAccepted, buildPendingPayload(buildDSLWorkflowPayload(workflow, result), executor), executor.ToolCallsJSON(), false)
 }
 
 func (r *DSLRunner) finalizeResumePending(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload, workflow *workflowdomain.Workflow, existing *Run, result *DSLRuntimeResult, executor *dslRuntimeExecutor) (*Run, error) {
-	payload := buildPendingPayload(buildDSLResumePayload(workflow, input.ResumeStepIndex, result), executor)
-	output, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, input.RunID, emptyTracesUpdate(StatusAccepted, output, mergeRunToolCalls(existing.ToolCalls, executor.ToolCallsJSON()), false))
+	return r.updateRunWithPayload(ctx, rc, workspaceID, input.RunID, StatusAccepted, buildPendingPayload(buildDSLResumePayload(workflow, input.ResumeStepIndex, result), executor), mergeRunToolCalls(existing.ToolCalls, executor.ToolCallsJSON()), false)
 }
 
 func (r *DSLRunner) finalizeResumedRun(ctx context.Context, rc *RunContext, workspaceID, runID string, input schedulerdomain.WorkflowResumePayload, workflow *workflowdomain.Workflow, existing *Run, result *DSLRuntimeResult, defaultExecutor *dslRuntimeExecutor, execErr error) (*Run, error) {
@@ -345,19 +317,19 @@ func terminalDispatchStatus(result *DSLRuntimeResult) (string, bool) {
 }
 
 func (r *DSLRunner) finalizeDispatchTerminal(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *workflowdomain.Workflow, result *DSLRuntimeResult, toolCalls json.RawMessage, status string) (*Run, error) {
-	output, err := json.Marshal(buildDSLRunOutputPayload(workflow, result))
-	if err != nil {
-		return nil, err
-	}
-	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(status, output, toolCalls, true))
+	return r.updateRunWithPayload(ctx, rc, workspaceID, runID, status, buildDSLRunOutputPayload(workflow, result), toolCalls, true)
 }
 
 func (r *DSLRunner) finalizeResumeDispatchTerminal(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload, workflow *workflowdomain.Workflow, existing *Run, result *DSLRuntimeResult, status string) (*Run, error) {
-	output, err := json.Marshal(buildDSLResumePayload(workflow, input.ResumeStepIndex, result))
+	return r.updateRunWithPayload(ctx, rc, workspaceID, input.RunID, status, buildDSLResumePayload(workflow, input.ResumeStepIndex, result), mergeRunToolCalls(existing.ToolCalls, json.RawMessage(emptyJSONArray)), true)
+}
+
+func (r *DSLRunner) updateRunWithPayload(ctx context.Context, rc *RunContext, workspaceID, runID, status string, payload any, toolCalls json.RawMessage, completed bool) (*Run, error) {
+	output, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
-	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, input.RunID, emptyTracesUpdate(status, output, mergeRunToolCalls(existing.ToolCalls, json.RawMessage(emptyJSONArray)), true))
+	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(status, output, toolCalls, completed))
 }
 
 func mergeDSLContexts(trigger json.RawMessage, inputs json.RawMessage) map[string]any {

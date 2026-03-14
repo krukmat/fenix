@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -23,9 +22,8 @@ func (h *TimelineHandler) ListTimeline(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TimelineHandler) ListTimelineByEntity(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 	entityType := chi.URLParam(r, paramEntityType)
@@ -36,9 +34,7 @@ func (h *TimelineHandler) ListTimelineByEntity(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list timeline by entity: %v", listErr))
 		return
 	}
-	w.Header().Set(headerContentType, mimeJSON)
-	if encodeErr := json.NewEncoder(w).Encode(map[string]any{"data": items, "meta": Meta{Total: len(items), Limit: page.Limit, Offset: page.Offset}}); encodeErr != nil {
-		writeError(w, http.StatusInternalServerError, errFailedToEncode)
+	if !writePaginatedOr500(w, items, len(items), page) {
 		return
 	}
 }

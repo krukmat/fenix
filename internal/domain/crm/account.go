@@ -205,20 +205,17 @@ func (s *AccountService) Delete(ctx context.Context, workspaceID, accountID stri
 	if err != nil {
 		return err
 	}
-
-	now := time.Now().UTC()
-	nowStr := now.Format(time.RFC3339)
-
-	err = s.querier.SoftDeleteAccount(ctx, sqlcgen.SoftDeleteAccountParams{
-		DeletedAt:   &nowStr,
-		UpdatedAt:   nowStr,
-		ID:          accountID,
-		WorkspaceID: workspaceID,
-	})
-	if err != nil {
-		return fmt.Errorf("soft delete account: %w", err)
+	if deleteErr := softDeleteWithAudit(ctx, s.audit, workspaceID, timelineEntityAccount, accountID, existing.OwnerID, actionAccountDeleted,
+		func(now string) error {
+			return s.querier.SoftDeleteAccount(ctx, sqlcgen.SoftDeleteAccountParams{
+				DeletedAt:   &now,
+				UpdatedAt:   now,
+				ID:          accountID,
+				WorkspaceID: workspaceID,
+			})
+		}); deleteErr != nil {
+		return deleteErr
 	}
-	logCRMAudit(ctx, s.audit, workspaceID, existing.OwnerID, actionAccountDeleted, timelineEntityAccount, accountID)
 	s.publishRecordChanged(knowledge.ChangeTypeDeleted, workspaceID, accountID)
 
 	return nil

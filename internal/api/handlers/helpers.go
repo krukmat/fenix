@@ -268,23 +268,10 @@ func ensureEntityExistsBeforeDelete[T any](
 	internalFmt string,
 	getter func(context.Context, string, string) (*T, error),
 ) (string, bool) {
-	ctx := r.Context()
-	id := chiURLParamID(r)
-	if id == "" {
-		writeError(w, http.StatusBadRequest, idRequiredMsg)
+	id, _, ok := getEntityForUpdate(w, r, wsID, idRequiredMsg, notFoundMsg, internalFmt, getter)
+	if !ok {
 		return "", false
 	}
-
-	_, err := getter(ctx, wsID, id)
-	if errorsIsNoRows(err) {
-		writeError(w, http.StatusNotFound, notFoundMsg)
-		return "", false
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf(internalFmt, err))
-		return "", false
-	}
-
 	return id, true
 }
 
@@ -299,9 +286,18 @@ func handleListWithPagination[T any](
 	errFmt string,
 	listFn func(context.Context, string, int, int) ([]*T, int, error),
 ) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	handleMappedListWithPagination(w, r, errFmt, listFn, func(item *T) *T { return item })
+}
+
+func handleMappedListWithPagination[T any, R any](
+	w http.ResponseWriter,
+	r *http.Request,
+	errFmt string,
+	listFn func(context.Context, string, int, int) ([]*T, int, error),
+	mapper func(*T) R,
+) {
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 
@@ -312,7 +308,12 @@ func handleListWithPagination[T any](
 		return
 	}
 
-	_ = writePaginatedOr500(w, items, total, page)
+	mapped := make([]R, len(items))
+	for i, item := range items {
+		mapped[i] = mapper(item)
+	}
+
+	_ = writePaginatedOr500(w, mapped, total, page)
 }
 
 func handleParsedListWithPagination[T any, In any](

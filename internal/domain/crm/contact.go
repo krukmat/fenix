@@ -189,22 +189,15 @@ func (s *ContactService) Delete(ctx context.Context, workspaceID, contactID stri
 	if err != nil {
 		return err
 	}
-
-	now := time.Now().UTC()
-	nowStr := now.Format(time.RFC3339)
-
-	err = s.querier.SoftDeleteContact(ctx, sqlcgen.SoftDeleteContactParams{
-		DeletedAt:   &nowStr,
-		UpdatedAt:   nowStr,
-		ID:          contactID,
-		WorkspaceID: workspaceID,
-	})
-	if err != nil {
-		return fmt.Errorf("soft delete contact: %w", err)
-	}
-	logCRMAudit(ctx, s.audit, workspaceID, existing.OwnerID, actionContactDeleted, timelineEntityContact, contactID)
-
-	return nil
+	return softDeleteWithAudit(ctx, s.audit, workspaceID, timelineEntityContact, contactID, existing.OwnerID, actionContactDeleted,
+		func(now string) error {
+			return s.querier.SoftDeleteContact(ctx, sqlcgen.SoftDeleteContactParams{
+				DeletedAt:   &now,
+				UpdatedAt:   now,
+				ID:          contactID,
+				WorkspaceID: workspaceID,
+			})
+		})
 }
 
 // rowToContact converts a sqlcgen row to a Contact domain model.
