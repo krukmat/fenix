@@ -5,6 +5,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -20,6 +21,7 @@ import (
 	domaineval "github.com/matiasleandrokruk/fenix/internal/domain/eval"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
+	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 	signaldomain "github.com/matiasleandrokruk/fenix/internal/domain/signal"
 	tooldomain "github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
@@ -127,12 +129,13 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		timelineHandler := handlers.NewTimelineHandler(crm.NewTimelineService(db))
 		reportHandler := handlers.NewReportHandler(crm.NewReportService(db))
 		auditHandler := handlers.NewAuditHandler(auditService)
-		workflowService := workflowdomain.NewService(db)
+		schedulerRepo := schedulerdomain.NewRepository(db)
+		schedulerSvc := schedulerdomain.NewService(schedulerRepo)
+		workflowRepo := workflowdomain.NewRepository(db)
+		workflowService := workflowdomain.NewServiceWithDependencies(workflowRepo, schedulerSvc)
 		workflowHandler := handlers.NewWorkflowHandlerWithRuntime(workflowService, policyEngine, db, agentOrchestrator, toolRegistry, policyEngine, approvalService, dslRunner)
-		signalHandler := handlers.NewSignalHandlerWithAuthorizer(
-			signaldomain.NewServiceWithBus(db, signaldomain.NewRepository(db), knowledgeBus),
-			policyEngine,
-		)
+		signalSvc := signaldomain.NewServiceWithBus(db, signaldomain.NewRepository(db), knowledgeBus)
+		signalHandler := handlers.NewSignalHandlerWithAuthorizer(signalSvc, policyEngine)
 		r.Route("/leads", func(r chi.Router) {
 			r.Post("/", leadHandler.CreateLead)         // POST /api/v1/leads
 			r.Get("/", leadHandler.ListLeads)           // GET /api/v1/leads
@@ -357,6 +360,24 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			Insights:    insightsAgent,
 		})
 		_ = agents.RegisterDSLRunner(runnerRegistry, dslRunner)
+
+		resumeRC := &agent.RunContext{
+			Orchestrator:    agentOrchestrator,
+			ToolRegistry:    toolRegistry,
+			PolicyEngine:    policyEngine,
+			ApprovalService: approvalService,
+			Scheduler:       schedulerSvc,
+			SignalService:   signalSvc,
+			AuditService:    auditService,
+			DB:              db,
+		}
+		resumeHandler := agent.NewWorkflowResumeHandler(dslRunner, resumeRC)
+		schedulerWorker := schedulerdomain.NewWorker(schedulerRepo, resumeHandler.Handle)
+		go func() {
+			if err := schedulerWorker.Start(context.Background()); err != nil && !errors.Is(err, context.Canceled) {
+				_ = err
+			}
+		}()
 
 		// Task 3.8: Handoff Manager (reuses caseService + knowledgeBus from above)
 		handoffService := agent.NewHandoffService(db, caseService, knowledgeBus)
