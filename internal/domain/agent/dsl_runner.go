@@ -252,12 +252,7 @@ func (r *DSLRunner) loadProgram(workflow *workflowdomain.Workflow) (*Program, er
 }
 
 func (r *DSLRunner) finalizeSuccess(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *workflowdomain.Workflow, result *DSLRuntimeResult, toolCalls json.RawMessage) (*Run, error) {
-	output, err := json.Marshal(DSLRunOutput{
-		WorkflowID:      workflow.ID,
-		WorkflowName:    workflow.Name,
-		WorkflowVersion: workflow.Version,
-		Statements:      result.Statements,
-	})
+	output, err := json.Marshal(buildDSLRunOutputPayload(workflow, result))
 	if err != nil {
 		return nil, err
 	}
@@ -265,14 +260,7 @@ func (r *DSLRunner) finalizeSuccess(ctx context.Context, rc *RunContext, workspa
 }
 
 func (r *DSLRunner) finalizeResumeSuccess(ctx context.Context, rc *RunContext, workspaceID, runID string, input schedulerdomain.WorkflowResumePayload, workflow *workflowdomain.Workflow, existing *Run, result *DSLRuntimeResult, toolCalls json.RawMessage) (*Run, error) {
-	output, err := json.Marshal(map[string]any{
-		"workflow_id":       workflow.ID,
-		"workflow_name":     workflow.Name,
-		"workflow_version":  workflow.Version,
-		"resume_step_index": input.ResumeStepIndex,
-		"statements":        result.Statements,
-		"resumed":           true,
-	})
+	output, err := json.Marshal(buildDSLResumePayload(workflow, input.ResumeStepIndex, result))
 	if err != nil {
 		return nil, err
 	}
@@ -280,15 +268,7 @@ func (r *DSLRunner) finalizeResumeSuccess(ctx context.Context, rc *RunContext, w
 }
 
 func (r *DSLRunner) finalizeFailure(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *workflowdomain.Workflow, result *DSLRuntimeResult, toolCalls json.RawMessage, execErr error) (*Run, error) {
-	payload := map[string]any{
-		"workflow_id":      workflow.ID,
-		"workflow_name":    workflow.Name,
-		"workflow_version": workflow.Version,
-		"error":            execErr.Error(),
-	}
-	if result != nil {
-		payload["statements"] = result.Statements
-	}
+	payload := buildDSLFailurePayload(workflow, result, execErr)
 	output, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
@@ -300,17 +280,7 @@ func (r *DSLRunner) finalizeResumeFailure(ctx context.Context, rc *RunContext, w
 	if rc == nil || rc.Orchestrator == nil || existing == nil {
 		return nil, execErr
 	}
-	payload := map[string]any{
-		"workflow_id":       input.WorkflowID,
-		"run_id":            input.RunID,
-		"resume_step_index": input.ResumeStepIndex,
-		"error":             execErr.Error(),
-		"resumed":           true,
-	}
-	if workflow != nil {
-		payload["workflow_name"] = workflow.Name
-		payload["workflow_version"] = workflow.Version
-	}
+	payload := buildDSLResumeFailurePayload(input, workflow, execErr)
 	output, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
@@ -327,21 +297,7 @@ func (r *DSLRunner) failResumeAndReturnErr(ctx context.Context, rc *RunContext, 
 }
 
 func (r *DSLRunner) finalizePending(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *workflowdomain.Workflow, result *DSLRuntimeResult, executor *dslRuntimeExecutor) (*Run, error) {
-	payload := map[string]any{
-		"workflow_id":      workflow.ID,
-		"workflow_name":    workflow.Name,
-		"workflow_version": workflow.Version,
-		"statements":       result.Statements,
-	}
-	for key, value := range executor.PendingOutput() {
-		payload[key] = value
-	}
-	if _, ok := payload["action"]; !ok {
-		payload["action"] = pendingApprovalAction
-	}
-	if executor.PendingApproval() != nil {
-		payload["approval_id"] = executor.PendingApproval().ApprovalID
-	}
+	payload := buildPendingPayload(buildDSLWorkflowPayload(workflow, result), executor)
 	output, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
@@ -350,23 +306,7 @@ func (r *DSLRunner) finalizePending(ctx context.Context, rc *RunContext, workspa
 }
 
 func (r *DSLRunner) finalizeResumePending(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload, workflow *workflowdomain.Workflow, existing *Run, result *DSLRuntimeResult, executor *dslRuntimeExecutor) (*Run, error) {
-	payload := map[string]any{
-		"workflow_id":       workflow.ID,
-		"workflow_name":     workflow.Name,
-		"workflow_version":  workflow.Version,
-		"resume_step_index": input.ResumeStepIndex,
-		"statements":        result.Statements,
-		"resumed":           true,
-	}
-	for key, value := range executor.PendingOutput() {
-		payload[key] = value
-	}
-	if _, ok := payload["action"]; !ok {
-		payload["action"] = pendingApprovalAction
-	}
-	if executor.PendingApproval() != nil {
-		payload["approval_id"] = executor.PendingApproval().ApprovalID
-	}
+	payload := buildPendingPayload(buildDSLResumePayload(workflow, input.ResumeStepIndex, result), executor)
 	output, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
@@ -405,12 +345,7 @@ func terminalDispatchStatus(result *DSLRuntimeResult) (string, bool) {
 }
 
 func (r *DSLRunner) finalizeDispatchTerminal(ctx context.Context, rc *RunContext, workspaceID, runID string, workflow *workflowdomain.Workflow, result *DSLRuntimeResult, toolCalls json.RawMessage, status string) (*Run, error) {
-	output, err := json.Marshal(DSLRunOutput{
-		WorkflowID:      workflow.ID,
-		WorkflowName:    workflow.Name,
-		WorkflowVersion: workflow.Version,
-		Statements:      result.Statements,
-	})
+	output, err := json.Marshal(buildDSLRunOutputPayload(workflow, result))
 	if err != nil {
 		return nil, err
 	}
@@ -418,14 +353,7 @@ func (r *DSLRunner) finalizeDispatchTerminal(ctx context.Context, rc *RunContext
 }
 
 func (r *DSLRunner) finalizeResumeDispatchTerminal(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload, workflow *workflowdomain.Workflow, existing *Run, result *DSLRuntimeResult, status string) (*Run, error) {
-	output, err := json.Marshal(map[string]any{
-		"workflow_id":       workflow.ID,
-		"workflow_name":     workflow.Name,
-		"workflow_version":  workflow.Version,
-		"resume_step_index": input.ResumeStepIndex,
-		"statements":        result.Statements,
-		"resumed":           true,
-	})
+	output, err := json.Marshal(buildDSLResumePayload(workflow, input.ResumeStepIndex, result))
 	if err != nil {
 		return nil, err
 	}
@@ -475,4 +403,70 @@ func decodeToolCallArray(raw json.RawMessage) []ToolCall {
 		return nil
 	}
 	return calls
+}
+
+func buildDSLRunOutputPayload(workflow *workflowdomain.Workflow, result *DSLRuntimeResult) DSLRunOutput {
+	return DSLRunOutput{
+		WorkflowID:      workflow.ID,
+		WorkflowName:    workflow.Name,
+		WorkflowVersion: workflow.Version,
+		Statements:      runtimeStatements(result),
+	}
+}
+
+func buildDSLWorkflowPayload(workflow *workflowdomain.Workflow, result *DSLRuntimeResult) map[string]any {
+	return map[string]any{
+		"workflow_id":      workflow.ID,
+		"workflow_name":    workflow.Name,
+		"workflow_version": workflow.Version,
+		"statements":       runtimeStatements(result),
+	}
+}
+
+func buildDSLResumePayload(workflow *workflowdomain.Workflow, resumeStepIndex int, result *DSLRuntimeResult) map[string]any {
+	payload := buildDSLWorkflowPayload(workflow, result)
+	payload["resume_step_index"] = resumeStepIndex
+	payload["resumed"] = true
+	return payload
+}
+
+func buildDSLFailurePayload(workflow *workflowdomain.Workflow, result *DSLRuntimeResult, execErr error) map[string]any {
+	payload := buildDSLWorkflowPayload(workflow, result)
+	payload["error"] = execErr.Error()
+	return payload
+}
+
+func buildDSLResumeFailurePayload(input schedulerdomain.WorkflowResumePayload, workflow *workflowdomain.Workflow, execErr error) map[string]any {
+	payload := map[string]any{
+		"workflow_id":       input.WorkflowID,
+		"run_id":            input.RunID,
+		"resume_step_index": input.ResumeStepIndex,
+		"error":             execErr.Error(),
+		"resumed":           true,
+	}
+	if workflow != nil {
+		payload["workflow_name"] = workflow.Name
+		payload["workflow_version"] = workflow.Version
+	}
+	return payload
+}
+
+func buildPendingPayload(payload map[string]any, executor *dslRuntimeExecutor) map[string]any {
+	for key, value := range executor.PendingOutput() {
+		payload[key] = value
+	}
+	if _, ok := payload["action"]; !ok {
+		payload["action"] = pendingApprovalAction
+	}
+	if approval := executor.PendingApproval(); approval != nil {
+		payload["approval_id"] = approval.ApprovalID
+	}
+	return payload
+}
+
+func runtimeStatements(result *DSLRuntimeResult) []DSLStatementResult {
+	if result == nil {
+		return nil
+	}
+	return result.Statements
 }

@@ -151,27 +151,7 @@ func (h *ToolHandler) DeactivateTool(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ToolHandler) DeleteTool(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.tools.delete") {
-		return
-	}
-
-	workspaceID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-
-	id := chi.URLParam(r, paramID)
-	if id == "" {
-		writeError(w, http.StatusBadRequest, errToolIDRequired)
-		return
-	}
-
-	if err := h.registry.DeleteToolDefinition(r.Context(), workspaceID, id); err != nil {
-		writeToolError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	handleAuthorizedDelete(w, r, h.authz, "admin.tools.delete", errToolIDRequired, h.registry.DeleteToolDefinition, writeToolError)
 }
 
 func (h *ToolHandler) setToolActive(w http.ResponseWriter, r *http.Request, isActive bool, action string) {

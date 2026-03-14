@@ -39,10 +39,10 @@ type workflowCacheInvalidator interface {
 }
 
 type workflowRuntime struct {
-	orchestrator    *agent.Orchestrator
-	toolRegistry    *tooldomain.ToolRegistry
-	policyEngine    *policy.PolicyEngine
-	approvalService *policy.ApprovalService
+	orchestrator     *agent.Orchestrator
+	toolRegistry     *tooldomain.ToolRegistry
+	policyEngine     *policy.PolicyEngine
+	approvalService  *policy.ApprovalService
 	cacheInvalidator workflowCacheInvalidator
 }
 
@@ -97,10 +97,10 @@ func NewWorkflowHandlerWithRuntime(service WorkflowService, authz ActionAuthoriz
 		authz:   authz,
 		db:      db,
 		runtime: &workflowRuntime{
-			orchestrator:    orchestrator,
-			toolRegistry:    toolRegistry,
-			policyEngine:    policyEngine,
-			approvalService: approvalService,
+			orchestrator:     orchestrator,
+			toolRegistry:     toolRegistry,
+			policyEngine:     policyEngine,
+			approvalService:  approvalService,
 			cacheInvalidator: cacheInvalidator,
 		},
 	}
@@ -237,27 +237,7 @@ func (h *WorkflowHandler) invalidateCacheIfConfigured(workflowID string) {
 }
 
 func (h *WorkflowHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "workflows.delete") {
-		return
-	}
-
-	workspaceID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-
-	id := chi.URLParam(r, paramID)
-	if id == "" {
-		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
-		return
-	}
-
-	if err := h.service.DeleteDraft(r.Context(), workspaceID, id); err != nil {
-		writeWorkflowError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	handleAuthorizedDelete(w, r, h.authz, "workflows.delete", errWorkflowIDRequired, h.service.DeleteDraft, writeWorkflowError)
 }
 
 func (h *WorkflowHandler) Verify(w http.ResponseWriter, r *http.Request) {

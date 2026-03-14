@@ -25,6 +25,13 @@ func parseOptionalRFC3339(value *string) *time.Time {
 	return &t
 }
 
+func firstNonEmpty(value, fallback string) string {
+	if value != "" {
+		return value
+	}
+	return fallback
+}
+
 func mapRows[T any, R any](rows []R, mapper func(R) *T) []*T {
 	out := make([]*T, len(rows))
 	for i := range rows {
@@ -81,6 +88,36 @@ func listFilteredOrPaged[T any](
 		return nil, 0, err
 	}
 	return items, int(total), nil
+}
+
+func listSortedFilteredOrPaged[T any](
+	sortValue string,
+	defaultSort string,
+	useFiltered bool,
+	loadFiltered func() ([]*T, error),
+	paginate func([]*T, int, int) []*T,
+	offset, limit int,
+	countDB func() (int64, error),
+	listDB func() ([]*T, error),
+) ([]*T, int, error) {
+	_ = firstNonEmpty(sortValue, defaultSort)
+	return listFilteredOrPaged(useFiltered, loadFiltered, paginate, offset, limit, countDB, listDB)
+}
+
+func listInputFilteredOrPaged[In any, T any](
+	input *In,
+	getSort func(*In) string,
+	setSort func(*In, string),
+	defaultSort string,
+	useFiltered func(In) bool,
+	loadFiltered func() ([]*T, error),
+	paginate func([]*T, int, int) []*T,
+	offset, limit int,
+	countDB func() (int64, error),
+	listDB func() ([]*T, error),
+) ([]*T, int, error) {
+	setSort(input, firstNonEmpty(getSort(input), defaultSort))
+	return listFilteredOrPaged(useFiltered(*input), loadFiltered, paginate, offset, limit, countDB, listDB)
 }
 
 // listWorkspacePage centralizes the common CRM "count + paginated list + map"

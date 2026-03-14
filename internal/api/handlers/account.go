@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -184,36 +185,29 @@ func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 // between Get and Update. For MVP (SQLite single-writer) this is acceptable.
 // Fix: use a DB transaction with SELECT FOR UPDATE when migrating to Postgres.
 func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-
-	accountID, existing, ok := h.getAccountForUpdate(w, r, wsID)
-	if !ok {
-		return
-	}
-
-	var req UpdateAccountRequest
-	if !decodeBodyJSON(w, r, &req) {
-		return
-	}
-
-	// Merge request with existing values (extracted to reduce cyclomatic complexity)
-	updateInput := buildUpdateInput(req, existing)
-
-	// Update account via service
-	updated, upErr := h.accountService.Update(ctx, wsID, accountID, updateInput)
-	if upErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update account: %v", upErr))
-		return
-	}
-
-	// Write response
-	if !writeJSONOr500(w, accountToResponse(updated)) {
-		return
-	}
+	handleEntityUpdate[
+		crm.Account,
+		UpdateAccountRequest,
+		crm.UpdateAccountInput,
+		AccountResponse,
+	](
+		w,
+		r,
+		errAccountIDRequired,
+		errAccountNotFound,
+		errFailedToGetAccount,
+		"failed to update account: %v",
+		h.accountService.Get,
+		buildUpdateInput,
+		func(ctx context.Context, wsID, accountID string, input crm.UpdateAccountInput) (*AccountResponse, error) {
+			updated, err := h.accountService.Update(ctx, wsID, accountID, input)
+			if err != nil {
+				return nil, err
+			}
+			resp := accountToResponse(updated)
+			return &resp, nil
+		},
+	)
 }
 
 func (h *AccountHandler) getAccountForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Account, bool) {
@@ -224,25 +218,7 @@ func (h *AccountHandler) getAccountForUpdate(w http.ResponseWriter, r *http.Requ
 // Task 1.3.7: Soft delete an account (sets deleted_at timestamp)
 // TD-3 fix: returns 404 if account does not exist or is already deleted
 func (h *AccountHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-
-	accountID, ok := ensureEntityExistsBeforeDelete[crm.Account](w, r, wsID, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, h.accountService.Get)
-	if !ok {
-		return
-	}
-
-	// Delete account via service (soft delete)
-	if delErr := h.accountService.Delete(ctx, wsID, accountID); delErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete account: %v", delErr))
-		return
-	}
-
-	// Write response (204 No Content)
-	w.WriteHeader(http.StatusNoContent)
+	handleVerifiedDelete(w, r, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, "failed to delete account: %v", h.accountService.Get, h.accountService.Delete)
 }
 
 // --- helpers ---

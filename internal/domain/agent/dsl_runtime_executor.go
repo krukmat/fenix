@@ -185,24 +185,7 @@ func (e *dslRuntimeExecutor) ExecuteWait(ctx context.Context, stmt *WaitStatemen
 }
 
 func (e *dslRuntimeExecutor) executeAgentOperation(ctx context.Context, op *RuntimeOperation, _ map[string]any) (RuntimeExecutionResult, error) {
-	if err := validateAgentExecutionContext(e.rc); err != nil {
-		return RuntimeExecutionResult{}, err
-	}
-	target, err := resolveActiveAgentDefinition(ctx, e.rc.DB, e.workspaceID, op.AgentName)
-	if err != nil {
-		return RuntimeExecutionResult{}, err
-	}
-	if callErr := validateAgentCallAllowed(e.rc, e.actorID, target); callErr != nil {
-		return RuntimeExecutionResult{}, callErr
-	}
-	if policyErr := checkMappedAgentPolicy(ctx, e.rc, e.actorID, target); policyErr != nil {
-		return RuntimeExecutionResult{}, policyErr
-	}
-	rawInputs, err := json.Marshal(op.Params)
-	if err != nil {
-		return RuntimeExecutionResult{}, err
-	}
-	stored, err := e.invokeSubAgent(ctx, target, rawInputs)
+	target, stored, err := e.runSubAgent(ctx, op)
 	if err != nil {
 		return RuntimeExecutionResult{}, err
 	}
@@ -210,28 +193,61 @@ func (e *dslRuntimeExecutor) executeAgentOperation(ctx context.Context, op *Runt
 }
 
 func (e *dslRuntimeExecutor) executeDispatchOperation(ctx context.Context, op *RuntimeOperation, _ map[string]any) (RuntimeExecutionResult, error) {
-	if err := validateAgentExecutionContext(e.rc); err != nil {
+	target, stored, err := e.prepareSubAgentRun(ctx, op)
+	if err != nil {
+		var callErr error
+		if errors.Is(err, ErrDSLAgentLoopDetected) || errors.Is(err, ErrDSLAgentDepthExceeded) {
+			callErr = err
+		}
+		if callErr != nil {
+			return rejectedDispatchExecutionResult(target, callErr), nil
+		}
 		return RuntimeExecutionResult{}, err
+	}
+	if stored == nil {
+		rawInputs, marshalErr := json.Marshal(op.Params)
+		if marshalErr != nil {
+			return RuntimeExecutionResult{}, marshalErr
+		}
+		stored, err = e.invokeSubAgent(ctx, target, rawInputs)
+		if err != nil {
+			return RuntimeExecutionResult{}, err
+		}
+	}
+	return e.buildDispatchResult(target, stored)
+}
+
+func (e *dslRuntimeExecutor) prepareSubAgentRun(ctx context.Context, op *RuntimeOperation) (*Definition, *Run, error) {
+	if err := validateAgentExecutionContext(e.rc); err != nil {
+		return nil, nil, err
 	}
 	target, err := resolveActiveAgentDefinition(ctx, e.rc.DB, e.workspaceID, op.AgentName)
 	if err != nil {
-		return RuntimeExecutionResult{}, err
+		return nil, nil, err
 	}
 	if callErr := validateAgentCallAllowed(e.rc, e.actorID, target); callErr != nil {
-		return rejectedDispatchExecutionResult(target, callErr), nil
+		return target, nil, callErr
 	}
 	if policyErr := checkMappedAgentPolicy(ctx, e.rc, e.actorID, target); policyErr != nil {
-		return RuntimeExecutionResult{}, policyErr
+		return nil, nil, policyErr
+	}
+	return target, nil, nil
+}
+
+func (e *dslRuntimeExecutor) runSubAgent(ctx context.Context, op *RuntimeOperation) (*Definition, *Run, error) {
+	target, _, err := e.prepareSubAgentRun(ctx, op)
+	if err != nil {
+		return nil, nil, err
 	}
 	rawInputs, err := json.Marshal(op.Params)
 	if err != nil {
-		return RuntimeExecutionResult{}, err
+		return nil, nil, err
 	}
 	stored, err := e.invokeSubAgent(ctx, target, rawInputs)
 	if err != nil {
-		return RuntimeExecutionResult{}, err
+		return nil, nil, err
 	}
-	return e.buildDispatchResult(target, stored)
+	return target, stored, nil
 }
 
 func rejectedDispatchExecutionResult(target *Definition, dispatchErr error) RuntimeExecutionResult {

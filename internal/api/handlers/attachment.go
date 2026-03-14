@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 
@@ -93,16 +94,7 @@ func (h *AttachmentHandler) ListAttachments(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *AttachmentHandler) DeleteAttachment(w http.ResponseWriter, r *http.Request) {
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-	id := chi.URLParam(r, paramID)
-	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete attachment: %v", svcErr))
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handleDeleteWithNotFound(w, r, "attachment id is required", sql.ErrNoRows, "attachment not found", "failed to delete attachment: %v", h.service.Delete)
 }
 
 // isAttachmentRequestValid checks required fields for CreateAttachment.

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -119,20 +118,7 @@ func (h *NoteHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *NoteHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-	id := chi.URLParam(r, paramID)
-	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
-		if errors.Is(svcErr, sql.ErrNoRows) {
-			writeError(w, http.StatusNotFound, errNoteNotFound)
-			return
-		}
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete note: %v", svcErr))
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handleDeleteWithNotFound(w, r, errNoteNotFound, sql.ErrNoRows, errNoteNotFound, "failed to delete note: %v", h.service.Delete)
 }
 
 // isNoteRequestValid checks required fields for CreateNote.

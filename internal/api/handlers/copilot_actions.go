@@ -56,12 +56,13 @@ func (h *CopilotActionsHandler) SuggestActions(w http.ResponseWriter, r *http.Re
 				EntityType:  in.EntityType,
 				EntityID:    in.EntityID,
 			})
-			if err != nil {
-				return copilotSuggestActionsResponse{}, err
-			}
-			resp := copilotSuggestActionsResponse{}
-			resp.Data.Actions = actions
-			return resp, nil
+			return mapCopilotEntityAction(
+				actions,
+				err,
+				func(resp *copilotSuggestActionsResponse, actions []copilot.SuggestedAction) {
+					resp.Data.Actions = actions
+				},
+			)
 		},
 		"suggest-actions failed",
 	)
@@ -76,12 +77,13 @@ func (h *CopilotActionsHandler) Summarize(w http.ResponseWriter, r *http.Request
 				EntityType:  in.EntityType,
 				EntityID:    in.EntityID,
 			})
-			if err != nil {
-				return copilotSummarizeResponse{}, err
-			}
-			resp := copilotSummarizeResponse{}
-			resp.Data.Summary = summary
-			return resp, nil
+			return mapCopilotEntityAction(
+				summary,
+				err,
+				func(resp *copilotSummarizeResponse, summary string) {
+					resp.Data.Summary = summary
+				},
+			)
 		},
 		"summarize failed",
 	)
@@ -156,4 +158,13 @@ func writeCopilotActionsError(w http.ResponseWriter, err error) {
 
 func errorAsAction(err error, target *actionRequestError) bool {
 	return errors.As(err, target)
+}
+
+func mapCopilotEntityAction[T any, R any](value T, err error, assign func(*R, T)) (R, error) {
+	var resp R
+	if err != nil {
+		return resp, err
+	}
+	assign(&resp, value)
+	return resp, nil
 }

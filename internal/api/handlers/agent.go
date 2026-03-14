@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -463,32 +464,11 @@ func withProspectingTriggeredBy(config agents.ProspectingAgentConfig, userID str
 
 // TriggerProspectingAgent handles POST /api/v1/agents/prospecting/trigger.
 func (h *ProspectingAgentHandler) TriggerProspectingAgent(w http.ResponseWriter, r *http.Request) {
-	workspaceID, userID, ok := extractAgentContext(w, r)
+	config, ok := prepareTriggeredAgentConfig(w, r, buildProspectingConfig, withProspectingTriggeredBy)
 	if !ok {
 		return
 	}
-
-	var req prospectingAgentRequest
-	if !decodeAgentRequest(w, r, &req) {
-		return
-	}
-
-	config, valid := buildProspectingConfig(w, req, workspaceID)
-	if !valid {
-		return
-	}
-	config = withProspectingTriggeredBy(config, userID)
-
-	run, err := h.prospectingAgent.Run(r.Context(), config)
-	if err != nil {
-		if handled := handleProspectingRunError(w, err); handled {
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "failed to run prospecting agent")
-		return
-	}
-
-	writeAgentQueuedResponse(w, run.ID, "prospecting")
+	runQueuedAgent(w, r, config, h.prospectingAgent.Run, handleProspectingRunError, "failed to run prospecting agent", "prospecting")
 }
 
 func handleProspectingRunError(w http.ResponseWriter, err error) bool {
@@ -545,32 +525,11 @@ func withKBTriggeredBy(config agents.KBAgentConfig, userID string) agents.KBAgen
 
 // TriggerKBAgent handles POST /api/v1/agents/kb/trigger.
 func (h *KBAgentHandler) TriggerKBAgent(w http.ResponseWriter, r *http.Request) {
-	workspaceID, userID, ok := extractAgentContext(w, r)
+	config, ok := prepareTriggeredAgentConfig(w, r, buildKBConfig, withKBTriggeredBy)
 	if !ok {
 		return
 	}
-
-	var req kbAgentRequest
-	if !decodeAgentRequest(w, r, &req) {
-		return
-	}
-
-	config, valid := buildKBConfig(w, req, workspaceID)
-	if !valid {
-		return
-	}
-	config = withKBTriggeredBy(config, userID)
-
-	run, err := h.kbAgent.Run(r.Context(), config)
-	if err != nil {
-		if handled := handleKBRunError(w, err); handled {
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "failed to run kb agent")
-		return
-	}
-
-	writeAgentQueuedResponse(w, run.ID, "kb")
+	runQueuedAgent(w, r, config, h.kbAgent.Run, handleKBRunError, "failed to run kb agent", "kb")
 }
 
 func handleKBRunError(w http.ResponseWriter, err error) bool {
@@ -702,24 +661,66 @@ func (h *InsightsAgentHandler) prepareInsightsRequest(
 	w http.ResponseWriter,
 	r *http.Request,
 ) (string, insightsAgentRequest, agents.InsightsAgentConfig, bool) {
-	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
-	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
-		return "", insightsAgentRequest{}, agents.InsightsAgentConfig{}, false
-	}
-	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
-
-	var req insightsAgentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
-		return "", insightsAgentRequest{}, agents.InsightsAgentConfig{}, false
-	}
-
-	config, valid := buildInsightsConfig(w, req, workspaceID)
-	if !valid {
+	workspaceID, userID, req, config, ok := prepareTriggeredAgentRequest(w, r, buildInsightsConfig)
+	if !ok {
 		return "", insightsAgentRequest{}, agents.InsightsAgentConfig{}, false
 	}
 	return workspaceID, req, withInsightsTriggeredBy(config, userID), true
+}
+
+func prepareTriggeredAgentConfig[Req any, Config any](
+	w http.ResponseWriter,
+	r *http.Request,
+	build func(http.ResponseWriter, Req, string) (Config, bool),
+	withTriggeredBy func(Config, string) Config,
+) (Config, bool) {
+	_, userID, _, config, ok := prepareTriggeredAgentRequest(w, r, build)
+	if !ok {
+		return config, false
+	}
+	return withTriggeredBy(config, userID), true
+}
+
+func prepareTriggeredAgentRequest[Req any, Config any](
+	w http.ResponseWriter,
+	r *http.Request,
+	build func(http.ResponseWriter, Req, string) (Config, bool),
+) (string, string, Req, Config, bool) {
+	workspaceID, userID, ok := extractAgentContext(w, r)
+	if !ok {
+		var zeroReq Req
+		var zeroConfig Config
+		return "", "", zeroReq, zeroConfig, false
+	}
+
+	var req Req
+	if !decodeAgentRequest(w, r, &req) {
+		var zeroConfig Config
+		return "", "", req, zeroConfig, false
+	}
+
+	config, valid := build(w, req, workspaceID)
+	return workspaceID, userID, req, config, valid
+}
+
+func runQueuedAgent[Config any](
+	w http.ResponseWriter,
+	r *http.Request,
+	config Config,
+	run func(context.Context, Config) (*agent.Run, error),
+	handleErr func(http.ResponseWriter, error) bool,
+	internalMsg string,
+	agentName string,
+) {
+	runResult, err := run(r.Context(), config)
+	if err != nil {
+		if handled := handleErr(w, err); handled {
+			return
+		}
+		writeError(w, http.StatusInternalServerError, internalMsg)
+		return
+	}
+	writeAgentQueuedResponse(w, runResult.ID, agentName)
 }
 
 func (h *InsightsAgentHandler) runInsightsPrimary(

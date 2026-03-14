@@ -96,25 +96,7 @@ func (h *DealHandler) GetDeal(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-	page := parsePaginationParams(r)
-	input, parseErr := parseDealListInput(r, page)
-	if parseErr != nil {
-		writeError(w, http.StatusBadRequest, parseErr.Error())
-		return
-	}
-
-	items, total, svcErr := h.service.List(r.Context(), wsID, input)
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list deals: %v", svcErr))
-		return
-	}
-	if !writePaginatedOr500(w, items, total, page) {
-		return
-	}
+	handleParsedListWithPagination(w, r, parseDealListInput, h.service.List, "failed to list deals: %v")
 }
 
 func parseDealListInput(r *http.Request, page paginationParams) (crm.ListDealsInput, error) {
@@ -203,18 +185,5 @@ func buildUpdateDealInput(req UpdateDealRequest, existing *crm.Deal) crm.UpdateD
 }
 
 func (h *DealHandler) DeleteDeal(w http.ResponseWriter, r *http.Request) {
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-	id := chi.URLParam(r, paramID)
-	if delErr := h.service.Delete(r.Context(), wsID, id); delErr != nil {
-		if errors.Is(delErr, sql.ErrNoRows) {
-			writeError(w, http.StatusNotFound, errDealNotFound)
-			return
-		}
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete deal: %v", delErr))
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handleDeleteWithNotFound(w, r, errDealNotFound, sql.ErrNoRows, errDealNotFound, "failed to delete deal: %v", h.service.Delete)
 }

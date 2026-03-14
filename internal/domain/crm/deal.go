@@ -134,11 +134,12 @@ func (s *DealService) Get(ctx context.Context, workspaceID, dealID string) (*Dea
 }
 
 func (s *DealService) List(ctx context.Context, workspaceID string, input ListDealsInput) ([]*Deal, int, error) {
-	if input.Sort == "" {
-		input.Sort = sortCreatedAtDesc
-	}
-	return listFilteredOrPaged(
-		shouldUseFilteredDealList(input),
+	return listInputFilteredOrPaged(
+		&input,
+		func(in *ListDealsInput) string { return in.Sort },
+		func(in *ListDealsInput, sort string) { in.Sort = sort },
+		sortCreatedAtDesc,
+		shouldUseFilteredDealList,
 		func() ([]*Deal, error) { return s.listFiltered(ctx, workspaceID, input) },
 		paginateDeals,
 		input.Offset, input.Limit,

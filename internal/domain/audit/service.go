@@ -149,12 +149,7 @@ func (s *AuditService) ListByWorkspace(
 		return nil, 0, err
 	}
 
-	events := make([]*AuditEvent, len(rows))
-	for i, row := range rows {
-		events[i] = rowToAuditEvent(row)
-	}
-
-	return events, int(count), nil
+	return mapAuditEvents(rows), int(count), nil
 }
 
 // ListByActor retrieves audit events for a specific actor
@@ -163,22 +158,14 @@ func (s *AuditService) ListByActor(
 	actorID string,
 	limit int,
 ) ([]*AuditEvent, error) {
-	params := sqlcgen.ListAuditEventsByActorParams{
-		ActorID: actorID,
-		Limit:   int64(limit),
-	}
-
-	rows, err := s.querier.ListAuditEventsByActor(ctx, params)
-	if err != nil {
-		return nil, err
-	}
-
-	events := make([]*AuditEvent, len(rows))
-	for i, row := range rows {
-		events[i] = rowToAuditEvent(row)
-	}
-
-	return events, nil
+	return listAuditEvents(
+		func() ([]sqlcgen.AuditEvent, error) {
+			return s.querier.ListAuditEventsByActor(ctx, sqlcgen.ListAuditEventsByActorParams{
+				ActorID: actorID,
+				Limit:   int64(limit),
+			})
+		},
+	)
 }
 
 // ListByEntity retrieves audit events for a specific entity
@@ -188,23 +175,15 @@ func (s *AuditService) ListByEntity(
 	entityID string,
 	limit int,
 ) ([]*AuditEvent, error) {
-	params := sqlcgen.ListAuditEventsByEntityParams{
-		EntityType: &entityType,
-		EntityID:   &entityID,
-		Limit:      int64(limit),
-	}
-
-	rows, err := s.querier.ListAuditEventsByEntity(ctx, params)
-	if err != nil {
-		return nil, err
-	}
-
-	events := make([]*AuditEvent, len(rows))
-	for i, row := range rows {
-		events[i] = rowToAuditEvent(row)
-	}
-
-	return events, nil
+	return listAuditEvents(
+		func() ([]sqlcgen.AuditEvent, error) {
+			return s.querier.ListAuditEventsByEntity(ctx, sqlcgen.ListAuditEventsByEntityParams{
+				EntityType: &entityType,
+				EntityID:   &entityID,
+				Limit:      int64(limit),
+			})
+		},
+	)
 }
 
 // ListByOutcome retrieves audit events filtered by outcome
@@ -215,24 +194,16 @@ func (s *AuditService) ListByOutcome(
 	limit int,
 	offset int,
 ) ([]*AuditEvent, error) {
-	params := sqlcgen.ListAuditEventsByOutcomeParams{
-		WorkspaceID: workspaceID,
-		Outcome:     string(outcome),
-		Limit:       int64(limit),
-		Offset:      int64(offset),
-	}
-
-	rows, err := s.querier.ListAuditEventsByOutcome(ctx, params)
-	if err != nil {
-		return nil, err
-	}
-
-	events := make([]*AuditEvent, len(rows))
-	for i, row := range rows {
-		events[i] = rowToAuditEvent(row)
-	}
-
-	return events, nil
+	return listAuditEvents(
+		func() ([]sqlcgen.AuditEvent, error) {
+			return s.querier.ListAuditEventsByOutcome(ctx, sqlcgen.ListAuditEventsByOutcomeParams{
+				WorkspaceID: workspaceID,
+				Outcome:     string(outcome),
+				Limit:       int64(limit),
+				Offset:      int64(offset),
+			})
+		},
+	)
 }
 
 // ListByAction retrieves audit events filtered by action type
@@ -243,52 +214,36 @@ func (s *AuditService) ListByAction(
 	limit int,
 	offset int,
 ) ([]*AuditEvent, error) {
-	params := sqlcgen.ListAuditEventsByActionParams{
-		WorkspaceID: workspaceID,
-		Action:      action,
-		Limit:       int64(limit),
-		Offset:      int64(offset),
-	}
-
-	rows, err := s.querier.ListAuditEventsByAction(ctx, params)
-	if err != nil {
-		return nil, err
-	}
-
-	events := make([]*AuditEvent, len(rows))
-	for i, row := range rows {
-		events[i] = rowToAuditEvent(row)
-	}
-
-	return events, nil
+	return listAuditEvents(
+		func() ([]sqlcgen.AuditEvent, error) {
+			return s.querier.ListAuditEventsByAction(ctx, sqlcgen.ListAuditEventsByActionParams{
+				WorkspaceID: workspaceID,
+				Action:      action,
+				Limit:       int64(limit),
+				Offset:      int64(offset),
+			})
+		},
+	)
 }
 
 // Query filters audit events with optional compound criteria.
 // Task 4.6: FR-070 Audit Advanced
 func (s *AuditService) Query(ctx context.Context, in QueryInput) ([]*AuditEvent, error) {
-	params := sqlcgen.QueryAuditEventsParams{
-		WorkspaceID: in.WorkspaceID,
-		ActorID:     in.ActorID,
-		EntityType:  in.EntityType,
-		Action:      in.Action,
-		Outcome:     in.Outcome,
-		DateFrom:    normalizeDateArg(in.DateFrom),
-		DateTo:      normalizeDateArg(in.DateTo),
-		Off:         int64(in.Offset),
-		Lim:         int64(resolveQueryLimit(in.Limit)),
-	}
-
-	rows, err := s.querier.QueryAuditEvents(ctx, params)
-	if err != nil {
-		return nil, err
-	}
-
-	events := make([]*AuditEvent, len(rows))
-	for i, row := range rows {
-		events[i] = rowToAuditEvent(row)
-	}
-
-	return events, nil
+	return listAuditEvents(
+		func() ([]sqlcgen.AuditEvent, error) {
+			return s.querier.QueryAuditEvents(ctx, sqlcgen.QueryAuditEventsParams{
+				WorkspaceID: in.WorkspaceID,
+				ActorID:     in.ActorID,
+				EntityType:  in.EntityType,
+				Action:      in.Action,
+				Outcome:     in.Outcome,
+				DateFrom:    normalizeDateArg(in.DateFrom),
+				DateTo:      normalizeDateArg(in.DateTo),
+				Off:         int64(in.Offset),
+				Lim:         int64(resolveQueryLimit(in.Limit)),
+			})
+		},
+	)
 }
 
 // Export returns audit events as a streaming CSV reader.
@@ -636,4 +591,20 @@ func rawMessageFromAny(value any) json.RawMessage {
 	default:
 		return nil
 	}
+}
+
+func listAuditEvents(load func() ([]sqlcgen.AuditEvent, error)) ([]*AuditEvent, error) {
+	rows, err := load()
+	if err != nil {
+		return nil, err
+	}
+	return mapAuditEvents(rows), nil
+}
+
+func mapAuditEvents(rows []sqlcgen.AuditEvent) []*AuditEvent {
+	events := make([]*AuditEvent, len(rows))
+	for i, row := range rows {
+		events[i] = rowToAuditEvent(row)
+	}
+	return events
 }

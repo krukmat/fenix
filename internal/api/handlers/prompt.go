@@ -147,26 +147,7 @@ func resolvePromptConfig(config *string) string {
 }
 
 func (h *PromptHandler) Promote(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.promote") {
-		return
-	}
-
-	workspaceID, ok := requirePromptWorkspaceID(r)
-	if !ok {
-		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
-		return
-	}
-	promptVersionID, ok := getPromptVersionIDParam(w, r)
-	if !ok {
-		return
-	}
-
-	err := h.service.PromotePrompt(r.Context(), workspaceID, promptVersionID)
-	if err != nil {
-		writePromoteError(w, err)
-		return
-	}
-	h.respondWithPromptVersion(w, r, workspaceID, promptVersionID)
+	h.handlePromptVersionAction(w, r, "admin.prompts.promote", h.service.PromotePrompt, writePromoteError)
 }
 
 func requirePromptWorkspaceID(r *http.Request) (string, bool) {
@@ -219,7 +200,29 @@ func (h *PromptHandler) respondWithPromptVersion(w http.ResponseWriter, r *http.
 }
 
 func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.rollback") {
+	h.handlePromptVersionAction(w, r, "admin.prompts.rollback", h.service.RollbackPrompt, writeRollbackError)
+}
+
+func writeRollbackError(w http.ResponseWriter, err error) {
+	if errors.Is(err, agent.ErrPromptRollbackInvalid) {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	if isPromptNotFoundError(err) {
+		http.Error(w, "prompt version not found", http.StatusNotFound)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+func (h *PromptHandler) handlePromptVersionAction(
+	w http.ResponseWriter,
+	r *http.Request,
+	action string,
+	run func(context.Context, string, string) error,
+	writeErr func(http.ResponseWriter, error),
+) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, action) {
 		return
 	}
 
@@ -233,24 +236,11 @@ func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.service.RollbackPrompt(r.Context(), workspaceID, promptVersionID)
-	if err != nil {
-		writeRollbackError(w, err)
+	if err := run(r.Context(), workspaceID, promptVersionID); err != nil {
+		writeErr(w, err)
 		return
 	}
 	h.respondWithPromptVersion(w, r, workspaceID, promptVersionID)
-}
-
-func writeRollbackError(w http.ResponseWriter, err error) {
-	if errors.Is(err, agent.ErrPromptRollbackInvalid) {
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
-	if isPromptNotFoundError(err) {
-		http.Error(w, "prompt version not found", http.StatusNotFound)
-		return
-	}
-	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
 func toPromptVersionResponse(pv *agent.PromptVersion) *PromptVersionResponse {

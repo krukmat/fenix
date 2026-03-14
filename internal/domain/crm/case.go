@@ -154,17 +154,27 @@ func (s *CaseService) Get(ctx context.Context, workspaceID, caseID string) (*Cas
 }
 
 func (s *CaseService) List(ctx context.Context, workspaceID string, input ListCasesInput) ([]*CaseTicket, int, error) {
-	if input.Sort == "" {
-		input.Sort = caseSortCreatedAtDesc
+	input.Sort = firstNonEmpty(input.Sort, caseSortCreatedAtDesc)
+	if shouldUseFilteredCaseList(input) {
+		filtered, err := s.listFiltered(ctx, workspaceID, input)
+		if err != nil {
+			return nil, 0, err
+		}
+		return paginateCases(filtered, input.Offset, input.Limit), len(filtered), nil
 	}
-	return listFilteredOrPaged(
-		shouldUseFilteredCaseList(input),
-		func() ([]*CaseTicket, error) { return s.listFiltered(ctx, workspaceID, input) },
-		paginateCases,
-		input.Offset, input.Limit,
-		func() (int64, error) { return s.countCases(ctx, workspaceID) },
-		func() ([]*CaseTicket, error) { return s.pageCases(ctx, workspaceID, input) },
-	)
+	return s.listPage(ctx, workspaceID, input)
+}
+
+func (s *CaseService) listPage(ctx context.Context, workspaceID string, input ListCasesInput) ([]*CaseTicket, int, error) {
+	total, err := s.countCases(ctx, workspaceID)
+	if err != nil {
+		return nil, 0, err
+	}
+	items, err := s.pageCases(ctx, workspaceID, input)
+	if err != nil {
+		return nil, 0, err
+	}
+	return items, int(total), nil
 }
 
 func (s *CaseService) countCases(ctx context.Context, workspaceID string) (int64, error) {
