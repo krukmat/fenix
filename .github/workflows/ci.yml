@@ -180,10 +180,11 @@ jobs:
       - name: Dead code gate (blocking)
         run: |
           go install golang.org/x/tools/cmd/deadcode@latest
+          # Scan all packages with -test so internal test helpers count as reachable.
           # MCP Gateway is deferred (no MCPResourceProvider implementation yet — P1 infra).
-          # All other subsystems are wired; findings outside the allowlist fail CI.
-          deadcode -test ./cmd/fenix/... ./cmd/frtrace/... 2>&1 \
+          deadcode -test ./... 2>&1 \
             | grep -v "mcp_adapter\|MCPGateway\|BuildServer\|MCPResourceProvider\|MCPResourceDescriptor\|MCPResourcePayload" \
+            | grep -v "_test\.go:\|ruleguard" \
             | tee deadcode-report.txt || true
           LINES=$(grep -c "." deadcode-report.txt 2>/dev/null || echo 0)
           echo "Dead code findings (after MCP allowlist): $LINES"
