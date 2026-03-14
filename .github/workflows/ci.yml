@@ -7,7 +7,6 @@ name: CI
 on:
   push:
   pull_request:
-    branches: [main, develop]
   schedule:
     - cron: '0 3 * * *'
 
@@ -259,8 +258,6 @@ jobs:
 
   benchmark-critical:
     name: Critical Endpoint Benchmarks
-    if: github.event_name != 'schedule'
-    needs: test
     runs-on: ubuntu-latest
 
     steps:
