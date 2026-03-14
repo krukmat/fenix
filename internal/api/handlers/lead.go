@@ -206,10 +206,6 @@ func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func (h *LeadHandler) getLeadForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Lead, bool) {
-	return getEntityForUpdate[crm.Lead](w, r, wsID, errLeadIDRequired, errLeadNotFound, errFailedToGetLead, h.leadService.Get)
-}
-
 // DeleteLead handles DELETE /api/v1/leads/{id}
 // Task 1.5: Soft delete a lead (sets deleted_at timestamp)
 func (h *LeadHandler) DeleteLead(w http.ResponseWriter, r *http.Request) {

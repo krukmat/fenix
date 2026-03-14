@@ -90,20 +90,6 @@ func listFilteredOrPaged[T any](
 	return items, int(total), nil
 }
 
-func listSortedFilteredOrPaged[T any](
-	sortValue string,
-	defaultSort string,
-	useFiltered bool,
-	loadFiltered func() ([]*T, error),
-	paginate func([]*T, int, int) []*T,
-	offset, limit int,
-	countDB func() (int64, error),
-	listDB func() ([]*T, error),
-) ([]*T, int, error) {
-	_ = firstNonEmpty(sortValue, defaultSort)
-	return listFilteredOrPaged(useFiltered, loadFiltered, paginate, offset, limit, countDB, listDB)
-}
-
 func listInputFilteredOrPaged[In any, T any](
 	input *In,
 	getSort func(*In) string,

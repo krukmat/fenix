@@ -195,24 +195,14 @@ func (e *dslRuntimeExecutor) executeAgentOperation(ctx context.Context, op *Runt
 func (e *dslRuntimeExecutor) executeDispatchOperation(ctx context.Context, op *RuntimeOperation, _ map[string]any) (RuntimeExecutionResult, error) {
 	target, stored, err := e.prepareSubAgentRun(ctx, op)
 	if err != nil {
-		var callErr error
-		if errors.Is(err, ErrDSLAgentLoopDetected) || errors.Is(err, ErrDSLAgentDepthExceeded) {
-			callErr = err
-		}
-		if callErr != nil {
-			return rejectedDispatchExecutionResult(target, callErr), nil
+		if rejected, ok := dispatchRejectedResult(target, err); ok {
+			return rejected, nil
 		}
 		return RuntimeExecutionResult{}, err
 	}
-	if stored == nil {
-		rawInputs, marshalErr := json.Marshal(op.Params)
-		if marshalErr != nil {
-			return RuntimeExecutionResult{}, marshalErr
-		}
-		stored, err = e.invokeSubAgent(ctx, target, rawInputs)
-		if err != nil {
-			return RuntimeExecutionResult{}, err
-		}
+	stored, err = e.ensureDispatchedRun(ctx, op, target, stored)
+	if err != nil {
+		return RuntimeExecutionResult{}, err
 	}
 	return e.buildDispatchResult(target, stored)
 }
@@ -248,6 +238,24 @@ func (e *dslRuntimeExecutor) runSubAgent(ctx context.Context, op *RuntimeOperati
 		return nil, nil, err
 	}
 	return target, stored, nil
+}
+
+func dispatchRejectedResult(target *Definition, err error) (RuntimeExecutionResult, bool) {
+	if !errors.Is(err, ErrDSLAgentLoopDetected) && !errors.Is(err, ErrDSLAgentDepthExceeded) {
+		return RuntimeExecutionResult{}, false
+	}
+	return rejectedDispatchExecutionResult(target, err), true
+}
+
+func (e *dslRuntimeExecutor) ensureDispatchedRun(ctx context.Context, op *RuntimeOperation, target *Definition, stored *Run) (*Run, error) {
+	if stored != nil {
+		return stored, nil
+	}
+	rawInputs, err := json.Marshal(op.Params)
+	if err != nil {
+		return nil, err
+	}
+	return e.invokeSubAgent(ctx, target, rawInputs)
 }
 
 func rejectedDispatchExecutionResult(target *Definition, dispatchErr error) RuntimeExecutionResult {

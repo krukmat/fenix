@@ -70,6 +70,9 @@ const (
 	// Error messages — case
 	errCaseNotFound = "case not found"
 
+	// Error messages — activity
+	errActivityNotFound = "activity not found"
+
 	// Error messages — agent
 	errAgentRunNotFound = "agent run not found"
 

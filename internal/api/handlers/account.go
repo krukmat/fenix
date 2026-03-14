@@ -210,10 +210,6 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func (h *AccountHandler) getAccountForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Account, bool) {
-	return getEntityForUpdate[crm.Account](w, r, wsID, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, h.accountService.Get)
-}
-
 // DeleteAccount handles DELETE /api/v1/accounts/{id}
 // Task 1.3.7: Soft delete an account (sets deleted_at timestamp)
 // TD-3 fix: returns 404 if account does not exist or is already deleted
