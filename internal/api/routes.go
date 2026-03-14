@@ -363,6 +363,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		skillRunner := agent.NewSkillRunner(db)
 		_ = agents.RegisterSkillRunner(runnerRegistry, skillRunner)
 
+		a2aHandler := agent.NewA2AProtocolHandler()
 		resumeRC := &agent.RunContext{
 			Orchestrator:    agentOrchestrator,
 			ToolRegistry:    toolRegistry,
@@ -371,6 +372,7 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			Scheduler:       schedulerSvc,
 			SignalService:   signalSvc,
 			AuditService:    auditService,
+			ProtocolHandler: a2aHandler,
 			DB:              db,
 		}
 		resumeHandler := agent.NewWorkflowResumeHandler(dslRunner, resumeRC)

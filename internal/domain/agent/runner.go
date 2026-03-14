@@ -27,6 +27,7 @@ type RunContext struct {
 	AuditService    *audit.AuditService
 	EventBus        eventbus.EventBus
 	RunnerRegistry  *RunnerRegistry
+	ProtocolHandler ProtocolHandler // nil = internal dispatch only
 	DB              *sql.DB
 
 	// Call metadata is used by future nested executions and delegation flow.
