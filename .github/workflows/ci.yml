@@ -177,18 +177,21 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-      - name: Dead code report (warn only)
+      - name: Dead code gate (blocking)
         run: |
           go install golang.org/x/tools/cmd/deadcode@latest
-          # Runs from both binaries so all reachable code is included.
-          # Warn-only: report is uploaded as artifact but does not fail CI.
-          # Promote to blocking once baseline is clean and interfaces stabilize.
-          deadcode -test ./cmd/fenix/... ./cmd/frtrace/... 2>&1 | tee deadcode-report.txt || true
+          # MCP Gateway is deferred (no MCPResourceProvider implementation yet — P1 infra).
+          # All other subsystems are wired; findings outside the allowlist fail CI.
+          deadcode -test ./cmd/fenix/... ./cmd/frtrace/... 2>&1 \
+            | grep -v "mcp_adapter\|MCPGateway\|BuildServer\|MCPResourceProvider\|MCPResourceDescriptor\|MCPResourcePayload" \
+            | tee deadcode-report.txt || true
           LINES=$(grep -c "." deadcode-report.txt 2>/dev/null || echo 0)
-          echo "Dead code findings: $LINES"
+          echo "Dead code findings (after MCP allowlist): $LINES"
           if [ "$LINES" -gt 0 ]; then
-            echo "::warning::$LINES dead code finding(s) detected — see deadcode-report artifact"
+            echo "::error::$LINES unexpected dead code finding(s) — see deadcode-report artifact"
+            exit 1
           fi
+          echo "Dead code gate: PASSED"
 
       - name: Upload dead code report
         if: always()
