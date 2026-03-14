@@ -1,7 +1,11 @@
 package crm
 
 import (
+	"context"
+	"fmt"
 	"time"
+
+	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
 )
 
 func nowRFC3339() string {
@@ -27,6 +31,27 @@ func mapRows[T any, R any](rows []R, mapper func(R) *T) []*T {
 		out[i] = mapper(rows[i])
 	}
 	return out
+}
+
+// softDeleteWithSideEffects executes the soft-delete DB call then records the
+// timeline event and audit log. It is the shared skeleton for all CRM Delete methods
+// that follow the pattern: soft-delete → timeline → audit.
+func softDeleteWithSideEffects(
+	ctx context.Context,
+	q sqlcgen.Querier,
+	auditSvc auditLogger,
+	workspaceID, entityType, entityID, ownerID string,
+	deleteAction string,
+	softDelete func() error,
+) error {
+	if err := softDelete(); err != nil {
+		return fmt.Errorf("soft delete %s: %w", entityType, err)
+	}
+	if timelineErr := createTimelineEvent(ctx, q, workspaceID, entityType, entityID, ownerID, timelineActionDeleted); timelineErr != nil {
+		return fmt.Errorf("delete %s timeline: %w", entityType, timelineErr)
+	}
+	logCRMAudit(ctx, auditSvc, workspaceID, ownerID, deleteAction, entityType, entityID)
+	return nil
 }
 
 // listFilteredOrPaged implements the CRM "filtered shortcut vs DB-paginated" list pattern.

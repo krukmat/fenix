@@ -165,55 +165,43 @@ func (p *Parser) parseIndentedStatementBlock(start Token) ([]Statement, error) {
 }
 
 func (p *Parser) parseSetStatement() (Statement, error) {
-	start, err := p.expect(TokenSet, "expected SET")
+	target, value, start, err := p.parseTargetValueStatement(TokenSet, "expected SET", TokenAssign, "expected '=' after SET target", "expected newline after SET statement")
 	if err != nil {
 		return nil, err
 	}
-	target, err := p.expect(TokenIdentifier, "expected target after SET")
-	if err != nil {
-		return nil, err
-	}
-	if _, parseErr := p.expect(TokenAssign, "expected '=' after SET target"); parseErr != nil {
-		return nil, parseErr
-	}
-	value, err := p.parseExpression()
-	if err != nil {
-		return nil, err
-	}
-	if parseErr := p.expectNewline("expected newline after SET statement"); parseErr != nil {
-		return nil, parseErr
-	}
-	return &SetStatement{
-		Target:   &IdentifierExpr{Name: target.Literal, Position: positionFromToken(target)},
-		Value:    value,
-		Position: positionFromToken(start),
-	}, nil
+	return &SetStatement{Target: target, Value: value, Position: positionFromToken(start)}, nil
 }
 
 func (p *Parser) parseNotifyStatement() (Statement, error) {
-	start, err := p.expect(TokenNotify, "expected NOTIFY")
+	target, value, start, err := p.parseTargetValueStatement(TokenNotify, "expected NOTIFY", TokenWith, "expected WITH after NOTIFY target", "expected newline after NOTIFY statement")
 	if err != nil {
 		return nil, err
 	}
-	target, err := p.expect(TokenIdentifier, "expected target after NOTIFY")
+	return &NotifyStatement{Target: target, Value: value, Position: positionFromToken(start)}, nil
+}
+
+// parseTargetValueStatement is the shared skeleton for SET and NOTIFY:
+// expect startToken, expect identifier target, expect midToken, parse value expression, expect newline.
+func (p *Parser) parseTargetValueStatement(startToken TokenType, startErr string, midToken TokenType, midErr, newlineErr string) (*IdentifierExpr, Expression, Token, error) {
+	start, err := p.expect(startToken, startErr)
 	if err != nil {
-		return nil, err
+		return nil, nil, Token{}, err
 	}
-	if _, parseErr := p.expect(TokenWith, "expected WITH after NOTIFY target"); parseErr != nil {
-		return nil, parseErr
+	targetTok, err := p.expect(TokenIdentifier, "expected target after "+startErr[len("expected "):])
+	if err != nil {
+		return nil, nil, Token{}, err
+	}
+	if _, parseErr := p.expect(midToken, midErr); parseErr != nil {
+		return nil, nil, Token{}, parseErr
 	}
 	value, err := p.parseExpression()
 	if err != nil {
-		return nil, err
+		return nil, nil, Token{}, err
 	}
-	if parseErr := p.expectNewline("expected newline after NOTIFY statement"); parseErr != nil {
-		return nil, parseErr
+	if parseErr := p.expectNewline(newlineErr); parseErr != nil {
+		return nil, nil, Token{}, parseErr
 	}
-	return &NotifyStatement{
-		Target:   &IdentifierExpr{Name: target.Literal, Position: positionFromToken(target)},
-		Value:    value,
-		Position: positionFromToken(start),
-	}, nil
+	return &IdentifierExpr{Name: targetTok.Literal, Position: positionFromToken(targetTok)}, value, start, nil
 }
 
 func (p *Parser) parseAgentStatement() (Statement, error) {
@@ -428,20 +416,9 @@ func (p *Parser) parseArrayLiteral() (Expression, error) {
 	if err != nil {
 		return nil, err
 	}
-	elements := make([]Expression, 0)
-	for p.current().Type != TokenRBracket {
-		expr, parseErr := p.parseExpression()
-		if parseErr != nil {
-			return nil, parseErr
-		}
-		elements = append(elements, expr)
-		if p.current().Type == TokenComma {
-			p.advance()
-			continue
-		}
-		if p.current().Type != TokenRBracket {
-			return nil, p.errorAt(p.current(), "expected ',' or ']' in array literal")
-		}
+	elements, err := parseDelimitedList(p, TokenRBracket, "expected ',' or ']' in array literal", p.parseExpression)
+	if err != nil {
+		return nil, err
 	}
 	if _, parseErr := p.expect(TokenRBracket, "expected ']'"); parseErr != nil {
 		return nil, parseErr
@@ -454,25 +431,35 @@ func (p *Parser) parseObjectLiteral() (Expression, error) {
 	if err != nil {
 		return nil, err
 	}
-	fields := make([]ObjectField, 0)
-	for p.current().Type != TokenRBrace {
-		field, parseErr := p.parseObjectField()
-		if parseErr != nil {
-			return nil, parseErr
-		}
-		fields = append(fields, field)
-		if p.current().Type == TokenComma {
-			p.advance()
-			continue
-		}
-		if p.current().Type != TokenRBrace {
-			return nil, p.errorAt(p.current(), "expected ',' or '}' in object literal")
-		}
+	fields, err := parseDelimitedList(p, TokenRBrace, "expected ',' or '}' in object literal", p.parseObjectField)
+	if err != nil {
+		return nil, err
 	}
 	if _, parseErr := p.expect(TokenRBrace, "expected '}'"); parseErr != nil {
 		return nil, parseErr
 	}
 	return &ObjectLiteralExpr{Fields: fields, Position: positionFromToken(start)}, nil
+}
+
+// parseDelimitedList parses a comma-separated list of items until closeToken,
+// calling parseItem for each element. Shared skeleton for array and object literals.
+func parseDelimitedList[T any](p *Parser, closeToken TokenType, errMsg string, parseItem func() (T, error)) ([]T, error) {
+	items := make([]T, 0)
+	for p.current().Type != closeToken {
+		item, err := parseItem()
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+		if p.current().Type == TokenComma {
+			p.advance()
+			continue
+		}
+		if p.current().Type != closeToken {
+			return nil, p.errorAt(p.current(), errMsg)
+		}
+	}
+	return items, nil
 }
 
 func (p *Parser) parseObjectField() (ObjectField, error) {

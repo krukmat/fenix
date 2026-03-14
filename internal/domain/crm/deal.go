@@ -280,22 +280,13 @@ func (s *DealService) Delete(ctx context.Context, workspaceID, dealID string) er
 	if err != nil {
 		return err
 	}
-
 	now := nowRFC3339()
-	err = s.querier.SoftDeleteDeal(ctx, sqlcgen.SoftDeleteDealParams{
-		DeletedAt:   &now,
-		UpdatedAt:   now,
-		ID:          dealID,
-		WorkspaceID: workspaceID,
-	})
-	if err != nil {
-		return fmt.Errorf("soft delete deal: %w", err)
-	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityDeal, dealID, existing.OwnerID, timelineActionDeleted); timelineErr != nil {
-		return fmt.Errorf("delete deal timeline: %w", timelineErr)
-	}
-	logCRMAudit(ctx, s.audit, workspaceID, existing.OwnerID, actionDealDeleted, timelineEntityDeal, dealID)
-	return nil
+	return softDeleteWithSideEffects(ctx, s.querier, s.audit, workspaceID, timelineEntityDeal, dealID, existing.OwnerID, actionDealDeleted,
+		func() error {
+			return s.querier.SoftDeleteDeal(ctx, sqlcgen.SoftDeleteDealParams{
+				DeletedAt: &now, UpdatedAt: now, ID: dealID, WorkspaceID: workspaceID,
+			})
+		})
 }
 
 func rowToDeal(row sqlcgen.Deal) *Deal {
