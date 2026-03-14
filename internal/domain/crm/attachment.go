@@ -87,20 +87,22 @@ func (s *AttachmentService) Get(ctx context.Context, workspaceID, attachmentID s
 }
 
 func (s *AttachmentService) List(ctx context.Context, workspaceID string, input ListAttachmentsInput) ([]*Attachment, int, error) {
-	total, err := s.querier.CountAttachmentsByWorkspace(ctx, workspaceID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count attachments: %w", err)
-	}
-	rows, err := s.querier.ListAttachmentsByWorkspace(ctx, sqlcgen.ListAttachmentsByWorkspaceParams{
-		WorkspaceID: workspaceID,
-		Limit:       int64(input.Limit),
-		Offset:      int64(input.Offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("list attachments: %w", err)
-	}
-	out := mapRows(rows, rowToAttachment)
-	return out, int(total), nil
+	return listWorkspacePage(
+		ctx,
+		workspaceID,
+		"attachments",
+		input.Limit,
+		input.Offset,
+		s.querier.CountAttachmentsByWorkspace,
+		func(ctx context.Context, workspaceID string, limit, offset int64) ([]sqlcgen.Attachment, error) {
+			return s.querier.ListAttachmentsByWorkspace(ctx, sqlcgen.ListAttachmentsByWorkspaceParams{
+				WorkspaceID: workspaceID,
+				Limit:       limit,
+				Offset:      offset,
+			})
+		},
+		rowToAttachment,
+	)
 }
 
 func (s *AttachmentService) Delete(ctx context.Context, workspaceID, attachmentID string) error {

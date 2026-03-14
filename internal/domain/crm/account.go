@@ -137,25 +137,22 @@ func (s *AccountService) Get(ctx context.Context, workspaceID, accountID string)
 
 // List retrieves active accounts in a workspace with pagination.
 func (s *AccountService) List(ctx context.Context, workspaceID string, input ListAccountsInput) ([]*Account, int, error) {
-	// Get total count
-	total, err := s.querier.CountAccountsByWorkspace(ctx, workspaceID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count accounts: %w", err)
-	}
-
-	// Fetch paginated results
-	rows, err := s.querier.ListAccountsByWorkspace(ctx, sqlcgen.ListAccountsByWorkspaceParams{
-		WorkspaceID: workspaceID,
-		Limit:       int64(input.Limit),
-		Offset:      int64(input.Offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("list accounts: %w", err)
-	}
-
-	accounts := mapRows(rows, rowToAccount)
-
-	return accounts, int(total), nil
+	return listWorkspacePage(
+		ctx,
+		workspaceID,
+		"accounts",
+		input.Limit,
+		input.Offset,
+		s.querier.CountAccountsByWorkspace,
+		func(ctx context.Context, workspaceID string, limit, offset int64) ([]sqlcgen.Account, error) {
+			return s.querier.ListAccountsByWorkspace(ctx, sqlcgen.ListAccountsByWorkspaceParams{
+				WorkspaceID: workspaceID,
+				Limit:       limit,
+				Offset:      offset,
+			})
+		},
+		rowToAccount,
+	)
 }
 
 // ListByOwner retrieves all accounts owned by a user.

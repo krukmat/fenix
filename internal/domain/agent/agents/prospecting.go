@@ -474,40 +474,18 @@ func (a *ProspectingAgent) generateDraft(
 }
 
 func (a *ProspectingAgent) checkDailyLimits(ctx context.Context, workspaceID string) error {
-	if a.db == nil {
-		return nil
-	}
 	const maxDailyLeads = 50
 	const maxDailyCost = 10.0
-
-	var runsToday int
-	if err := a.db.QueryRowContext(ctx, `
-		SELECT COUNT(*)
-		FROM agent_run
-		WHERE workspace_id = ?
-		  AND agent_definition_id = 'prospecting-agent'
-		  AND date(created_at) = date('now')
-	`, workspaceID).Scan(&runsToday); err != nil {
-		return err
-	}
-	if runsToday >= maxDailyLeads {
-		return ErrProspectingDailyLeadLimitExceeded
-	}
-
-	var dailyCost float64
-	if err := a.db.QueryRowContext(ctx, `
-		SELECT COALESCE(SUM(total_cost), 0)
-		FROM agent_run
-		WHERE workspace_id = ?
-		  AND agent_definition_id = 'prospecting-agent'
-		  AND date(created_at) = date('now')
-	`, workspaceID).Scan(&dailyCost); err != nil {
-		return err
-	}
-	if dailyCost >= maxDailyCost {
-		return ErrProspectingDailyCostLimitExceeded
-	}
-	return nil
+	return checkDailyRunAndCostLimits(
+		ctx,
+		a.db,
+		workspaceID,
+		"prospecting-agent",
+		maxDailyLeads,
+		maxDailyCost,
+		ErrProspectingDailyLeadLimitExceeded,
+		ErrProspectingDailyCostLimitExceeded,
+	)
 }
 
 func mustJSON(v any) json.RawMessage {

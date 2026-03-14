@@ -317,40 +317,18 @@ func confidenceFromScore(score float64) string {
 }
 
 func (a *InsightsAgent) checkDailyLimits(ctx context.Context, workspaceID string) error {
-	if a.db == nil {
-		return nil
-	}
 	const maxDailyQueries = 100
 	const maxDailyCost = 20.0
-
-	var runsToday int
-	if err := a.db.QueryRowContext(ctx, `
-		SELECT COUNT(*)
-		FROM agent_run
-		WHERE workspace_id = ?
-		  AND agent_definition_id = 'insights-agent'
-		  AND date(created_at) = date('now')
-	`, workspaceID).Scan(&runsToday); err != nil {
-		return err
-	}
-	if runsToday >= maxDailyQueries {
-		return ErrInsightsDailyLimitExceeded
-	}
-
-	var dailyCost float64
-	if err := a.db.QueryRowContext(ctx, `
-		SELECT COALESCE(SUM(total_cost), 0)
-		FROM agent_run
-		WHERE workspace_id = ?
-		  AND agent_definition_id = 'insights-agent'
-		  AND date(created_at) = date('now')
-	`, workspaceID).Scan(&dailyCost); err != nil {
-		return err
-	}
-	if dailyCost >= maxDailyCost {
-		return ErrInsightsDailyLimitExceeded
-	}
-	return nil
+	return checkDailyRunAndCostLimits(
+		ctx,
+		a.db,
+		workspaceID,
+		"insights-agent",
+		maxDailyQueries,
+		maxDailyCost,
+		ErrInsightsDailyLimitExceeded,
+		ErrInsightsDailyLimitExceeded,
+	)
 }
 
 var (

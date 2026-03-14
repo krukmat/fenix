@@ -90,20 +90,22 @@ func (s *NoteService) Get(ctx context.Context, workspaceID, noteID string) (*Not
 }
 
 func (s *NoteService) List(ctx context.Context, workspaceID string, input ListNotesInput) ([]*Note, int, error) {
-	total, err := s.querier.CountNotesByWorkspace(ctx, workspaceID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count notes: %w", err)
-	}
-	rows, err := s.querier.ListNotesByWorkspace(ctx, sqlcgen.ListNotesByWorkspaceParams{
-		WorkspaceID: workspaceID,
-		Limit:       int64(input.Limit),
-		Offset:      int64(input.Offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("list notes: %w", err)
-	}
-	out := mapRows(rows, rowToNote)
-	return out, int(total), nil
+	return listWorkspacePage(
+		ctx,
+		workspaceID,
+		"notes",
+		input.Limit,
+		input.Offset,
+		s.querier.CountNotesByWorkspace,
+		func(ctx context.Context, workspaceID string, limit, offset int64) ([]sqlcgen.Note, error) {
+			return s.querier.ListNotesByWorkspace(ctx, sqlcgen.ListNotesByWorkspaceParams{
+				WorkspaceID: workspaceID,
+				Limit:       limit,
+				Offset:      offset,
+			})
+		},
+		rowToNote,
+	)
 }
 
 func (s *NoteService) Update(ctx context.Context, workspaceID, noteID string, input UpdateNoteInput) (*Note, error) {

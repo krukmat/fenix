@@ -103,20 +103,22 @@ func (s *PipelineService) Get(ctx context.Context, workspaceID, pipelineID strin
 }
 
 func (s *PipelineService) List(ctx context.Context, workspaceID string, input ListPipelinesInput) ([]*Pipeline, int, error) {
-	total, err := s.querier.CountPipelinesByWorkspace(ctx, workspaceID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count pipelines: %w", err)
-	}
-	rows, err := s.querier.ListPipelinesByWorkspace(ctx, sqlcgen.ListPipelinesByWorkspaceParams{
-		WorkspaceID: workspaceID,
-		Limit:       int64(input.Limit),
-		Offset:      int64(input.Offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("list pipelines: %w", err)
-	}
-	out := mapRows(rows, rowToPipeline)
-	return out, int(total), nil
+	return listWorkspacePage(
+		ctx,
+		workspaceID,
+		"pipelines",
+		input.Limit,
+		input.Offset,
+		s.querier.CountPipelinesByWorkspace,
+		func(ctx context.Context, workspaceID string, limit, offset int64) ([]sqlcgen.Pipeline, error) {
+			return s.querier.ListPipelinesByWorkspace(ctx, sqlcgen.ListPipelinesByWorkspaceParams{
+				WorkspaceID: workspaceID,
+				Limit:       limit,
+				Offset:      offset,
+			})
+		},
+		rowToPipeline,
+	)
 }
 
 func (s *PipelineService) Update(ctx context.Context, workspaceID, pipelineID string, input UpdatePipelineInput) (*Pipeline, error) {

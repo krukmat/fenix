@@ -82,3 +82,28 @@ func listFilteredOrPaged[T any](
 	}
 	return items, int(total), nil
 }
+
+// listWorkspacePage centralizes the common CRM "count + paginated list + map"
+// flow used by simple workspace-scoped entities.
+func listWorkspacePage[T any, R any](
+	ctx context.Context,
+	workspaceID string,
+	entityName string,
+	limit int,
+	offset int,
+	count func(context.Context, string) (int64, error),
+	list func(context.Context, string, int64, int64) ([]R, error),
+	mapper func(R) *T,
+) ([]*T, int, error) {
+	total, err := count(ctx, workspaceID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count %s: %w", entityName, err)
+	}
+
+	rows, err := list(ctx, workspaceID, int64(limit), int64(offset))
+	if err != nil {
+		return nil, 0, fmt.Errorf("list %s: %w", entityName, err)
+	}
+
+	return mapRows(rows, mapper), int(total), nil
+}

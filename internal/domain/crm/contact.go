@@ -126,21 +126,22 @@ func (s *ContactService) Get(ctx context.Context, workspaceID, contactID string)
 
 // List retrieves active contacts in a workspace with pagination.
 func (s *ContactService) List(ctx context.Context, workspaceID string, input ListContactsInput) ([]*Contact, int, error) {
-	total, err := s.querier.CountContactsByWorkspace(ctx, workspaceID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count contacts: %w", err)
-	}
-
-	rows, err := s.querier.ListContactsByWorkspace(ctx, sqlcgen.ListContactsByWorkspaceParams{
-		WorkspaceID: workspaceID,
-		Limit:       int64(input.Limit),
-		Offset:      int64(input.Offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("list contacts: %w", err)
-	}
-
-	return mapRows(rows, rowToContact), int(total), nil
+	return listWorkspacePage(
+		ctx,
+		workspaceID,
+		"contacts",
+		input.Limit,
+		input.Offset,
+		s.querier.CountContactsByWorkspace,
+		func(ctx context.Context, workspaceID string, limit, offset int64) ([]sqlcgen.Contact, error) {
+			return s.querier.ListContactsByWorkspace(ctx, sqlcgen.ListContactsByWorkspaceParams{
+				WorkspaceID: workspaceID,
+				Limit:       limit,
+				Offset:      offset,
+			})
+		},
+		rowToContact,
+	)
 }
 
 // ListByAccount retrieves active contacts for an account in a workspace.
