@@ -2,7 +2,7 @@
 # Task 1.1: Project Setup
 # Following implementation plan exactly
 
-.PHONY: all test build run lint fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check _ci-traceability contract-test contract-test-strict trace-report install-hooks
+.PHONY: all test build run lint fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd bench-critical bench-all check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check _ci-traceability contract-test contract-test-strict trace-report install-hooks
 
 # Variables
 BINARY_NAME=fenix
@@ -164,6 +164,16 @@ coverage-tdd:
 	}; \
 	echo "PASSED: TDD coverage gate met"
 
+BENCH_BENCHTIME?=5x
+
+bench-critical:
+	@echo "Running critical endpoint benchmarks (benchtime: $(BENCH_BENCHTIME))..."
+	go test -run '^$$' -bench BenchmarkHandler_Critical -benchmem -benchtime=$(BENCH_BENCHTIME) -count=1 ./internal/api/handlers/...
+
+bench-all:
+	@echo "Running all endpoint benchmarks (benchtime: $(BENCH_BENCHTIME))..."
+	go test -run '^$$' -bench BenchmarkHandler_ -benchmem -benchtime=$(BENCH_BENCHTIME) -count=1 ./internal/api/handlers/...
+
 # Format code
 fmt:
 	@echo "Formatting code..."
@@ -307,6 +317,8 @@ help:
 	@echo "  make race-stability    - Run race checks repeatedly on handler tests"
 	@echo "  make coverage-gate     - Enforce coverage threshold (85%)"
 	@echo "  make coverage-tdd      - Enforce TDD package coverage threshold (85%)"
+	@echo "  make bench-critical    - Run critical endpoint handler benchmarks"
+	@echo "  make bench-all         - Run all endpoint handler benchmarks"
 	@echo "  make doorstop-check    - Validate Doorstop requirement integrity"
 	@echo "  make trace-check       - Check FR-to-test traceability (Go scanner)"
 	@echo "  make contract-test     - Run API contract tests (Schemathesis)"

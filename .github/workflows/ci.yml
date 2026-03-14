@@ -8,10 +8,13 @@ on:
   push:
   pull_request:
     branches: [main, develop]
+  schedule:
+    - cron: '0 3 * * *'
 
 jobs:
   mobile-quality:
     name: Mobile Quality Gates
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
 
     steps:
@@ -54,6 +57,7 @@ jobs:
   # This job must pass before lint and tests can run.
   complexity:
     name: Complexity Gate (max 7)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
 
     steps:
@@ -96,6 +100,7 @@ jobs:
 
   traceability:
     name: Traceability Gate
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
 
     steps:
@@ -128,6 +133,7 @@ jobs:
   # Job 2: Lint, Test, Build — only runs if complexity gate passes
   test:
     name: Lint and Test
+    if: github.event_name != 'schedule'
     needs: [mobile-quality, complexity, traceability]
     runs-on: ubuntu-latest
 
@@ -251,9 +257,63 @@ jobs:
           name: quality-snapshot-${{ github.sha }}
           path: quality-snapshot.json
 
+  benchmark-critical:
+    name: Critical Endpoint Benchmarks
+    if: github.event_name != 'schedule'
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.8'
+          cache: true
+
+      - name: Run critical endpoint benchmarks
+        run: |
+          set -euo pipefail
+          make bench-critical BENCH_BENCHTIME=5x | tee benchmark-critical.txt
+
+      - name: Upload critical benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-critical-${{ github.sha }}
+          path: benchmark-critical.txt
+
+  benchmark-all-scheduled:
+    name: Scheduled Endpoint Benchmarks
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.8'
+          cache: true
+
+      - name: Run scheduled endpoint benchmarks
+        run: |
+          set -euo pipefail
+          make bench-all BENCH_BENCHTIME=5x | tee benchmark-all.txt
+
+      - name: Upload scheduled benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-all-${{ github.run_id }}
+          path: benchmark-all.txt
+
   contract:
     name: API Contract Tests
-    needs: test
+    if: github.event_name != 'schedule'
+    needs: [test, benchmark-critical]
     runs-on: ubuntu-latest
 
     steps:

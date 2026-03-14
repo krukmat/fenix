@@ -19,14 +19,14 @@ import (
 )
 
 type mockWorkflowService struct {
-	items     map[string]*workflowdomain.Workflow
-	createErr error
-	getErr    error
-	listErr   error
-	updateErr error
+	items          map[string]*workflowdomain.Workflow
+	createErr      error
+	getErr         error
+	listErr        error
+	updateErr      error
 	markTestingErr error
-	markActiveErr error
-	deleteErr error
+	markActiveErr  error
+	deleteErr      error
 }
 
 func newMockWorkflowService() *mockWorkflowService {
@@ -729,7 +729,7 @@ func (s workflowStubToolExecutor) Execute(_ context.Context, _ json.RawMessage) 
 	return s.result, nil
 }
 
-func setupWorkflowToolRegistry(t *testing.T, db *sql.DB, wsID string) *tool.ToolRegistry {
+func setupWorkflowToolRegistry(t testing.TB, db *sql.DB, wsID string) *tool.ToolRegistry {
 	t.Helper()
 
 	registry := tool.NewToolRegistry(db)
@@ -746,7 +746,7 @@ func setupWorkflowToolRegistry(t *testing.T, db *sql.DB, wsID string) *tool.Tool
 	return registry
 }
 
-func insertDSLWorkflowAgent(t *testing.T, db *sql.DB, wsID, agentID string) {
+func insertDSLWorkflowAgent(t testing.TB, db *sql.DB, wsID, agentID string) {
 	t.Helper()
 	if _, err := db.Exec(`
 		INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
@@ -756,7 +756,7 @@ func insertDSLWorkflowAgent(t *testing.T, db *sql.DB, wsID, agentID string) {
 	}
 }
 
-func insertExecutableWorkflow(t *testing.T, db *sql.DB, wsID, workflowID, agentID string) {
+func insertExecutableWorkflow(t testing.TB, db *sql.DB, wsID, workflowID, agentID string) {
 	t.Helper()
 	if _, err := db.Exec(`
 		INSERT INTO workflow (id, workspace_id, agent_definition_id, name, dsl_source, version, status, created_at, updated_at)

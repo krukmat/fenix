@@ -237,7 +237,7 @@ func setWorkspaceSettings(t *testing.T, db *sql.DB, workspaceID string, settings
 }
 
 // insertTestAgentDef inserts an agent_definition for handler tests.
-func insertTestAgentDef(t *testing.T, db *sql.DB, id, wsID string) {
+func insertTestAgentDef(t testing.TB, db *sql.DB, id, wsID string) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(),
 		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)

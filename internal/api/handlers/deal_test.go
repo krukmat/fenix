@@ -446,7 +446,7 @@ func TestBuildUpdateDealInput_UsesExistingValues(t *testing.T) {
 	}
 }
 
-func createAccountForTask15(t *testing.T, db *sql.DB, wsID, ownerID, name string) string {
+func createAccountForTask15(t testing.TB, db *sql.DB, wsID, ownerID, name string) string {
 	t.Helper()
 	id := "acc-" + randID()
 	_, err := db.Exec(`
@@ -459,7 +459,7 @@ func createAccountForTask15(t *testing.T, db *sql.DB, wsID, ownerID, name string
 	return id
 }
 
-func createPipelineAndStageForTask15(t *testing.T, db *sql.DB, wsID string) (string, string) {
+func createPipelineAndStageForTask15(t testing.TB, db *sql.DB, wsID string) (string, string) {
 	t.Helper()
 	pipelineID := "pl-" + randID()
 	stageID := "st-" + randID()
