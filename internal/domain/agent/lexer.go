@@ -20,50 +20,49 @@ func (l *Lexer) Lex() ([]Token, error) {
 	indentStack := []int{0}
 
 	for lineIndex, rawLine := range lines {
-		lineNo := lineIndex + 1
-		indentWidth, content := splitIndentation(rawLine)
-		trimmed := strings.TrimSpace(content)
-
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-
-		nextTokens, err := emitIndentationTokens(lineNo, indentWidth, &indentStack)
-		if err != nil {
-			return nil, err
-		}
-		tokens = append(tokens, nextTokens...)
-
-		lineTokens, err := lexLine(content, lineNo, indentWidth+1)
+		lineTokens, err := processLexerLine(lineIndex, rawLine, &indentStack)
 		if err != nil {
 			return nil, err
 		}
 		tokens = append(tokens, lineTokens...)
-		tokens = append(tokens, Token{
-			Type:    TokenNewline,
-			Literal: "\n",
-			Line:    lineNo,
-			Column:  len(rawLine) + 1,
-		})
 	}
 
-	for len(indentStack) > 1 {
-		indentStack = indentStack[:len(indentStack)-1]
-		tokens = append(tokens, Token{
-			Type:    TokenDedent,
-			Literal: "",
-			Line:    len(lines),
-			Column:  1,
-		})
-	}
-
-	tokens = append(tokens, Token{
-		Type:    TokenEOF,
-		Literal: "",
-		Line:    maxLexerLine(len(lines)),
-		Column:  1,
-	})
+	tokens = append(tokens, emitFinalDedents(&indentStack, len(lines))...)
+	tokens = append(tokens, Token{Type: TokenEOF, Literal: "", Line: maxLexerLine(len(lines)), Column: 1})
 	return tokens, nil
+}
+
+func processLexerLine(lineIndex int, rawLine string, indentStack *[]int) ([]Token, error) {
+	lineNo := lineIndex + 1
+	indentWidth, content := splitIndentation(rawLine)
+	trimmed := strings.TrimSpace(content)
+
+	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		return nil, nil
+	}
+
+	indentTokens, err := emitIndentationTokens(lineNo, indentWidth, indentStack)
+	if err != nil {
+		return nil, err
+	}
+
+	lineTokens, err := lexLine(content, lineNo, indentWidth+1)
+	if err != nil {
+		return nil, err
+	}
+
+	indentTokens = append(indentTokens, lineTokens...)
+	indentTokens = append(indentTokens, Token{Type: TokenNewline, Literal: "\n", Line: lineNo, Column: len(rawLine) + 1})
+	return indentTokens, nil
+}
+
+func emitFinalDedents(indentStack *[]int, totalLines int) []Token {
+	var tokens []Token
+	for len(*indentStack) > 1 {
+		*indentStack = (*indentStack)[:len(*indentStack)-1]
+		tokens = append(tokens, Token{Type: TokenDedent, Literal: "", Line: totalLines, Column: 1})
+	}
+	return tokens
 }
 
 func normalizeLexerLines(source string) []string {

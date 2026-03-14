@@ -153,28 +153,17 @@ func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 	var leads []*crm.Lead
 	var total int
 
+	var listErr error
 	if ownerID != "" {
-		// List by owner
-		var listErr error
 		leads, listErr = h.leadService.ListByOwner(ctx, wsID, ownerID)
-		if listErr != nil {
-			writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list leads: %v", listErr))
-			return
-		}
 		total = len(leads)
-		// Apply pagination manually for list by owner
 		leads = applyPagination(leads, page.Limit, page.Offset)
 	} else {
-		// List all with pagination
-		var listErr error
-		leads, total, listErr = h.leadService.List(ctx, wsID, crm.ListLeadsInput{
-			Limit:  page.Limit,
-			Offset: page.Offset,
-		})
-		if listErr != nil {
-			writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list leads: %v", listErr))
-			return
-		}
+		leads, total, listErr = h.leadService.List(ctx, wsID, crm.ListLeadsInput{Limit: page.Limit, Offset: page.Offset})
+	}
+	if listErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list leads: %v", listErr))
+		return
 	}
 
 	// Build response

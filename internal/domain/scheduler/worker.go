@@ -49,12 +49,13 @@ func (w *Worker) Start(ctx context.Context) error {
 		return err
 	}
 	w.normalizeConfig()
+	return w.runUntilCanceled(ctx)
+}
 
+func (w *Worker) runUntilCanceled(ctx context.Context) error {
 	for {
-		if cycleErr := w.RunCycle(ctx); cycleErr != nil {
-			if errors.Is(cycleErr, context.Canceled) {
-				return cycleErr
-			}
+		if cycleErr := w.RunCycle(ctx); errors.Is(cycleErr, context.Canceled) {
+			return cycleErr
 		}
 		if err := w.sleepFn(ctx, w.pollInterval); err != nil {
 			return err

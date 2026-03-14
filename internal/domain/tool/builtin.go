@@ -96,26 +96,31 @@ func builtinDefinitions() []builtinDefinition {
 
 func (r *ToolRegistry) EnsureBuiltInToolDefinitions(ctx context.Context, workspaceID string) error {
 	for _, def := range builtinDefinitions() {
-		if _, err := r.getToolDefinitionByName(ctx, workspaceID, def.Name); err == nil {
-			continue
-		} else if !errors.Is(err, ErrToolDefinitionNotFound) {
+		if err := r.ensureBuiltInToolDefinition(ctx, workspaceID, def); err != nil {
 			return err
 		}
+	}
+	return nil
+}
 
-		description := def.Description
-		if _, err := r.CreateToolDefinition(ctx, CreateToolDefinitionInput{
-			WorkspaceID:         workspaceID,
-			Name:                def.Name,
-			Description:         &description,
-			InputSchema:         def.InputSchema,
-			RequiredPermissions: def.RequiredPermissions,
-		}); err != nil {
-			if !isUniqueConstraintError(err) {
-				return err
-			}
-		}
+func (r *ToolRegistry) ensureBuiltInToolDefinition(ctx context.Context, workspaceID string, def builtinDefinition) error {
+	if _, err := r.getToolDefinitionByName(ctx, workspaceID, def.Name); err == nil {
+		return nil
+	} else if !errors.Is(err, ErrToolDefinitionNotFound) {
+		return err
 	}
 
+	description := def.Description
+	_, err := r.CreateToolDefinition(ctx, CreateToolDefinitionInput{
+		WorkspaceID:         workspaceID,
+		Name:                def.Name,
+		Description:         &description,
+		InputSchema:         def.InputSchema,
+		RequiredPermissions: def.RequiredPermissions,
+	})
+	if err != nil && !isUniqueConstraintError(err) {
+		return err
+	}
 	return nil
 }
 

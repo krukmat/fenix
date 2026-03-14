@@ -32,18 +32,7 @@ type AuditLogger interface {
 func AuditMiddleware(logger AuditLogger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if logger == nil {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			workspaceID, ok := getStringContext(r.Context(), ctxkeys.WorkspaceID)
-			if !ok {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			userID, ok := getStringContext(r.Context(), ctxkeys.UserID)
+			workspaceID, userID, ok := extractAuditContext(logger, r)
 			if !ok {
 				next.ServeHTTP(w, r)
 				return
@@ -53,25 +42,41 @@ func AuditMiddleware(logger AuditLogger) func(http.Handler) http.Handler {
 			start := time.Now()
 			next.ServeHTTP(recorder, r)
 
-			action, entityType, entityID := actionFromRequest(r.Method, r.URL.Path)
-			_ = logger.LogWithDetails(
-				r.Context(),
-				workspaceID,
-				userID,
-				domainaudit.ActorTypeUser,
-				action,
-				entityType,
-				entityID,
-				&domainaudit.EventDetails{Metadata: map[string]any{
-					"method":      r.Method,
-					"path":        r.URL.Path,
-					"status_code": recorder.statusCode,
-					"duration_ms": time.Since(start).Milliseconds(),
-				}},
-				outcomeFromStatus(recorder.statusCode),
-			)
+			logAuditEvent(logger, r, workspaceID, userID, recorder, start)
 		})
 	}
+}
+
+func extractAuditContext(logger AuditLogger, r *http.Request) (workspaceID, userID string, ok bool) {
+	if logger == nil {
+		return "", "", false
+	}
+	workspaceID, ok = getStringContext(r.Context(), ctxkeys.WorkspaceID)
+	if !ok {
+		return "", "", false
+	}
+	userID, ok = getStringContext(r.Context(), ctxkeys.UserID)
+	return workspaceID, userID, ok
+}
+
+func logAuditEvent(logger AuditLogger, r *http.Request, workspaceID, userID string, recorder *statusRecorder, start time.Time) {
+	action, entityType, entityID := actionFromRequest(r.Method, r.URL.Path)
+	_ = logger.LogWithDetails(
+		r.Context(),
+		workspaceID,
+		userID,
+		domainaudit.ActorTypeUser,
+		action,
+		entityType,
+		entityID,
+		&domainaudit.EventDetails{Metadata: map[string]any{
+			"method":      r.Method,
+			"path":        r.URL.Path,
+			"status_code": recorder.statusCode,
+			"duration_ms": time.Since(start).Milliseconds(),
+		}},
+		outcomeFromStatus(recorder.statusCode),
+	)
 }
 
 type statusRecorder struct {

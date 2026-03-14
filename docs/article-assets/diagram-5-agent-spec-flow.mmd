@@ -1,0 +1,11 @@
+flowchart LR
+    AUTHOR[Authoring]
+    VERIFY[Verify and Activate]
+    EXEC[Runtime]
+    CONTROL[Policy Approval Audit]
+    INTEROP[A2A and MCP]
+
+    AUTHOR --> VERIFY
+    VERIFY --> EXEC
+    EXEC --> CONTROL
+    EXEC --> INTEROP

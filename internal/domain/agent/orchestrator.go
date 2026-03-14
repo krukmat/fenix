@@ -145,24 +145,32 @@ func NewOrchestratorWithRegistry(db *sql.DB, registry *RunnerRegistry) *Orchestr
 
 // TriggerAgent creates a new agent run and returns it
 func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (*Run, error) {
-	// Validate trigger type
 	if !isValidTriggerType(in.TriggerType) {
 		return nil, ErrInvalidTriggerType
 	}
 
-	// Get agent definition
 	agent, err := o.getAgentDefinition(ctx, in.AgentID, in.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
-
-	// Check agent is active
 	if agent.Status != agentStatusActive {
 		return nil, ErrAgentNotActive
 	}
 
-	// Create agent run
-	run := &Run{
+	run := newAgentRun(in)
+	err = o.persistRun(ctx, run)
+	if err != nil {
+		return nil, err
+	}
+	err = o.createInitialRunStep(ctx, run)
+	if err != nil {
+		return nil, err
+	}
+	return run, nil
+}
+
+func newAgentRun(in TriggerAgentInput) *Run {
+	return &Run{
 		ID:                   uuid.NewV7().String(),
 		WorkspaceID:          in.WorkspaceID,
 		DefinitionID:         in.AgentID,
@@ -180,8 +188,10 @@ func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (
 		StartedAt:            time.Now().UTC(),
 		CreatedAt:            time.Now().UTC(),
 	}
+}
 
-	_, err = o.db.ExecContext(ctx, `
+func (o *Orchestrator) persistRun(ctx context.Context, run *Run) error {
+	_, err := o.db.ExecContext(ctx, `
 		INSERT INTO agent_run (
 			id, workspace_id, agent_definition_id, triggered_by_user_id,
 			trigger_type, trigger_context, status, inputs,
@@ -191,37 +201,14 @@ func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (
 			started_at, completed_at, created_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
 	`,
-		run.ID,
-		run.WorkspaceID,
-		run.DefinitionID,
-		run.TriggeredByUserID,
-		run.TriggerType,
-		run.TriggerContext,
-		run.Status,
-		run.Inputs,
-		run.RetrievalQueries,
-		run.RetrievedEvidenceIDs,
-		run.ReasoningTrace,
-		run.ToolCalls,
-		run.Output,
-		run.AbstentionReason,
-		run.TotalTokens,
-		run.TotalCost,
-		run.LatencyMs,
-		run.TraceID,
-		run.StartedAt,
-		run.CreatedAt,
+		run.ID, run.WorkspaceID, run.DefinitionID, run.TriggeredByUserID,
+		run.TriggerType, run.TriggerContext, run.Status, run.Inputs,
+		run.RetrievalQueries, run.RetrievedEvidenceIDs, run.ReasoningTrace,
+		run.ToolCalls, run.Output, run.AbstentionReason,
+		run.TotalTokens, run.TotalCost, run.LatencyMs, run.TraceID,
+		run.StartedAt, run.CreatedAt,
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	err = o.createInitialRunStep(ctx, run)
-	if err != nil {
-		return nil, err
-	}
-
-	return run, nil
+	return err
 }
 
 // ExecuteAgent resolves the concrete runner for an agent definition and
