@@ -34,7 +34,7 @@ export function useSignals(filters?: { status?: SignalStatus; entity_type?: stri
     queryFn: ({ pageParam }: { pageParam: number }) =>
       signalApi.getSignals(workspaceId!, filters, { page: pageParam, limit: SIGNAL_PAGE_SIZE }),
     initialPageParam: 1,
-    getNextPageParam: (lastPage, allPages) => {
+    getNextPageParam: (_lastPage, allPages) => {
       const loaded = allPages.flat().length;
       return loaded < SIGNAL_PAGE_SIZE * allPages.length ? undefined : allPages.length + 1;
     },
@@ -82,7 +82,7 @@ export function useWorkflows(filters?: { status?: WorkflowStatus }) {
     queryFn: ({ pageParam }: { pageParam: number }) =>
       workflowApi.getWorkflows(workspaceId!, filters, { page: pageParam, limit: WORKFLOW_PAGE_SIZE }),
     initialPageParam: 1,
-    getNextPageParam: (lastPage, allPages) => {
+    getNextPageParam: (_lastPage, allPages) => {
       const loaded = allPages.flat().length;
       return loaded < WORKFLOW_PAGE_SIZE * allPages.length ? undefined : allPages.length + 1;
     },

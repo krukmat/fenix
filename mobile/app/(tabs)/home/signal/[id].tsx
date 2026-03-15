@@ -6,20 +6,18 @@ import { Text, Button, useTheme } from 'react-native-paper';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SignalDetailView } from '../../../../src/components/signals/SignalDetailView';
 import { useSignalsByEntity, useDismissSignal } from '../../../../src/hooks/useAgentSpec';
-import { useAuthStore } from '../../../../src/stores/authStore';
 
 export default function SignalDetailScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string | string[] }>();
+  const params = useLocalSearchParams<{ id: string | string[]; entity_type?: string; entity_id?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
-  const workspaceId = useAuthStore((s) => s.workspaceId) ?? '';
 
   // Fetch signals for this signal id — we pass id as entityId for the current signal's entity
   // In practice the screen receives entity context via query params or navigation state.
   // We use the raw signal id to load its entity signals for contextual display.
-  const entityType = (params.entity_type as string | undefined) ?? '';
-  const entityId = (params.entity_id as string | undefined) ?? id;
+  const entityType = params.entity_type ?? '';
+  const entityId = params.entity_id ?? id;
 
   const { data: signals, isLoading, error } = useSignalsByEntity(entityType || 'signal', entityId);
   const signal = signals?.find((s) => s.id === id) ?? signals?.[0];

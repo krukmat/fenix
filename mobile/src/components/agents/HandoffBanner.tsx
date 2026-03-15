@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Banner, Button, Text, ActivityIndicator } from 'react-native-paper';
+import { Banner, Text, ActivityIndicator } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useHandoffPackage } from '../../hooks/useAgentSpec';
 
