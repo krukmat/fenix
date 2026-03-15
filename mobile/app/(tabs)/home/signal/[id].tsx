@@ -7,12 +7,10 @@ import { Text, Button, useTheme } from 'react-native-paper';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SignalDetailView } from '../../../../src/components/signals/SignalDetailView';
 import { useSignalsByEntity, useDismissSignal } from '../../../../src/hooks/useAgentSpec';
-import type { Signal } from '../../../../src/services/api';
 
 function SignalActions({
-  signal, onAskCopilot, onDismiss, dismissPending,
+  onAskCopilot, onDismiss, dismissPending,
 }: {
-  signal: Signal;
   onAskCopilot: () => void;
   onDismiss: () => void;
   dismissPending: boolean;
@@ -77,7 +75,7 @@ export default function SignalDetailScreen() {
       <Stack.Screen options={{ title: signal.signal_type }} />
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <SignalDetailView signal={signal} testIDPrefix="signal-detail" />
-        <SignalActions signal={signal} onAskCopilot={handleAskCopilot} onDismiss={handleDismiss}
+        <SignalActions onAskCopilot={handleAskCopilot} onDismiss={handleDismiss}
           dismissPending={dismissMutation.isPending} />
       </View>
     </>
