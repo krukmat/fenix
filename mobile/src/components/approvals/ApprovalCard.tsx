@@ -1,4 +1,5 @@
-// Task Mobile P1.3 — UC-A7/B6: Approval card with countdown, approve/deny, reason dialog
+// UC-A7/B6: Approval card with countdown, approve/deny, reason dialog
+// FR-071: approval request display
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
@@ -22,12 +23,34 @@ function formatCountdown(expiresAt: string): string {
   return `${minutes}m`;
 }
 
-export function ApprovalCard({
-  approval,
-  onApprove,
-  onDeny,
-  testIDPrefix = 'approval-card',
-}: ApprovalCardProps) {
+function DenyDialog({
+  visible, reason, testIDPrefix, onChangeReason, onCancel, onSubmit,
+}: {
+  visible: boolean;
+  reason: string;
+  testIDPrefix: string;
+  onChangeReason: (v: string) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <Portal>
+      <Dialog visible={visible} onDismiss={onCancel} testID={`${testIDPrefix}-deny-dialog`}>
+        <Dialog.Title>Reason for denial</Dialog.Title>
+        <Dialog.Content>
+          <TextInput label="Reason (required)" value={reason} onChangeText={onChangeReason}
+            multiline numberOfLines={3} testID={`${testIDPrefix}-deny-reason-input`} />
+        </Dialog.Content>
+        <Dialog.Actions>
+          <Button onPress={onCancel} testID={`${testIDPrefix}-deny-cancel`}>Cancel</Button>
+          <Button onPress={onSubmit} disabled={!reason.trim()} testID={`${testIDPrefix}-deny-submit`}>Deny</Button>
+        </Dialog.Actions>
+      </Dialog>
+    </Portal>
+  );
+}
+
+export function ApprovalCard({ approval, onApprove, onDeny, testIDPrefix = 'approval-card' }: ApprovalCardProps) {
   const theme = useTheme();
   const [countdown, setCountdown] = useState(() => formatCountdown(approval.expires_at));
   const [denyDialogVisible, setDenyDialogVisible] = useState(false);
@@ -35,15 +58,11 @@ export function ApprovalCard({
   const isExpired = countdown === 'Expired';
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCountdown(formatCountdown(approval.expires_at));
-    }, 60_000);
+    const interval = setInterval(() => setCountdown(formatCountdown(approval.expires_at)), 60_000);
     return () => clearInterval(interval);
   }, [approval.expires_at]);
 
-  const handleApprove = useCallback(() => {
-    onApprove(approval.id);
-  }, [approval.id, onApprove]);
+  const handleApprove = useCallback(() => onApprove(approval.id), [approval.id, onApprove]);
 
   const handleDenySubmit = useCallback(() => {
     if (!reason.trim()) return;
@@ -60,87 +79,36 @@ export function ApprovalCard({
             <Text variant="titleSmall" style={styles.action} testID={`${testIDPrefix}-action`}>
               {approval.action}
             </Text>
-            <Text
-              variant="labelSmall"
+            <Text variant="labelSmall"
               style={[styles.countdown, { color: isExpired ? theme.colors.error : theme.colors.onSurfaceVariant }]}
-              testID={`${testIDPrefix}-countdown`}
-            >
+              testID={`${testIDPrefix}-countdown`}>
               {isExpired ? 'Expired' : `Expires in ${countdown}`}
             </Text>
           </View>
-
           {approval.resource_type && (
-            <Text
-              variant="bodySmall"
-              style={{ color: theme.colors.onSurfaceVariant }}
-              testID={`${testIDPrefix}-resource`}
-            >
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}
+              testID={`${testIDPrefix}-resource`}>
               {`${approval.resource_type}${approval.resource_id ? ` · ${approval.resource_id}` : ''}`}
             </Text>
           )}
-
           {approval.reason && (
             <Text variant="bodyMedium" style={styles.reason} testID={`${testIDPrefix}-reason`}>
               {approval.reason}
             </Text>
           )}
-
           {!isExpired && (
             <View style={styles.actions}>
-              <Button
-                mode="contained"
-                onPress={handleApprove}
-                style={styles.approveBtn}
-                testID={`${testIDPrefix}-approve`}
-              >
-                Approve
-              </Button>
-              <Button
-                mode="outlined"
-                onPress={() => setDenyDialogVisible(true)}
-                testID={`${testIDPrefix}-deny`}
-              >
-                Deny
-              </Button>
+              <Button mode="contained" onPress={handleApprove} style={styles.approveBtn}
+                testID={`${testIDPrefix}-approve`}>Approve</Button>
+              <Button mode="outlined" onPress={() => setDenyDialogVisible(true)}
+                testID={`${testIDPrefix}-deny`}>Deny</Button>
             </View>
           )}
         </Card.Content>
       </Card>
-
-      <Portal>
-        <Dialog
-          visible={denyDialogVisible}
-          onDismiss={() => setDenyDialogVisible(false)}
-          testID={`${testIDPrefix}-deny-dialog`}
-        >
-          <Dialog.Title>Reason for denial</Dialog.Title>
-          <Dialog.Content>
-            <TextInput
-              label="Reason (required)"
-              value={reason}
-              onChangeText={setReason}
-              multiline
-              numberOfLines={3}
-              testID={`${testIDPrefix}-deny-reason-input`}
-            />
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button
-              onPress={() => { setDenyDialogVisible(false); setReason(''); }}
-              testID={`${testIDPrefix}-deny-cancel`}
-            >
-              Cancel
-            </Button>
-            <Button
-              onPress={handleDenySubmit}
-              disabled={!reason.trim()}
-              testID={`${testIDPrefix}-deny-submit`}
-            >
-              Deny
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <DenyDialog visible={denyDialogVisible} reason={reason} testIDPrefix={testIDPrefix}
+        onChangeReason={setReason} onCancel={() => { setDenyDialogVisible(false); setReason(''); }}
+        onSubmit={handleDenySubmit} />
     </>
   );
 }

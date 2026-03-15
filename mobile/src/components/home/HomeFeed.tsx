@@ -1,4 +1,5 @@
-// Task Mobile P1.3 — Unified feed: Signals + Approvals with chip filter
+// UC-A5/A6: Unified feed — signals + approvals with chip filter
+// FR-300 (Home), FR-071 (approvals badge)
 
 import React, { useState, useCallback } from 'react';
 import { View, FlatList, RefreshControl, StyleSheet } from 'react-native';
@@ -30,25 +31,21 @@ type FeedItem =
 function buildFeedItems(signals: Signal[], approvals: ApprovalRequest[], filter: FeedFilter): FeedItem[] {
   const signalItems: FeedItem[] = filter !== 'approvals' ? signals.map((s) => ({ kind: 'signal', data: s })) : [];
   const approvalItems: FeedItem[] = filter !== 'signals' ? approvals.map((a) => ({ kind: 'approval', data: a })) : [];
-  return [...approvalItems, ...signalItems]; // approvals first
+  return [...approvalItems, ...signalItems];
+}
+
+function chipLabel(f: FeedFilter, pendingApprovalCount: number): string {
+  if (f === 'approvals' && pendingApprovalCount > 0) return `Approvals (${pendingApprovalCount})`;
+  return f.charAt(0).toUpperCase() + f.slice(1);
 }
 
 export function HomeFeed({
-  signals,
-  approvals,
-  loadingSignals,
-  loadingApprovals,
-  onRefresh,
-  onDismissSignal,
-  onApprove,
-  onDeny,
-  onSignalPress,
-  pendingApprovalCount = 0,
-  testIDPrefix = 'home-feed',
+  signals, approvals, loadingSignals, loadingApprovals, onRefresh,
+  onDismissSignal, onApprove, onDeny, onSignalPress,
+  pendingApprovalCount = 0, testIDPrefix = 'home-feed',
 }: HomeFeedProps) {
   const theme = useTheme();
   const [filter, setFilter] = useState<FeedFilter>('all');
-
   const isRefreshing = loadingSignals || loadingApprovals;
   const items = buildFeedItems(signals, approvals, filter);
 
@@ -56,39 +53,24 @@ export function HomeFeed({
     ({ item }: { item: FeedItem }) => {
       if (item.kind === 'signal') {
         return (
-          <SignalCard
-            signal={item.data}
-            onDismiss={onDismissSignal}
-            onPress={onSignalPress}
-            testIDPrefix={`${testIDPrefix}-signal-${item.data.id}`}
-          />
+          <SignalCard signal={item.data} onDismiss={onDismissSignal} onPress={onSignalPress}
+            testIDPrefix={`${testIDPrefix}-signal-${item.data.id}`} />
         );
       }
       return (
-        <ApprovalCard
-          approval={item.data}
-          onApprove={onApprove}
-          onDeny={onDeny}
-          testIDPrefix={`${testIDPrefix}-approval-${item.data.id}`}
-        />
+        <ApprovalCard approval={item.data} onApprove={onApprove} onDeny={onDeny}
+          testIDPrefix={`${testIDPrefix}-approval-${item.data.id}`} />
       );
     },
     [onDismissSignal, onSignalPress, onApprove, onDeny, testIDPrefix]
   );
 
-  const FilterChips = (
+  const ListHeader = (
     <View style={styles.chipRow} testID={`${testIDPrefix}-chips`}>
       {(['all', 'signals', 'approvals'] as FeedFilter[]).map((f) => (
-        <Chip
-          key={f}
-          selected={filter === f}
-          onPress={() => setFilter(f)}
-          style={styles.chip}
-          testID={`${testIDPrefix}-chip-${f}`}
-        >
-          {f === 'approvals' && pendingApprovalCount > 0
-            ? `Approvals (${pendingApprovalCount})`
-            : f.charAt(0).toUpperCase() + f.slice(1)}
+        <Chip key={f} selected={filter === f} onPress={() => setFilter(f)}
+          style={styles.chip} testID={`${testIDPrefix}-chip-${f}`}>
+          {chipLabel(f, pendingApprovalCount)}
         </Chip>
       ))}
     </View>
@@ -96,27 +78,17 @@ export function HomeFeed({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]} testID={testIDPrefix}>
-      <FlatList
-        data={items}
-        keyExtractor={(item) => `${item.kind}-${item.data.id}`}
-        renderItem={renderItem}
-        ListHeaderComponent={() => FilterChips}
+      <FlatList data={items} keyExtractor={(item) => `${item.kind}-${item.data.id}`}
+        renderItem={renderItem} ListHeaderComponent={() => ListHeader}
         ListEmptyComponent={() => (
-          <Text
-            variant="bodyMedium"
-            style={[styles.empty, { color: theme.colors.onSurfaceVariant }]}
-            testID={`${testIDPrefix}-empty`}
-          >
+          <Text variant="bodyMedium" style={[styles.empty, { color: theme.colors.onSurfaceVariant }]}
+            testID={`${testIDPrefix}-empty`}>
             {isRefreshing ? 'Loading…' : 'No items'}
           </Text>
         )}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
-        }
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        testID={`${testIDPrefix}-flatlist`}
-      />
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+        contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}
+        testID={`${testIDPrefix}-flatlist`} />
     </View>
   );
 }
