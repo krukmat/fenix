@@ -7,6 +7,16 @@ import { Text, Button, useTheme } from 'react-native-paper';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SignalDetailView } from '../../../../src/components/signals/SignalDetailView';
 import { useSignalsByEntity, useDismissSignal } from '../../../../src/hooks/useAgentSpec';
+import type { Signal } from '../../../../src/services/api';
+
+type Params = { id: string | string[]; entity_type?: string; entity_id?: string };
+
+function resolveParams(params: Params): { id: string; entityType: string; entityId: string } {
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const entityType = params.entity_type ?? '';
+  const entityId = params.entity_id ?? id;
+  return { id, entityType, entityId };
+}
 
 function SignalActions({
   onAskCopilot, onDismiss, dismissPending,
@@ -28,16 +38,8 @@ function SignalActions({
   );
 }
 
-export default function SignalDetailScreen() {
-  const theme = useTheme();
+function useSignalHandlers(id: string, signal: Signal | undefined) {
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string | string[]; entity_type?: string; entity_id?: string }>();
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
-  const entityType = params.entity_type ?? '';
-  const entityId = params.entity_id ?? id;
-
-  const { data: signals, isLoading, error } = useSignalsByEntity(entityType || 'signal', entityId);
-  const signal = signals?.find((s) => s.id === id) ?? signals?.[0];
   const dismissMutation = useDismissSignal();
 
   const handleDismiss = useCallback(() => {
@@ -53,6 +55,18 @@ export default function SignalDetailScreen() {
         signal_id: signal.id, signal_type: signal.signal_type },
     });
   }, [signal, router]);
+
+  return { handleDismiss, handleAskCopilot, dismissPending: dismissMutation.isPending };
+}
+
+export default function SignalDetailScreen() {
+  const theme = useTheme();
+  const rawParams = useLocalSearchParams<Params>();
+  const { id, entityType, entityId } = resolveParams(rawParams);
+
+  const { data: signals, isLoading, error } = useSignalsByEntity(entityType || 'signal', entityId);
+  const signal = signals?.find((s) => s.id === id) ?? signals?.[0];
+  const { handleDismiss, handleAskCopilot, dismissPending } = useSignalHandlers(id, signal);
 
   if (isLoading) {
     return (
@@ -76,7 +90,7 @@ export default function SignalDetailScreen() {
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <SignalDetailView signal={signal} testIDPrefix="signal-detail" />
         <SignalActions onAskCopilot={handleAskCopilot} onDismiss={handleDismiss}
-          dismissPending={dismissMutation.isPending} />
+          dismissPending={dismissPending} />
       </View>
     </>
   );
