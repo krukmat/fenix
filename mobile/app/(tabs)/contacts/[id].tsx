@@ -6,6 +6,7 @@ import { useTheme } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CRMDetailHeader } from '../../../src/components/crm';
 import { useContact } from '../../../src/hooks/useCRM';
+import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import type { ThemeColors } from '../../../src/theme/types';
 
 function useColors(): ThemeColors {
@@ -59,6 +60,7 @@ function renderContent(contact: ContactDetailData, router: ReturnType<typeof use
         testIDPrefix="contact-detail"
       />
       {renderAccountSection(contact.accountId, contact.accountName, router, colors)}
+      <EntitySignalsSection entityType="contact" entityId={contact.id} testIDPrefix="contact-signals" />
     </>
   );
 }

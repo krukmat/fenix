@@ -13,9 +13,12 @@ export interface CopilotMessage {
   isStreaming?: boolean;
 }
 
-type SendContext = {
+// Task Mobile P1.7 — FR-200/UC-A5: signal context fields for grounded copilot Q&A
+export type SendContext = {
   entityType?: string;
   entityId?: string;
+  signalId?: string;
+  signalType?: string;
 };
 
 function makeId(prefix: string): string {
@@ -26,6 +29,8 @@ function buildRequestBody(query: string, context?: SendContext): Record<string, 
   const body: Record<string, unknown> = { query };
   if (context?.entityType) body.entityType = context.entityType;
   if (context?.entityId) body.entityId = context.entityId;
+  if (context?.signalId) body.signalId = context.signalId;
+  if (context?.signalType) body.signalType = context.signalType;
   return body;
 }
 

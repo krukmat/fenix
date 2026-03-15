@@ -6,6 +6,7 @@ import { useTheme, Button } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CRMDetailHeader } from '../../../src/components/crm';
 import { useDeal } from '../../../src/hooks/useCRM';
+import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import type { ThemeColors } from '../../../src/theme/types';
 
 function useColors(): ThemeColors {
@@ -67,6 +68,7 @@ function renderContent(deal: DealDetailData, router: ReturnType<typeof useRouter
       </View>
       <CRMDetailHeader title={deal.title || deal.name || 'Unnamed Deal'} subtitle={deal.description} metadata={metadata} testIDPrefix="deal-detail" />
       {renderAccountSection(deal.accountId, deal.accountName, router, colors)}
+      <EntitySignalsSection entityType="deal" entityId={deal.id} testIDPrefix="deal-signals" />
       <View style={styles.section}>
         <Button mode="contained" onPress={() => router.push(`/deals/edit/${deal.id}`)} testID="deal-edit-button">
           Edit Deal

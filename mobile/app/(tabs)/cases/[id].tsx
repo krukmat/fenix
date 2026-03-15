@@ -6,6 +6,7 @@ import { useTheme, Button } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CRMDetailHeader } from '../../../src/components/crm';
 import { useCase } from '../../../src/hooks/useCRM';
+import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import type { ThemeColors } from '../../../src/theme/types';
 
 function useColors(): ThemeColors {
@@ -87,6 +88,7 @@ export function renderCaseContent(caseData: CaseDetailData, colors: ThemeColors,
       )}
       {renderHandoffSection(caseData.handoffStatus, colors)}
       {renderAccountSection(caseData.accountId, caseData.accountName, router, colors)}
+      <EntitySignalsSection entityType="case" entityId={caseData.id} testIDPrefix="case-signals" />
       <View style={styles.section}>
         <Button mode="contained" onPress={() => router.push(`/cases/edit/${caseData.id}`)} testID="case-edit-button">
           Edit Case

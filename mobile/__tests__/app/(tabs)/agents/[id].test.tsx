@@ -23,6 +23,11 @@ import AgentsDetailScreen from '../../../../app/(tabs)/agents/[id]';
 // Mock useAgentRun hook
 const mockUseAgentRun = jest.fn();
 
+// Mock useHandoffPackage — HandoffBanner uses useQuery internally
+jest.mock('../../../../src/hooks/useAgentSpec', () => ({
+  useHandoffPackage: jest.fn().mockReturnValue({ data: null, isLoading: false }),
+}));
+
 jest.mock('../../../../src/hooks/useCRM', () => ({
   useAgentRun: (...args: unknown[]) => mockUseAgentRun(...args),
 }));

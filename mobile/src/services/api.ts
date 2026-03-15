@@ -1,4 +1,5 @@
 // Task 4.2 — FR-300: Axios API Client hacia BFF
+// Task Mobile P1.1 — FR-300, UC-A4/A5/A7: signalApi, workflowApi, approvalApi, copilotApi extensions
 
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../stores/authStore';
@@ -234,17 +235,190 @@ export const agentApi = {
     });
     return response.data;
   },
+
+  // Task Mobile P1.8 — FR-232/UC-A7: handoff package for escalated runs
+  getHandoff: async (runId: string) => {
+    const response = await apiClient.get(`/bff/api/v1/agents/runs/${runId}/handoff`);
+    return response.data as HandoffPackage;
+  },
 };
 
 // Copilot API
 export const copilotApi = {
   buildChatUrl: (): string => `${BFF_URL}/bff/copilot/chat`,
+
+  suggestActions: async (entityType: string, entityId: string) => {
+    const response = await apiClient.post('/bff/api/v1/copilot/suggest-actions', {
+      entity_type: entityType,
+      entity_id: entityId,
+    });
+    return response.data;
+  },
+
+  summarize: async (entityType: string, entityId: string) => {
+    const response = await apiClient.post('/bff/api/v1/copilot/summarize', {
+      entity_type: entityType,
+      entity_id: entityId,
+    });
+    return response.data;
+  },
 };
 
 // Tool API
 export const toolApi = {
   execute: async (tool: string, params: Record<string, unknown>) => {
     const response = await apiClient.post(`/bff/api/v1/tools/${tool}`, params);
+    return response.data;
+  },
+};
+
+// --- Types ---
+
+export type SignalStatus = 'active' | 'dismissed' | 'expired';
+
+export interface Signal {
+  id: string;
+  workspace_id: string;
+  entity_type: string;
+  entity_id: string;
+  signal_type: string;
+  confidence: number;
+  evidence_ids: string[];
+  source_type: string;
+  source_id: string;
+  metadata: Record<string, unknown>;
+  status: SignalStatus;
+  dismissed_by?: string;
+  dismissed_at?: string;
+  expires_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type WorkflowStatus = 'draft' | 'testing' | 'active' | 'archived';
+
+export interface Workflow {
+  id: string;
+  workspace_id: string;
+  agent_definition_id?: string;
+  parent_version_id?: string;
+  name: string;
+  description?: string;
+  dsl_source: string;
+  spec_source?: string;
+  version: number;
+  status: WorkflowStatus;
+  created_by_user_id?: string;
+  archived_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ApprovalStatus = 'pending' | 'approved' | 'denied' | 'expired';
+
+export interface ApprovalRequest {
+  id: string;
+  workspace_id: string;
+  requested_by: string;
+  approver_id: string;
+  decided_by?: string;
+  action: string;
+  resource_type?: string;
+  resource_id?: string;
+  payload: Record<string, unknown>;
+  reason?: string;
+  status: ApprovalStatus;
+  expires_at: string;
+  decided_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Signal API
+export const signalApi = {
+  getSignals: async (
+    workspaceId: string,
+    filters?: { status?: SignalStatus; entity_type?: string; entity_id?: string },
+    pagination?: { page?: number; limit?: number }
+  ) => {
+    const response = await apiClient.get('/bff/api/v1/signals', {
+      params: {
+        workspace_id: workspaceId,
+        page: pagination?.page ?? 1,
+        limit: pagination?.limit ?? 50,
+        ...filters,
+      },
+    });
+    return response.data as Signal[];
+  },
+
+  dismissSignal: async (id: string) => {
+    const response = await apiClient.put(`/bff/api/v1/signals/${id}/dismiss`);
+    return response.data as Signal;
+  },
+};
+
+// Workflow API
+export const workflowApi = {
+  getWorkflows: async (
+    workspaceId: string,
+    filters?: { status?: WorkflowStatus },
+    pagination?: { page?: number; limit?: number }
+  ) => {
+    const response = await apiClient.get('/bff/api/v1/workflows', {
+      params: {
+        workspace_id: workspaceId,
+        page: pagination?.page ?? 1,
+        limit: pagination?.limit ?? 50,
+        ...filters,
+      },
+    });
+    return response.data as Workflow[];
+  },
+
+  getWorkflow: async (id: string) => {
+    const response = await apiClient.get(`/bff/api/v1/workflows/${id}`);
+    return response.data as Workflow;
+  },
+
+  activateWorkflow: async (id: string) => {
+    const response = await apiClient.put(`/bff/api/v1/workflows/${id}/activate`);
+    return response.data as Workflow;
+  },
+
+  executeWorkflow: async (id: string) => {
+    const response = await apiClient.post(`/bff/api/v1/workflows/${id}/execute`);
+    return response.data;
+  },
+
+  verifyWorkflow: async (id: string) => {
+    const response = await apiClient.post(`/bff/api/v1/workflows/${id}/verify`);
+    return response.data;
+  },
+};
+
+// Task Mobile P1.8 — FR-232/UC-A7: handoff package type
+export interface HandoffPackage {
+  run_id: string;
+  reason: string;
+  conversation_context: string;
+  evidence_count: number;
+  entity_type?: string;
+  entity_id?: string;
+  created_at: string;
+}
+
+// Approval API
+export const approvalApi = {
+  getPendingApprovals: async (workspaceId: string) => {
+    const response = await apiClient.get('/bff/api/v1/approvals', {
+      params: { workspace_id: workspaceId },
+    });
+    return response.data as ApprovalRequest[];
+  },
+
+  decideApproval: async (id: string, decision: { decision: 'approve' | 'deny'; reason?: string }) => {
+    const response = await apiClient.put(`/bff/api/v1/approvals/${id}`, decision);
     return response.data;
   },
 };

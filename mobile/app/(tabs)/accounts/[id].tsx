@@ -6,6 +6,7 @@ import { useTheme } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CRMDetailHeader, EntityTimeline } from '../../../src/components/crm';
 import { useAccount } from '../../../src/hooks/useCRM';
+import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import type { ThemeColors } from '../../../src/theme/types';
 
 function useColors(): ThemeColors {
@@ -117,6 +118,7 @@ function renderContent(account: AccountData, colors: ThemeColors, onOpenContact:
       {renderContactsSection(account.contacts || [], colors, onOpenContact)}
       {account.deals && account.deals.length > 0 && renderDealsSection(account.deals, colors)}
       {renderTimelineSection(account.timeline || [], colors)}
+      <EntitySignalsSection entityType="account" entityId={account.id} testIDPrefix="account-signals" />
     </>
   );
 }
