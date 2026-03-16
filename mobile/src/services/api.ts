@@ -73,7 +73,7 @@ export const authApi = {
 export const crmApi = {
   // Lists
   getAccounts: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/api/v1/accounts', {
+    const response = await apiClient.get('/bff/accounts', {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
@@ -93,14 +93,14 @@ export const crmApi = {
   },
 
   getDeals: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/api/v1/deals', {
+    const response = await apiClient.get('/bff/deals', {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
   },
 
   getCases: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/api/v1/cases', {
+    const response = await apiClient.get('/bff/cases', {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
@@ -205,15 +205,58 @@ export const crmApi = {
 
 // Agent API
 export const agentApi = {
-  getRuns: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
+  getRuns: async (
+    workspaceId: string,
+    pagination?: { page?: number; limit?: number },
+    filters?: { status?: AgentRunStatus; entity_type?: string; entity_id?: string; workflow_id?: string }
+  ) => {
     const response = await apiClient.get('/bff/api/v1/agents/runs', {
       params: {
         workspace_id: workspaceId,
         page: pagination?.page ?? 1,
         limit: pagination?.limit ?? 25,
+        ...filters,
       },
     });
     return response.data;
+  },
+
+  getRunsByEntity: async (
+    workspaceId: string,
+    entityType: string,
+    entityId: string,
+    pagination?: { page?: number; limit?: number },
+    filters?: { status?: AgentRunStatus; workflow_id?: string }
+  ) => {
+    return agentApi.getRuns(workspaceId, pagination, {
+      ...filters,
+      entity_type: entityType,
+      entity_id: entityId,
+    });
+  },
+
+  getRunsByWorkflow: async (
+    workspaceId: string,
+    workflowId: string,
+    pagination?: { page?: number; limit?: number },
+    filters?: { status?: AgentRunStatus; entity_type?: string; entity_id?: string }
+  ) => {
+    return agentApi.getRuns(workspaceId, pagination, {
+      ...filters,
+      workflow_id: workflowId,
+    });
+  },
+
+  getRunsByStatus: async (
+    workspaceId: string,
+    status: AgentRunStatus,
+    pagination?: { page?: number; limit?: number },
+    filters?: { entity_type?: string; entity_id?: string; workflow_id?: string }
+  ) => {
+    return agentApi.getRuns(workspaceId, pagination, {
+      ...filters,
+      status,
+    });
   },
 
   getRun: async (id: string) => {
@@ -314,6 +357,71 @@ export interface Workflow {
   updated_at: string;
 }
 
+export type WorkflowVersion = Workflow;
+
+export interface CreateWorkflowInput {
+  agent_definition_id?: string;
+  name: string;
+  description?: string;
+  dsl_source: string;
+  spec_source?: string;
+}
+
+export interface UpdateWorkflowInput {
+  agent_definition_id?: string;
+  description?: string;
+  dsl_source: string;
+  spec_source?: string;
+}
+
+export type AgentRunStatus =
+  | 'running'
+  | 'success'
+  | 'failed'
+  | 'abstained'
+  | 'partial'
+  | 'escalated'
+  | 'accepted'
+  | 'rejected'
+  | 'delegated';
+
+export interface AgentRun {
+  id: string;
+  workspaceId: string;
+  agentDefinitionId: string;
+  triggeredByUserId?: string;
+  triggerType: string;
+  status: AgentRunStatus;
+  inputs?: Record<string, unknown> | null;
+  output?: Record<string, unknown> | null;
+  toolCalls?: unknown[] | Record<string, unknown> | null;
+  reasoningTrace?: unknown[] | Record<string, unknown> | null;
+  totalTokens?: number;
+  totalCost?: number;
+  latencyMs?: number;
+  traceId?: string;
+  workflow_id?: string;
+  entity_type?: string;
+  entity_id?: string;
+  rejection_reason?: string;
+  startedAt: string;
+  completedAt?: string;
+  createdAt: string;
+}
+
+export interface AgentRunListResponse {
+  data: AgentRun[];
+  meta?: {
+    total?: number;
+    limit?: number;
+    offset?: number;
+  };
+}
+
+export interface AgentRunResponse {
+  data: AgentRun;
+}
+
 export type ApprovalStatus = 'pending' | 'approved' | 'denied' | 'expired';
 
 export interface ApprovalRequest {
@@ -378,6 +486,31 @@ export const workflowApi = {
 
   getWorkflow: async (id: string) => {
     const response = await apiClient.get(`/bff/api/v1/workflows/${id}`);
+    return response.data as Workflow;
+  },
+
+  create: async (data: CreateWorkflowInput) => {
+    const response = await apiClient.post('/bff/api/v1/workflows', data);
+    return response.data as Workflow;
+  },
+
+  update: async (id: string, data: UpdateWorkflowInput) => {
+    const response = await apiClient.put(`/bff/api/v1/workflows/${id}`, data);
+    return response.data as Workflow;
+  },
+
+  getVersions: async (id: string) => {
+    const response = await apiClient.get(`/bff/api/v1/workflows/${id}/versions`);
+    return response.data as WorkflowVersion[];
+  },
+
+  newVersion: async (id: string) => {
+    const response = await apiClient.post(`/bff/api/v1/workflows/${id}/new-version`);
+    return response.data as Workflow;
+  },
+
+  rollback: async (id: string) => {
+    const response = await apiClient.put(`/bff/api/v1/workflows/${id}/rollback`);
     return response.data as Workflow;
   },
 

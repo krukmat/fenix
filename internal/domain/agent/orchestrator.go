@@ -94,6 +94,15 @@ type Run struct {
 	CreatedAt            time.Time
 }
 
+type ListRunsInput struct {
+	Limit      int64
+	Offset     int64
+	Status     string
+	EntityType string
+	EntityID   string
+	WorkflowID string
+}
+
 type SkillDefinition struct {
 	ID           string
 	WorkspaceID  string
@@ -281,11 +290,22 @@ func (o *Orchestrator) GetAgentRun(ctx context.Context, workspaceID, runID strin
 }
 
 // ListAgentRuns lists agent runs with pagination
-func (o *Orchestrator) ListAgentRuns(ctx context.Context, workspaceID string, limit, offset int64) ([]*Run, int64, error) {
+func (o *Orchestrator) ListAgentRuns(ctx context.Context, workspaceID string, input ListRunsInput) ([]*Run, int64, error) {
+	limit := input.Limit
 	if limit <= 0 {
 		limit = 25
 	}
+	if input.Offset < 0 {
+		input.Offset = 0
+	}
+	runs, err := o.listFilteredRuns(ctx, workspaceID, input)
+	if err != nil {
+		return nil, 0, err
+	}
+	return paginateRuns(runs, limit, input.Offset), int64(len(runs)), nil
+}
 
+func (o *Orchestrator) listFilteredRuns(ctx context.Context, workspaceID string, input ListRunsInput) ([]*Run, error) {
 	rows, err := o.db.QueryContext(ctx, `
 		SELECT id, workspace_id, agent_definition_id, triggered_by_user_id,
 		       trigger_type, trigger_context, status, inputs,
@@ -296,10 +316,9 @@ func (o *Orchestrator) ListAgentRuns(ctx context.Context, workspaceID string, li
 		FROM agent_run
 		WHERE workspace_id = ?
 		ORDER BY created_at DESC
-		LIMIT ? OFFSET ?
-	`, workspaceID, limit, offset)
+	`, workspaceID)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -307,25 +326,129 @@ func (o *Orchestrator) ListAgentRuns(ctx context.Context, workspaceID string, li
 	for rows.Next() {
 		run, scanErr := scanAgentRun(rows)
 		if scanErr != nil {
-			return nil, 0, scanErr
+			return nil, scanErr
 		}
-		runs = append(runs, run)
+		if matchesRunFilters(run, input) {
+			runs = append(runs, run)
+		}
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, 0, rowsErr
+		return nil, rowsErr
 	}
-
-	// Get total count
-	var total int64
-	countRow := o.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM agent_run WHERE workspace_id = ?
-	`, workspaceID)
-	if scanErr := countRow.Scan(&total); scanErr != nil {
-		return nil, 0, scanErr
-	}
-
-	return runs, total, nil
+	return runs, nil
 }
+
+func paginateRuns(runs []*Run, limit, offset int64) []*Run {
+	total := int64(len(runs))
+	if offset > total {
+		return []*Run{}
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return runs[offset:end]
+}
+
+type runContextMetadata struct {
+	workflowID      string
+	entityType      string
+	entityID        string
+	rejectionReason string
+}
+
+func matchesRunFilters(run *Run, input ListRunsInput) bool {
+	meta := extractRunContextMetadata(run)
+	return !((input.Status != "" && run.Status != input.Status) ||
+		(input.WorkflowID != "" && meta.workflowID != input.WorkflowID) ||
+		(input.EntityType != "" && meta.entityType != input.EntityType) ||
+		(input.EntityID != "" && meta.entityID != input.EntityID))
+}
+
+func extractRunContextMetadata(run *Run) runContextMetadata {
+	meta := runContextMetadata{}
+	if run == nil {
+		return meta
+	}
+	meta.workflowID = firstJSONString(run.Output, "workflow_id")
+	if meta.workflowID == "" {
+		meta.workflowID = firstJSONString(run.TriggerContext, "workflow_id")
+	}
+	meta.entityType = firstNonEmptyRunValue(
+		firstJSONString(run.Output, "entity_type"),
+		firstJSONString(run.TriggerContext, "entity_type"),
+		firstNestedEntityType(run.TriggerContext),
+	)
+	meta.entityID = firstNonEmptyRunValue(
+		firstJSONString(run.Output, "entity_id"),
+		firstJSONString(run.TriggerContext, "entity_id"),
+		firstNestedEntityID(run.TriggerContext),
+	)
+	if run.Status == StatusRejected {
+		meta.rejectionReason = firstNonEmptyRunValue(
+			firstJSONString(run.Output, dispatchReasonKey),
+			firstJSONString(run.Output, "rejection_reason"),
+		)
+		if meta.rejectionReason == "" && run.AbstentionReason != nil {
+			meta.rejectionReason = *run.AbstentionReason
+		}
+	}
+	return meta
+}
+
+func firstJSONString(raw json.RawMessage, key string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return ""
+	}
+	str, _ := data[key].(string)
+	return str
+}
+
+func firstNestedEntityType(raw json.RawMessage) string {
+	for _, entityType := range []string{"account", "contact", "deal", "case", "lead"} {
+		if firstNestedEntityIDForType(raw, entityType) != "" {
+			return entityType
+		}
+	}
+	return ""
+}
+
+func firstNestedEntityID(raw json.RawMessage) string {
+	for _, entityType := range []string{"account", "contact", "deal", "case", "lead"} {
+		if entityID := firstNestedEntityIDForType(raw, entityType); entityID != "" {
+			return entityID
+		}
+	}
+	return ""
+}
+
+func firstNestedEntityIDForType(raw json.RawMessage, entityType string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return ""
+	}
+	nested, _ := data[entityType].(map[string]any)
+	entityID, _ := nested["id"].(string)
+	return entityID
+}
+
+func firstNonEmptyRunValue(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+const dispatchReasonKey = "reason"
 
 // UpdateAgentRunStatus updates the status of an agent run
 func (o *Orchestrator) UpdateAgentRunStatus(ctx context.Context, workspaceID, runID, status string) (*Run, error) {

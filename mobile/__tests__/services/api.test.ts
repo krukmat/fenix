@@ -134,10 +134,10 @@ describe('api.ts', () => {
       await crmApi.getContact('ct1');
 
       // STEP 8: list endpoints now use params object + pagination (page, limit)
-      expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/accounts', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
+      expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/accounts', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
       expect(getSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/contacts', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
-      expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/api/v1/deals', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
-      expect(getSpy).toHaveBeenNthCalledWith(4, '/bff/api/v1/cases', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
+      expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/deals', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
+      expect(getSpy).toHaveBeenNthCalledWith(4, '/bff/cases', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
       expect(getSpy).toHaveBeenNthCalledWith(5, '/bff/accounts/a1/full');
       expect(getSpy).toHaveBeenNthCalledWith(6, '/bff/deals/d1/full');
       expect(getSpy).toHaveBeenNthCalledWith(7, '/bff/cases/c1/full');
@@ -190,6 +190,28 @@ describe('api.ts', () => {
         agent_id: 'agent-1',
         entity_type: 'case',
         entity_id: 'c1',
+      });
+    });
+
+    it('agentApi filtered run helpers should pass entity, workflow and status filters', async () => {
+      const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValue({ data: { data: [] } } as never);
+
+      await agentApi.getRuns('ws-1', { page: 2, limit: 10 }, { status: 'delegated', workflow_id: 'wf-1' });
+      await agentApi.getRunsByEntity('ws-1', 'case', 'case-1', { page: 3, limit: 5 }, { status: 'rejected' });
+      await agentApi.getRunsByWorkflow('ws-1', 'wf-2', { page: 4, limit: 6 }, { entity_type: 'deal', entity_id: 'deal-7' });
+      await agentApi.getRunsByStatus('ws-1', 'accepted', { page: 5, limit: 7 }, { workflow_id: 'wf-3' });
+
+      expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/agents/runs', {
+        params: { workspace_id: 'ws-1', page: 2, limit: 10, status: 'delegated', workflow_id: 'wf-1' },
+      });
+      expect(getSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/agents/runs', {
+        params: { workspace_id: 'ws-1', page: 3, limit: 5, status: 'rejected', entity_type: 'case', entity_id: 'case-1' },
+      });
+      expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/api/v1/agents/runs', {
+        params: { workspace_id: 'ws-1', page: 4, limit: 6, entity_type: 'deal', entity_id: 'deal-7', workflow_id: 'wf-2' },
+      });
+      expect(getSpy).toHaveBeenNthCalledWith(4, '/bff/api/v1/agents/runs', {
+        params: { workspace_id: 'ws-1', page: 5, limit: 7, workflow_id: 'wf-3', status: 'accepted' },
       });
     });
 
@@ -351,6 +373,69 @@ describe('api.ts', () => {
 
         expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1');
         expect(result).toEqual({ id: 'wf-1' });
+      });
+
+      it('create should call POST /bff/api/v1/workflows', async () => {
+        const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValueOnce({ data: { id: 'wf-new' } } as never);
+
+        const result = await workflowApi.create({
+          name: 'Lead Qualifier',
+          description: 'Draft workflow',
+          dsl_source: 'ON lead.created',
+          spec_source: 'spec text',
+        });
+
+        expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/workflows', {
+          name: 'Lead Qualifier',
+          description: 'Draft workflow',
+          dsl_source: 'ON lead.created',
+          spec_source: 'spec text',
+        });
+        expect(result).toEqual({ id: 'wf-new' });
+      });
+
+      it('update should call PUT /bff/api/v1/workflows/{id}', async () => {
+        const putSpy = jest.spyOn(apiClient, 'put').mockResolvedValueOnce({ data: { id: 'wf-1', description: 'updated' } } as never);
+
+        const result = await workflowApi.update('wf-1', {
+          agent_definition_id: 'agent-7',
+          description: 'updated',
+          dsl_source: 'ON lead.updated',
+        });
+
+        expect(putSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1', {
+          agent_definition_id: 'agent-7',
+          description: 'updated',
+          dsl_source: 'ON lead.updated',
+        });
+        expect(result).toEqual({ id: 'wf-1', description: 'updated' });
+      });
+
+      it('getVersions should call GET /bff/api/v1/workflows/{id}/versions', async () => {
+        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: [{ id: 'wf-1', version: 1 }] } as never);
+
+        const result = await workflowApi.getVersions('wf-1');
+
+        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1/versions');
+        expect(result).toEqual([{ id: 'wf-1', version: 1 }]);
+      });
+
+      it('newVersion should call POST /bff/api/v1/workflows/{id}/new-version', async () => {
+        const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValueOnce({ data: { id: 'wf-2', version: 2 } } as never);
+
+        const result = await workflowApi.newVersion('wf-1');
+
+        expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1/new-version');
+        expect(result).toEqual({ id: 'wf-2', version: 2 });
+      });
+
+      it('rollback should call PUT /bff/api/v1/workflows/{id}/rollback', async () => {
+        const putSpy = jest.spyOn(apiClient, 'put').mockResolvedValueOnce({ data: { id: 'wf-0', status: 'active' } } as never);
+
+        const result = await workflowApi.rollback('wf-0');
+
+        expect(putSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-0/rollback');
+        expect(result).toEqual({ id: 'wf-0', status: 'active' });
       });
 
 

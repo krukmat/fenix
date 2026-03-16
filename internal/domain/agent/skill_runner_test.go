@@ -132,7 +132,7 @@ func TestSkillRunnerRunExecutesAgentStepViaOrchestrator(t *testing.T) {
 		t.Fatalf("status = %s, want %s", run.Status, StatusSuccess)
 	}
 
-	runs, total, err := orch.ListAgentRuns(context.Background(), "ws_skill", 50, 0)
+	runs, total, err := orch.ListAgentRuns(context.Background(), "ws_skill", ListRunsInput{Limit: 50})
 	if err != nil {
 		t.Fatalf("ListAgentRuns() error = %v", err)
 	}
@@ -346,10 +346,10 @@ func TestSkillRunnerRunFailsWhenPolicyDeniesTool(t *testing.T) {
 		PolicyEngine: policyEngine,
 		DB:           db,
 	}, TriggerAgentInput{
-		AgentID:      "agent_skill_1",
-		WorkspaceID:  "ws_skill",
-		TriggeredBy:  &triggeredBy,
-		TriggerType:  TriggerTypeEvent,
+		AgentID:     "agent_skill_1",
+		WorkspaceID: "ws_skill",
+		TriggeredBy: &triggeredBy,
+		TriggerType: TriggerTypeEvent,
 		TriggerContext: json.RawMessage(`{
 			"case":{"id":"case_1"},
 			"owner_id":"user_skill"
@@ -388,10 +388,10 @@ func TestSkillRunnerRunExecutesBridgeWorkflowEndToEnd(t *testing.T) {
 		PolicyEngine: policyEngine,
 		DB:           db,
 	}, TriggerAgentInput{
-		AgentID:      "agent_skill_1",
-		WorkspaceID:  "ws_skill",
-		TriggeredBy:  &triggeredBy,
-		TriggerType:  TriggerTypeEvent,
+		AgentID:     "agent_skill_1",
+		WorkspaceID: "ws_skill",
+		TriggeredBy: &triggeredBy,
+		TriggerType: TriggerTypeEvent,
 		TriggerContext: json.RawMessage(`{
 			"case":{"id":"case_1","priority":"high"},
 			"owner_id":"user_skill"
@@ -475,10 +475,10 @@ func TestSkillRunnerRunPausesWhenApprovalIsRequired(t *testing.T) {
 		ApprovalService: approvalService,
 		DB:              db,
 	}, TriggerAgentInput{
-		AgentID:      "agent_skill_1",
-		WorkspaceID:  "ws_skill",
-		TriggeredBy:  &triggeredBy,
-		TriggerType:  TriggerTypeEvent,
+		AgentID:     "agent_skill_1",
+		WorkspaceID: "ws_skill",
+		TriggeredBy: &triggeredBy,
+		TriggerType: TriggerTypeEvent,
 		TriggerContext: json.RawMessage(`{
 			"case":{"id":"case_1"},
 			"owner_id":"user_skill"
@@ -538,9 +538,9 @@ func TestSkillRunnerRunExecutesConditionalStepWhenTrue(t *testing.T) {
 	runner := NewSkillRunner(db)
 
 	run, err := runner.Run(context.Background(), &RunContext{
-		Orchestrator: orch,
+		Orchestrator:   orch,
 		RunnerRegistry: registry,
-		DB:           db,
+		DB:             db,
 	}, TriggerAgentInput{
 		AgentID:     "agent_skill_1",
 		WorkspaceID: "ws_skill",
@@ -583,9 +583,9 @@ func TestSkillRunnerRunSkipsConditionalStepWhenFalse(t *testing.T) {
 	runner := NewSkillRunner(db)
 
 	run, err := runner.Run(context.Background(), &RunContext{
-		Orchestrator: orch,
+		Orchestrator:   orch,
 		RunnerRegistry: registry,
-		DB:           db,
+		DB:             db,
 	}, TriggerAgentInput{
 		AgentID:     "agent_skill_1",
 		WorkspaceID: "ws_skill",
@@ -653,9 +653,9 @@ func TestSkillRunnerRunFailsOnConditionalTypeMismatch(t *testing.T) {
 	runner := NewSkillRunner(db)
 
 	run, err := runner.Run(context.Background(), &RunContext{
-		Orchestrator: orch,
+		Orchestrator:   orch,
 		RunnerRegistry: registry,
-		DB:           db,
+		DB:             db,
 	}, TriggerAgentInput{
 		AgentID:     "agent_skill_1",
 		WorkspaceID: "ws_skill",

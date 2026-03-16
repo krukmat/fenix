@@ -16,22 +16,39 @@ import (
 	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
 )
 
-type WorkflowService interface {
-	Create(ctx context.Context, input workflowdomain.CreateWorkflowInput) (*workflowdomain.Workflow, error)
+type workflowReader interface {
 	Get(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
 	List(ctx context.Context, workspaceID string, input workflowdomain.ListWorkflowsInput) ([]*workflowdomain.Workflow, error)
+	ListVersions(ctx context.Context, workspaceID, workflowID string) ([]*workflowdomain.Workflow, error)
+}
+
+type workflowWriter interface {
+	Create(ctx context.Context, input workflowdomain.CreateWorkflowInput) (*workflowdomain.Workflow, error)
 	Update(ctx context.Context, workspaceID, workflowID string, input workflowdomain.UpdateWorkflowInput) (*workflowdomain.Workflow, error)
-	MarkTesting(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
-	MarkActive(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
-	Activate(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
+	NewVersion(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
+	Rollback(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
 	DeleteDraft(ctx context.Context, workspaceID, workflowID string) error
 }
 
+type workflowLifecycle interface {
+	MarkTesting(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
+	MarkActive(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
+	Activate(ctx context.Context, workspaceID, workflowID string) (*workflowdomain.Workflow, error)
+}
+
+type WorkflowService interface {
+	workflowReader
+	workflowWriter
+	workflowLifecycle
+}
+
 type WorkflowHandler struct {
-	service WorkflowService
-	authz   ActionAuthorizer
-	db      *sql.DB
-	runtime *workflowRuntime
+	reader    workflowReader
+	writer    workflowWriter
+	lifecycle workflowLifecycle
+	authz     ActionAuthorizer
+	db        *sql.DB
+	runtime   *workflowRuntime
 }
 
 type workflowCacheInvalidator interface {
@@ -83,19 +100,23 @@ type ExecuteWorkflowRequest struct {
 	Inputs         json.RawMessage `json:"inputs,omitempty"`
 }
 
+const actionWorkflowsUpdate = "workflows.update"
+
 func NewWorkflowHandler(service WorkflowService) *WorkflowHandler {
-	return &WorkflowHandler{service: service}
+	return &WorkflowHandler{reader: service, writer: service, lifecycle: service}
 }
 
 func NewWorkflowHandlerWithAuthorizer(service WorkflowService, authz ActionAuthorizer) *WorkflowHandler {
-	return &WorkflowHandler{service: service, authz: authz}
+	return &WorkflowHandler{reader: service, writer: service, lifecycle: service, authz: authz}
 }
 
 func NewWorkflowHandlerWithRuntime(service WorkflowService, authz ActionAuthorizer, db *sql.DB, orchestrator *agent.Orchestrator, toolRegistry *tooldomain.ToolRegistry, policyEngine *policy.PolicyEngine, approvalService *policy.ApprovalService, cacheInvalidator workflowCacheInvalidator) *WorkflowHandler {
 	return &WorkflowHandler{
-		service: service,
-		authz:   authz,
-		db:      db,
+		reader:    service,
+		writer:    service,
+		lifecycle: service,
+		authz:     authz,
+		db:        db,
 		runtime: &workflowRuntime{
 			orchestrator:     orchestrator,
 			toolRegistry:     toolRegistry,
@@ -127,7 +148,7 @@ func (h *WorkflowHandler) Create(w http.ResponseWriter, r *http.Request) {
 		createdBy = &userID
 	}
 
-	out, err := h.service.Create(r.Context(), workflowdomain.CreateWorkflowInput{
+	out, err := h.writer.Create(r.Context(), workflowdomain.CreateWorkflowInput{
 		WorkspaceID:       workspaceID,
 		AgentDefinitionID: req.AgentDefinitionID,
 		Name:              req.Name,
@@ -161,7 +182,7 @@ func (h *WorkflowHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out, err := h.service.Get(r.Context(), workspaceID, id)
+	out, err := h.reader.Get(r.Context(), workspaceID, id)
 	if err != nil {
 		writeWorkflowError(w, err)
 		return
@@ -186,7 +207,7 @@ func (h *WorkflowHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out, err := h.service.List(r.Context(), workspaceID, input)
+	out, err := h.reader.List(r.Context(), workspaceID, input)
 	if err != nil {
 		writeWorkflowError(w, err)
 		return
@@ -200,7 +221,7 @@ func (h *WorkflowHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "workflows.update") {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsUpdate) {
 		return
 	}
 	workspaceID, ok := requireWorkspaceID(w, r)
@@ -216,12 +237,91 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if !decodeBodyJSON(w, r, &req) {
 		return
 	}
-	out, err := h.service.Update(r.Context(), workspaceID, id, workflowdomain.UpdateWorkflowInput{
+	out, err := h.writer.Update(r.Context(), workspaceID, id, workflowdomain.UpdateWorkflowInput{
 		AgentDefinitionID: req.AgentDefinitionID,
 		Description:       req.Description,
 		DSLSource:         req.DSLSource,
 		SpecSource:        req.SpecSource,
 	})
+	if err != nil {
+		writeWorkflowError(w, err)
+		return
+	}
+	h.invalidateCacheIfConfigured(id)
+	_ = writeJSONOr500(w, map[string]any{"data": workflowToResponse(out)})
+}
+
+func (h *WorkflowHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "workflows.get") {
+		return
+	}
+
+	workspaceID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, paramID)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
+		return
+	}
+
+	out, err := h.reader.ListVersions(r.Context(), workspaceID, id)
+	if err != nil {
+		writeWorkflowError(w, err)
+		return
+	}
+
+	response := make([]*WorkflowResponse, 0, len(out))
+	for _, workflow := range out {
+		response = append(response, workflowToResponse(workflow))
+	}
+	_ = writeJSONOr500(w, map[string]any{"data": response})
+}
+
+func (h *WorkflowHandler) NewVersion(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsUpdate) {
+		return
+	}
+
+	workspaceID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, paramID)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
+		return
+	}
+
+	out, err := h.writer.NewVersion(r.Context(), workspaceID, id)
+	if err != nil {
+		writeWorkflowError(w, err)
+		return
+	}
+
+	_ = writeJSONOr500(w, map[string]any{"data": workflowToResponse(out)})
+}
+
+func (h *WorkflowHandler) Rollback(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsUpdate) {
+		return
+	}
+
+	workspaceID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, paramID)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
+		return
+	}
+
+	out, err := h.writer.Rollback(r.Context(), workspaceID, id)
 	if err != nil {
 		writeWorkflowError(w, err)
 		return
@@ -237,7 +337,7 @@ func (h *WorkflowHandler) invalidateCacheIfConfigured(workflowID string) {
 }
 
 func (h *WorkflowHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	handleAuthorizedDelete(w, r, h.authz, "workflows.delete", errWorkflowIDRequired, h.service.DeleteDraft, writeWorkflowError)
+	handleAuthorizedDelete(w, r, h.authz, "workflows.delete", errWorkflowIDRequired, h.writer.DeleteDraft, writeWorkflowError)
 }
 
 func (h *WorkflowHandler) Verify(w http.ResponseWriter, r *http.Request) {
@@ -316,7 +416,7 @@ func (h *WorkflowHandler) Execute(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkflowHandler) loadAndRunWorkflow(w http.ResponseWriter, r *http.Request, workspaceID, id string, req ExecuteWorkflowRequest) (*agent.Run, bool) {
-	item, err := h.service.Get(r.Context(), workspaceID, id)
+	item, err := h.reader.Get(r.Context(), workspaceID, id)
 	if err != nil {
 		writeWorkflowError(w, err)
 		return nil, false
@@ -343,7 +443,7 @@ func (h *WorkflowHandler) loadWorkflowForJudge(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, errWorkflowIDRequired)
 		return "", "", nil, false
 	}
-	item, err := h.service.Get(r.Context(), workspaceID, id)
+	item, err := h.reader.Get(r.Context(), workspaceID, id)
 	if err != nil {
 		writeWorkflowError(w, err)
 		return "", "", nil, false
@@ -364,7 +464,7 @@ func (h *WorkflowHandler) promoteVerifiedDraftWorkflow(w http.ResponseWriter, r 
 	if item.Status != workflowdomain.StatusDraft || !result.Passed {
 		return true
 	}
-	if _, err := h.service.MarkTesting(r.Context(), workspaceID, workflowID); err != nil {
+	if _, err := h.lifecycle.MarkTesting(r.Context(), workspaceID, workflowID); err != nil {
 		writeWorkflowError(w, err)
 		return false
 	}
@@ -380,7 +480,7 @@ func validateWorkflowForActivation(w http.ResponseWriter, item *workflowdomain.W
 }
 
 func (h *WorkflowHandler) activateVerifiedWorkflow(w http.ResponseWriter, r *http.Request, workspaceID, workflowID string) (*workflowdomain.Workflow, bool) {
-	out, err := h.service.Activate(r.Context(), workspaceID, workflowID)
+	out, err := h.lifecycle.Activate(r.Context(), workspaceID, workflowID)
 	if err != nil {
 		writeWorkflowError(w, err)
 		return nil, false

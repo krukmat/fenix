@@ -127,6 +127,14 @@ func (s *Service) List(ctx context.Context, workspaceID string, input ListWorkfl
 	return out, nil
 }
 
+func (s *Service) ListVersions(ctx context.Context, workspaceID, workflowID string) ([]*Workflow, error) {
+	existing, err := s.repo.GetByID(ctx, workspaceID, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.ListVersionsByName(ctx, workspaceID, existing.Name)
+}
+
 func (s *Service) Update(ctx context.Context, workspaceID, workflowID string, input UpdateWorkflowInput) (*Workflow, error) {
 	if err := validateUpdateInput(input); err != nil {
 		return nil, err

@@ -5,6 +5,8 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity
 import { useTheme } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CRMDetailHeader, EntityTimeline } from '../../../src/components/crm';
+import { AgentActivitySection } from '../../../src/components/agents/AgentActivitySection';
+import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import { useAccount } from '../../../src/hooks/useCRM';
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import type { ThemeColors } from '../../../src/theme/types';
@@ -17,7 +19,7 @@ function useColors(): ThemeColors {
 interface ContactItem { id: string; name: string; email?: string; phone?: string; title?: string; }
 interface DealItem { id: string; name: string; value?: number; status: string; }
 interface TimelineItem { id: string; type: 'note' | 'activity' | 'status_change' | 'created' | 'updated'; title: string; description?: string; timestamp: string; userName?: string; }
-interface AccountData { id: string; name?: string; industry?: string; phone?: string; email?: string; website?: string; description?: string; contacts?: ContactItem[]; deals?: DealItem[]; timeline?: TimelineItem[]; }
+interface AccountData { id: string; name?: string; industry?: string; phone?: string; email?: string; website?: string; description?: string; contacts?: ContactItem[]; deals?: DealItem[]; timeline?: TimelineItem[]; activeSignalCount?: number; }
 
 function getMetadata(account: AccountData) {
   return [
@@ -115,9 +117,14 @@ function renderContent(account: AccountData, colors: ThemeColors, onOpenContact:
   return (
     <>
       <CRMDetailHeader title={account.name || 'Unnamed Account'} subtitle={account.description} metadata={metadata} testIDPrefix="account-detail" />
+      <View style={styles.section}>
+        <Text style={[styles.title, { color: colors.onSurface }]}>Signals</Text>
+        <SignalCountBadge count={account.activeSignalCount} testID="account-detail-signal-badge" />
+      </View>
       {renderContactsSection(account.contacts || [], colors, onOpenContact)}
       {account.deals && account.deals.length > 0 && renderDealsSection(account.deals, colors)}
       {renderTimelineSection(account.timeline || [], colors)}
+      <AgentActivitySection entityType="account" entityId={account.id} testIDPrefix="account-agent-activity" />
       <EntitySignalsSection entityType="account" entityId={account.id} testIDPrefix="account-signals" />
     </>
   );
@@ -158,6 +165,7 @@ export default function AccountDetailScreen() {
         }),
         deals: Array.isArray(dealsData) ? dealsData : dealsData?.data,
         timeline: Array.isArray(timelineData) ? timelineData : timelineData?.data,
+        activeSignalCount: typeof payload?.active_signal_count === 'number' ? payload.active_signal_count : 0,
       }
     : undefined;
 

@@ -4,9 +4,11 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useTheme, Button } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
+import { AgentActivitySection } from '../../../src/components/agents/AgentActivitySection';
 import { CRMDetailHeader } from '../../../src/components/crm';
 import { useDeal } from '../../../src/hooks/useCRM';
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
+import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import type { ThemeColors } from '../../../src/theme/types';
 
 function useColors(): ThemeColors {
@@ -27,6 +29,7 @@ interface DealDetailData {
   closeDate?: string;
   description?: string;
   pipeline?: string;
+  activeSignalCount?: number;
 }
 
 function getStatusColor(status: string): string {
@@ -67,7 +70,12 @@ function renderContent(deal: DealDetailData, router: ReturnType<typeof useRouter
         <Text style={styles.statusText}>{deal.status.toUpperCase()}</Text>
       </View>
       <CRMDetailHeader title={deal.title || deal.name || 'Unnamed Deal'} subtitle={deal.description} metadata={metadata} testIDPrefix="deal-detail" />
+      <View style={styles.section}>
+        <Text style={[styles.title, { color: colors.onSurface }]}>Signals</Text>
+        <SignalCountBadge count={deal.activeSignalCount} testID="deal-detail-signal-badge" />
+      </View>
       {renderAccountSection(deal.accountId, deal.accountName, router, colors)}
+      <AgentActivitySection entityType="deal" entityId={deal.id} testIDPrefix="deal-agent-activity" />
       <EntitySignalsSection entityType="deal" entityId={deal.id} testIDPrefix="deal-signals" />
       <View style={styles.section}>
         <Button mode="contained" onPress={() => router.push(`/deals/edit/${deal.id}`)} testID="deal-edit-button">
@@ -103,6 +111,7 @@ export default function DealDetailScreen() {
         closeDate: (dealObj.closeDate as string | undefined) ?? (dealObj.expectedClose as string | undefined),
         description: dealObj.description as string | undefined,
         pipeline: dealObj.pipeline as string | undefined,
+        activeSignalCount: typeof payload?.active_signal_count === 'number' ? payload.active_signal_count : 0,
       }
     : undefined;
 

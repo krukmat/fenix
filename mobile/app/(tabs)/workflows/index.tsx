@@ -1,14 +1,47 @@
 // Task Mobile P1.4 — FR-300/UC-A4: Workflows list screen
 
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, FlatList, RefreshControl, StyleSheet, ActivityIndicator } from 'react-native';
-import { Text, Chip, useTheme } from 'react-native-paper';
+import { Text, Chip, Button, useTheme } from 'react-native-paper';
 import { Stack, useRouter } from 'expo-router';
 import { WorkflowCard } from '../../../src/components/workflows/WorkflowCard';
 import { useWorkflows } from '../../../src/hooks/useAgentSpec';
 import type { Workflow, WorkflowStatus } from '../../../src/services/api';
 
-const STATUS_FILTERS: Array<WorkflowStatus | 'all'> = ['all', 'active', 'draft', 'testing', 'archived'];
+const STATUS_FILTERS: (WorkflowStatus | 'all')[] = ['all', 'active', 'draft', 'testing', 'archived'];
+
+function WorkflowListHeader({
+  statusFilter,
+  onSelectStatus,
+  onCreate,
+}: {
+  statusFilter: WorkflowStatus | 'all';
+  onSelectStatus: (status: WorkflowStatus | 'all') => void;
+  onCreate: () => void;
+}) {
+  return (
+    <View>
+      <View style={styles.actionsRow}>
+        <Button mode="contained" testID="workflows-new-btn" onPress={onCreate}>
+          New Workflow
+        </Button>
+      </View>
+      <View style={styles.chipRow} testID="workflows-filter-chips">
+        {STATUS_FILTERS.map((status) => (
+          <Chip
+            key={status}
+            selected={statusFilter === status}
+            onPress={() => onSelectStatus(status)}
+            style={styles.chip}
+            testID={`workflows-chip-${status}`}
+          >
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </Chip>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 export default function WorkflowsListScreen() {
   const theme = useTheme();
@@ -38,22 +71,6 @@ export default function WorkflowsListScreen() {
     [router]
   );
 
-  const FilterChips = (
-    <View style={styles.chipRow} testID="workflows-filter-chips">
-      {STATUS_FILTERS.map((f) => (
-        <Chip
-          key={f}
-          selected={statusFilter === f}
-          onPress={() => setStatusFilter(f)}
-          style={styles.chip}
-          testID={`workflows-chip-${f}`}
-        >
-          {f.charAt(0).toUpperCase() + f.slice(1)}
-        </Chip>
-      ))}
-    </View>
-  );
-
   if (isLoading && workflows.length === 0) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
@@ -70,7 +87,13 @@ export default function WorkflowsListScreen() {
           data={workflows}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          ListHeaderComponent={() => FilterChips}
+          ListHeaderComponent={() => (
+            <WorkflowListHeader
+              statusFilter={statusFilter}
+              onSelectStatus={setStatusFilter}
+              onCreate={() => router.push('/workflows/new')}
+            />
+          )}
           ListEmptyComponent={() => (
             <Text
               variant="bodyMedium"
@@ -102,6 +125,7 @@ export default function WorkflowsListScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  actionsRow: { paddingHorizontal: 16, paddingTop: 16 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 16 },
   chip: { height: 32 },
   listContent: { paddingBottom: 24 },

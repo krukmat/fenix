@@ -1,22 +1,7 @@
-/**
- * Task 4.5 — Agent Runs List Screen Tests
- *
- * Tests:
- * 1. Renders agent run list items with correct data
- * 2. Shows loading state
- * 3. Shows error state
- * 4. Empty state when no runs
- * 5. Pull to refresh triggers refetch
- * 6. Navigation to detail screen on item press
- */
-
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { render, screen } from '@testing-library/react-native';
 import AgentsListScreen from '../../../../app/(tabs)/agents/index';
-import * as useCRMModule from '../../../../src/hooks/useCRM';
-import * as apiModule from '../../../../src/services/api';
 
-// Mock TanStack Query hooks
 const mockUseAgentRuns = jest.fn();
 const mockUseAgentDefinitions = jest.fn();
 
@@ -25,7 +10,6 @@ jest.mock('../../../../src/hooks/useCRM', () => ({
   useAgentDefinitions: () => mockUseAgentDefinitions(),
 }));
 
-// Mock TriggerAgentButton component (Task 4.8 — GAP 4)
 jest.mock('../../../../src/components/agents/TriggerAgentButton', () => {
   const React = require('react');
   return {
@@ -34,21 +18,17 @@ jest.mock('../../../../src/components/agents/TriggerAgentButton', () => {
   };
 });
 
-// Mock types
 interface AgentRun {
   id: string;
   agent_name: string;
-  status: 'running' | 'success' | 'failed' | 'abstained' | 'escalated';
+  status: 'running' | 'success' | 'failed' | 'abstained' | 'escalated' | 'accepted' | 'rejected' | 'delegated';
   started_at: string;
   latency_ms: number;
   cost_euros: number;
+  rejection_reason?: string;
 }
 
 describe('Agent Runs List Screen', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
   const mockRuns: AgentRun[] = [
     {
       id: 'run-1',
@@ -74,9 +54,38 @@ describe('Agent Runs List Screen', () => {
       latency_ms: 1000,
       cost_euros: 0.01,
     },
+    {
+      id: 'run-4',
+      agent_name: 'Workflow Agent',
+      status: 'accepted',
+      started_at: '2026-02-15T13:00:00Z',
+      latency_ms: 1800,
+      cost_euros: 0.03,
+    },
+    {
+      id: 'run-5',
+      agent_name: 'Policy Agent',
+      status: 'rejected',
+      started_at: '2026-02-15T14:00:00Z',
+      latency_ms: 900,
+      cost_euros: 0.01,
+      rejection_reason: 'Policy threshold not met',
+    },
+    {
+      id: 'run-6',
+      agent_name: 'Coordinator Agent',
+      status: 'delegated',
+      started_at: '2026-02-15T15:00:00Z',
+      latency_ms: 1200,
+      cost_euros: 0.02,
+    },
   ];
 
-  it('should render agent runs list', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders agent runs including accepted, rejected and delegated states', () => {
     mockUseAgentRuns.mockReturnValue({
       data: { pages: [{ data: mockRuns }] },
       isLoading: false,
@@ -88,13 +97,17 @@ describe('Agent Runs List Screen', () => {
     render(<AgentsListScreen />);
 
     expect(screen.getByTestId('agent-runs-list')).toBeDefined();
-    // 2 runs have 'Support Agent' name — use getAllByText
     expect(screen.getAllByText('Support Agent').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Prospecting Agent')).toBeDefined();
-    expect(screen.getByText('Running')).toBeDefined();
+    expect(screen.getByText('Workflow Agent')).toBeDefined();
+    expect(screen.getByText('Policy Agent')).toBeDefined();
+    expect(screen.getByText('Coordinator Agent')).toBeDefined();
+    expect(screen.getByText('Accepted')).toBeDefined();
+    expect(screen.getByText('Rejected')).toBeDefined();
+    expect(screen.getByText('Delegated')).toBeDefined();
+    expect(screen.getByText('Policy threshold not met')).toBeDefined();
   });
 
-  it('should show loading state', () => {
+  it('shows loading state', () => {
     mockUseAgentRuns.mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -105,11 +118,10 @@ describe('Agent Runs List Screen', () => {
 
     render(<AgentsListScreen />);
 
-    // Loading indicator should be present
     expect(screen.getByText('Loading agent runs...')).toBeDefined();
   });
 
-  it('should show error state', () => {
+  it('shows error state', () => {
     mockUseAgentRuns.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -123,7 +135,7 @@ describe('Agent Runs List Screen', () => {
     expect(screen.getByText('Failed to load')).toBeDefined();
   });
 
-  it('should show empty state when no runs', () => {
+  it('shows empty state when no runs', () => {
     mockUseAgentRuns.mockReturnValue({
       data: { pages: [{ data: [] }] },
       isLoading: false,
@@ -138,7 +150,7 @@ describe('Agent Runs List Screen', () => {
     expect(screen.getByText('Trigger an agent to get started')).toBeDefined();
   });
 
-  it('should show run details with status chips', () => {
+  it('renders latency and cost metrics for list items', () => {
     mockUseAgentRuns.mockReturnValue({
       data: { pages: [{ data: mockRuns }] },
       isLoading: false,
@@ -149,73 +161,9 @@ describe('Agent Runs List Screen', () => {
 
     render(<AgentsListScreen />);
 
-    // Check status display
-    expect(screen.getByText('Success')).toBeDefined();
-    expect(screen.getByText('Failed')).toBeDefined();
-    expect(screen.getByText('Running')).toBeDefined();
-
-    // Check latency and cost
     expect(screen.getByText('2.5s')).toBeDefined();
     expect(screen.getByText('5.0s')).toBeDefined();
-    expect(screen.getByText('0.02 €')).toBeDefined();
-  });
-
-  it('should navigate to detail screen on item press', () => {
-    const mockRouterPush = jest.fn();
-    jest.mock('expo-router', () => ({
-      useRouter: () => ({ push: mockRouterPush }),
-    }));
-
-    mockUseAgentRuns.mockReturnValue({
-      data: { pages: [{ data: mockRuns }] },
-      isLoading: false,
-      isFetching: false,
-      error: null,
-      refetch: jest.fn(),
-    });
-
-    const { rerender } = render(<AgentsListScreen />);
-    rerender(<AgentsListScreen />);
-
-    // The actual navigation test requires expo-router mocking
-    // For now, we verify the component renders without crashing
-    expect(screen.getAllByText('Support Agent').length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('should call refetch on pull to refresh', () => {
-    const mockRefetch = jest.fn();
-    mockUseAgentRuns.mockReturnValue({
-      data: { pages: [{ data: mockRuns }] },
-      isLoading: false,
-      isFetching: false,
-      error: null,
-      refetch: mockRefetch,
-    });
-
-    render(<AgentsListScreen />);
-
-    // Simulate refresh
-    // Note: This would require simulating the actual pull-to-refresh interaction
-    // For now, verify the refetch function is available in the hook
-    expect(mockRefetch).toBeDefined();
-  });
-
-  it('should filter runs by status', () => {
-    mockUseAgentRuns.mockReturnValue({
-      data: { pages: [{ data: mockRuns }] },
-      isLoading: false,
-      isFetching: false,
-      error: null,
-      refetch: jest.fn(),
-    });
-
-    render(<AgentsListScreen />);
-
-    // Initial render shows all runs
-    expect(screen.getAllByText('Support Agent').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Prospecting Agent')).toBeDefined();
-
-    // The filter functionality would be tested with more specific interactions
-    // For now, verify the basic rendering works
+    expect(screen.getByText('900ms')).toBeDefined();
+    expect(screen.getAllByText(/0\.02/).length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -430,6 +430,75 @@ func TestAgentHandler_ListAgentRuns_Success(t *testing.T) {
 	}
 }
 
+func TestAgentHandler_ListAgentRuns_FiltersByEntityAndExposesContext(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	orch := agent.NewOrchestrator(db)
+	h := NewAgentHandler(orch)
+
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (
+			id, workspace_id, name, agent_type, status, created_at, updated_at
+		) VALUES ('agent-1', ?, 'test-agent', 'support', 'active', datetime('now'), datetime('now'))
+	`, wsID); err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO agent_run (
+			id, workspace_id, agent_definition_id, trigger_type, trigger_context, status,
+			output, abstention_reason, started_at, completed_at, created_at
+		) VALUES
+		('run-case-1', ?, 'agent-1', 'manual', ?, 'rejected', ?, 'policy denied', datetime('now'), datetime('now'), datetime('now')),
+		('run-deal-1', ?, 'agent-1', 'manual', ?, 'success', ?, NULL, datetime('now'), datetime('now'), datetime('now'))
+	`,
+		wsID,
+		`{"case":{"id":"case-1"}}`,
+		`{"workflow_id":"wf-case","reason":"policy denied"}`,
+		wsID,
+		`{"deal":{"id":"deal-1"}}`,
+		`{"workflow_id":"wf-deal"}`,
+	)
+	if err != nil {
+		t.Fatalf("insert agent runs: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/agents/runs?entity_type=case&entity_id=case-1&status=rejected&workflow_id=wf-case", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	h.ListAgentRuns(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		Data []map[string]any `json:"data"`
+		Meta map[string]any   `json:"meta"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp.Data) != 1 {
+		t.Fatalf("expected 1 filtered run, got %d: %s", len(resp.Data), rr.Body.String())
+	}
+	if got := resp.Data[0]["entity_type"]; got != "case" {
+		t.Fatalf("entity_type = %v, want case", got)
+	}
+	if got := resp.Data[0]["entity_id"]; got != "case-1" {
+		t.Fatalf("entity_id = %v, want case-1", got)
+	}
+	if got := resp.Data[0]["workflow_id"]; got != "wf-case" {
+		t.Fatalf("workflow_id = %v, want wf-case", got)
+	}
+	if got := resp.Data[0]["rejection_reason"]; got != "policy denied" {
+		t.Fatalf("rejection_reason = %v, want policy denied", got)
+	}
+}
+
 // TestAgentHandler_ListAgentDefinitions_MissingWorkspace returns 401.
 // Traces: FR-230
 func TestAgentHandler_ListAgentDefinitions_MissingWorkspace(t *testing.T) {

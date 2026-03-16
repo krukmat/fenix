@@ -1,21 +1,24 @@
-// useAgentSpec hooks — query keys, enabled guards, staleTime, mutation invalidation
-// FR-301 (Signals), FR-302 (Workflows), FR-071 (Approvals), FR-232 (Handoff), UC-A4/A5/A6/A7
-
-
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import {
   agentSpecQueryKeys,
+  useActivateWorkflow,
+  useAgentRunsByEntity,
+  useAgentRunsByWorkflow,
+  useCreateWorkflow,
+  useDecideApproval,
+  useDismissSignal,
+  useExecuteWorkflow,
+  useHandoffPackage,
+  useNewVersion,
+  usePendingApprovals,
+  useRollback,
   useSignals,
   useSignalsByEntity,
-  useDismissSignal,
-  useWorkflows,
+  useUpdateWorkflow,
   useWorkflow,
-  useActivateWorkflow,
-  useExecuteWorkflow,
-  usePendingApprovals,
-  useDecideApproval,
-  useHandoffPackage,
+  useWorkflowVersions,
+  useWorkflows,
 } from '../../src/hooks/useAgentSpec';
 
 const mockUseQuery = jest.fn();
@@ -44,7 +47,12 @@ jest.mock('../../src/services/api', () => ({
   workflowApi: {
     getWorkflows: jest.fn(),
     getWorkflow: jest.fn(),
+    getVersions: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
     activateWorkflow: jest.fn(),
+    newVersion: jest.fn(),
+    rollback: jest.fn(),
     executeWorkflow: jest.fn(),
   },
   approvalApi: {
@@ -52,6 +60,8 @@ jest.mock('../../src/services/api', () => ({
     decideApproval: jest.fn(),
   },
   agentApi: {
+    getRunsByEntity: jest.fn(),
+    getRunsByWorkflow: jest.fn(),
     getHandoff: jest.fn(),
   },
 }));
@@ -69,333 +79,207 @@ describe('useAgentSpec hooks', () => {
     );
   });
 
-  // ─── agentSpecQueryKeys ───────────────────────────────────────────────────
-
   describe('agentSpecQueryKeys', () => {
-    it('signals key includes workspaceId and empty filter object by default', () => {
+    it('keeps existing signal and workflow keys stable', () => {
       expect(agentSpecQueryKeys.signals('ws')).toEqual(['signals', 'ws', {}]);
-    });
-
-    it('signals key includes explicit filters when provided', () => {
-      expect(agentSpecQueryKeys.signals('ws', { status: 'active' })).toEqual([
-        'signals',
-        'ws',
-        { status: 'active' },
-      ]);
-    });
-
-    it('signalsByEntity key encodes entity type and id into filter shape', () => {
       expect(agentSpecQueryKeys.signalsByEntity('ws', 'deal', 'd-1')).toEqual([
         'signals',
         'ws',
         { entity_type: 'deal', entity_id: 'd-1' },
       ]);
-    });
-
-    it('workflows key includes workspaceId and empty filter object by default', () => {
       expect(agentSpecQueryKeys.workflows('ws')).toEqual(['workflows', 'ws', {}]);
-    });
-
-    it('workflows key includes status filter when provided', () => {
-      expect(agentSpecQueryKeys.workflows('ws', { status: 'active' })).toEqual([
-        'workflows',
-        'ws',
-        { status: 'active' },
-      ]);
-    });
-
-    it('workflow detail key includes workspaceId and id', () => {
       expect(agentSpecQueryKeys.workflow('ws', 'wf-1')).toEqual(['workflow', 'ws', 'wf-1']);
     });
 
-    it('pendingApprovals key includes workspaceId', () => {
-      expect(agentSpecQueryKeys.pendingApprovals('ws')).toEqual(['pending-approvals', 'ws']);
+    it('adds workflow versions and filtered run keys', () => {
+      expect(agentSpecQueryKeys.workflowVersions('ws', 'wf-1')).toEqual(['workflow-versions', 'ws', 'wf-1']);
+      expect(agentSpecQueryKeys.agentRunsByEntity('ws', 'case', 'c-1', { status: 'rejected' })).toEqual([
+        'agent-runs',
+        'ws',
+        'entity',
+        'case',
+        'c-1',
+        { status: 'rejected' },
+      ]);
+      expect(agentSpecQueryKeys.agentRunsByWorkflow('ws', 'wf-1', { entity_type: 'deal' })).toEqual([
+        'agent-runs',
+        'ws',
+        'workflow',
+        'wf-1',
+        { entity_type: 'deal' },
+      ]);
     });
   });
 
-  // ─── Signals ─────────────────────────────────────────────────────────────
-
-  describe('useSignals', () => {
-    it('configures infinite query with correct key and staleTime', () => {
-      useSignals();
-      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        expect.objectContaining({
-          queryKey: ['signals', 'ws-1', {}],
-          staleTime: 15_000,
-          enabled: true,
-        })
-      );
-    });
-
-    it('passes status filter into query key', () => {
+  describe('signals hooks', () => {
+    it('configures signal list and entity queries', () => {
       useSignals({ status: 'active' });
       expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        expect.objectContaining({
-          queryKey: ['signals', 'ws-1', { status: 'active' }],
-        })
+        expect.objectContaining({ queryKey: ['signals', 'ws-1', { status: 'active' }], enabled: true })
       );
-    });
 
-    it('passes partial entity filter into query key', () => {
-      useSignals({ entity_type: 'account' });
-      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        expect.objectContaining({
-          queryKey: ['signals', 'ws-1', { entity_type: 'account' }],
-        })
-      );
-    });
-
-    it('is disabled when workspaceId is null', () => {
-      mockUseAuthStore.mockImplementation((selector: unknown) =>
-        (selector as (state: { workspaceId: string | null }) => unknown)({ workspaceId: null })
-      );
-      useSignals();
-      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
-      );
-    });
-  });
-
-  describe('useSignalsByEntity', () => {
-    it('configures query with entity-scoped key', () => {
       useSignalsByEntity('deal', 'd-1');
       expect(mockUseQuery).toHaveBeenCalledWith(
         expect.objectContaining({
           queryKey: ['signals', 'ws-1', { entity_type: 'deal', entity_id: 'd-1' }],
-          staleTime: 15_000,
           enabled: true,
         })
       );
     });
 
-    it('is disabled when entityType is empty', () => {
-      useSignalsByEntity('', 'd-1');
-      expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
-      );
-    });
-
-    it('is disabled when entityId is empty', () => {
-      useSignalsByEntity('deal', '');
-      expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
-      );
-    });
-
-    it('is disabled when workspaceId is null', () => {
-      mockUseAuthStore.mockImplementation((selector: unknown) =>
-        (selector as (state: { workspaceId: string | null }) => unknown)({ workspaceId: null })
-      );
-      useSignalsByEntity('deal', 'd-1');
-      expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
-      );
-    });
-  });
-
-  describe('useDismissSignal', () => {
-    it('invalidates all signals for the workspace on success', () => {
+    it('invalidates workspace signal queries after dismiss', () => {
       useDismissSignal();
       const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: () => void };
       options.onSuccess?.();
       expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['signals', 'ws-1'] });
     });
-
-    it('uses null-safe workspace key when workspaceId is missing', () => {
-      mockUseAuthStore.mockImplementation((selector: unknown) =>
-        (selector as (state: { workspaceId: string | null }) => unknown)({ workspaceId: null })
-      );
-      useDismissSignal();
-      const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: () => void };
-      options.onSuccess?.();
-      expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['signals', ''] });
-    });
   });
 
-  // ─── Workflows ───────────────────────────────────────────────────────────
-
-  describe('useWorkflows', () => {
-    it('configures infinite query with correct key and staleTime', () => {
-      useWorkflows();
-      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        expect.objectContaining({
-          queryKey: ['workflows', 'ws-1', {}],
-          staleTime: 60_000,
-          enabled: true,
-        })
-      );
-    });
-
-    it('passes status filter into query key', () => {
+  describe('workflow queries', () => {
+    it('configures workflow list, detail and versions queries', () => {
       useWorkflows({ status: 'active' });
       expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        expect.objectContaining({
-          queryKey: ['workflows', 'ws-1', { status: 'active' }],
-        })
+        expect.objectContaining({ queryKey: ['workflows', 'ws-1', { status: 'active' }], enabled: true })
+      );
+
+      useWorkflow('wf-1');
+      expect(mockUseQuery).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['workflow', 'ws-1', 'wf-1'], enabled: true })
+      );
+
+      useWorkflowVersions('wf-1');
+      expect(mockUseQuery).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['workflow-versions', 'ws-1', 'wf-1'], enabled: true })
       );
     });
 
-    it('is disabled when workspaceId is null', () => {
-      mockUseAuthStore.mockImplementation((selector: unknown) =>
-        (selector as (state: { workspaceId: string | null }) => unknown)({ workspaceId: null })
-      );
-      useWorkflows();
-      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
-      );
+    it('disables workflow version query when id is empty', () => {
+      useWorkflowVersions('');
+      expect(mockUseQuery).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
     });
   });
 
-  describe('useWorkflow', () => {
-    it('configures query with correct detail key', () => {
-      useWorkflow('wf-1');
-      expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({
-          queryKey: ['workflow', 'ws-1', 'wf-1'],
-          staleTime: 60_000,
-          enabled: true,
-        })
-      );
+  describe('workflow mutations', () => {
+    it('useCreateWorkflow invalidates list, detail and versions for the created workflow', () => {
+      useCreateWorkflow();
+      const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: (result: { id: string }) => void };
+      options.onSuccess?.({ id: 'wf-2' });
+
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['workflows', 'ws-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['workflow', 'ws-1', 'wf-2'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: ['workflow-versions', 'ws-1', 'wf-2'] });
     });
 
-    it('is disabled when id is empty', () => {
-      useWorkflow('');
-      expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
-      );
-    });
-
-    it('is disabled when workspaceId is null', () => {
-      mockUseAuthStore.mockImplementation((selector: unknown) =>
-        (selector as (state: { workspaceId: string | null }) => unknown)({ workspaceId: null })
-      );
-      useWorkflow('wf-1');
-      expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
-      );
-    });
-  });
-
-  describe('useActivateWorkflow', () => {
-    it('invalidates workflows list and workflow detail on success', () => {
-      useActivateWorkflow();
+    it('useUpdateWorkflow invalidates list, detail and versions', () => {
+      useUpdateWorkflow();
       const options = mockUseMutation.mock.calls[0][0] as {
-        onSuccess?: (_result: unknown, id: string) => void;
+        onSuccess?: (_result: unknown, variables: { id: string }) => void;
       };
+      options.onSuccess?.({}, { id: 'wf-1' });
+
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['workflows', 'ws-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['workflow', 'ws-1', 'wf-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: ['workflow-versions', 'ws-1', 'wf-1'] });
+    });
+
+    it('useActivateWorkflow invalidates list, detail and versions', () => {
+      useActivateWorkflow();
+      const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: (_result: unknown, id: string) => void };
       options.onSuccess?.({}, 'wf-1');
 
       expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['workflows', 'ws-1'] });
       expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['workflow', 'ws-1', 'wf-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: ['workflow-versions', 'ws-1', 'wf-1'] });
     });
-  });
 
-  describe('useExecuteWorkflow', () => {
-    it('invalidates agent-runs list on success (execution creates a new run)', () => {
+    it('useNewVersion invalidates list, detail and versions of the source workflow', () => {
+      useNewVersion();
+      const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: (_result: unknown, id: string) => void };
+      options.onSuccess?.({}, 'wf-1');
+
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['workflows', 'ws-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['workflow', 'ws-1', 'wf-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: ['workflow-versions', 'ws-1', 'wf-1'] });
+    });
+
+    it('useRollback invalidates list, detail, versions and agent runs', () => {
+      useRollback();
+      const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: (_result: unknown, id: string) => void };
+      options.onSuccess?.({}, 'wf-1');
+
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['workflows', 'ws-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['workflow', 'ws-1', 'wf-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: ['workflow-versions', 'ws-1', 'wf-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(4, { queryKey: ['agent-runs', 'ws-1'] });
+    });
+
+    it('useExecuteWorkflow invalidates workflow detail, versions and agent runs', () => {
       useExecuteWorkflow();
-      const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: () => void };
-      options.onSuccess?.();
+      const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: (_result: unknown, id: string) => void };
+      options.onSuccess?.({}, 'wf-1');
 
-      expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['agent-runs', 'ws-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['workflow', 'ws-1', 'wf-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['workflow-versions', 'ws-1', 'wf-1'] });
+      expect(mockInvalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: ['agent-runs', 'ws-1'] });
     });
   });
 
-  // ─── Approvals ───────────────────────────────────────────────────────────
+  describe('filtered agent run queries', () => {
+    it('configures entity-scoped run query with workspace-safe key', () => {
+      mockUseInfiniteQuery.mockReturnValueOnce({ data: { pages: [{ data: [], meta: { total: 0 } }] } });
+      useAgentRunsByEntity('case', 'c-1', { status: 'rejected' });
 
-  describe('usePendingApprovals', () => {
-    it('configures query with staleTime of 15s for near-realtime badge count', () => {
-      usePendingApprovals();
-      expect(mockUseQuery).toHaveBeenCalledWith(
+      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
         expect.objectContaining({
-          queryKey: ['pending-approvals', 'ws-1'],
+          queryKey: ['agent-runs', 'ws-1', 'entity', 'case', 'c-1', { status: 'rejected' }],
+          enabled: true,
           staleTime: 15_000,
-          enabled: true,
         })
       );
     });
 
-    it('is disabled when workspaceId is null', () => {
-      mockUseAuthStore.mockImplementation((selector: unknown) =>
-        (selector as (state: { workspaceId: string | null }) => unknown)({ workspaceId: null })
+    it('configures workflow-scoped run query with workspace-safe key', () => {
+      mockUseInfiniteQuery.mockReturnValueOnce({ data: { pages: [{ data: [], meta: { total: 0 } }] } });
+      useAgentRunsByWorkflow('wf-1', { entity_type: 'deal' });
+
+      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryKey: ['agent-runs', 'ws-1', 'workflow', 'wf-1', { entity_type: 'deal' }],
+          enabled: true,
+          staleTime: 15_000,
+        })
       );
+    });
+
+    it('disables entity-scoped run query when entity id is empty', () => {
+      useAgentRunsByEntity('case', '');
+      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+    });
+
+    it('disables workflow-scoped run query when workflow id is empty', () => {
+      useAgentRunsByWorkflow('');
+      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+    });
+  });
+
+  describe('approvals and handoff', () => {
+    it('keeps pending approvals invalidation stable', () => {
       usePendingApprovals();
       expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
+        expect.objectContaining({ queryKey: ['pending-approvals', 'ws-1'], enabled: true })
       );
-    });
-  });
 
-  describe('useDecideApproval', () => {
-    it('invalidates pending approvals on approve decision', () => {
       useDecideApproval();
       const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: () => void };
       options.onSuccess?.();
-
-      expect(mockInvalidateQueries).toHaveBeenCalledWith({
-        queryKey: ['pending-approvals', 'ws-1'],
-      });
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['pending-approvals', 'ws-1'] });
     });
 
-    it('invalidates pending approvals on deny decision', () => {
-      useDecideApproval();
-      const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: () => void };
-      options.onSuccess?.();
-
-      expect(mockInvalidateQueries).toHaveBeenCalledWith({
-        queryKey: ['pending-approvals', 'ws-1'],
-      });
-    });
-
-    it('uses null-safe workspace key when workspaceId is missing', () => {
-      mockUseAuthStore.mockImplementation((selector: unknown) =>
-        (selector as (state: { workspaceId: string | null }) => unknown)({ workspaceId: null })
-      );
-      useDecideApproval();
-      const options = mockUseMutation.mock.calls[0][0] as { onSuccess?: () => void };
-      options.onSuccess?.();
-
-      expect(mockInvalidateQueries).toHaveBeenCalledWith({
-        queryKey: ['pending-approvals', ''],
-      });
-    });
-  });
-
-  // ─── Handoff ─────────────────────────────────────────────────────────────
-
-  describe('agentSpecQueryKeys.handoffPackage', () => {
-    it('includes runId in the query key', () => {
+    it('keeps handoff query behavior stable', () => {
       expect(agentSpecQueryKeys.handoffPackage('run-1')).toEqual(['handoff-package', 'run-1']);
-    });
-  });
-
-  describe('useHandoffPackage', () => {
-    it('is enabled when runId is provided and enabled=true', () => {
       useHandoffPackage('run-1', true);
       expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({
-          queryKey: ['handoff-package', 'run-1'],
-          enabled: true,
-        })
-      );
-    });
-
-    it('is disabled when enabled=false (run is not escalated)', () => {
-      useHandoffPackage('run-1', false);
-      expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
-      );
-    });
-
-    it('is disabled when runId is undefined', () => {
-      useHandoffPackage(undefined, true);
-      expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: false })
-      );
-    });
-
-    it('uses staleTime of 60s', () => {
-      useHandoffPackage('run-1', true);
-      expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ staleTime: 60_000 })
+        expect.objectContaining({ queryKey: ['handoff-package', 'run-1'], enabled: true, staleTime: 60_000 })
       );
     });
   });

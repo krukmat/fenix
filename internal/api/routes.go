@@ -203,10 +203,13 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		r.Route("/workflows", func(r chi.Router) {
 			r.Post("/", workflowHandler.Create)
 			r.Get("/", workflowHandler.List)
+			r.Get("/{id}/versions", workflowHandler.ListVersions)
+			r.Post("/{id}/new-version", workflowHandler.NewVersion)
 			r.Post("/{id}/verify", workflowHandler.Verify)
 			r.Post("/{id}/execute", workflowHandler.Execute)
 			r.Get(routeByID, workflowHandler.Get)
 			r.Put("/{id}/activate", workflowHandler.Activate)
+			r.Put("/{id}/rollback", workflowHandler.Rollback)
 			r.Put(routeByID, workflowHandler.Update)
 			r.Delete(routeByID, workflowHandler.Delete)
 		})

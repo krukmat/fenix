@@ -19,6 +19,9 @@ import (
 const (
 	defaultAgentLanguage = "es"
 	errQueryRequired     = "query is required"
+	queryWorkflowID      = "workflow_id"
+	dispatchReasonKey    = "reason"
+	rejectionReasonKey   = "rejection_reason"
 )
 
 // AgentHandler handles agent-related HTTP requests
@@ -55,6 +58,10 @@ type agentRunResponse struct {
 	TotalCost         *float64        `json:"totalCost,omitempty"`
 	LatencyMs         *int64          `json:"latencyMs,omitempty"`
 	TraceID           *string         `json:"traceId,omitempty"`
+	WorkflowID        *string         `json:"workflow_id,omitempty"`
+	EntityType        *string         `json:"entity_type,omitempty"`
+	EntityID          *string         `json:"entity_id,omitempty"`
+	RejectionReason   *string         `json:"rejection_reason,omitempty"`
 	StartedAt         string          `json:"startedAt"`
 	CompletedAt       *string         `json:"completedAt,omitempty"`
 	CreatedAt         string          `json:"createdAt"`
@@ -177,8 +184,16 @@ func (h *AgentHandler) ListAgentRuns(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limit, offset := parsePageParams(r)
+	filters := parseRunFilters(r)
 
-	runs, total, err := h.orchestrator.ListAgentRuns(r.Context(), workspaceID, limit, offset)
+	runs, total, err := h.orchestrator.ListAgentRuns(r.Context(), workspaceID, agent.ListRunsInput{
+		Limit:      limit,
+		Offset:     offset,
+		Status:     filters.status,
+		EntityType: filters.entityType,
+		EntityID:   filters.entityID,
+		WorkflowID: filters.workflowID,
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list agent runs")
 		return
@@ -195,6 +210,23 @@ func (h *AgentHandler) ListAgentRuns(w http.ResponseWriter, r *http.Request) {
 		"data": out,
 		"meta": map[string]any{"total": total, "limit": limit, "offset": offset},
 	})
+}
+
+type runFilters struct {
+	status     string
+	entityType string
+	entityID   string
+	workflowID string
+}
+
+func parseRunFilters(r *http.Request) runFilters {
+	query := r.URL.Query()
+	return runFilters{
+		status:     query.Get(queryStatus),
+		entityType: query.Get(paramEntityType),
+		entityID:   query.Get(paramEntityID),
+		workflowID: query.Get(queryWorkflowID),
+	}
 }
 
 // ListAgentDefinitions handles GET /api/v1/agents/definitions
@@ -264,6 +296,7 @@ func (h *AgentHandler) CancelAgentRun(w http.ResponseWriter, r *http.Request) {
 // Helper functions
 
 func agentRunToResponse(run *agent.Run) agentRunResponse {
+	meta := agentExtractRunContextMetadata(run)
 	resp := agentRunResponse{
 		ID:                run.ID,
 		WorkspaceID:       run.WorkspaceID,
@@ -282,11 +315,117 @@ func agentRunToResponse(run *agent.Run) agentRunResponse {
 		StartedAt:         run.StartedAt.Format(http.TimeFormat),
 		CreatedAt:         run.CreatedAt.Format(http.TimeFormat),
 	}
+	if meta.workflowID != "" {
+		resp.WorkflowID = &meta.workflowID
+	}
+	if meta.entityType != "" {
+		resp.EntityType = &meta.entityType
+	}
+	if meta.entityID != "" {
+		resp.EntityID = &meta.entityID
+	}
+	if meta.rejectionReason != "" {
+		resp.RejectionReason = &meta.rejectionReason
+	}
 	if run.CompletedAt != nil {
 		completedAt := run.CompletedAt.Format(http.TimeFormat)
 		resp.CompletedAt = &completedAt
 	}
 	return resp
+}
+
+func agentExtractRunContextMetadata(run *agent.Run) struct {
+	workflowID      string
+	entityType      string
+	entityID        string
+	rejectionReason string
+} {
+	meta := struct {
+		workflowID      string
+		entityType      string
+		entityID        string
+		rejectionReason string
+	}{}
+	if run == nil {
+		return meta
+	}
+
+	meta.workflowID = firstJSONStringFromRaw(run.Output, queryWorkflowID)
+	if meta.workflowID == "" {
+		meta.workflowID = firstJSONStringFromRaw(run.TriggerContext, queryWorkflowID)
+	}
+	meta.entityType = firstNonEmptyString(
+		firstJSONStringFromRaw(run.Output, paramEntityType),
+		firstJSONStringFromRaw(run.TriggerContext, paramEntityType),
+		firstNestedEntityTypeFromRaw(run.TriggerContext),
+	)
+	meta.entityID = firstNonEmptyString(
+		firstJSONStringFromRaw(run.Output, paramEntityID),
+		firstJSONStringFromRaw(run.TriggerContext, paramEntityID),
+		firstNestedEntityIDFromRaw(run.TriggerContext),
+	)
+	if run.Status == agent.StatusRejected {
+		meta.rejectionReason = firstNonEmptyString(
+			firstJSONStringFromRaw(run.Output, dispatchReasonKey),
+			firstJSONStringFromRaw(run.Output, rejectionReasonKey),
+		)
+		if meta.rejectionReason == "" && run.AbstentionReason != nil {
+			meta.rejectionReason = *run.AbstentionReason
+		}
+	}
+	return meta
+}
+
+func firstJSONStringFromRaw(raw json.RawMessage, key string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return ""
+	}
+	str, _ := data[key].(string)
+	return str
+}
+
+func firstNestedEntityTypeFromRaw(raw json.RawMessage) string {
+	for _, entityType := range []string{"account", "contact", "deal", "case", "lead"} {
+		if firstNestedEntityIDForTypeFromRaw(raw, entityType) != "" {
+			return entityType
+		}
+	}
+	return ""
+}
+
+func firstNestedEntityIDFromRaw(raw json.RawMessage) string {
+	for _, entityType := range []string{"account", "contact", "deal", "case", "lead"} {
+		if entityID := firstNestedEntityIDForTypeFromRaw(raw, entityType); entityID != "" {
+			return entityID
+		}
+	}
+	return ""
+}
+
+func firstNestedEntityIDForTypeFromRaw(raw json.RawMessage, entityType string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return ""
+	}
+	nested, _ := data[entityType].(map[string]any)
+	entityID, _ := nested["id"].(string)
+	return entityID
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (h *AgentHandler) handleTriggerError(w http.ResponseWriter, err error) {

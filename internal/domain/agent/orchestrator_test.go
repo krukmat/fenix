@@ -137,7 +137,7 @@ func TestListAgentRuns_Empty(t *testing.T) {
 	defer db.Close()
 
 	orch := NewOrchestrator(db)
-	runs, total, err := orch.ListAgentRuns(context.Background(), "ws-1", 25, 0)
+	runs, total, err := orch.ListAgentRuns(context.Background(), "ws-1", ListRunsInput{Limit: 25})
 	if err != nil {
 		t.Fatalf("ListAgentRuns: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestListAgentRuns_Pagination(t *testing.T) {
 		}
 	}
 
-	runs, total, err := orch.ListAgentRuns(ctx, "ws-pg", 2, 0)
+	runs, total, err := orch.ListAgentRuns(ctx, "ws-pg", ListRunsInput{Limit: 2})
 	if err != nil {
 		t.Fatalf("ListAgentRuns: %v", err)
 	}

@@ -26,6 +26,8 @@ type mockWorkflowService struct {
 	updateErr      error
 	markTestingErr error
 	markActiveErr  error
+	newVersionErr  error
+	rollbackErr    error
 	deleteErr      error
 }
 
@@ -88,6 +90,20 @@ func (m *mockWorkflowService) Update(_ context.Context, _, workflowID string, in
 	return item, nil
 }
 
+func (m *mockWorkflowService) ListVersions(_ context.Context, _, workflowID string) ([]*workflowdomain.Workflow, error) {
+	item, ok := m.items[workflowID]
+	if !ok {
+		return nil, workflowdomain.ErrWorkflowNotFound
+	}
+	out := make([]*workflowdomain.Workflow, 0, len(m.items))
+	for _, candidate := range m.items {
+		if candidate.Name == item.Name {
+			out = append(out, candidate)
+		}
+	}
+	return out, nil
+}
+
 func (m *mockWorkflowService) MarkTesting(_ context.Context, _, workflowID string) (*workflowdomain.Workflow, error) {
 	if m.markTestingErr != nil {
 		return nil, m.markTestingErr
@@ -116,6 +132,47 @@ func (m *mockWorkflowService) MarkActive(_ context.Context, _, workflowID string
 
 func (m *mockWorkflowService) Activate(_ context.Context, _, workflowID string) (*workflowdomain.Workflow, error) {
 	return m.MarkActive(context.Background(), "", workflowID)
+}
+
+func (m *mockWorkflowService) NewVersion(_ context.Context, _, workflowID string) (*workflowdomain.Workflow, error) {
+	if m.newVersionErr != nil {
+		return nil, m.newVersionErr
+	}
+	item, ok := m.items[workflowID]
+	if !ok {
+		return nil, workflowdomain.ErrWorkflowNotFound
+	}
+	now := time.Now().UTC()
+	parentID := item.ID
+	nextID := workflowID + "_vnext"
+	next := &workflowdomain.Workflow{
+		ID:              nextID,
+		WorkspaceID:     item.WorkspaceID,
+		ParentVersionID: &parentID,
+		Name:            item.Name,
+		Description:     item.Description,
+		DSLSource:       item.DSLSource,
+		SpecSource:      item.SpecSource,
+		Version:         item.Version + 1,
+		Status:          workflowdomain.StatusDraft,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	m.items[nextID] = next
+	return next, nil
+}
+
+func (m *mockWorkflowService) Rollback(_ context.Context, _, workflowID string) (*workflowdomain.Workflow, error) {
+	if m.rollbackErr != nil {
+		return nil, m.rollbackErr
+	}
+	item, ok := m.items[workflowID]
+	if !ok {
+		return nil, workflowdomain.ErrWorkflowNotFound
+	}
+	item.Status = workflowdomain.StatusActive
+	item.UpdatedAt = time.Now().UTC()
+	return item, nil
 }
 
 func (m *mockWorkflowService) DeleteDraft(_ context.Context, _, workflowID string) error {
@@ -307,6 +364,107 @@ func TestWorkflowHandler_List_InvalidStatus_Returns400(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestWorkflowHandler_ListVersions_Returns200(t *testing.T) {
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_1"] = &workflowdomain.Workflow{
+		ID:          "wf_1",
+		WorkspaceID: "ws_test",
+		Name:        "qualify_lead",
+		DSLSource:   "ON lead.created",
+		Version:     1,
+		Status:      workflowdomain.StatusArchived,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	mock.items["wf_2"] = &workflowdomain.Workflow{
+		ID:          "wf_2",
+		WorkspaceID: "ws_test",
+		Name:        "qualify_lead",
+		DSLSource:   "ON lead.updated",
+		Version:     2,
+		Status:      workflowdomain.StatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Get("/workflows/{id}/versions", handler.ListVersions)
+
+	req := httptest.NewRequest(http.MethodGet, "/workflows/wf_1/versions", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestWorkflowHandler_NewVersion_Returns200(t *testing.T) {
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_1"] = &workflowdomain.Workflow{
+		ID:          "wf_1",
+		WorkspaceID: "ws_test",
+		Name:        "qualify_lead",
+		DSLSource:   "ON lead.created",
+		Version:     1,
+		Status:      workflowdomain.StatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/new-version", handler.NewVersion)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_1/new-version", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestWorkflowHandler_Rollback_Returns200(t *testing.T) {
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_1"] = &workflowdomain.Workflow{
+		ID:          "wf_1",
+		WorkspaceID: "ws_test",
+		Name:        "qualify_lead",
+		DSLSource:   "ON lead.created",
+		Version:     1,
+		Status:      workflowdomain.StatusArchived,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	invalidator := &workflowCacheInvalidatorStub{}
+	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, invalidator)
+
+	r := chi.NewRouter()
+	r.Put("/workflows/{id}/rollback", handler.Rollback)
+
+	req := httptest.NewRequest(http.MethodPut, "/workflows/wf_1/rollback", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if len(invalidator.invalidated) != 1 || invalidator.invalidated[0] != "wf_1" {
+		t.Fatalf("unexpected invalidated workflows = %#v", invalidator.invalidated)
 	}
 }
 

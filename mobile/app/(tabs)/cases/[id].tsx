@@ -4,9 +4,11 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useTheme, Button } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
+import { AgentActivitySection } from '../../../src/components/agents/AgentActivitySection';
 import { CRMDetailHeader } from '../../../src/components/crm';
 import { useCase } from '../../../src/hooks/useCRM';
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
+import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import type { ThemeColors } from '../../../src/theme/types';
 
 function useColors(): ThemeColors {
@@ -25,6 +27,7 @@ interface CaseDetailData {
   slaDeadline?: string;
   handoffStatus?: string;
   assignee?: string;
+  activeSignalCount?: number;
 }
 
 function getPriorityColor(priority: string): string {
@@ -88,6 +91,11 @@ export function renderCaseContent(caseData: CaseDetailData, colors: ThemeColors,
       )}
       {renderHandoffSection(caseData.handoffStatus, colors)}
       {renderAccountSection(caseData.accountId, caseData.accountName, router, colors)}
+      <View style={styles.section}>
+        <Text style={[styles.title, { color: colors.onSurface }]}>Signals</Text>
+        <SignalCountBadge count={caseData.activeSignalCount} testID="case-detail-signal-badge" />
+      </View>
+      <AgentActivitySection entityType="case" entityId={caseData.id} testIDPrefix="case-agent-activity" />
       <EntitySignalsSection entityType="case" entityId={caseData.id} testIDPrefix="case-signals" />
       <View style={styles.section}>
         <Button mode="contained" onPress={() => router.push(`/cases/edit/${caseData.id}`)} testID="case-edit-button">
@@ -127,6 +135,7 @@ export default function CaseDetailScreen() {
         slaDeadline: (caseObj.slaDeadline as string | undefined) ?? (caseObj.sla_deadline as string | undefined),
         handoffStatus: (handoffObj?.status as string | undefined) ?? (caseObj.handoffStatus as string | undefined),
         assignee: caseObj.assignee as string | undefined,
+        activeSignalCount: typeof payload?.active_signal_count === 'number' ? payload.active_signal_count : 0,
       }
     : undefined;
 
