@@ -1,5 +1,6 @@
 // Task 4.8 — E2E auth helper
 import { device, element, by, expect as detoxExpect, waitFor } from 'detox';
+import { ensureMobileP2Seed } from './seed.helper';
 
 const TEST_EMAIL = 'e2e@fenixcrm.test';
 const TEST_PASSWORD = 'e2eTestPass123!';
@@ -36,11 +37,32 @@ export async function registerAndLogin(): Promise<void> {
  * Logs in with test credentials. App must be at login screen.
  */
 export async function loginAsTestUser(): Promise<void> {
+  const seeded = ensureMobileP2Seed();
   await device.launchApp({ newInstance: true });
   await device.disableSynchronization();
 
-  await element(by.id('login-email-input')).typeText(TEST_EMAIL);
-  await element(by.id('login-password-input')).typeText(TEST_PASSWORD);
+  try {
+    await waitFor(element(by.id('login-screen'))).toBeVisible().withTimeout(3000);
+  } catch {
+    try {
+      await waitFor(element(by.id('accounts-list'))).toBeVisible().withTimeout(3000);
+      return;
+    } catch {
+      // fall through to relaunch and retry login
+    }
+    await device.terminateApp();
+    await device.launchApp({ newInstance: true });
+    await device.disableSynchronization();
+    try {
+      await waitFor(element(by.id('accounts-list'))).toBeVisible().withTimeout(3000);
+      return;
+    } catch {
+      // fall through to login form
+    }
+  }
+
+  await element(by.id('login-email-input')).replaceText(seeded.credentials.email || TEST_EMAIL);
+  await element(by.id('login-password-input')).replaceText(seeded.credentials.password || TEST_PASSWORD);
   await element(by.id('login-submit-button')).tap();
 
   await detoxExpect(element(by.id('accounts-list'))).toBeVisible(10000);

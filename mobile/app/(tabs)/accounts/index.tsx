@@ -61,16 +61,18 @@ export default function AccountsListScreen() {
         onPress={() => router.push(`/accounts/${item.id}`)}
         testID={`accounts-list-item-${index}`}
       >
-        <Text style={[styles.accountName, { color: colors.onSurface }]}>{item.name || 'Unnamed Account'}</Text>
-        <Text style={[styles.accountIndustry, { color: colors.onSurfaceVariant }]}>
-          {item.industry || 'No industry'}
-        </Text>
-        <View style={styles.badgeRow}>
-          <SignalCountBadge count={item.active_signal_count} testID={`account-signals-badge-${item.id}`} />
+        <View testID={`accounts-list-item-${item.id}`}>
+          <Text style={[styles.accountName, { color: colors.onSurface }]}>{item.name || 'Unnamed Account'}</Text>
+          <Text style={[styles.accountIndustry, { color: colors.onSurfaceVariant }]}>
+            {item.industry || 'No industry'}
+          </Text>
+          <View style={styles.badgeRow}>
+            <SignalCountBadge count={item.active_signal_count} testID={`account-signals-badge-${item.id}`} />
+          </View>
+          {item.phone && (
+            <Text style={[styles.accountPhone, { color: colors.onSurfaceVariant }]}>{item.phone}</Text>
+          )}
         </View>
-        {item.phone && (
-          <Text style={[styles.accountPhone, { color: colors.onSurfaceVariant }]}>{item.phone}</Text>
-        )}
       </TouchableOpacity>
     ),
     [colors, router]
