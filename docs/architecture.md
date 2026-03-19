@@ -3,7 +3,7 @@
 > **Version**: 1.0
 > **Status**: Approved
 > **Last updated**: 2026-02-24
-> **Source of truth**: `agentic_crm_requirements_agent_ready.md`
+> **Source of truth**: `docs/requirements.md`
 
 ---
 

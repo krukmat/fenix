@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Where we are**: Architecture design complete. Entering implementation phase.
 
 **Key documents**:
-- Requirements: `agentic_crm_requirements_agent_ready.md`
+- Requirements: `docs/requirements.md`
 - Architecture & design (ERD, diagrams, API, build order): `docs/architecture.md`
 - Implementation plan (13 weeks, 4 phases, TDD): `docs/implementation-plan.md`
 - Corrections applied (audit report): `docs/CORRECTIONS-APPLIED.md`

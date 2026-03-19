@@ -255,7 +255,7 @@ agent_run status                Add ACCEPTED/REJECTED/DELEGATED       Full proto
 | AGENT_SPEC (source) | `docs/AGENT_SPEC.md` | The vision document being analyzed |
 | Architecture | `docs/architecture.md` | Current system design (ERD, modules, API, diagrams) |
 | Implementation Plan | `docs/implementation-plan.md` | 13-week P0 plan with task status |
-| Requirements | `agentic_crm_requirements_agent_ready.md` | Original FR/NFR requirements |
+| Requirements | `docs/requirements.md` | FR/NFR/UC requirements (v2.0) |
 | Corrections Applied | `docs/CORRECTIONS-APPLIED.md` | Audit of plan corrections |
 
 ## Appendix B -- AGENT_SPEC DSL Verb -> Current Tool Mapping

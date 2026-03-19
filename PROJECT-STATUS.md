@@ -10,7 +10,7 @@
 
 ### Completed Milestones
 
-- ✅ **Requirements Analysis** (`agentic_crm_requirements_agent_ready.md`)
+- ✅ **Requirements Analysis** (`docs/requirements.md`)
   - 243 functional requirements defined
   - 62 non-functional requirements
   - 8 use cases documented (P0: UC-C1)
@@ -41,7 +41,7 @@
 
 | Document | Purpose | Status |
 |----------|---------|--------|
-| `agentic_crm_requirements_agent_ready.md` | Source of truth — all FR/NFR/UC | ✅ Complete |
+| `docs/requirements.md` | Source of truth — all FR/NFR/UC (v2.0) | ✅ Complete |
 | `docs/architecture.md` | Technical design (ERD, diagrams, stack) | ✅ Complete |
 | `docs/implementation-plan.md` | 13-week execution plan (corrected) | ✅ Ready |
 | `docs/CORRECTIONS-APPLIED.md` | Audit report + fixes | ✅ Complete |

@@ -224,7 +224,7 @@ npm run test:coverage  # Coverage ≥80%
 
 1. `docs/implementation-plan.md` — Week 11, Task 4.1
 2. `docs/architecture.md` — Section 3.1 (BFF Responsibilities), Section 10 (Deployment)
-3. `agentic_crm_requirements_agent_ready.md` — FR-301
+3. `docs/requirements.md` — FR-301
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **Fecha**: 2026-03-05  
 > **Objetivo**: documentar el diseño real implementado (as-built), trazando requerimientos ↔ código ↔ datos.  
-> **Fuentes**: `agentic_crm_requirements_agent_ready.md`, `docs/architecture.md`, `docs/implementation-plan.md` + evidencia en `internal/*`, `bff/*`, `mobile/*`.
+> **Fuentes**: `docs/requirements.md`, `docs/architecture.md`, `docs/implementation-plan.md` + evidencia en `internal/*`, `bff/*`, `mobile/*`.
 
 ---
 

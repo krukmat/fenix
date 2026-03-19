@@ -54,7 +54,7 @@ Example:
 
 ## Collision Check
 
-The current repository convention was checked against the existing catalog in `agentic_crm_requirements_agent_ready.md`.
+The current repository convention was checked against the existing catalog in `docs/requirements.md`.
 
 Result:
 - no existing `UC-A2` to `UC-A9`
