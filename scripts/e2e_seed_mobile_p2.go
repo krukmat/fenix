@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,6 +25,7 @@ const (
 	testPassword       = "e2eTestPass123!"
 	testDisplayName    = "E2E Test User"
 	testWorkspaceName  = "E2E Test Workspace"
+	emptyJSONArray     = "[]"
 )
 
 type authResponse struct {
@@ -82,8 +84,9 @@ func main() {
 	seeded.Credentials.Email = testEmail
 	seeded.Credentials.Password = testPassword
 
-	if err := json.NewEncoder(os.Stdout).Encode(seeded); err != nil {
-		fail(err)
+	encodeErr := json.NewEncoder(os.Stdout).Encode(seeded)
+	if encodeErr != nil {
+		fail(encodeErr)
 	}
 }
 
@@ -144,10 +147,12 @@ func seedActiveWorkflow(ctx context.Context, db *sql.DB, auth authResponse, suff
 	if err != nil {
 		return "", err
 	}
-	if _, err := svc.MarkTesting(ctx, auth.WorkspaceID, wf.ID); err != nil {
+	_, err = svc.MarkTesting(ctx, auth.WorkspaceID, wf.ID)
+	if err != nil {
 		return "", err
 	}
-	if _, err := svc.Activate(ctx, auth.WorkspaceID, wf.ID); err != nil {
+	_, err = svc.Activate(ctx, auth.WorkspaceID, wf.ID)
+	if err != nil {
 		return "", err
 	}
 	return wf.ID, nil
@@ -166,13 +171,16 @@ func seedArchivedWorkflow(ctx context.Context, db *sql.DB, auth authResponse, su
 	if err != nil {
 		return "", err
 	}
-	if _, err := svc.MarkTesting(ctx, auth.WorkspaceID, wf.ID); err != nil {
+	_, err = svc.MarkTesting(ctx, auth.WorkspaceID, wf.ID)
+	if err != nil {
 		return "", err
 	}
-	if _, err := svc.Activate(ctx, auth.WorkspaceID, wf.ID); err != nil {
+	_, err = svc.Activate(ctx, auth.WorkspaceID, wf.ID)
+	if err != nil {
 		return "", err
 	}
-	if _, err := svc.MarkArchived(ctx, auth.WorkspaceID, wf.ID); err != nil {
+	_, err = svc.MarkArchived(ctx, auth.WorkspaceID, wf.ID)
+	if err != nil {
 		return "", err
 	}
 	return wf.ID, nil
@@ -223,10 +231,10 @@ func seedRejectedRun(ctx context.Context, db *sql.DB, auth authResponse, account
 		triggerContext,
 		"rejected",
 		`{"source":"mobile-e2e"}`,
-		`[]`,
-		`[]`,
-		`[]`,
-		`[]`,
+		emptyJSONArray,
+		emptyJSONArray,
+		emptyJSONArray,
+		emptyJSONArray,
 		output,
 		"Policy threshold not met",
 		128,
@@ -293,8 +301,9 @@ func requestAuth(ctx context.Context, apiURL, path string, payload map[string]st
 	}
 
 	var auth authResponse
-	if err := json.Unmarshal(raw, &auth); err != nil {
-		return authResponse{}, err
+	unmarshalErr := json.Unmarshal(raw, &auth)
+	if unmarshalErr != nil {
+		return authResponse{}, unmarshalErr
 	}
 	return auth, nil
 }
@@ -303,8 +312,8 @@ func asRequestError(err error, target *requestError) bool {
 	if err == nil {
 		return false
 	}
-	reqErr, ok := err.(*requestError)
-	if !ok {
+	var reqErr *requestError
+	if !errors.As(err, &reqErr) || reqErr == nil {
 		return false
 	}
 	*target = *reqErr
