@@ -24,3 +24,5 @@ fenix
 *.out
 .claude/settings.local.json
 docs/ci-local.md
+.tools/*
+.cache/*

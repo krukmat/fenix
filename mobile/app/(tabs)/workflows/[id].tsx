@@ -3,6 +3,7 @@
 import React, { useCallback } from 'react';
 import { View, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { Text, Button, Chip, Divider, useTheme } from 'react-native-paper';
+import type { MD3Theme } from 'react-native-paper';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { DSLViewer } from '../../../src/components/workflows/DSLViewer';
 import {
@@ -171,7 +172,7 @@ function WorkflowDetailBody({
   workflow: Workflow;
   versions: Workflow[];
   statusColor: string;
-  theme: ReturnType<typeof useTheme>;
+  theme: MD3Theme;
   activatePending: boolean;
   executePending: boolean;
   newVersionPending: boolean;

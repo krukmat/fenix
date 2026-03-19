@@ -358,11 +358,19 @@ type runContextMetadata struct {
 }
 
 func matchesRunFilters(run *Run, input ListRunsInput) bool {
+	if run == nil {
+		return false
+	}
 	meta := extractRunContextMetadata(run)
-	return !((input.Status != "" && run.Status != input.Status) ||
-		(input.WorkflowID != "" && meta.workflowID != input.WorkflowID) ||
-		(input.EntityType != "" && meta.entityType != input.EntityType) ||
-		(input.EntityID != "" && meta.entityID != input.EntityID))
+
+	return matchesOptionalFilter(run.Status, input.Status) &&
+		matchesOptionalFilter(meta.workflowID, input.WorkflowID) &&
+		matchesOptionalFilter(meta.entityType, input.EntityType) &&
+		matchesOptionalFilter(meta.entityID, input.EntityID)
+}
+
+func matchesOptionalFilter(actual, expected string) bool {
+	return expected == "" || actual == expected
 }
 
 func extractRunContextMetadata(run *Run) runContextMetadata {
