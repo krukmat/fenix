@@ -137,7 +137,7 @@ func TestListAgentRuns_Empty(t *testing.T) {
 	defer db.Close()
 
 	orch := NewOrchestrator(db)
-	runs, total, err := orch.ListAgentRuns(context.Background(), "ws-1", 25, 0)
+	runs, total, err := orch.ListAgentRuns(context.Background(), "ws-1", ListRunsInput{Limit: 25})
 	if err != nil {
 		t.Fatalf("ListAgentRuns: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestListAgentRuns_Pagination(t *testing.T) {
 		}
 	}
 
-	runs, total, err := orch.ListAgentRuns(ctx, "ws-pg", 2, 0)
+	runs, total, err := orch.ListAgentRuns(ctx, "ws-pg", ListRunsInput{Limit: 2})
 	if err != nil {
 		t.Fatalf("ListAgentRuns: %v", err)
 	}
@@ -185,6 +185,97 @@ func TestListAgentRuns_Pagination(t *testing.T) {
 	if total != 3 {
 		t.Errorf("expected total=3, got %d", total)
 	}
+}
+
+func TestListAgentRuns_AppliesFiltersAndMetadataFallbacks(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('agent-filter', 'ws-filter', 'Filter', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert definition: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO agent_run (
+			id, workspace_id, agent_definition_id, trigger_type, trigger_context, status,
+			output, abstention_reason, started_at, completed_at, created_at
+		) VALUES
+		('run-case', 'ws-filter', 'agent-filter', 'manual', ?, 'rejected', ?, 'policy denied', datetime('now'), datetime('now'), datetime('now')),
+		('run-deal', 'ws-filter', 'agent-filter', 'manual', ?, 'success', ?, NULL, datetime('now'), datetime('now'), datetime('now')),
+		('run-no-meta', 'ws-filter', 'agent-filter', 'manual', '{}', 'success', '{}', NULL, datetime('now'), datetime('now'), datetime('now'))
+	`,
+		`{"case":{"id":"case-1"}}`,
+		`{"workflow_id":"wf-case","reason":"policy denied"}`,
+		`{"entity_type":"deal","entity_id":"deal-1"}`,
+		`{"workflow_id":"wf-deal"}`,
+	)
+	if err != nil {
+		t.Fatalf("insert runs: %v", err)
+	}
+
+	orch := NewOrchestrator(db)
+
+	runs, total, err := orch.ListAgentRuns(ctx, "ws-filter", ListRunsInput{
+		Limit:      10,
+		Status:     StatusRejected,
+		WorkflowID: "wf-case",
+		EntityType: "case",
+		EntityID:   "case-1",
+	})
+	if err != nil {
+		t.Fatalf("ListAgentRuns(filtered rejected case): %v", err)
+	}
+	if total != 1 || len(runs) != 1 || runs[0].ID != "run-case" {
+		t.Fatalf("expected only run-case, got total=%d len=%d ids=%v", total, len(runs), collectRunIDs(runs))
+	}
+
+	runs, total, err = orch.ListAgentRuns(ctx, "ws-filter", ListRunsInput{
+		Limit:      10,
+		EntityType: "deal",
+		EntityID:   "deal-1",
+		WorkflowID: "wf-deal",
+	})
+	if err != nil {
+		t.Fatalf("ListAgentRuns(filtered deal): %v", err)
+	}
+	if total != 1 || len(runs) != 1 || runs[0].ID != "run-deal" {
+		t.Fatalf("expected only run-deal, got total=%d len=%d ids=%v", total, len(runs), collectRunIDs(runs))
+	}
+
+	runs, total, err = orch.ListAgentRuns(ctx, "ws-filter", ListRunsInput{Limit: 10})
+	if err != nil {
+		t.Fatalf("ListAgentRuns(unfiltered): %v", err)
+	}
+	if total != 3 || len(runs) != 3 {
+		t.Fatalf("expected all runs without filters, got total=%d len=%d", total, len(runs))
+	}
+
+	runs, total, err = orch.ListAgentRuns(ctx, "ws-filter", ListRunsInput{
+		Limit:      10,
+		WorkflowID: "wf-missing",
+	})
+	if err != nil {
+		t.Fatalf("ListAgentRuns(missing workflow): %v", err)
+	}
+	if total != 0 || len(runs) != 0 {
+		t.Fatalf("expected no runs for missing workflow filter, got total=%d len=%d", total, len(runs))
+	}
+}
+
+func collectRunIDs(runs []*Run) []string {
+	ids := make([]string, 0, len(runs))
+	for _, run := range runs {
+		if run == nil {
+			ids = append(ids, "<nil>")
+			continue
+		}
+		ids = append(ids, run.ID)
+	}
+	return ids
 }
 
 // TestUpdateAgentRunStatus_Success updates status and sets completed_at.

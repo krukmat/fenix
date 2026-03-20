@@ -33,6 +33,12 @@ sql:
       - "internal/infra/sqlite/migrations/018_agents.up.sql"
       - "internal/infra/sqlite/migrations/019_case_escalated_status.up.sql"
       - "internal/infra/sqlite/migrations/020_eval.up.sql"
+      - "internal/infra/sqlite/migrations/021_agent_run_steps.up.sql"
+      - "internal/infra/sqlite/migrations/022_prompt_experiments.up.sql"
+      - "internal/infra/sqlite/migrations/023_audit_append_only.up.sql"
+      - "internal/infra/sqlite/migrations/024_workflows.up.sql"
+      - "internal/infra/sqlite/migrations/025_workflow_active_uniqueness.up.sql"
+      - "internal/infra/sqlite/migrations/026_signals.up.sql"
     # SQL query files with sqlc annotations (-- name: QueryName :cmd)
     queries:
       - "internal/infra/sqlite/queries"

@@ -102,22 +102,22 @@ func (s *LeadService) Get(ctx context.Context, workspaceID, leadID string) (*Lea
 }
 
 func (s *LeadService) List(ctx context.Context, workspaceID string, input ListLeadsInput) ([]*Lead, int, error) {
-	total, err := s.querier.CountLeadsByWorkspace(ctx, workspaceID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count leads: %w", err)
-	}
-
-	rows, err := s.querier.ListLeadsByWorkspace(ctx, sqlcgen.ListLeadsByWorkspaceParams{
-		WorkspaceID: workspaceID,
-		Limit:       int64(input.Limit),
-		Offset:      int64(input.Offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("list leads: %w", err)
-	}
-	out := mapRows(rows, rowToLead)
-
-	return out, int(total), nil
+	return listWorkspacePage(
+		ctx,
+		workspaceID,
+		"leads",
+		input.Limit,
+		input.Offset,
+		s.querier.CountLeadsByWorkspace,
+		func(ctx context.Context, workspaceID string, limit, offset int64) ([]sqlcgen.Lead, error) {
+			return s.querier.ListLeadsByWorkspace(ctx, sqlcgen.ListLeadsByWorkspaceParams{
+				WorkspaceID: workspaceID,
+				Limit:       limit,
+				Offset:      offset,
+			})
+		},
+		rowToLead,
+	)
 }
 
 func (s *LeadService) ListByOwner(ctx context.Context, workspaceID, ownerID string) ([]*Lead, error) {
@@ -158,22 +158,13 @@ func (s *LeadService) Delete(ctx context.Context, workspaceID, leadID string) er
 	if err != nil {
 		return err
 	}
-
 	now := nowRFC3339()
-	err = s.querier.SoftDeleteLead(ctx, sqlcgen.SoftDeleteLeadParams{
-		DeletedAt:   &now,
-		UpdatedAt:   now,
-		ID:          leadID,
-		WorkspaceID: workspaceID,
-	})
-	if err != nil {
-		return fmt.Errorf("soft delete lead: %w", err)
-	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityLead, leadID, existing.OwnerID, timelineActionDeleted); timelineErr != nil {
-		return fmt.Errorf("delete lead timeline: %w", timelineErr)
-	}
-	logCRMAudit(ctx, s.audit, workspaceID, existing.OwnerID, actionLeadDeleted, timelineEntityLead, leadID)
-	return nil
+	return softDeleteWithSideEffects(ctx, s.querier, s.audit, workspaceID, timelineEntityLead, leadID, existing.OwnerID, actionLeadDeleted,
+		func() error {
+			return s.querier.SoftDeleteLead(ctx, sqlcgen.SoftDeleteLeadParams{
+				DeletedAt: &now, UpdatedAt: now, ID: leadID, WorkspaceID: workspaceID,
+			})
+		})
 }
 
 func rowToLead(row sqlcgen.Lead) *Lead {

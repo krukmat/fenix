@@ -1,4 +1,5 @@
 // Task 4.5 — FR-230: Agent Run Detail Screen
+// Task Mobile P1.8 — FR-232/UC-A7: HandoffBanner integration
 
 import React from 'react';
 import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
@@ -8,6 +9,7 @@ import { useAgentRun } from '../../../src/hooks/useCRM';
 import type { ThemeColors } from '../../../src/theme/types';
 import { renderContent } from '../../../src/screens/agents/agentDetail.helpers';
 import { styles } from '../../../src/screens/agents/agentDetail.styles';
+import { HandoffBanner } from '../../../src/components/agents/HandoffBanner';
 
 function useColors(): ThemeColors {
   const theme = useTheme();
@@ -47,7 +49,12 @@ export default function AgentRunDetailScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          renderContent(run, colors)
+          <>
+            {run.status === 'escalated' && (
+              <HandoffBanner runId={run.id} testIDPrefix="agent-run-handoff" />
+            )}
+            {renderContent(run, colors)}
+          </>
         )}
       </ScrollView>
     </>

@@ -277,6 +277,248 @@ func TestMigrate_RoleUniquePerWorkspace(t *testing.T) {
 	}
 }
 
+func TestMigrate_WorkflowTableCreated(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	assertTableExists(t, db, "workflow")
+}
+
+func TestMigrate_WorkflowWorkspaceNameVersionUnique(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-workflow', 'Workflow Workspace', 'workflow-workspace', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workflow (id, workspace_id, name, dsl_source, version, status, created_at, updated_at)
+		VALUES ('wf-1', 'ws-workflow', 'qualify_lead', 'ON lead.created', 1, 'draft', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("first workflow insert: %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO workflow (id, workspace_id, name, dsl_source, version, status, created_at, updated_at)
+		VALUES ('wf-2', 'ws-workflow', 'qualify_lead', 'ON lead.created', 1, 'draft', datetime('now'), datetime('now'))
+	`)
+	if err == nil {
+		t.Error("duplicate workflow (workspace_id, name, version) insert succeeded; want UNIQUE constraint error")
+	}
+}
+
+func TestMigrate_WorkflowStatusCheck(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-workflow-status', 'Workflow Status Workspace', 'workflow-status-workspace', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO workflow (id, workspace_id, name, dsl_source, version, status, created_at, updated_at)
+		VALUES ('wf-status', 'ws-workflow-status', 'triage_case', 'ON case.created', 1, 'broken', datetime('now'), datetime('now'))
+	`)
+	if err == nil {
+		t.Error("workflow insert with invalid status succeeded; want CHECK constraint error")
+	}
+}
+
+func TestMigrate_WorkflowOnlyOneActivePerWorkspaceName(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-workflow-active', 'Workflow Active Workspace', 'workflow-active-workspace', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workflow (id, workspace_id, name, dsl_source, version, status, created_at, updated_at)
+		VALUES ('wf-active-1', 'ws-workflow-active', 'triage_case', 'ON case.created', 1, 'active', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("first active workflow insert: %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO workflow (id, workspace_id, name, dsl_source, version, status, created_at, updated_at)
+		VALUES ('wf-active-2', 'ws-workflow-active', 'triage_case', 'ON case.updated', 2, 'active', datetime('now'), datetime('now'))
+	`)
+	if err == nil {
+		t.Error("second active workflow with same workspace+name succeeded; want UNIQUE constraint error")
+	}
+}
+
+func TestMigrate_SignalTableCreated(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	assertTableExists(t, db, "signal")
+}
+
+func TestMigrate_SignalConfidenceCheck(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-signal', 'Signal Workspace', 'signal-workspace', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO signal (
+			id, workspace_id, entity_type, entity_id, signal_type, confidence,
+			evidence_ids, source_type, source_id, metadata, status, created_at, updated_at
+		) VALUES (
+			'sig-1', 'ws-signal', 'lead', 'lead-1', 'intent_high', 1.5,
+			'["ev-1"]', 'workflow', 'wf-1', '{}', 'active', datetime('now'), datetime('now')
+		)
+	`)
+	if err == nil {
+		t.Error("signal insert with invalid confidence succeeded; want CHECK constraint error")
+	}
+}
+
+func TestMigrate_SignalStatusCheck(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-signal-status', 'Signal Status Workspace', 'signal-status-workspace', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO signal (
+			id, workspace_id, entity_type, entity_id, signal_type, confidence,
+			evidence_ids, source_type, source_id, metadata, status, created_at, updated_at
+		) VALUES (
+			'sig-status', 'ws-signal-status', 'lead', 'lead-1', 'intent_high', 0.9,
+			'["ev-1"]', 'workflow', 'wf-1', '{}', 'broken', datetime('now'), datetime('now')
+		)
+	`)
+	if err == nil {
+		t.Error("signal insert with invalid status succeeded; want CHECK constraint error")
+	}
+}
+
+func TestMigrate_ScheduledJobTableCreated(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	assertTableExists(t, db, "scheduled_job")
+}
+
+func TestMigrate_ScheduledJobStatusCheck(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-scheduled-job-status', 'Scheduled Job Workspace', 'scheduled-job-workspace', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO scheduled_job (id, workspace_id, job_type, payload, execute_at, status, source_id)
+		VALUES ('job-status', 'ws-scheduled-job-status', 'workflow_resume', '{}', datetime('now', '+1 hour'), 'broken', 'workflow-1')
+	`)
+	if err == nil {
+		t.Error("scheduled_job insert with invalid status succeeded; want CHECK constraint error")
+	}
+}
+
+func TestMigrate_ScheduledJobTypeCheck(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-scheduled-job-type', 'Scheduled Job Type Workspace', 'scheduled-job-type-workspace', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO scheduled_job (id, workspace_id, job_type, payload, execute_at, status, source_id)
+		VALUES ('job-type', 'ws-scheduled-job-type', 'unsupported', '{}', datetime('now', '+1 hour'), 'pending', 'workflow-1')
+	`)
+	if err == nil {
+		t.Error("scheduled_job insert with invalid job_type succeeded; want CHECK constraint error")
+	}
+}
+
+func TestMigrate_ScheduledJobWorkspaceForeignKey(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO scheduled_job (id, workspace_id, job_type, payload, execute_at, status, source_id)
+		VALUES ('job-fk', 'missing-workspace', 'workflow_resume', '{}', datetime('now', '+1 hour'), 'pending', 'workflow-1')
+	`)
+	if err == nil {
+		t.Error("scheduled_job insert with invalid workspace_id succeeded; want FK constraint error")
+	}
+}
+
 // assertTableExists fails the test if the given table doesn't exist in the DB.
 func assertTableExists(t *testing.T, db *sql.DB, tableName string) {
 	t.Helper()

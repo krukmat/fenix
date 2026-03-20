@@ -134,25 +134,7 @@ func (h *CaseHandler) GetCase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CaseHandler) ListCases(w http.ResponseWriter, r *http.Request) {
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-	page := parsePaginationParams(r)
-	input, parseErr := parseCaseListInput(r, page)
-	if parseErr != nil {
-		writeError(w, http.StatusBadRequest, parseErr.Error())
-		return
-	}
-
-	items, total, svcErr := h.service.List(r.Context(), wsID, input)
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list cases: %v", svcErr))
-		return
-	}
-	if !writePaginatedOr500(w, items, total, page) {
-		return
-	}
+	handleParsedListWithPagination(w, r, parseCaseListInput, h.service.List, "failed to list cases: %v")
 }
 
 func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {
@@ -189,21 +171,7 @@ func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CaseHandler) DeleteCase(w http.ResponseWriter, r *http.Request) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
-		return
-	}
-	id := chi.URLParam(r, paramID)
-	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
-		if errors.Is(svcErr, sql.ErrNoRows) {
-			writeError(w, http.StatusNotFound, errCaseNotFound)
-			return
-		}
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete case: %v", svcErr))
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handleDeleteWithNotFound(w, r, "case id is required", sql.ErrNoRows, errCaseNotFound, "failed to delete case: %v", h.service.Delete)
 }
 
 // buildUpdateCaseInput merges update request with existing case values.
@@ -228,7 +196,7 @@ func buildUpdateCaseInput(req UpdateCaseRequest, existing *crm.CaseTicket) crm.U
 
 func parseCaseListInput(r *http.Request, page paginationParams) (crm.ListCasesInput, error) {
 	q := r.URL.Query()
-	status := strings.TrimSpace(q.Get("status"))
+	status := strings.TrimSpace(q.Get(queryStatus))
 	priority := strings.TrimSpace(q.Get("priority"))
 	ownerID := strings.TrimSpace(q.Get(queryOwnerID))
 	accountID := strings.TrimSpace(q.Get(queryAccountID))

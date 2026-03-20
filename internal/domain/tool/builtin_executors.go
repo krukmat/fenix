@@ -293,22 +293,8 @@ func (e *GetLeadExecutor) Execute(ctx context.Context, params json.RawMessage) (
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf(errInvalidParams, ErrBuiltinExecutionFailed)
 	}
-	if in.LeadID == "" {
-		return nil, fmt.Errorf("%w: lead_id is required", ErrBuiltinExecutionFailed)
-	}
-	workspaceID, err := workspaceIDFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if e.leads == nil {
-		return nil, fmt.Errorf("%w: lead service not configured", ErrBuiltinExecutionFailed)
-	}
-	lead, err := e.leads.Get(ctx, workspaceID, in.LeadID)
-	if err != nil {
-		return nil, fmt.Errorf("%w: lead not found", ErrBuiltinExecutionFailed)
-	}
-	out, _ := json.Marshal(map[string]any{"lead": lead})
-	return out, nil
+	return getEntityByID(ctx, in.LeadID, "lead_id", "lead", e.leads != nil,
+		func(wsID string) (any, error) { return e.leads.Get(ctx, wsID, in.LeadID) })
 }
 
 // Task 4.5a — GetAccountExecutor
@@ -327,21 +313,29 @@ func (e *GetAccountExecutor) Execute(ctx context.Context, params json.RawMessage
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf(errInvalidParams, ErrBuiltinExecutionFailed)
 	}
-	if in.AccountID == "" {
-		return nil, fmt.Errorf("%w: account_id is required", ErrBuiltinExecutionFailed)
+	return getEntityByID(ctx, in.AccountID, "account_id", "account", e.accounts != nil,
+		func(wsID string) (any, error) { return e.accounts.Get(ctx, wsID, in.AccountID) })
+}
+
+// getEntityByID is a shared helper for single-entity lookup executors.
+// It validates the entity ID, extracts the workspace from context, checks the
+// service is configured, calls the provided getter, and marshals the result.
+func getEntityByID(ctx context.Context, entityID, idField, resultKey string, svcConfigured bool, get func(wsID string) (any, error)) (json.RawMessage, error) {
+	if entityID == "" {
+		return nil, fmt.Errorf("%w: %s is required", ErrBuiltinExecutionFailed, idField)
 	}
 	workspaceID, err := workspaceIDFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if e.accounts == nil {
-		return nil, fmt.Errorf("%w: account service not configured", ErrBuiltinExecutionFailed)
+	if !svcConfigured {
+		return nil, fmt.Errorf("%w: %s service not configured", ErrBuiltinExecutionFailed, resultKey)
 	}
-	account, err := e.accounts.Get(ctx, workspaceID, in.AccountID)
+	entity, err := get(workspaceID)
 	if err != nil {
-		return nil, fmt.Errorf("%w: account not found", ErrBuiltinExecutionFailed)
+		return nil, fmt.Errorf("%w: %s not found", ErrBuiltinExecutionFailed, resultKey)
 	}
-	out, _ := json.Marshal(map[string]any{"account": account})
+	out, _ := json.Marshal(map[string]any{resultKey: entity})
 	return out, nil
 }
 

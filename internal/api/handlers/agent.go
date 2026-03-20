@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -11,11 +13,15 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent/agents"
+	tooldomain "github.com/matiasleandrokruk/fenix/internal/domain/tool"
 )
 
 const (
 	defaultAgentLanguage = "es"
 	errQueryRequired     = "query is required"
+	queryWorkflowID      = "workflow_id"
+	dispatchReasonKey    = "reason"
+	rejectionReasonKey   = "rejection_reason"
 )
 
 // AgentHandler handles agent-related HTTP requests
@@ -52,6 +58,10 @@ type agentRunResponse struct {
 	TotalCost         *float64        `json:"totalCost,omitempty"`
 	LatencyMs         *int64          `json:"latencyMs,omitempty"`
 	TraceID           *string         `json:"traceId,omitempty"`
+	WorkflowID        *string         `json:"workflow_id,omitempty"`
+	EntityType        *string         `json:"entity_type,omitempty"`
+	EntityID          *string         `json:"entity_id,omitempty"`
+	RejectionReason   *string         `json:"rejection_reason,omitempty"`
 	StartedAt         string          `json:"startedAt"`
 	CompletedAt       *string         `json:"completedAt,omitempty"`
 	CreatedAt         string          `json:"createdAt"`
@@ -174,8 +184,16 @@ func (h *AgentHandler) ListAgentRuns(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limit, offset := parsePageParams(r)
+	filters := parseRunFilters(r)
 
-	runs, total, err := h.orchestrator.ListAgentRuns(r.Context(), workspaceID, limit, offset)
+	runs, total, err := h.orchestrator.ListAgentRuns(r.Context(), workspaceID, agent.ListRunsInput{
+		Limit:      limit,
+		Offset:     offset,
+		Status:     filters.status,
+		EntityType: filters.entityType,
+		EntityID:   filters.entityID,
+		WorkflowID: filters.workflowID,
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list agent runs")
 		return
@@ -192,6 +210,23 @@ func (h *AgentHandler) ListAgentRuns(w http.ResponseWriter, r *http.Request) {
 		"data": out,
 		"meta": map[string]any{"total": total, "limit": limit, "offset": offset},
 	})
+}
+
+type runFilters struct {
+	status     string
+	entityType string
+	entityID   string
+	workflowID string
+}
+
+func parseRunFilters(r *http.Request) runFilters {
+	query := r.URL.Query()
+	return runFilters{
+		status:     query.Get(queryStatus),
+		entityType: query.Get(paramEntityType),
+		entityID:   query.Get(paramEntityID),
+		workflowID: query.Get(queryWorkflowID),
+	}
 }
 
 // ListAgentDefinitions handles GET /api/v1/agents/definitions
@@ -261,6 +296,7 @@ func (h *AgentHandler) CancelAgentRun(w http.ResponseWriter, r *http.Request) {
 // Helper functions
 
 func agentRunToResponse(run *agent.Run) agentRunResponse {
+	meta := agentExtractRunContextMetadata(run)
 	resp := agentRunResponse{
 		ID:                run.ID,
 		WorkspaceID:       run.WorkspaceID,
@@ -279,11 +315,117 @@ func agentRunToResponse(run *agent.Run) agentRunResponse {
 		StartedAt:         run.StartedAt.Format(http.TimeFormat),
 		CreatedAt:         run.CreatedAt.Format(http.TimeFormat),
 	}
+	if meta.workflowID != "" {
+		resp.WorkflowID = &meta.workflowID
+	}
+	if meta.entityType != "" {
+		resp.EntityType = &meta.entityType
+	}
+	if meta.entityID != "" {
+		resp.EntityID = &meta.entityID
+	}
+	if meta.rejectionReason != "" {
+		resp.RejectionReason = &meta.rejectionReason
+	}
 	if run.CompletedAt != nil {
 		completedAt := run.CompletedAt.Format(http.TimeFormat)
 		resp.CompletedAt = &completedAt
 	}
 	return resp
+}
+
+func agentExtractRunContextMetadata(run *agent.Run) struct {
+	workflowID      string
+	entityType      string
+	entityID        string
+	rejectionReason string
+} {
+	meta := struct {
+		workflowID      string
+		entityType      string
+		entityID        string
+		rejectionReason string
+	}{}
+	if run == nil {
+		return meta
+	}
+
+	meta.workflowID = firstJSONStringFromRaw(run.Output, queryWorkflowID)
+	if meta.workflowID == "" {
+		meta.workflowID = firstJSONStringFromRaw(run.TriggerContext, queryWorkflowID)
+	}
+	meta.entityType = firstNonEmptyString(
+		firstJSONStringFromRaw(run.Output, paramEntityType),
+		firstJSONStringFromRaw(run.TriggerContext, paramEntityType),
+		firstNestedEntityTypeFromRaw(run.TriggerContext),
+	)
+	meta.entityID = firstNonEmptyString(
+		firstJSONStringFromRaw(run.Output, paramEntityID),
+		firstJSONStringFromRaw(run.TriggerContext, paramEntityID),
+		firstNestedEntityIDFromRaw(run.TriggerContext),
+	)
+	if run.Status == agent.StatusRejected {
+		meta.rejectionReason = firstNonEmptyString(
+			firstJSONStringFromRaw(run.Output, dispatchReasonKey),
+			firstJSONStringFromRaw(run.Output, rejectionReasonKey),
+		)
+		if meta.rejectionReason == "" && run.AbstentionReason != nil {
+			meta.rejectionReason = *run.AbstentionReason
+		}
+	}
+	return meta
+}
+
+func firstJSONStringFromRaw(raw json.RawMessage, key string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return ""
+	}
+	str, _ := data[key].(string)
+	return str
+}
+
+func firstNestedEntityTypeFromRaw(raw json.RawMessage) string {
+	for _, entityType := range []string{"account", "contact", "deal", "case", "lead"} {
+		if firstNestedEntityIDForTypeFromRaw(raw, entityType) != "" {
+			return entityType
+		}
+	}
+	return ""
+}
+
+func firstNestedEntityIDFromRaw(raw json.RawMessage) string {
+	for _, entityType := range []string{"account", "contact", "deal", "case", "lead"} {
+		if entityID := firstNestedEntityIDForTypeFromRaw(raw, entityType); entityID != "" {
+			return entityID
+		}
+	}
+	return ""
+}
+
+func firstNestedEntityIDForTypeFromRaw(raw json.RawMessage, entityType string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return ""
+	}
+	nested, _ := data[entityType].(map[string]any)
+	entityID, _ := nested["id"].(string)
+	return entityID
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (h *AgentHandler) handleTriggerError(w http.ResponseWriter, err error) {
@@ -327,10 +469,12 @@ type kbAgentRequest struct {
 }
 
 type insightsAgentRequest struct {
-	Query    string `json:"query"`
-	DateFrom string `json:"date_from,omitempty"`
-	DateTo   string `json:"date_to,omitempty"`
-	Language string `json:"language,omitempty"`
+	Query         string `json:"query"`
+	DateFrom      string `json:"date_from,omitempty"`
+	DateTo        string `json:"date_to,omitempty"`
+	Language      string `json:"language,omitempty"`
+	ShadowMode    bool   `json:"shadow_mode,omitempty"`
+	ShadowAgentID string `json:"shadow_agent_id,omitempty"`
 }
 
 // buildSupportConfig validates and converts an HTTP request into a SupportAgentConfig.
@@ -388,6 +532,39 @@ func (h *SupportAgentHandler) TriggerSupportAgent(w http.ResponseWriter, r *http
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": agentRunToResponse(run)})
 }
 
+// extractAgentContext pulls workspace and user IDs from the request context.
+// Returns ok=false and writes an error response when workspace is missing.
+func extractAgentContext(w http.ResponseWriter, r *http.Request) (workspaceID, userID string, ok bool) {
+	wid, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
+	if !ok || wid == "" {
+		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+		return "", "", false
+	}
+	uid, _ := r.Context().Value(ctxkeys.UserID).(string)
+	return wid, uid, true
+}
+
+// decodeAgentRequest decodes a JSON request body into dst.
+// Returns false and writes a 400 error response on decode failure.
+func decodeAgentRequest[T any](w http.ResponseWriter, r *http.Request, dst *T) bool {
+	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+		writeError(w, http.StatusBadRequest, errInvalidBody)
+		return false
+	}
+	return true
+}
+
+// writeAgentQueuedResponse writes a 201 Created JSON response for a queued agent run.
+func writeAgentQueuedResponse(w http.ResponseWriter, runID, agentName string) {
+	w.Header().Set(headerContentType, mimeJSON)
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"run_id": runID,
+		"status": "queued",
+		"agent":  agentName,
+	})
+}
+
 // ProspectingAgentHandler handles Prospecting Agent specific endpoints.
 // Task 4.5b — FR-231: Prospecting Agent trigger endpoint.
 type ProspectingAgentHandler struct {
@@ -426,41 +603,11 @@ func withProspectingTriggeredBy(config agents.ProspectingAgentConfig, userID str
 
 // TriggerProspectingAgent handles POST /api/v1/agents/prospecting/trigger.
 func (h *ProspectingAgentHandler) TriggerProspectingAgent(w http.ResponseWriter, r *http.Request) {
-	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
-	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+	config, ok := prepareTriggeredAgentConfig(w, r, buildProspectingConfig, withProspectingTriggeredBy)
+	if !ok {
 		return
 	}
-	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
-
-	var req prospectingAgentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
-		return
-	}
-
-	config, valid := buildProspectingConfig(w, req, workspaceID)
-	if !valid {
-		return
-	}
-	config = withProspectingTriggeredBy(config, userID)
-
-	run, err := h.prospectingAgent.Run(r.Context(), config)
-	if err != nil {
-		if handled := handleProspectingRunError(w, err); handled {
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "failed to run prospecting agent")
-		return
-	}
-
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"run_id": run.ID,
-		"status": "queued",
-		"agent":  "prospecting",
-	})
+	runQueuedAgent(w, r, config, h.prospectingAgent.Run, handleProspectingRunError, "failed to run prospecting agent", "prospecting")
 }
 
 func handleProspectingRunError(w http.ResponseWriter, err error) bool {
@@ -517,41 +664,11 @@ func withKBTriggeredBy(config agents.KBAgentConfig, userID string) agents.KBAgen
 
 // TriggerKBAgent handles POST /api/v1/agents/kb/trigger.
 func (h *KBAgentHandler) TriggerKBAgent(w http.ResponseWriter, r *http.Request) {
-	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
-	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+	config, ok := prepareTriggeredAgentConfig(w, r, buildKBConfig, withKBTriggeredBy)
+	if !ok {
 		return
 	}
-	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
-
-	var req kbAgentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
-		return
-	}
-
-	config, valid := buildKBConfig(w, req, workspaceID)
-	if !valid {
-		return
-	}
-	config = withKBTriggeredBy(config, userID)
-
-	run, err := h.kbAgent.Run(r.Context(), config)
-	if err != nil {
-		if handled := handleKBRunError(w, err); handled {
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "failed to run kb agent")
-		return
-	}
-
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"run_id": run.ID,
-		"status": "queued",
-		"agent":  "kb",
-	})
+	runQueuedAgent(w, r, config, h.kbAgent.Run, handleKBRunError, "failed to run kb agent", "kb")
 }
 
 func handleKBRunError(w http.ResponseWriter, err error) bool {
@@ -578,11 +695,29 @@ func handleKBRunError(w http.ResponseWriter, err error) bool {
 // Task 4.5d — FR-231: Insights Agent trigger endpoint.
 type InsightsAgentHandler struct {
 	insightsAgent *agents.InsightsAgent
+	shadow        *insightsShadowExecutor
+	db            *sql.DB
 }
 
 // NewInsightsAgentHandler creates a new InsightsAgentHandler.
 func NewInsightsAgentHandler(insightsAgent *agents.InsightsAgent) *InsightsAgentHandler {
 	return &InsightsAgentHandler{insightsAgent: insightsAgent}
+}
+
+// NewInsightsAgentHandlerWithShadow creates an InsightsAgentHandler with
+// optional shadow-mode execution support for the declarative pilot.
+func NewInsightsAgentHandlerWithShadow(
+	insightsAgent *agents.InsightsAgent,
+	shadowRunner *agent.DSLRunner,
+	orchestrator *agent.Orchestrator,
+	toolRegistry *tooldomain.ToolRegistry,
+	db *sql.DB,
+) *InsightsAgentHandler {
+	return &InsightsAgentHandler{
+		insightsAgent: insightsAgent,
+		shadow:        newInsightsShadowExecutor(shadowRunner, orchestrator, toolRegistry, db),
+		db:            db,
+	}
 }
 
 func buildInsightsConfig(w http.ResponseWriter, req insightsAgentRequest, workspaceID string) (agents.InsightsAgentConfig, bool) {
@@ -637,41 +772,178 @@ func parseDateTimeValue(v string) (*time.Time, error) {
 
 // TriggerInsightsAgent handles POST /api/v1/agents/insights/trigger.
 func (h *InsightsAgentHandler) TriggerInsightsAgent(w http.ResponseWriter, r *http.Request) {
-	workspaceID, ok := r.Context().Value(ctxkeys.WorkspaceID).(string)
-	if !ok || workspaceID == "" {
-		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
+	workspaceID, req, config, ok := h.prepareInsightsRequest(w, r)
+	if !ok {
 		return
 	}
-	userID, _ := r.Context().Value(ctxkeys.UserID).(string)
-
-	var req insightsAgentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, errInvalidBody)
+	rollout := loadInsightsRolloutConfig(r.Context(), h.db, workspaceID)
+	if rollout.Enabled && rollout.DeclarativePrimary {
+		h.triggerInsightsDeclarativePrimary(w, r, config, rollout)
 		return
 	}
 
-	config, valid := buildInsightsConfig(w, req, workspaceID)
-	if !valid {
+	run, ok := h.runInsightsPrimary(w, r, config)
+	if !ok {
 		return
 	}
-	config = withInsightsTriggeredBy(config, userID)
 
-	run, err := h.insightsAgent.Run(r.Context(), config)
+	response := buildInsightsPrimaryResponse(run)
+	shadow := buildInsightsShadowPayload(h, r, config, req, run)
+	enrichInsightsPrimaryResponse(response, rollout, run, req.ShadowMode, shadow)
+
+	w.Header().Set(headerContentType, mimeJSON)
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+func (h *InsightsAgentHandler) prepareInsightsRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+) (string, insightsAgentRequest, agents.InsightsAgentConfig, bool) {
+	workspaceID, userID, req, config, ok := prepareTriggeredAgentRequest(w, r, buildInsightsConfig)
+	if !ok {
+		return "", insightsAgentRequest{}, agents.InsightsAgentConfig{}, false
+	}
+	return workspaceID, req, withInsightsTriggeredBy(config, userID), true
+}
+
+func prepareTriggeredAgentConfig[Req any, Config any](
+	w http.ResponseWriter,
+	r *http.Request,
+	build func(http.ResponseWriter, Req, string) (Config, bool),
+	withTriggeredBy func(Config, string) Config,
+) (Config, bool) {
+	_, userID, _, config, ok := prepareTriggeredAgentRequest(w, r, build)
+	if !ok {
+		return config, false
+	}
+	return withTriggeredBy(config, userID), true
+}
+
+func prepareTriggeredAgentRequest[Req any, Config any](
+	w http.ResponseWriter,
+	r *http.Request,
+	build func(http.ResponseWriter, Req, string) (Config, bool),
+) (string, string, Req, Config, bool) {
+	workspaceID, userID, ok := extractAgentContext(w, r)
+	if !ok {
+		var zeroReq Req
+		var zeroConfig Config
+		return "", "", zeroReq, zeroConfig, false
+	}
+
+	var req Req
+	if !decodeAgentRequest(w, r, &req) {
+		var zeroConfig Config
+		return "", "", req, zeroConfig, false
+	}
+
+	config, valid := build(w, req, workspaceID)
+	return workspaceID, userID, req, config, valid
+}
+
+func runQueuedAgent[Config any](
+	w http.ResponseWriter,
+	r *http.Request,
+	config Config,
+	run func(context.Context, Config) (*agent.Run, error),
+	handleErr func(http.ResponseWriter, error) bool,
+	internalMsg string,
+	agentName string,
+) {
+	runResult, err := run(r.Context(), config)
 	if err != nil {
-		if handled := handleInsightsRunError(w, err); handled {
+		if handled := handleErr(w, err); handled {
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "failed to run insights agent")
+		writeError(w, http.StatusInternalServerError, internalMsg)
 		return
+	}
+	writeAgentQueuedResponse(w, runResult.ID, agentName)
+}
+
+func (h *InsightsAgentHandler) runInsightsPrimary(
+	w http.ResponseWriter,
+	r *http.Request,
+	config agents.InsightsAgentConfig,
+) (*agent.Run, bool) {
+	run, err := h.insightsAgent.Run(r.Context(), config)
+	if err == nil {
+		return run, true
+	}
+	if handled := handleInsightsRunError(w, err); handled {
+		return nil, false
+	}
+	writeError(w, http.StatusInternalServerError, "failed to run insights agent")
+	return nil, false
+}
+
+func buildInsightsPrimaryResponse(run *agent.Run) map[string]any {
+	return map[string]any{
+		"run_id": run.ID,
+		"status": "queued",
+		"agent":  "insights",
+	}
+}
+
+func buildInsightsShadowPayload(
+	h *InsightsAgentHandler,
+	r *http.Request,
+	config agents.InsightsAgentConfig,
+	req insightsAgentRequest,
+	run *agent.Run,
+) map[string]any {
+	if !req.ShadowMode {
+		return nil
+	}
+	return h.executeInsightsShadow(r.Context(), config, req.ShadowAgentID, run)
+}
+
+func enrichInsightsPrimaryResponse(
+	response map[string]any,
+	rollout insightsRolloutConfig,
+	run *agent.Run,
+	shadowMode bool,
+	shadow map[string]any,
+) {
+	if rollout.Enabled {
+		response["rollout"] = buildInsightsRolloutResponse(rollout, run, run)
+	}
+	if shadowMode {
+		response["shadow"] = shadow
+	}
+}
+
+func (h *InsightsAgentHandler) triggerInsightsDeclarativePrimary(
+	w http.ResponseWriter,
+	r *http.Request,
+	config agents.InsightsAgentConfig,
+	rollout insightsRolloutConfig,
+) {
+	if h == nil || h.shadow == nil {
+		writeError(w, http.StatusInternalServerError, "declarative insights rollout is not configured")
+		return
+	}
+	execution, err := h.shadow.ExecutePrimary(r.Context(), config, rollout.AgentID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to run declarative insights workflow")
+		return
+	}
+	run := execution.WrapperRun
+	effective := execution.EffectiveRun
+	if effective == nil {
+		effective = run
+	}
+	response := map[string]any{
+		"run_id":  run.ID,
+		"status":  "queued",
+		"agent":   "insights",
+		"rollout": buildInsightsRolloutResponse(rollout, run, effective),
 	}
 
 	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"run_id": run.ID,
-		"status": "queued",
-		"agent":  "insights",
-	})
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func handleInsightsRunError(w http.ResponseWriter, err error) bool {

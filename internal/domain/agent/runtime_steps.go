@@ -29,6 +29,7 @@ const (
 	StepTypeReason           = "reason"
 	StepTypeToolCall         = "tool_call"
 	StepTypeFinalize         = "finalize"
+	StepTypeBridgeStep       = "bridge_step"
 )
 
 const maxStepRetries = 2
@@ -174,7 +175,7 @@ func isTerminalRunStatus(status string) bool {
 
 var allowedRunTransitions = map[string][]string{
 	StatusRunning:  {StatusAccepted, StatusRejected, StatusDelegated, StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusEscalated},
-	StatusAccepted: {StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusDelegated},
+	StatusAccepted: {StatusRejected, StatusSuccess, StatusPartial, StatusAbstained, StatusFailed, StatusDelegated},
 }
 
 func validateRunTransition(current, next string) error {
@@ -274,12 +275,7 @@ func ensureRetrieveStepTx(ctx context.Context, tx *sql.Tx, run *Run, updates Run
 		return nil
 	}
 
-	status := StepStatusSkipped
-	var output json.RawMessage
-	if hasMeaningfulPayload(updates.RetrievedEvidenceIDs) || hasMeaningfulPayload(updates.RetrievalQueries) {
-		status = StepStatusSuccess
-		output = updates.RetrievedEvidenceIDs
-	}
+	status, output := retrieveStepCompletion(updates)
 
 	return updateRunStepStateTx(ctx, tx, step.ID, run.WorkspaceID, status, updates.RetrievalQueries, output, nil)
 }
@@ -489,8 +485,7 @@ func updateRunStepStateTx(ctx context.Context, tx *sql.Tx, stepID, workspaceID, 
 		return err
 	}
 
-	now := time.Now().UTC()
-	startedAt, completedAt := deriveStepTimestamps(step, status, now)
+	startedAt, completedAt, now := stepTimestampsForUpdate(step, status)
 
 	_, err = tx.ExecContext(ctx, `
 		UPDATE agent_run_step
@@ -630,6 +625,13 @@ func decodePayload(raw json.RawMessage) (any, bool) {
 	return value, true
 }
 
+func retrieveStepCompletion(updates RunUpdates) (string, json.RawMessage) {
+	if hasMeaningfulPayload(updates.RetrievedEvidenceIDs) || hasMeaningfulPayload(updates.RetrievalQueries) {
+		return StepStatusSuccess, updates.RetrievedEvidenceIDs
+	}
+	return StepStatusSkipped, nil
+}
+
 func payloadValueIsMeaningful(value any) bool {
 	switch v := value.(type) {
 	case nil:
@@ -657,6 +659,12 @@ func deriveStepTimestamps(step *RunStep, status string, now time.Time) (*time.Ti
 	return startedAt, completedAt
 }
 
+func stepTimestampsForUpdate(step *RunStep, status string) (*time.Time, *time.Time, time.Time) {
+	now := time.Now().UTC()
+	startedAt, completedAt := deriveStepTimestamps(step, status, now)
+	return startedAt, completedAt, now
+}
+
 func shouldSetStepStartedAt(startedAt *time.Time, status string) bool {
 	return startedAt == nil && status != StepStatusPending
 }
@@ -681,6 +689,7 @@ func nextStepStatusMap(current string) map[string]bool {
 	case StepStatusRunning:
 		return map[string]bool{
 			StepStatusSuccess:  true,
+			StepStatusSkipped:  true,
 			StepStatusFailed:   true,
 			StepStatusRetrying: true,
 		}

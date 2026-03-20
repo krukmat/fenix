@@ -15,6 +15,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 )
 
+// PromptVersionService covers prompt version lifecycle operations.
 type PromptVersionService interface {
 	CreatePromptVersion(ctx context.Context, input agent.CreatePromptVersionInput) (*agent.PromptVersion, error)
 	GetActivePrompt(ctx context.Context, workspaceID, agentID string) (*agent.PromptVersion, error)
@@ -22,22 +23,27 @@ type PromptVersionService interface {
 	GetPromptVersionByID(ctx context.Context, workspaceID, promptVersionID string) (*agent.PromptVersion, error)
 	PromotePrompt(ctx context.Context, workspaceID, promptVersionID string) error
 	RollbackPrompt(ctx context.Context, workspaceID, promptVersionID string) error
+}
+
+// PromptExperimentService covers A/B experiment operations (ISP: separated from version lifecycle).
+type PromptExperimentService interface {
 	StartPromptExperiment(ctx context.Context, input agent.StartPromptExperimentInput) (*agent.PromptExperiment, error)
 	ListPromptExperiments(ctx context.Context, workspaceID, agentID string) ([]*agent.PromptExperiment, error)
 	StopPromptExperiment(ctx context.Context, input agent.StopPromptExperimentInput) (*agent.PromptExperiment, error)
 }
 
 type PromptHandler struct {
-	service PromptVersionService
-	authz   ActionAuthorizer
+	service     PromptVersionService
+	experiments PromptExperimentService
+	authz       ActionAuthorizer
 }
 
-func NewPromptHandler(service PromptVersionService) *PromptHandler {
-	return &PromptHandler{service: service}
+func NewPromptHandler(service PromptVersionService, experiments PromptExperimentService) *PromptHandler {
+	return &PromptHandler{service: service, experiments: experiments}
 }
 
-func NewPromptHandlerWithAuthorizer(service PromptVersionService, authz ActionAuthorizer) *PromptHandler {
-	return &PromptHandler{service: service, authz: authz}
+func NewPromptHandlerWithAuthorizer(service PromptVersionService, experiments PromptExperimentService, authz ActionAuthorizer) *PromptHandler {
+	return &PromptHandler{service: service, experiments: experiments, authz: authz}
 }
 
 type CreatePromptVersionRequest struct {
@@ -141,26 +147,7 @@ func resolvePromptConfig(config *string) string {
 }
 
 func (h *PromptHandler) Promote(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.promote") {
-		return
-	}
-
-	workspaceID, ok := requirePromptWorkspaceID(r)
-	if !ok {
-		http.Error(w, errMissingWorkspaceShort, http.StatusUnauthorized)
-		return
-	}
-	promptVersionID, ok := getPromptVersionIDParam(w, r)
-	if !ok {
-		return
-	}
-
-	err := h.service.PromotePrompt(r.Context(), workspaceID, promptVersionID)
-	if err != nil {
-		writePromoteError(w, err)
-		return
-	}
-	h.respondWithPromptVersion(w, r, workspaceID, promptVersionID)
+	h.handlePromptVersionAction(w, r, "admin.prompts.promote", h.service.PromotePrompt, writePromoteError)
 }
 
 func requirePromptWorkspaceID(r *http.Request) (string, bool) {
@@ -213,7 +200,29 @@ func (h *PromptHandler) respondWithPromptVersion(w http.ResponseWriter, r *http.
 }
 
 func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "admin.prompts.rollback") {
+	h.handlePromptVersionAction(w, r, "admin.prompts.rollback", h.service.RollbackPrompt, writeRollbackError)
+}
+
+func writeRollbackError(w http.ResponseWriter, err error) {
+	if errors.Is(err, agent.ErrPromptRollbackInvalid) {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	if isPromptNotFoundError(err) {
+		http.Error(w, "prompt version not found", http.StatusNotFound)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+func (h *PromptHandler) handlePromptVersionAction(
+	w http.ResponseWriter,
+	r *http.Request,
+	action string,
+	run func(context.Context, string, string) error,
+	writeErr func(http.ResponseWriter, error),
+) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, action) {
 		return
 	}
 
@@ -227,24 +236,11 @@ func (h *PromptHandler) Rollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.service.RollbackPrompt(r.Context(), workspaceID, promptVersionID)
-	if err != nil {
-		writeRollbackError(w, err)
+	if err := run(r.Context(), workspaceID, promptVersionID); err != nil {
+		writeErr(w, err)
 		return
 	}
 	h.respondWithPromptVersion(w, r, workspaceID, promptVersionID)
-}
-
-func writeRollbackError(w http.ResponseWriter, err error) {
-	if errors.Is(err, agent.ErrPromptRollbackInvalid) {
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
-	if isPromptNotFoundError(err) {
-		http.Error(w, "prompt version not found", http.StatusNotFound)
-		return
-	}
-	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
 func toPromptVersionResponse(pv *agent.PromptVersion) *PromptVersionResponse {

@@ -154,36 +154,47 @@ func (s *CaseService) Get(ctx context.Context, workspaceID, caseID string) (*Cas
 }
 
 func (s *CaseService) List(ctx context.Context, workspaceID string, input ListCasesInput) ([]*CaseTicket, int, error) {
-	if input.Sort == "" {
-		input.Sort = caseSortCreatedAtDesc
-	}
-
+	input.Sort = firstNonEmpty(input.Sort, caseSortCreatedAtDesc)
 	if shouldUseFilteredCaseList(input) {
 		filtered, err := s.listFiltered(ctx, workspaceID, input)
 		if err != nil {
 			return nil, 0, err
 		}
-		total := len(filtered)
-		paged := paginateCases(filtered, input.Offset, input.Limit)
-		return paged, total, nil
+		return paginateCases(filtered, input.Offset, input.Limit), len(filtered), nil
 	}
+	return s.listPage(ctx, workspaceID, input)
+}
 
-	total, err := s.querier.CountCasesByWorkspace(ctx, workspaceID)
+func (s *CaseService) listPage(ctx context.Context, workspaceID string, input ListCasesInput) ([]*CaseTicket, int, error) {
+	total, err := s.countCases(ctx, workspaceID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("count cases: %w", err)
+		return nil, 0, err
 	}
+	items, err := s.pageCases(ctx, workspaceID, input)
+	if err != nil {
+		return nil, 0, err
+	}
+	return items, int(total), nil
+}
 
+func (s *CaseService) countCases(ctx context.Context, workspaceID string) (int64, error) {
+	n, err := s.querier.CountCasesByWorkspace(ctx, workspaceID)
+	if err != nil {
+		return 0, fmt.Errorf("count cases: %w", err)
+	}
+	return n, nil
+}
+
+func (s *CaseService) pageCases(ctx context.Context, workspaceID string, input ListCasesInput) ([]*CaseTicket, error) {
 	rows, err := s.querier.ListCasesByWorkspace(ctx, sqlcgen.ListCasesByWorkspaceParams{
 		WorkspaceID: workspaceID,
 		Limit:       int64(input.Limit),
 		Offset:      int64(input.Offset),
 	})
 	if err != nil {
-		return nil, 0, fmt.Errorf("list cases: %w", err)
+		return nil, fmt.Errorf("list cases: %w", err)
 	}
-	out := mapRows(rows, rowToCaseTicket)
-
-	return out, int(total), nil
+	return mapRows(rows, rowToCaseTicket), nil
 }
 
 func shouldUseFilteredCaseList(input ListCasesInput) bool {

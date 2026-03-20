@@ -458,10 +458,10 @@ type DispatchResponse struct {
 
 ### 2.10.1 Direccion de Interoperabilidad
 
-- `DISPATCH` externo debe ser A2A-first.
+- `DISPATCH` externo debe ser A2A-first y usar `a2aproject/a2a-go` como primera implementacion en Go.
 - HTTP queda como transporte del estandar, no como contrato propietario.
-- La frontera externa para tools, resources y contexto debe ser MCP-first.
-- `ProtocolHandler` se mantiene como puerto interno, pero sus adapters externos deben alinearse con A2A y MCP.
+- La frontera externa para tools, resources y contexto debe ser MCP-first usando el SDK oficial de MCP para Go.
+- `ProtocolHandler` se mantiene como puerto interno, pero sus adapters externos deben alinearse con A2A y MCP sin redefinir el protocolo.
 
 ## 3. Modelo de Datos
 

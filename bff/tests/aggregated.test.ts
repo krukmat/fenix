@@ -33,6 +33,10 @@ const mockDeal = { id: DEAL_ID, title: 'Big Deal', account_id: ACCOUNT_ID, conta
 const mockActivities = { items: [{ id: 'act-1', type: 'call' }] };
 const mockContact = { id: 'contact-1', name: 'John Doe' };
 const mockCase = { id: CASE_ID, title: 'Support Issue', account_id: ACCOUNT_ID, contact_id: 'contact-1' };
+const mockSignals = { data: [{ id: 'sig-1', status: 'active' }, { id: 'sig-2', status: 'dismissed' }] };
+const mockAccountList = { data: [{ id: ACCOUNT_ID, name: 'Acme Corp' }], meta: { total: 1, limit: 50, offset: 0 } };
+const mockDealList = { data: [{ id: DEAL_ID, title: 'Big Deal' }], meta: { total: 1, limit: 50, offset: 0 } };
+const mockCaseList = { data: [{ id: CASE_ID, subject: 'Support Issue' }], meta: { total: 1, limit: 50, offset: 0 } };
 
 describe('Aggregated routes', () => {
   beforeEach(() => {
@@ -55,6 +59,9 @@ describe('Aggregated routes', () => {
           if (path.includes('timeline')) {
             return Promise.resolve({ data: mockTimeline });
           }
+          if (path.includes('/signals')) {
+            return Promise.resolve({ data: mockSignals });
+          }
           return Promise.resolve({ data: null });
         }),
       } as unknown as ReturnType<typeof createGoClient>);
@@ -69,6 +76,7 @@ describe('Aggregated routes', () => {
         contacts: { items: expect.any(Array) },
         deals: { items: expect.any(Array) },
         timeline: { items: expect.any(Array) },
+        active_signal_count: 1,
       });
     });
 
@@ -81,6 +89,9 @@ describe('Aggregated routes', () => {
           if (path.includes('/contacts')) {
             return Promise.reject(new Error('contacts service unavailable'));
           }
+          if (path.includes('/signals')) {
+            return Promise.resolve({ data: mockSignals });
+          }
           return Promise.resolve({ data: null });
         }),
       } as unknown as ReturnType<typeof createGoClient>);
@@ -92,6 +103,7 @@ describe('Aggregated routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.account).toMatchObject({ id: ACCOUNT_ID });
       expect(res.body.contacts).toBeNull();
+      expect(res.body.active_signal_count).toBe(1);
     });
   });
 
@@ -111,6 +123,9 @@ describe('Aggregated routes', () => {
           if (path.includes('/activities')) {
             return Promise.resolve({ data: mockActivities });
           }
+          if (path.includes('/signals')) {
+            return Promise.resolve({ data: mockSignals });
+          }
           return Promise.resolve({ data: null });
         }),
       } as unknown as ReturnType<typeof createGoClient>);
@@ -125,6 +140,7 @@ describe('Aggregated routes', () => {
         account: { id: ACCOUNT_ID },
         contact: { id: 'contact-1' },
         activities: { items: expect.any(Array) },
+        active_signal_count: 1,
       });
     });
   });
@@ -141,6 +157,9 @@ describe('Aggregated routes', () => {
           if (path.includes('/activities')) {
             return Promise.resolve({ data: mockActivities });
           }
+          if (path.includes('/signals')) {
+            return Promise.resolve({ data: mockSignals });
+          }
           return Promise.resolve({ data: null });
         }),
       } as unknown as ReturnType<typeof createGoClient>);
@@ -154,6 +173,7 @@ describe('Aggregated routes', () => {
       // No account_id/contact_id → null
       expect(res.body.account).toBeNull();
       expect(res.body.contact).toBeNull();
+      expect(res.body.active_signal_count).toBe(1);
     });
   });
 
@@ -173,6 +193,9 @@ describe('Aggregated routes', () => {
           if (path.includes('/activities')) {
             return Promise.resolve({ data: mockActivities });
           }
+          if (path.includes('/signals')) {
+            return Promise.resolve({ data: mockSignals });
+          }
           return Promise.resolve({ data: null });
         }),
       } as unknown as ReturnType<typeof createGoClient>);
@@ -188,6 +211,7 @@ describe('Aggregated routes', () => {
         contact: { id: 'contact-1' },
         activities: { items: expect.any(Array) },
         handoff: null, // no handoff_id in mockCase → null
+        active_signal_count: 1,
       });
     });
 
@@ -203,6 +227,7 @@ describe('Aggregated routes', () => {
           if (path.includes('/contacts/contact-1')) return Promise.resolve({ data: mockContact });
           if (path.includes('/activities')) return Promise.resolve({ data: mockActivities });
           if (path.includes(`/handoffs/${HANDOFF_ID}`)) return Promise.resolve({ data: mockHandoff });
+          if (path.includes('/signals')) return Promise.resolve({ data: mockSignals });
           return Promise.resolve({ data: null });
         }),
       } as unknown as ReturnType<typeof createGoClient>);
@@ -213,6 +238,85 @@ describe('Aggregated routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.handoff).toMatchObject({ id: HANDOFF_ID, status: 'pending' });
+      expect(res.body.active_signal_count).toBe(1);
+    });
+  });
+
+  describe('GET /bff/accounts', () => {
+    it('returns account list enriched with active_signal_count', async () => {
+      mockCreateGoClient.mockReturnValue({
+        get: jest.fn().mockImplementation((path: string) => {
+          if (path.startsWith('/api/v1/accounts?')) {
+            return Promise.resolve({ data: mockAccountList });
+          }
+          if (path.includes('/signals')) {
+            return Promise.resolve({ data: mockSignals });
+          }
+          return Promise.resolve({ data: null });
+        }),
+      } as unknown as ReturnType<typeof createGoClient>);
+
+      const res = await request(app)
+        .get('/bff/accounts?workspace_id=ws-1&page=1&limit=50')
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        data: [{ id: ACCOUNT_ID, active_signal_count: 1 }],
+        meta: { total: 1, limit: 50, offset: 0 },
+      });
+    });
+  });
+
+  describe('GET /bff/deals', () => {
+    it('returns deal list enriched with active_signal_count', async () => {
+      mockCreateGoClient.mockReturnValue({
+        get: jest.fn().mockImplementation((path: string) => {
+          if (path.startsWith('/api/v1/deals?')) {
+            return Promise.resolve({ data: mockDealList });
+          }
+          if (path.includes('/signals')) {
+            return Promise.resolve({ data: mockSignals });
+          }
+          return Promise.resolve({ data: null });
+        }),
+      } as unknown as ReturnType<typeof createGoClient>);
+
+      const res = await request(app)
+        .get('/bff/deals?workspace_id=ws-1&page=1&limit=50')
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        data: [{ id: DEAL_ID, active_signal_count: 1 }],
+        meta: { total: 1, limit: 50, offset: 0 },
+      });
+    });
+  });
+
+  describe('GET /bff/cases', () => {
+    it('returns case list enriched with active_signal_count', async () => {
+      mockCreateGoClient.mockReturnValue({
+        get: jest.fn().mockImplementation((path: string) => {
+          if (path.startsWith('/api/v1/cases?')) {
+            return Promise.resolve({ data: mockCaseList });
+          }
+          if (path.includes('/signals')) {
+            return Promise.resolve({ data: mockSignals });
+          }
+          return Promise.resolve({ data: null });
+        }),
+      } as unknown as ReturnType<typeof createGoClient>);
+
+      const res = await request(app)
+        .get('/bff/cases?workspace_id=ws-1&page=1&limit=50')
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        data: [{ id: CASE_ID, active_signal_count: 1 }],
+        meta: { total: 1, limit: 50, offset: 0 },
+      });
     });
   });
 });

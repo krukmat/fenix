@@ -427,6 +427,71 @@ func TestAuthHandler_Login_InvalidJSON(t *testing.T) {
 	}
 }
 
+// ===== PASSWORD STRENGTH TESTS (C3) =====
+
+// TestAuthHandler_Register_ShortPassword_Returns400 verifies 400 when password < 12 chars.
+func TestAuthHandler_Register_ShortPassword_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenAuthDB(t)
+	h := newAuthHandler(db)
+
+	req := postRequest(t, "/auth/register", registerPayload{
+		Email:         "short@acme.com",
+		Password:      "Short1!",    // 7 chars — below minimum
+		DisplayName:   "Short",
+		WorkspaceName: "Acme Corp",
+	})
+	rr := httptest.NewRecorder()
+	h.Register(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("short password status = %d; want %d", rr.Code, http.StatusBadRequest)
+	}
+}
+
+// TestAuthHandler_Register_ExactMinPassword_Succeeds verifies 201 when password == 12 chars.
+func TestAuthHandler_Register_ExactMinPassword_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenAuthDB(t)
+	h := newAuthHandler(db)
+
+	req := postRequest(t, "/auth/register", registerPayload{
+		Email:         "exact@acme.com",
+		Password:      "Exactly12Chr",  // exactly 12 chars
+		DisplayName:   "Exact",
+		WorkspaceName: "Acme Corp",
+	})
+	rr := httptest.NewRecorder()
+	h.Register(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Errorf("exact-min password status = %d; want %d. body: %s", rr.Code, http.StatusCreated, rr.Body.String())
+	}
+}
+
+// TestAuthHandler_Register_11CharPassword_Returns400 verifies 400 for 11-char password (boundary).
+func TestAuthHandler_Register_11CharPassword_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenAuthDB(t)
+	h := newAuthHandler(db)
+
+	req := postRequest(t, "/auth/register", registerPayload{
+		Email:         "eleven@acme.com",
+		Password:      "OnlyEleven!",  // 11 chars
+		DisplayName:   "Eleven",
+		WorkspaceName: "Acme Corp",
+	})
+	rr := httptest.NewRecorder()
+	h.Register(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("11-char password status = %d; want %d", rr.Code, http.StatusBadRequest)
+	}
+}
+
 // TestAuthHandler_Login_ContentTypeJSON verifies Content-Type header on success.
 func TestAuthHandler_Login_ContentTypeJSON(t *testing.T) {
 	t.Parallel()

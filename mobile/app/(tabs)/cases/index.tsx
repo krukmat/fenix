@@ -6,6 +6,7 @@ import { useTheme, FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { CRMListScreen } from '../../../src/components/crm';
 import { useCases } from '../../../src/hooks/useCRM';
+import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import type { ThemeColors } from '../../../src/theme/types';
 
 interface CaseData {
@@ -14,6 +15,7 @@ interface CaseData {
   status: string;
   priority: 'low' | 'medium' | 'high';
   accountName?: string;
+  active_signal_count?: number;
 }
 
 function useThemeColors(): ThemeColors {
@@ -48,6 +50,9 @@ export function renderCaseItem(
         <Text style={[styles.caseAccount, { color: colors.onSurfaceVariant }]}>{item.accountName}</Text>
       )}
       <Text style={[styles.caseStatus, { color: colors.onSurfaceVariant }]}>Status: {item.status}</Text>
+      <View style={styles.badgeRow}>
+        <SignalCountBadge count={item.active_signal_count} testID={`case-signals-badge-${item.id}`} />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -137,6 +142,7 @@ const styles = StyleSheet.create({
   priorityText: { color: '#FFFFFF', fontSize: 12, fontWeight: '500' },
   caseAccount: { fontSize: 14 },
   caseStatus: { fontSize: 12, marginTop: 4 },
+  badgeRow: { alignItems: 'flex-start', marginTop: 8 },
   fab: {
     position: 'absolute',
     right: 16,

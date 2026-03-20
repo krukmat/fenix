@@ -130,14 +130,21 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// minPasswordLen is the minimum accepted password length for registration (C3).
+const minPasswordLen = 12
+
 // validateRegisterRequest checks required fields for the register endpoint.
 // Task 1.6.12: Extracted to reduce cyclomatic complexity of Register handler.
+// C3: password must be at least minPasswordLen characters.
 func validateRegisterRequest(req RegisterRequest) error {
 	if req.Email == "" {
 		return errors.New("email is required")
 	}
 	if req.Password == "" {
 		return errors.New("password is required")
+	}
+	if len(req.Password) < minPasswordLen {
+		return errors.New("password must be at least 12 characters")
 	}
 	if req.WorkspaceName == "" {
 		return errors.New("workspaceName is required")

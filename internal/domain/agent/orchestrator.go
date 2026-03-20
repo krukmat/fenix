@@ -37,6 +37,10 @@ const (
 // emptyJSONArray is the default value for JSON array fields in a new agent run.
 const emptyJSONArray = `[]`
 
+const emptyJSONObject = `{}`
+
+const agentStatusActive = "active"
+
 // Trigger type constants
 const (
 	TriggerTypeEvent    = "event"
@@ -90,6 +94,15 @@ type Run struct {
 	CreatedAt            time.Time
 }
 
+type ListRunsInput struct {
+	Limit      int64
+	Offset     int64
+	Status     string
+	EntityType string
+	EntityID   string
+	WorkflowID string
+}
+
 type SkillDefinition struct {
 	ID           string
 	WorkspaceID  string
@@ -141,24 +154,32 @@ func NewOrchestratorWithRegistry(db *sql.DB, registry *RunnerRegistry) *Orchestr
 
 // TriggerAgent creates a new agent run and returns it
 func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (*Run, error) {
-	// Validate trigger type
 	if !isValidTriggerType(in.TriggerType) {
 		return nil, ErrInvalidTriggerType
 	}
 
-	// Get agent definition
 	agent, err := o.getAgentDefinition(ctx, in.AgentID, in.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
-
-	// Check agent is active
-	if agent.Status != "active" {
+	if agent.Status != agentStatusActive {
 		return nil, ErrAgentNotActive
 	}
 
-	// Create agent run
-	run := &Run{
+	run := newAgentRun(in)
+	err = o.persistRun(ctx, run)
+	if err != nil {
+		return nil, err
+	}
+	err = o.createInitialRunStep(ctx, run)
+	if err != nil {
+		return nil, err
+	}
+	return run, nil
+}
+
+func newAgentRun(in TriggerAgentInput) *Run {
+	return &Run{
 		ID:                   uuid.NewV7().String(),
 		WorkspaceID:          in.WorkspaceID,
 		DefinitionID:         in.AgentID,
@@ -171,13 +192,15 @@ func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (
 		RetrievedEvidenceIDs: json.RawMessage(emptyJSONArray),
 		ReasoningTrace:       json.RawMessage(emptyJSONArray),
 		ToolCalls:            json.RawMessage(emptyJSONArray),
-		Output:               json.RawMessage(`{}`),
+		Output:               json.RawMessage(emptyJSONObject),
 		TraceID:              stringPtr(uuid.NewV7().String()),
 		StartedAt:            time.Now().UTC(),
 		CreatedAt:            time.Now().UTC(),
 	}
+}
 
-	_, err = o.db.ExecContext(ctx, `
+func (o *Orchestrator) persistRun(ctx context.Context, run *Run) error {
+	_, err := o.db.ExecContext(ctx, `
 		INSERT INTO agent_run (
 			id, workspace_id, agent_definition_id, triggered_by_user_id,
 			trigger_type, trigger_context, status, inputs,
@@ -187,37 +210,14 @@ func (o *Orchestrator) TriggerAgent(ctx context.Context, in TriggerAgentInput) (
 			started_at, completed_at, created_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
 	`,
-		run.ID,
-		run.WorkspaceID,
-		run.DefinitionID,
-		run.TriggeredByUserID,
-		run.TriggerType,
-		run.TriggerContext,
-		run.Status,
-		run.Inputs,
-		run.RetrievalQueries,
-		run.RetrievedEvidenceIDs,
-		run.ReasoningTrace,
-		run.ToolCalls,
-		run.Output,
-		run.AbstentionReason,
-		run.TotalTokens,
-		run.TotalCost,
-		run.LatencyMs,
-		run.TraceID,
-		run.StartedAt,
-		run.CreatedAt,
+		run.ID, run.WorkspaceID, run.DefinitionID, run.TriggeredByUserID,
+		run.TriggerType, run.TriggerContext, run.Status, run.Inputs,
+		run.RetrievalQueries, run.RetrievedEvidenceIDs, run.ReasoningTrace,
+		run.ToolCalls, run.Output, run.AbstentionReason,
+		run.TotalTokens, run.TotalCost, run.LatencyMs, run.TraceID,
+		run.StartedAt, run.CreatedAt,
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	err = o.createInitialRunStep(ctx, run)
-	if err != nil {
-		return nil, err
-	}
-
-	return run, nil
+	return err
 }
 
 // ExecuteAgent resolves the concrete runner for an agent definition and
@@ -234,7 +234,7 @@ func (o *Orchestrator) ExecuteAgent(ctx context.Context, rc *RunContext, in Trig
 	if err != nil {
 		return nil, err
 	}
-	if definition.Status != "active" {
+	if definition.Status != agentStatusActive {
 		return nil, ErrAgentNotActive
 	}
 
@@ -290,11 +290,22 @@ func (o *Orchestrator) GetAgentRun(ctx context.Context, workspaceID, runID strin
 }
 
 // ListAgentRuns lists agent runs with pagination
-func (o *Orchestrator) ListAgentRuns(ctx context.Context, workspaceID string, limit, offset int64) ([]*Run, int64, error) {
+func (o *Orchestrator) ListAgentRuns(ctx context.Context, workspaceID string, input ListRunsInput) ([]*Run, int64, error) {
+	limit := input.Limit
 	if limit <= 0 {
 		limit = 25
 	}
+	if input.Offset < 0 {
+		input.Offset = 0
+	}
+	runs, err := o.listFilteredRuns(ctx, workspaceID, input)
+	if err != nil {
+		return nil, 0, err
+	}
+	return paginateRuns(runs, limit, input.Offset), int64(len(runs)), nil
+}
 
+func (o *Orchestrator) listFilteredRuns(ctx context.Context, workspaceID string, input ListRunsInput) ([]*Run, error) {
 	rows, err := o.db.QueryContext(ctx, `
 		SELECT id, workspace_id, agent_definition_id, triggered_by_user_id,
 		       trigger_type, trigger_context, status, inputs,
@@ -305,10 +316,9 @@ func (o *Orchestrator) ListAgentRuns(ctx context.Context, workspaceID string, li
 		FROM agent_run
 		WHERE workspace_id = ?
 		ORDER BY created_at DESC
-		LIMIT ? OFFSET ?
-	`, workspaceID, limit, offset)
+	`, workspaceID)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -316,25 +326,137 @@ func (o *Orchestrator) ListAgentRuns(ctx context.Context, workspaceID string, li
 	for rows.Next() {
 		run, scanErr := scanAgentRun(rows)
 		if scanErr != nil {
-			return nil, 0, scanErr
+			return nil, scanErr
 		}
-		runs = append(runs, run)
+		if matchesRunFilters(run, input) {
+			runs = append(runs, run)
+		}
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, 0, rowsErr
+		return nil, rowsErr
 	}
-
-	// Get total count
-	var total int64
-	countRow := o.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM agent_run WHERE workspace_id = ?
-	`, workspaceID)
-	if scanErr := countRow.Scan(&total); scanErr != nil {
-		return nil, 0, scanErr
-	}
-
-	return runs, total, nil
+	return runs, nil
 }
+
+func paginateRuns(runs []*Run, limit, offset int64) []*Run {
+	total := int64(len(runs))
+	if offset > total {
+		return []*Run{}
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return runs[offset:end]
+}
+
+type runContextMetadata struct {
+	workflowID      string
+	entityType      string
+	entityID        string
+	rejectionReason string
+}
+
+func matchesRunFilters(run *Run, input ListRunsInput) bool {
+	if run == nil {
+		return false
+	}
+	meta := extractRunContextMetadata(run)
+
+	return matchesOptionalFilter(run.Status, input.Status) &&
+		matchesOptionalFilter(meta.workflowID, input.WorkflowID) &&
+		matchesOptionalFilter(meta.entityType, input.EntityType) &&
+		matchesOptionalFilter(meta.entityID, input.EntityID)
+}
+
+func matchesOptionalFilter(actual, expected string) bool {
+	return expected == "" || actual == expected
+}
+
+func extractRunContextMetadata(run *Run) runContextMetadata {
+	meta := runContextMetadata{}
+	if run == nil {
+		return meta
+	}
+	meta.workflowID = firstJSONString(run.Output, "workflow_id")
+	if meta.workflowID == "" {
+		meta.workflowID = firstJSONString(run.TriggerContext, "workflow_id")
+	}
+	meta.entityType = firstNonEmptyRunValue(
+		firstJSONString(run.Output, "entity_type"),
+		firstJSONString(run.TriggerContext, "entity_type"),
+		firstNestedEntityType(run.TriggerContext),
+	)
+	meta.entityID = firstNonEmptyRunValue(
+		firstJSONString(run.Output, "entity_id"),
+		firstJSONString(run.TriggerContext, "entity_id"),
+		firstNestedEntityID(run.TriggerContext),
+	)
+	if run.Status == StatusRejected {
+		meta.rejectionReason = firstNonEmptyRunValue(
+			firstJSONString(run.Output, dispatchReasonKey),
+			firstJSONString(run.Output, "rejection_reason"),
+		)
+		if meta.rejectionReason == "" && run.AbstentionReason != nil {
+			meta.rejectionReason = *run.AbstentionReason
+		}
+	}
+	return meta
+}
+
+func firstJSONString(raw json.RawMessage, key string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return ""
+	}
+	str, _ := data[key].(string)
+	return str
+}
+
+func firstNestedEntityType(raw json.RawMessage) string {
+	for _, entityType := range []string{"account", "contact", "deal", "case", "lead"} {
+		if firstNestedEntityIDForType(raw, entityType) != "" {
+			return entityType
+		}
+	}
+	return ""
+}
+
+func firstNestedEntityID(raw json.RawMessage) string {
+	for _, entityType := range []string{"account", "contact", "deal", "case", "lead"} {
+		if entityID := firstNestedEntityIDForType(raw, entityType); entityID != "" {
+			return entityID
+		}
+	}
+	return ""
+}
+
+func firstNestedEntityIDForType(raw json.RawMessage, entityType string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return ""
+	}
+	nested, _ := data[entityType].(map[string]any)
+	entityID, _ := nested["id"].(string)
+	return entityID
+}
+
+func firstNonEmptyRunValue(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+const dispatchReasonKey = "reason"
 
 // UpdateAgentRunStatus updates the status of an agent run
 func (o *Orchestrator) UpdateAgentRunStatus(ctx context.Context, workspaceID, runID, status string) (*Run, error) {

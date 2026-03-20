@@ -7,11 +7,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
 func insertInsightsAgentDefinition(t *testing.T, db *sql.DB, workspaceID string) {
@@ -242,6 +244,92 @@ func TestParseQueryIntent_BacklogPriorityOverCaseVolume(t *testing.T) {
 				t.Fatalf("parseQueryIntent(%q)=%q want=%q", tc.query, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestParseQueryIntent_AdditionalBranches(t *testing.T) {
+	tests := []struct {
+		query string
+		want  string
+	}{
+		{query: "aging de deals", want: "deal_aging"},
+		{query: "tiempo de resolución mttr", want: "mttr"},
+		{query: "ventas del funnel", want: "sales_funnel"},
+		{query: "consulta desconocida", want: "sales_funnel"},
+	}
+
+	for _, tc := range tests {
+		if got := parseQueryIntent(tc.query); got != tc.want {
+			t.Fatalf("parseQueryIntent(%q)=%q want=%q", tc.query, got, tc.want)
+		}
+	}
+}
+
+func TestInsightsAgent_QueryMetricsFailures(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+
+	orch := agent.NewOrchestrator(db)
+	registry := tool.NewToolRegistry(db)
+	a := NewInsightsAgent(orch, registry, &mockKnowledgeSearch{results: emptyResults()}, db)
+
+	if _, err := a.queryMetrics(context.Background(), "ws-1", "sales_funnel", nil, nil); err != ErrInsightsQueryMetricsFailed {
+		t.Fatalf("missing executor error = %v want %v", err, ErrInsightsQueryMetricsFailed)
+	}
+
+	registry = tool.NewToolRegistry(db)
+	if err := registry.Register(tool.BuiltinQueryMetrics, &mockToolExecutor{out: json.RawMessage(`{invalid`) }); err != nil {
+		t.Fatalf("register query_metrics: %v", err)
+	}
+	a = NewInsightsAgent(orch, registry, &mockKnowledgeSearch{results: emptyResults()}, db)
+	if _, err := a.queryMetrics(context.Background(), "ws-1", "sales_funnel", nil, nil); err != ErrInsightsQueryMetricsFailed {
+		t.Fatalf("invalid json shape error = %v want %v", err, ErrInsightsQueryMetricsFailed)
+	}
+}
+
+func TestInsightsAgent_CheckDailyLimits(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+
+	a := newTestInsightsAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+	if err := a.checkDailyLimits(context.Background(), "ws-insights-limits"); err != nil {
+		t.Fatalf("empty limits check error = %v", err)
+	}
+
+	workspaceID := "ws-insights-limits"
+	insertInsightsAgentDefinition(t, db, workspaceID)
+	now := time.Now().UTC().Format(time.RFC3339)
+	for i := 0; i < 100; i++ {
+		_, err := db.ExecContext(context.Background(), `
+			INSERT INTO agent_run (id, workspace_id, agent_definition_id, trigger_type, status, started_at, created_at)
+			VALUES (?, ?, 'insights-agent', 'manual', 'success', ?, ?)
+		`, uuid.NewV7().String(), workspaceID, now, now)
+		if err != nil {
+			t.Fatalf("insert agent_run #%d: %v", i, err)
+		}
+	}
+	if err := a.checkDailyLimits(context.Background(), workspaceID); err != ErrInsightsDailyLimitExceeded {
+		t.Fatalf("count limit error = %v want %v", err, ErrInsightsDailyLimitExceeded)
+	}
+
+	if _, err := db.ExecContext(context.Background(), `DELETE FROM agent_run WHERE workspace_id = ?`, workspaceID); err != nil {
+		t.Fatalf("clear agent_run rows: %v", err)
+	}
+	workspaceCost := workspaceID
+	_, err := db.ExecContext(context.Background(), `
+		INSERT INTO agent_run (id, workspace_id, agent_definition_id, trigger_type, status, total_cost, started_at, created_at)
+		VALUES (?, ?, 'insights-agent', 'manual', 'success', 20.0, ?, ?)
+	`, uuid.NewV7().String(), workspaceCost, now, now)
+	if err != nil {
+		t.Fatalf("insert cost run: %v", err)
+	}
+	if err := a.checkDailyLimits(context.Background(), workspaceCost); err != ErrInsightsDailyLimitExceeded {
+		t.Fatalf("cost limit error = %v want %v", err, ErrInsightsDailyLimitExceeded)
+	}
+
+	nilDBAgent := NewInsightsAgent(agent.NewOrchestrator(db), tool.NewToolRegistry(db), &mockKnowledgeSearch{results: emptyResults()}, nil)
+	if err := nilDBAgent.checkDailyLimits(context.Background(), workspaceID); err != nil {
+		t.Fatalf("nil db checkDailyLimits() error = %v", err)
 	}
 }
 

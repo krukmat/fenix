@@ -61,9 +61,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	fileTraces := buildFileTraces(tsts, *rootDir)
+	violations := validate(frs, tsts, fileTraces, *rootDir)
+	printReport(frs, tsts, fileTraces, violations)
+}
+
+func buildFileTraces(tsts []TSTItem, rootDir string) map[string][]string {
 	fileTraces := make(map[string][]string)
 	for _, tst := range tsts {
-		fullPath := filepath.Join(*rootDir, tst.Ref)
+		fullPath := filepath.Join(rootDir, tst.Ref)
 		if _, statErr := os.Stat(fullPath); os.IsNotExist(statErr) {
 			fileTraces[tst.Ref] = nil
 			continue
@@ -75,8 +81,10 @@ func main() {
 		}
 		fileTraces[tst.Ref] = traces
 	}
+	return fileTraces
+}
 
-	violations := validate(frs, tsts, fileTraces, *rootDir)
+func printReport(frs map[string]FRItem, tsts []TSTItem, fileTraces map[string][]string, violations []Violation) {
 	fmt.Printf("=== FR Traceability Report ===\n")
 	fmt.Printf("FRs loaded: %d (active: %d)\n", len(frs), countActive(frs))
 	fmt.Printf("TST items loaded: %d\n", len(tsts))
@@ -92,6 +100,10 @@ func main() {
 	fmt.Println("\nPASSED: all active FRs have traced tests")
 }
 
+func shouldSkipDoorstopEntry(entry os.DirEntry) bool {
+	return entry.IsDir() || !strings.HasSuffix(entry.Name(), extYAML) || entry.Name() == doorstopYAML
+}
+
 func loadDoorstopFRs(dir string) (map[string]FRItem, error) {
 	frs := make(map[string]FRItem)
 	entries, err := os.ReadDir(dir)
@@ -99,7 +111,7 @@ func loadDoorstopFRs(dir string) (map[string]FRItem, error) {
 		return nil, fmt.Errorf("reading FR directory %s: %w", dir, err)
 	}
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), extYAML) || entry.Name() == doorstopYAML {
+		if shouldSkipDoorstopEntry(entry) {
 			continue
 		}
 		data, readErr := os.ReadFile(filepath.Join(dir, entry.Name()))
@@ -123,7 +135,7 @@ func loadDoorstopTSTs(dir string) ([]TSTItem, error) {
 		return nil, fmt.Errorf("reading TST directory %s: %w", dir, err)
 	}
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), extYAML) || entry.Name() == doorstopYAML {
+		if shouldSkipDoorstopEntry(entry) {
 			continue
 		}
 		data, readErr := os.ReadFile(filepath.Join(dir, entry.Name()))

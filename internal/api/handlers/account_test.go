@@ -505,7 +505,7 @@ func contextWithWorkspaceID(ctx context.Context, wsID string) context.Context {
 }
 
 // mustOpenDBWithMigrations opens an in-memory DB with migrations applied.
-func mustOpenDBWithMigrations(t *testing.T) *sql.DB {
+func mustOpenDBWithMigrations(t testing.TB) *sql.DB {
 	t.Helper()
 	db, err := sqlite.NewDB(":memory:")
 	if err != nil {
@@ -526,7 +526,7 @@ func mustOpenDBWithMigrations(t *testing.T) *sql.DB {
 }
 
 // createWorkspace creates a test workspace.
-func createWorkspace(t *testing.T, db *sql.DB) string {
+func createWorkspace(t testing.TB, db *sql.DB) string {
 	t.Helper()
 	id := "ws-" + randID()
 	_, err := db.Exec(`
@@ -540,7 +540,7 @@ func createWorkspace(t *testing.T, db *sql.DB) string {
 }
 
 // createUser creates a test user in a workspace.
-func createUser(t *testing.T, db *sql.DB, workspaceID string) string {
+func createUser(t testing.TB, db *sql.DB, workspaceID string) string {
 	t.Helper()
 	id := "user-" + randID()
 	_, err := db.Exec(`
@@ -554,7 +554,7 @@ func createUser(t *testing.T, db *sql.DB, workspaceID string) string {
 }
 
 // setupWorkspaceAndOwner creates both a workspace and an owner user.
-func setupWorkspaceAndOwner(t *testing.T, db *sql.DB) (workspaceID, ownerID string) {
+func setupWorkspaceAndOwner(t testing.TB, db *sql.DB) (workspaceID, ownerID string) {
 	t.Helper()
 	wsID := createWorkspace(t, db)
 	userID := createUser(t, db, wsID)

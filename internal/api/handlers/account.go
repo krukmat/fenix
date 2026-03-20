@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -147,34 +148,12 @@ func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 // ListAccounts handles GET /api/v1/accounts with pagination
 // Task 1.3.7: List accounts with pagination filters
 func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-
-	// Parse + validate pagination params (extracted to reduce cyclomatic complexity)
-	page := parsePaginationParams(r)
-
-	// List accounts via service
-	accounts, total, listErr := h.accountService.List(ctx, wsID, crm.ListAccountsInput{
-		Limit:  page.Limit,
-		Offset: page.Offset,
-	})
-	if listErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list accounts: %v", listErr))
-		return
-	}
-
-	// Build response
-	responses := make([]AccountResponse, len(accounts))
-	for i, acc := range accounts {
-		responses[i] = accountToResponse(acc)
-	}
-
-	if !writePaginatedOr500(w, responses, total, page) {
-		return
-	}
+	handleMappedListWithPagination(w, r, "failed to list accounts: %v",
+		func(ctx context.Context, wsID string, limit, offset int) ([]*crm.Account, int, error) {
+			return h.accountService.List(ctx, wsID, crm.ListAccountsInput{Limit: limit, Offset: offset})
+		},
+		accountToResponse,
+	)
 }
 
 // UpdateAccount handles PUT /api/v1/accounts/{id}
@@ -184,65 +163,36 @@ func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 // between Get and Update. For MVP (SQLite single-writer) this is acceptable.
 // Fix: use a DB transaction with SELECT FOR UPDATE when migrating to Postgres.
 func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-
-	accountID, existing, ok := h.getAccountForUpdate(w, r, wsID)
-	if !ok {
-		return
-	}
-
-	var req UpdateAccountRequest
-	if !decodeBodyJSON(w, r, &req) {
-		return
-	}
-
-	// Merge request with existing values (extracted to reduce cyclomatic complexity)
-	updateInput := buildUpdateInput(req, existing)
-
-	// Update account via service
-	updated, upErr := h.accountService.Update(ctx, wsID, accountID, updateInput)
-	if upErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update account: %v", upErr))
-		return
-	}
-
-	// Write response
-	if !writeJSONOr500(w, accountToResponse(updated)) {
-		return
-	}
-}
-
-func (h *AccountHandler) getAccountForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Account, bool) {
-	return getEntityForUpdate[crm.Account](w, r, wsID, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, h.accountService.Get)
+	handleEntityUpdate[
+		crm.Account,
+		UpdateAccountRequest,
+		crm.UpdateAccountInput,
+		AccountResponse,
+	](
+		w,
+		r,
+		errAccountIDRequired,
+		errAccountNotFound,
+		errFailedToGetAccount,
+		"failed to update account: %v",
+		h.accountService.Get,
+		buildUpdateInput,
+		func(ctx context.Context, wsID, accountID string, input crm.UpdateAccountInput) (*AccountResponse, error) {
+			updated, err := h.accountService.Update(ctx, wsID, accountID, input)
+			if err != nil {
+				return nil, err
+			}
+			resp := accountToResponse(updated)
+			return &resp, nil
+		},
+	)
 }
 
 // DeleteAccount handles DELETE /api/v1/accounts/{id}
 // Task 1.3.7: Soft delete an account (sets deleted_at timestamp)
 // TD-3 fix: returns 404 if account does not exist or is already deleted
 func (h *AccountHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-
-	accountID, ok := ensureEntityExistsBeforeDelete[crm.Account](w, r, wsID, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, h.accountService.Get)
-	if !ok {
-		return
-	}
-
-	// Delete account via service (soft delete)
-	if delErr := h.accountService.Delete(ctx, wsID, accountID); delErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete account: %v", delErr))
-		return
-	}
-
-	// Write response (204 No Content)
-	w.WriteHeader(http.StatusNoContent)
+	handleVerifiedDelete(w, r, errAccountIDRequired, errAccountNotFound, errFailedToGetAccount, "failed to delete account: %v", h.accountService.Get, h.accountService.Delete)
 }
 
 // --- helpers ---

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 
@@ -74,7 +75,7 @@ func (h *ActivityHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
 	}
 	id := chi.URLParam(r, paramID)
 	out, svcErr := h.service.Get(r.Context(), wsID, id)
-	if handleGetError(w, svcErr, "activity not found", "failed to get activity: %v") {
+	if handleGetError(w, svcErr, errActivityNotFound, "failed to get activity: %v") {
 		return
 	}
 	if !writeJSONOr500(w, out) {
@@ -107,7 +108,8 @@ func (h *ActivityHandler) UpdateActivity(w http.ResponseWriter, r *http.Request)
 	](
 		w,
 		r,
-		"activity not found",
+		"activity id is required",
+		errActivityNotFound,
 		"failed to get activity: %v",
 		"failed to update activity: %v",
 		h.service.Get,
@@ -117,16 +119,7 @@ func (h *ActivityHandler) UpdateActivity(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *ActivityHandler) DeleteActivity(w http.ResponseWriter, r *http.Request) {
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-	id := chi.URLParam(r, paramID)
-	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete activity: %v", svcErr))
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handleDeleteWithNotFound(w, r, "activity id is required", sql.ErrNoRows, errActivityNotFound, "failed to delete activity: %v", h.service.Delete)
 }
 
 // isActivityRequestValid checks required fields for CreateActivity.

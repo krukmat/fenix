@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Where we are**: Architecture design complete. Entering implementation phase.
 
 **Key documents**:
-- Requirements: `agentic_crm_requirements_agent_ready.md`
+- Requirements: `docs/requirements.md`
 - Architecture & design (ERD, diagrams, API, build order): `docs/architecture.md`
 - Implementation plan (13 weeks, 4 phases, TDD): `docs/implementation-plan.md`
 - Corrections applied (audit report): `docs/CORRECTIONS-APPLIED.md`
@@ -24,10 +24,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - If the implementation plan is ambiguous or conflicts with the architecture doc, ask the user before proceeding.
 
 **Agent attribution (MANDATORY)**:
-- Before making any git commit, ALWAYS set `AI_AGENT` to the exact model ID currently running this session.
-- Single agent: `export AI_AGENT="claude-sonnet-4-6"`
+- Before making any git commit, ALWAYS run both to avoid stale attribution from a previous agent:
+  ```
+  export AI_AGENT="claude-sonnet-4-6"
+  git config fenix.ai-agent "claude-sonnet-4-6"
+  ```
 - Multi-agent session: `export AI_AGENTS="orchestrator:claude-opus-4-6,coder:claude-sonnet-4-6"`
-- Never commit without setting this variable first. The git hook requires it to build performance metrics.
+- The hook reads env var first, then git config, then falls back to `unknown`.
+- Setting both guarantees correct attribution even if the env var is lost between shell sessions.
 
 ---
 

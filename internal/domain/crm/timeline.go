@@ -78,21 +78,22 @@ func (s *TimelineService) Get(ctx context.Context, workspaceID, eventID string) 
 }
 
 func (s *TimelineService) List(ctx context.Context, workspaceID string, input ListTimelineInput) ([]*TimelineEvent, int, error) {
-	total, err := s.querier.CountTimelineEventsByWorkspace(ctx, workspaceID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count timeline events: %w", err)
-	}
-
-	rows, err := s.querier.ListTimelineEventsByWorkspace(ctx, sqlcgen.ListTimelineEventsByWorkspaceParams{
-		WorkspaceID: workspaceID,
-		Limit:       int64(input.Limit),
-		Offset:      int64(input.Offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("list timeline events: %w", err)
-	}
-
-	return mapRows(rows, rowToTimelineEvent), int(total), nil
+	return listWorkspacePage(
+		ctx,
+		workspaceID,
+		"timeline events",
+		input.Limit,
+		input.Offset,
+		s.querier.CountTimelineEventsByWorkspace,
+		func(ctx context.Context, workspaceID string, limit, offset int64) ([]sqlcgen.TimelineEvent, error) {
+			return s.querier.ListTimelineEventsByWorkspace(ctx, sqlcgen.ListTimelineEventsByWorkspaceParams{
+				WorkspaceID: workspaceID,
+				Limit:       limit,
+				Offset:      offset,
+			})
+		},
+		rowToTimelineEvent,
+	)
 }
 
 func (s *TimelineService) ListByEntity(ctx context.Context, workspaceID, entityType, entityID string, input ListTimelineInput) ([]*TimelineEvent, error) {

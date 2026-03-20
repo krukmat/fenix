@@ -156,18 +156,42 @@ func (p *PolicyEngine) CheckToolPermission(ctx context.Context, userID, toolID s
 	}
 
 	for _, req := range requiredPerms {
-		for _, action := range candidateToolActions(req) {
-			ok, checkErr := p.CheckActionPermission(ctx, userID, permTools, action, nil)
-			if checkErr != nil {
-				return false, checkErr
-			}
-			if ok {
-				return true, nil
-			}
+		allowed, checkErr := p.anyActionAllowed(ctx, userID, candidateToolActions(req))
+		if checkErr != nil {
+			return false, checkErr
+		}
+		if allowed {
+			return true, nil
 		}
 	}
 
 	return false, nil
+}
+
+// anyActionAllowed returns true if the user is allowed any of the given actions on the tools resource.
+func (p *PolicyEngine) anyActionAllowed(ctx context.Context, userID string, actions []string) (bool, error) {
+	for _, action := range actions {
+		ok, err := p.CheckActionPermission(ctx, userID, permTools, action, nil)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// CheckAgentPermission verifies whether a user may dispatch a sub-agent.
+func (p *PolicyEngine) CheckAgentPermission(ctx context.Context, userID, agentID, agentName string) (bool, error) {
+	attrs := map[string]string{}
+	if strings.TrimSpace(agentID) != "" {
+		attrs["agent_id"] = strings.TrimSpace(agentID)
+	}
+	if strings.TrimSpace(agentName) != "" {
+		attrs["agent_name"] = strings.TrimSpace(agentName)
+	}
+	return p.CheckActionPermission(ctx, userID, "agents", "execute", attrs)
 }
 
 // CheckActionPermission performs unified RBAC/ABAC evaluation for API/tool actions.

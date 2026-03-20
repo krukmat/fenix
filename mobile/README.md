@@ -67,9 +67,13 @@ npm run e2e:test
 | Archivo | Flujo validado |
 |---------|----------------|
 | `e2e/auth.e2e.ts` | Login → Register → Accounts list → Logout |
-| `e2e/accounts.e2e.ts` | Accounts list → Detail → Timeline |
+| `e2e/accounts.e2e.ts` | Accounts list → Detail → Timeline → Agent Activity |
+| `e2e/deals.e2e.ts` | Deal detail → Agent Activity section → navegación a run detail |
+| `e2e/cases.e2e.ts` | Case detail → Agent Activity section → navegación a run detail |
+| `e2e/workflows.e2e.ts` | Workflows list → Create draft → Edit → Version actions |
 | `e2e/copilot.e2e.ts` | Cases list → Case detail → Copilot panel → SSE response → Evidence cards |
-| `e2e/agent-runs.e2e.ts` | Agent runs list → Trigger agent → Run detail → Status chip |
+| `e2e/copilot-uc-s1.e2e.ts` | Account detail → Copilot button → panel visible; Deal detail → Copilot button → panel visible (UC-S1) |
+| `e2e/agent-runs.e2e.ts` | Activity Log → Trigger agent → Run detail → Rejected run smoke |
 
 ### testIDs requeridos
 

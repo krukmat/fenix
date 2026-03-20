@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -153,28 +154,17 @@ func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 	var leads []*crm.Lead
 	var total int
 
+	var listErr error
 	if ownerID != "" {
-		// List by owner
-		var listErr error
 		leads, listErr = h.leadService.ListByOwner(ctx, wsID, ownerID)
-		if listErr != nil {
-			writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list leads: %v", listErr))
-			return
-		}
 		total = len(leads)
-		// Apply pagination manually for list by owner
 		leads = applyPagination(leads, page.Limit, page.Offset)
 	} else {
-		// List all with pagination
-		var listErr error
-		leads, total, listErr = h.leadService.List(ctx, wsID, crm.ListLeadsInput{
-			Limit:  page.Limit,
-			Offset: page.Offset,
-		})
-		if listErr != nil {
-			writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list leads: %v", listErr))
-			return
-		}
+		leads, total, listErr = h.leadService.List(ctx, wsID, crm.ListLeadsInput{Limit: page.Limit, Offset: page.Offset})
+	}
+	if listErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list leads: %v", listErr))
+		return
 	}
 
 	// Build response
@@ -191,64 +181,35 @@ func (h *LeadHandler) ListLeads(w http.ResponseWriter, r *http.Request) {
 // UpdateLead handles PUT /api/v1/leads/{id}
 // Task 1.5: Update a lead (partial update allowed)
 func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-
-	leadID, existing, ok := h.getLeadForUpdate(w, r, wsID)
-	if !ok {
-		return
-	}
-
-	var req UpdateLeadRequest
-	if !decodeBodyJSON(w, r, &req) {
-		return
-	}
-
-	// Merge request with existing values
-	updateInput := buildLeadUpdateInput(req, existing)
-
-	// Update lead via service
-	updated, upErr := h.leadService.Update(ctx, wsID, leadID, updateInput)
-	if upErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update lead: %v", upErr))
-		return
-	}
-
-	// Write response
-	if !writeJSONOr500(w, leadToResponse(updated)) {
-		return
-	}
-}
-
-func (h *LeadHandler) getLeadForUpdate(w http.ResponseWriter, r *http.Request, wsID string) (string, *crm.Lead, bool) {
-	return getEntityForUpdate[crm.Lead](w, r, wsID, errLeadIDRequired, errLeadNotFound, errFailedToGetLead, h.leadService.Get)
+	handleEntityUpdate[
+		crm.Lead,
+		UpdateLeadRequest,
+		crm.UpdateLeadInput,
+		LeadResponse,
+	](
+		w,
+		r,
+		errLeadIDRequired,
+		errLeadNotFound,
+		errFailedToGetLead,
+		"failed to update lead: %v",
+		h.leadService.Get,
+		buildLeadUpdateInput,
+		func(ctx context.Context, wsID, leadID string, input crm.UpdateLeadInput) (*LeadResponse, error) {
+			updated, err := h.leadService.Update(ctx, wsID, leadID, input)
+			if err != nil {
+				return nil, err
+			}
+			resp := leadToResponse(updated)
+			return &resp, nil
+		},
+	)
 }
 
 // DeleteLead handles DELETE /api/v1/leads/{id}
 // Task 1.5: Soft delete a lead (sets deleted_at timestamp)
 func (h *LeadHandler) DeleteLead(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-
-	leadID, ok := ensureEntityExistsBeforeDelete[crm.Lead](w, r, wsID, errLeadIDRequired, errLeadNotFound, errFailedToGetLead, h.leadService.Get)
-	if !ok {
-		return
-	}
-
-	// Delete lead via service (soft delete)
-	if delErr := h.leadService.Delete(ctx, wsID, leadID); delErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete lead: %v", delErr))
-		return
-	}
-
-	// Write response (204 No Content)
-	w.WriteHeader(http.StatusNoContent)
+	handleVerifiedDelete(w, r, errLeadIDRequired, errLeadNotFound, errFailedToGetLead, "failed to delete lead: %v", h.leadService.Get, h.leadService.Delete)
 }
 
 // --- helpers ---

@@ -7,6 +7,7 @@ import { useTheme, FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { CRMListScreen } from '../../../src/components/crm';
 import { useAccounts } from '../../../src/hooks/useCRM';
+import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import type { ThemeColors } from '../../../src/theme/types';
 
 // Account type inferred from API response
@@ -15,6 +16,7 @@ interface AccountData {
   name?: string;
   industry?: string;
   phone?: string;
+  active_signal_count?: number;
 }
 
 function useThemeColors(): ThemeColors {
@@ -59,13 +61,18 @@ export default function AccountsListScreen() {
         onPress={() => router.push(`/accounts/${item.id}`)}
         testID={`accounts-list-item-${index}`}
       >
-        <Text style={[styles.accountName, { color: colors.onSurface }]}>{item.name || 'Unnamed Account'}</Text>
-        <Text style={[styles.accountIndustry, { color: colors.onSurfaceVariant }]}>
-          {item.industry || 'No industry'}
-        </Text>
-        {item.phone && (
-          <Text style={[styles.accountPhone, { color: colors.onSurfaceVariant }]}>{item.phone}</Text>
-        )}
+        <View testID={`accounts-list-item-${item.id}`}>
+          <Text style={[styles.accountName, { color: colors.onSurface }]}>{item.name || 'Unnamed Account'}</Text>
+          <Text style={[styles.accountIndustry, { color: colors.onSurfaceVariant }]}>
+            {item.industry || 'No industry'}
+          </Text>
+          <View style={styles.badgeRow}>
+            <SignalCountBadge count={item.active_signal_count} testID={`account-signals-badge-${item.id}`} />
+          </View>
+          {item.phone && (
+            <Text style={[styles.accountPhone, { color: colors.onSurfaceVariant }]}>{item.phone}</Text>
+          )}
+        </View>
       </TouchableOpacity>
     ),
     [colors, router]
@@ -125,5 +132,9 @@ const styles = StyleSheet.create({
   accountPhone: {
     fontSize: 12,
     marginTop: 4,
+  },
+  badgeRow: {
+    alignItems: 'flex-start',
+    marginTop: 8,
   },
 });

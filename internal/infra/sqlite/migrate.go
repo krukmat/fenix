@@ -22,35 +22,40 @@ var migrations embed.FS
 // Already-applied migrations are skipped (idempotent).
 // Uses a transaction per migration for atomicity.
 func MigrateUp(db *sql.DB) error {
-	// Task 1.2.5: Ensure schema_migrations table exists before querying it
 	if err := ensureMigrationsTable(db); err != nil {
 		return fmt.Errorf("migrate: ensure migrations table: %w", err)
 	}
 
-	// Load all migration files from embedded FS, sorted by name (001_, 002_, ...)
 	files, err := loadMigrationFiles()
 	if err != nil {
 		return fmt.Errorf("migrate: load files: %w", err)
 	}
 
 	for _, f := range files {
-		version := versionFromFilename(f.name)
-
-		// Skip already-applied migrations
-		applied, checkErr := isMigrationApplied(db, version)
-		if checkErr != nil {
-			return fmt.Errorf("migrate: check applied %d: %w", version, checkErr)
-		}
-		if applied {
-			continue
-		}
-
-		// Apply migration in a transaction
-		if applyErr := applyMigration(db, version, f.name, f.sql); applyErr != nil {
-			return fmt.Errorf("migrate: apply %s: %w", f.name, applyErr)
+		migErr := applyPendingMigration(db, f)
+		if migErr != nil {
+			return migErr
 		}
 	}
 
+	return nil
+}
+
+func applyPendingMigration(db *sql.DB, f migrationFile) error {
+	version := versionFromFilename(f.name)
+
+	applied, err := isMigrationApplied(db, version)
+	if err != nil {
+		return fmt.Errorf("migrate: check applied %d: %w", version, err)
+	}
+	if applied {
+		return nil
+	}
+
+	applyErr := applyMigration(db, version, f.name, f.sql)
+	if applyErr != nil {
+		return fmt.Errorf("migrate: apply %s: %w", f.name, applyErr)
+	}
 	return nil
 }
 

@@ -8,11 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
 type mockKBCaseGetter struct {
@@ -273,5 +275,75 @@ func TestKBError_Error_ReturnsMessage(t *testing.T) {
 	err := ErrKBCaseIDRequired
 	if err.Error() == "" {
 		t.Fatal("KBError.Error() should not be empty")
+	}
+}
+
+func TestKBHelperFunctionsAndMutationFallbacks(t *testing.T) {
+	if got := plannedKBTool(0.9); got != tool.BuiltinUpdateKnowledgeItem {
+		t.Fatalf("plannedKBTool(high)=%q want %q", got, tool.BuiltinUpdateKnowledgeItem)
+	}
+	if got := plannedKBTool(0.2); got != tool.BuiltinCreateKnowledgeItem {
+		t.Fatalf("plannedKBTool(low)=%q want %q", got, tool.BuiltinCreateKnowledgeItem)
+	}
+
+	ownerID := "owner-1"
+	if got := resolveKBAgentUserID(ownerID, nil); got != ownerID {
+		t.Fatalf("resolveKBAgentUserID(nil)=%q want %q", got, ownerID)
+	}
+	empty := ""
+	if got := resolveKBAgentUserID(ownerID, &empty); got != ownerID {
+		t.Fatalf("resolveKBAgentUserID(empty)=%q want %q", got, ownerID)
+	}
+	triggered := "triggered-user"
+	if got := resolveKBAgentUserID(ownerID, &triggered); got != triggered {
+		t.Fatalf("resolveKBAgentUserID(triggered)=%q want %q", got, triggered)
+	}
+}
+
+func TestKBAgent_CreateAndUpdateKnowledgeArticleFallbacks(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+
+	orch := agent.NewOrchestrator(db)
+	registry := tool.NewToolRegistry(db)
+	if err := registry.Register(tool.BuiltinUpdateKnowledgeItem, &mockToolExecutor{out: mustJSON(map[string]any{})}); err != nil {
+		t.Fatalf("register update_knowledge_item: %v", err)
+	}
+	if err := registry.Register(tool.BuiltinCreateKnowledgeItem, &mockToolExecutor{out: mustJSON(map[string]any{})}); err != nil {
+		t.Fatalf("register create_knowledge_item: %v", err)
+	}
+	a := NewKBAgent(orch, registry, &mockKnowledgeSearch{results: emptyResults()}, nil, &mockKBCaseGetter{}, db)
+
+	if got, err := a.updateKnowledgeArticle(context.Background(), "kb-existing", "Subject", "Body"); err != nil || got != "kb-existing" {
+		t.Fatalf("updateKnowledgeArticle() got (%q, %v) want (kb-existing, nil)", got, err)
+	}
+	if _, err := a.createKnowledgeArticle(context.Background(), "ws-1", "Subject", "Body"); !errors.Is(err, ErrKBArticleCreationFailed) {
+		t.Fatalf("createKnowledgeArticle() error = %v want %v", err, ErrKBArticleCreationFailed)
+	}
+}
+
+func TestKBAgent_CheckDailyLimits(t *testing.T) {
+	db := setupProspectingTestDB(t)
+	defer db.Close()
+
+	a := newTestKBAgent(t, db, &mockKnowledgeSearch{results: emptyResults()}, &mockKBCaseGetter{}, nil, nil)
+	if err := a.checkDailyLimits(context.Background(), "ws-kb-ok"); err != nil {
+		t.Fatalf("empty checkDailyLimits() error = %v", err)
+	}
+
+	workspaceID := "ws-kb-limit"
+	insertKBAgentDefinition(t, db, workspaceID)
+	now := time.Now().UTC().Format(time.RFC3339)
+	for i := 0; i < 10; i++ {
+		_, err := db.ExecContext(context.Background(), `
+			INSERT INTO agent_run (id, workspace_id, agent_definition_id, trigger_type, status, started_at, created_at)
+			VALUES (?, ?, 'kb-agent', 'manual', 'success', ?, ?)
+		`, uuid.NewV7().String(), workspaceID, now, now)
+		if err != nil {
+			t.Fatalf("insert agent_run #%d: %v", i, err)
+		}
+	}
+	if err := a.checkDailyLimits(context.Background(), workspaceID); err != ErrKBDailyLimitExceeded {
+		t.Fatalf("checkDailyLimits() error = %v want %v", err, ErrKBDailyLimitExceeded)
 	}
 }

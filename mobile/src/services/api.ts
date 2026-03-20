@@ -1,51 +1,35 @@
 // Task 4.2 — FR-300: Axios API Client hacia BFF
+// Task Mobile P1.1 — FR-300, UC-A4/A5/A7: signalApi, workflowApi, approvalApi, copilotApi extensions
+//
+// This file is the public API surface for the services layer.
+// Implementation is split across api.client.ts, api.types.ts, api.agents.ts, api.secondary.ts
+// to keep each file under the 300-line architecture gate.
 
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { useAuthStore } from '../stores/authStore';
+import { apiClient } from './api.client';
 
-// BFF URL from environment variables
-// EXPO_PUBLIC_ prefix is required for Expo SDK 52+
-const BFF_URL = process.env.EXPO_PUBLIC_BFF_URL || 'http://10.0.2.2:3000';
+export { apiClient, BFF_URL } from './api.client';
 
-// Create axios instance
-export const apiClient = axios.create({
-  baseURL: BFF_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+// Re-export all types so existing imports (import type { X } from 'services/api') keep working
+export type {
+  SignalStatus,
+  Signal,
+  WorkflowStatus,
+  Workflow,
+  WorkflowVersion,
+  CreateWorkflowInput,
+  UpdateWorkflowInput,
+  AgentRunStatus,
+  AgentRun,
+  AgentRunListResponse,
+  AgentRunResponse,
+  ApprovalStatus,
+  ApprovalRequest,
+  HandoffPackage,
+} from './api.types';
 
-// Apply interceptors inline (called once when module loads)
-(function applyInterceptors() {
-  // Request interceptor: add Authorization header
-  apiClient.interceptors.request.use(
-    async (config: InternalAxiosRequestConfig) => {
-      const { token } = useAuthStore.getState();
-      
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      
-      return config;
-    },
-    (error: AxiosError) => {
-      return Promise.reject(error);
-    }
-  );
-
-  // Response interceptor: handle 401 (no refresh token in MVP -> logout)
-  apiClient.interceptors.response.use(
-    (response) => response,
-    async (error: AxiosError) => {
-      if (error.response?.status === 401) {
-        // No refresh token in MVP - logout directly
-        await useAuthStore.getState().logout();
-      }
-      return Promise.reject(error);
-    }
-  );
-})();
+// Re-export secondary APIs
+export { agentApi } from './api.agents';
+export { signalApi, workflowApi, toolApi, approvalApi } from './api.secondary';
 
 // Auth API
 export const authApi = {
@@ -56,7 +40,7 @@ export const authApi = {
     });
     return response.data;
   },
-  
+
   register: async (displayName: string, email: string, password: string, workspaceName: string) => {
     const response = await apiClient.post('/bff/auth/register', {
       displayName,
@@ -72,7 +56,7 @@ export const authApi = {
 export const crmApi = {
   // Lists
   getAccounts: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/api/v1/accounts', {
+    const response = await apiClient.get('/bff/accounts', {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
@@ -92,14 +76,14 @@ export const crmApi = {
   },
 
   getDeals: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/api/v1/deals', {
+    const response = await apiClient.get('/bff/deals', {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
   },
 
   getCases: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/api/v1/cases', {
+    const response = await apiClient.get('/bff/cases', {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
@@ -178,23 +162,23 @@ export const crmApi = {
     const response = await apiClient.put(`/bff/api/v1/cases/${id}`, data);
     return response.data;
   },
-  
+
   // Details (aggregated)
   getAccountFull: async (id: string) => {
     const response = await apiClient.get(`/bff/accounts/${id}/full`);
     return response.data;
   },
-  
+
   getDealFull: async (id: string) => {
     const response = await apiClient.get(`/bff/deals/${id}/full`);
     return response.data;
   },
-  
+
   getCaseFull: async (id: string) => {
     const response = await apiClient.get(`/bff/cases/${id}/full`);
     return response.data;
   },
-  
+
   // Contact (no aggregated endpoint)
   getContact: async (id: string) => {
     const response = await apiClient.get(`/bff/api/v1/contacts/${id}`);
@@ -202,49 +186,23 @@ export const crmApi = {
   },
 };
 
-// Agent API
-export const agentApi = {
-  getRuns: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/api/v1/agents/runs', {
-      params: {
-        workspace_id: workspaceId,
-        page: pagination?.page ?? 1,
-        limit: pagination?.limit ?? 25,
-      },
-    });
-    return response.data;
-  },
-
-  getRun: async (id: string) => {
-    const response = await apiClient.get(`/bff/api/v1/agents/runs/${id}`);
-    return response.data;
-  },
-
-  getDefinitions: async (workspaceId: string) => {
-    const response = await apiClient.get('/bff/api/v1/agents/definitions', {
-      params: { workspace_id: workspaceId },
-    });
-    return response.data;
-  },
-
-  triggerRun: async (agentId: string, context: { entity_type?: string; entity_id?: string }) => {
-    const response = await apiClient.post(`/bff/api/v1/agents/trigger`, {
-      agent_id: agentId,
-      ...context,
-    });
-    return response.data;
-  },
-};
-
 // Copilot API
 export const copilotApi = {
-  buildChatUrl: (): string => `${BFF_URL}/bff/copilot/chat`,
-};
+  buildChatUrl: (): string => `${process.env.EXPO_PUBLIC_BFF_URL || 'http://10.0.2.2:3000'}/bff/copilot/chat`,
 
-// Tool API
-export const toolApi = {
-  execute: async (tool: string, params: Record<string, unknown>) => {
-    const response = await apiClient.post(`/bff/api/v1/tools/${tool}`, params);
+  suggestActions: async (entityType: string, entityId: string) => {
+    const response = await apiClient.post('/bff/api/v1/copilot/suggest-actions', {
+      entity_type: entityType,
+      entity_id: entityId,
+    });
+    return response.data;
+  },
+
+  summarize: async (entityType: string, entityId: string) => {
+    const response = await apiClient.post('/bff/api/v1/copilot/summarize', {
+      entity_type: entityType,
+      entity_id: entityId,
+    });
     return response.data;
   },
 };

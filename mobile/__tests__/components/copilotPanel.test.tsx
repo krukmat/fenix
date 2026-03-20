@@ -54,7 +54,7 @@ describe('CopilotPanel', () => {
     fireEvent.changeText(input, 'nuevo prompt');
     fireEvent.press(getByTestId('copilot-send'));
 
-    expect(sendQuery).toHaveBeenCalledWith('nuevo prompt');
+    expect(sendQuery).toHaveBeenCalledWith('nuevo prompt', undefined);
     expect(getByTestId('copilot-input').props.value).toBe('');
   });
 

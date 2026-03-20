@@ -134,36 +134,38 @@ func (s *DealService) Get(ctx context.Context, workspaceID, dealID string) (*Dea
 }
 
 func (s *DealService) List(ctx context.Context, workspaceID string, input ListDealsInput) ([]*Deal, int, error) {
-	if input.Sort == "" {
-		input.Sort = sortCreatedAtDesc
-	}
+	return listInputFilteredOrPaged(
+		&input,
+		func(in *ListDealsInput) string { return in.Sort },
+		func(in *ListDealsInput, sort string) { in.Sort = sort },
+		sortCreatedAtDesc,
+		shouldUseFilteredDealList,
+		func() ([]*Deal, error) { return s.listFiltered(ctx, workspaceID, input) },
+		paginateDeals,
+		input.Offset, input.Limit,
+		func() (int64, error) { return s.countDeals(ctx, workspaceID) },
+		func() ([]*Deal, error) { return s.pageDeals(ctx, workspaceID, input) },
+	)
+}
 
-	if shouldUseFilteredDealList(input) {
-		filtered, err := s.listFiltered(ctx, workspaceID, input)
-		if err != nil {
-			return nil, 0, err
-		}
-		total := len(filtered)
-		paged := paginateDeals(filtered, input.Offset, input.Limit)
-		return paged, total, nil
-	}
-
-	total, err := s.querier.CountDealsByWorkspace(ctx, workspaceID)
+func (s *DealService) countDeals(ctx context.Context, workspaceID string) (int64, error) {
+	n, err := s.querier.CountDealsByWorkspace(ctx, workspaceID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("count deals: %w", err)
+		return 0, fmt.Errorf("count deals: %w", err)
 	}
+	return n, nil
+}
 
+func (s *DealService) pageDeals(ctx context.Context, workspaceID string, input ListDealsInput) ([]*Deal, error) {
 	rows, err := s.querier.ListDealsByWorkspace(ctx, sqlcgen.ListDealsByWorkspaceParams{
 		WorkspaceID: workspaceID,
 		Limit:       int64(input.Limit),
 		Offset:      int64(input.Offset),
 	})
 	if err != nil {
-		return nil, 0, fmt.Errorf("list deals: %w", err)
+		return nil, fmt.Errorf("list deals: %w", err)
 	}
-	out := mapRows(rows, rowToDeal)
-
-	return out, int(total), nil
+	return mapRows(rows, rowToDeal), nil
 }
 
 func shouldUseFilteredDealList(input ListDealsInput) bool {
@@ -279,22 +281,13 @@ func (s *DealService) Delete(ctx context.Context, workspaceID, dealID string) er
 	if err != nil {
 		return err
 	}
-
 	now := nowRFC3339()
-	err = s.querier.SoftDeleteDeal(ctx, sqlcgen.SoftDeleteDealParams{
-		DeletedAt:   &now,
-		UpdatedAt:   now,
-		ID:          dealID,
-		WorkspaceID: workspaceID,
-	})
-	if err != nil {
-		return fmt.Errorf("soft delete deal: %w", err)
-	}
-	if timelineErr := createTimelineEvent(ctx, s.querier, workspaceID, timelineEntityDeal, dealID, existing.OwnerID, timelineActionDeleted); timelineErr != nil {
-		return fmt.Errorf("delete deal timeline: %w", timelineErr)
-	}
-	logCRMAudit(ctx, s.audit, workspaceID, existing.OwnerID, actionDealDeleted, timelineEntityDeal, dealID)
-	return nil
+	return softDeleteWithSideEffects(ctx, s.querier, s.audit, workspaceID, timelineEntityDeal, dealID, existing.OwnerID, actionDealDeleted,
+		func() error {
+			return s.querier.SoftDeleteDeal(ctx, sqlcgen.SoftDeleteDealParams{
+				DeletedAt: &now, UpdatedAt: now, ID: dealID, WorkspaceID: workspaceID,
+			})
+		})
 }
 
 func rowToDeal(row sqlcgen.Deal) *Deal {

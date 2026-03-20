@@ -6,6 +6,7 @@ import { useTheme, FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { CRMListScreen } from '../../../src/components/crm';
 import { useDeals } from '../../../src/hooks/useCRM';
+import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import type { ThemeColors } from '../../../src/theme/types';
 
 interface DealData {
@@ -19,6 +20,7 @@ interface DealData {
   stage?: string;
   accountName?: string;
   closeDate?: string;
+  active_signal_count?: number;
 }
 
 function useThemeColors(): ThemeColors {
@@ -56,6 +58,9 @@ export function renderDealItem({ item }: { item: DealData }, colors: ThemeColors
           ${(item.amount ?? item.value)!.toLocaleString()}
         </Text>
       )}
+      <View style={styles.badgeRow}>
+        <SignalCountBadge count={item.active_signal_count} testID={`deal-signals-badge-${item.id}`} />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -173,6 +178,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginTop: 4,
+  },
+  badgeRow: {
+    alignItems: 'flex-start',
+    marginTop: 8,
   },
   fab: {
     position: 'absolute',

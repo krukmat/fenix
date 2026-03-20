@@ -70,6 +70,9 @@ const (
 	// Error messages — case
 	errCaseNotFound = "case not found"
 
+	// Error messages — activity
+	errActivityNotFound = "activity not found"
+
 	// Error messages — agent
 	errAgentRunNotFound = "agent run not found"
 
@@ -92,8 +95,12 @@ const (
 	// Common query params
 	queryOwnerID   = "owner_id"
 	queryAccountID = "account_id"
+	queryStatus    = "status"
 	querySortAsc   = "created_at"
 	querySortDesc  = "-created_at"
+
+	// Error messages — workflow
+	errWorkflowIDRequired = "workflow id is required"
 )
 
 // getWorkspaceID retrieves workspace_id from context.
@@ -261,23 +268,10 @@ func ensureEntityExistsBeforeDelete[T any](
 	internalFmt string,
 	getter func(context.Context, string, string) (*T, error),
 ) (string, bool) {
-	ctx := r.Context()
-	id := chiURLParamID(r)
-	if id == "" {
-		writeError(w, http.StatusBadRequest, idRequiredMsg)
+	id, _, ok := getEntityForUpdate(w, r, wsID, idRequiredMsg, notFoundMsg, internalFmt, getter)
+	if !ok {
 		return "", false
 	}
-
-	_, err := getter(ctx, wsID, id)
-	if errorsIsNoRows(err) {
-		writeError(w, http.StatusNotFound, notFoundMsg)
-		return "", false
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf(internalFmt, err))
-		return "", false
-	}
-
 	return id, true
 }
 
@@ -292,9 +286,18 @@ func handleListWithPagination[T any](
 	errFmt string,
 	listFn func(context.Context, string, int, int) ([]*T, int, error),
 ) {
-	wsID, wsErr := getWorkspaceID(r.Context())
-	if wsErr != nil {
-		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+	handleMappedListWithPagination(w, r, errFmt, listFn, func(item *T) *T { return item })
+}
+
+func handleMappedListWithPagination[T any, R any](
+	w http.ResponseWriter,
+	r *http.Request,
+	errFmt string,
+	listFn func(context.Context, string, int, int) ([]*T, int, error),
+	mapper func(*T) R,
+) {
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
 		return
 	}
 
@@ -302,6 +305,39 @@ func handleListWithPagination[T any](
 	items, total, err := listFn(r.Context(), wsID, page.Limit, page.Offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFmt, err))
+		return
+	}
+
+	mapped := make([]R, len(items))
+	for i, item := range items {
+		mapped[i] = mapper(item)
+	}
+
+	_ = writePaginatedOr500(w, mapped, total, page)
+}
+
+func handleParsedListWithPagination[T any, In any](
+	w http.ResponseWriter,
+	r *http.Request,
+	parseInput func(*http.Request, paginationParams) (In, error),
+	listFn func(context.Context, string, In) ([]*T, int, error),
+	errFmt string,
+) {
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	page := parsePaginationParams(r)
+	input, err := parseInput(r, page)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	items, total, svcErr := listFn(r.Context(), wsID, input)
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFmt, svcErr))
 		return
 	}
 
@@ -313,6 +349,7 @@ func handleListWithPagination[T any](
 func handleEntityUpdate[Entity any, Req any, In any, Out any](
 	w http.ResponseWriter,
 	r *http.Request,
+	idRequiredMsg string,
 	notFoundMsg string,
 	getErrFmt string,
 	updateErrFmt string,
@@ -325,9 +362,8 @@ func handleEntityUpdate[Entity any, Req any, In any, Out any](
 		return
 	}
 
-	id := chiURLParamID(r)
-	existing, svcErr := getter(r.Context(), wsID, id)
-	if handleGetError(w, svcErr, notFoundMsg, getErrFmt) {
+	id, existing, ok := getEntityForUpdate(w, r, wsID, idRequiredMsg, notFoundMsg, getErrFmt, getter)
+	if !ok {
 		return
 	}
 
@@ -343,4 +379,96 @@ func handleEntityUpdate[Entity any, Req any, In any, Out any](
 	}
 
 	_ = writeJSONOr500(w, out)
+}
+
+func handleDeleteWithNotFound(
+	w http.ResponseWriter,
+	r *http.Request,
+	idRequiredMsg string,
+	notFoundErr error,
+	notFoundMsg string,
+	internalFmt string,
+	deleteFn func(context.Context, string, string) error,
+) {
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chiURLParamID(r)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, idRequiredMsg)
+		return
+	}
+
+	if err := deleteFn(r.Context(), wsID, id); err != nil {
+		if notFoundErr != nil && errors.Is(err, notFoundErr) {
+			writeError(w, http.StatusNotFound, notFoundMsg)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(internalFmt, err))
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func handleAuthorizedDelete(
+	w http.ResponseWriter,
+	r *http.Request,
+	authz ActionAuthorizer,
+	action string,
+	idRequiredMsg string,
+	deleteFn func(context.Context, string, string) error,
+	writeErr func(http.ResponseWriter, error),
+) {
+	if !checkActionAuthorization(w, r, authz, resourceAPI, action) {
+		return
+	}
+
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id := chiURLParamID(r)
+	if id == "" {
+		writeError(w, http.StatusBadRequest, idRequiredMsg)
+		return
+	}
+
+	if err := deleteFn(r.Context(), wsID, id); err != nil {
+		writeErr(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func handleVerifiedDelete[T any](
+	w http.ResponseWriter,
+	r *http.Request,
+	idRequiredMsg string,
+	notFoundMsg string,
+	internalGetFmt string,
+	internalDeleteFmt string,
+	getter func(context.Context, string, string) (*T, error),
+	deleteFn func(context.Context, string, string) error,
+) {
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+
+	id, ok := ensureEntityExistsBeforeDelete(w, r, wsID, idRequiredMsg, notFoundMsg, internalGetFmt, getter)
+	if !ok {
+		return
+	}
+
+	if err := deleteFn(r.Context(), wsID, id); err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(internalDeleteFmt, err))
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

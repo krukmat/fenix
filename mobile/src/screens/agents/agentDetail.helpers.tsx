@@ -29,7 +29,16 @@ export interface AgentRunData {
   id: string;
   agent_id: string;
   agent_name: string;
-  status: 'running' | 'success' | 'failed' | 'abstained' | 'partial' | 'escalated';
+  status:
+    | 'running'
+    | 'success'
+    | 'failed'
+    | 'abstained'
+    | 'partial'
+    | 'escalated'
+    | 'accepted'
+    | 'rejected'
+    | 'delegated';
   triggered_by: string;
   trigger_type: 'manual' | 'event' | 'schedule';
   inputs: Record<string, unknown>;
@@ -44,6 +53,7 @@ export interface AgentRunData {
   latency_ms: number;
   cost_euros: number;
   handoff_status?: string;
+  rejection_reason?: string;
 }
 
 export function formatLatency(ms: number): string {
@@ -58,7 +68,11 @@ export function getStatusLabel(status: string): string {
     success: 'Success',
     failed: 'Failed',
     abstained: 'Abstained',
+    partial: 'Partial',
     escalated: 'Escalated',
+    accepted: 'Accepted',
+    rejected: 'Rejected',
+    delegated: 'Delegated',
   };
   return labels[status] || status;
 }
@@ -71,6 +85,9 @@ export function getStatusColor(status: string): string {
     abstained: '#F59E0B',
     partial: '#F97316',
     escalated: '#8B5CF6',
+    accepted: '#16A34A',
+    rejected: '#DC2626',
+    delegated: '#0EA5E9',
   };
   return colors[status] || '#999';
 }
@@ -167,6 +184,17 @@ function renderOutputSection(output: string | undefined, colors: ThemeColors) {
   );
 }
 
+function renderRejectionReason(reason: string | undefined, colors: ThemeColors) {
+  if (!reason) {
+    return <Text style={{ color: colors.onSurfaceVariant }}>No rejection reason provided</Text>;
+  }
+  return (
+    <View style={[styles.outputBlock, { backgroundColor: colors.surface }]}>
+      <Text style={{ color: colors.onSurface }}>{reason}</Text>
+    </View>
+  );
+}
+
 function renderAuditSection(auditEvents: AuditEvent[], colors: ThemeColors) {
   if (auditEvents.length === 0) {
     return <Text style={{ color: colors.onSurfaceVariant }}>No audit events</Text>;
@@ -226,9 +254,17 @@ export function renderContent(run: AgentRunData, colors: ThemeColors) {
             Triggered by: {run.triggered_by}
           </Text>
         </View>
+        {run.status === 'delegated' ? (
+          <Text testID="agent-run-delegated-note" style={[styles.summaryMetric, { color: colors.primary, marginTop: 8 }]}>
+            Delegated to another agent. This is not a human handoff.
+          </Text>
+        ) : null}
       </View>
 
       {renderSection('Input', renderInputSection(run.inputs, colors), colors, 'agent-run-inputs')}
+      {run.status === 'rejected'
+        ? renderSection('Rejection Reason', renderRejectionReason(run.rejection_reason, colors), colors, 'agent-run-rejection-reason')
+        : null}
       {renderSection('Evidence Retrieved', renderEvidenceSection(run.evidence_retrieved, colors), colors, 'agent-run-evidence')}
       {renderSection('Reasoning Trace', renderReasoningSection(run.reasoning_trace, colors), colors, 'agent-run-reasoning')}
       {renderSection('Tool Calls', renderToolCallsSection(run.tool_calls, colors), colors, 'agent-run-tool-calls')}

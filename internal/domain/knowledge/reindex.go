@@ -115,23 +115,25 @@ func (s *ReindexService) Start(ctx context.Context) {
 func (s *ReindexService) forwardRecordEvents(ctx context.Context, topic string, changeType ChangeType) <-chan RecordChangedEvent {
 	sub := s.bus.Subscribe(topic)
 	out := make(chan RecordChangedEvent)
-	go func() {
-		defer close(out)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case evt := <-sub:
-				record, ok := evt.Payload.(RecordChangedEvent)
-				if !ok {
-					continue
-				}
-				record.ChangeType = changeType
-				out <- record
-			}
-		}
-	}()
+	go pumpRecordEvents(ctx, sub, out, changeType)
 	return out
+}
+
+func pumpRecordEvents(ctx context.Context, sub <-chan eventbus.Event, out chan<- RecordChangedEvent, changeType ChangeType) {
+	defer close(out)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case evt := <-sub:
+			record, ok := evt.Payload.(RecordChangedEvent)
+			if !ok {
+				continue
+			}
+			record.ChangeType = changeType
+			out <- record
+		}
+	}
 }
 
 // QueueWorkspaceReindex publishes reindex update events for all linked entities.

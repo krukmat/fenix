@@ -88,24 +88,8 @@ func (h *ReportHandler) ExportSalesFunnelCSV(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	if r.URL.Query().Get("format") != "csv" {
-		writeError(w, http.StatusBadRequest, "format must be csv")
-		return
-	}
-
-	reader, err := h.reportService.ExportSalesFunnelCSV(r.Context(), wsID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to export sales funnel csv: %v", err))
-		return
-	}
-
-	// Task 4.5e — streaming CSV response.
-	w.Header().Set(headerContentType, mimeCSV)
-	w.Header().Set("Content-Disposition", `attachment; filename="sales_funnel.csv"`)
-	w.WriteHeader(http.StatusOK)
-	if _, copyErr := io.Copy(w, reader); copyErr != nil {
-		return
-	}
+	exportCSVReport(w, r, wsID, "sales_funnel.csv", "failed to export sales funnel csv",
+		func() (io.Reader, error) { return h.reportService.ExportSalesFunnelCSV(r.Context(), wsID) })
 }
 
 func (h *ReportHandler) ExportSupportBacklogCSV(w http.ResponseWriter, r *http.Request) {
@@ -113,24 +97,24 @@ func (h *ReportHandler) ExportSupportBacklogCSV(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
+	exportCSVReport(w, r, wsID, "support_backlog.csv", "failed to export support backlog csv",
+		func() (io.Reader, error) { return h.reportService.ExportSupportBacklogCSV(r.Context(), wsID) })
+}
+
+func exportCSVReport(w http.ResponseWriter, r *http.Request, _ string, filename, errMsg string, load func() (io.Reader, error)) {
 	if r.URL.Query().Get("format") != "csv" {
 		writeError(w, http.StatusBadRequest, "format must be csv")
 		return
 	}
-
-	reader, err := h.reportService.ExportSupportBacklogCSV(r.Context(), wsID)
+	reader, err := load()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to export support backlog csv: %v", err))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("%s: %v", errMsg, err))
 		return
 	}
-
-	// Task 4.5e — streaming CSV response.
 	w.Header().Set(headerContentType, mimeCSV)
-	w.Header().Set("Content-Disposition", `attachment; filename="support_backlog.csv"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	w.WriteHeader(http.StatusOK)
-	if _, copyErr := io.Copy(w, reader); copyErr != nil {
-		return
-	}
+	_, _ = io.Copy(w, reader)
 }
 
 func parseAgingDays(w http.ResponseWriter, r *http.Request) (int, bool) {

@@ -1,9 +1,9 @@
 # AGENT_SPEC Integration Analysis
 
 > **Date**: 2026-03-06
-> **Status**: Pre-analysis complete. Pending: progressive incorporation plan.
+> **Status**: Historical analysis baseline. The transition baseline was incorporated on `agent-spec-transition`.
 > **Source**: `docs/AGENT_SPEC.md`
-> **Context**: P0 MVP in progress (Phase 1 complete, Phases 2-4 partial).
+> **Context**: Kept as pre-implementation analysis and gap rationale for the AGENT_SPEC transition.
 > **Naming source of truth**: `docs/agent-spec-overview.md`
 > **Traceability rules**: `docs/agent-spec-traceability.md`
 
@@ -79,7 +79,7 @@ WORKFLOW detect_and_surface_intent
 
 ---
 
-## 2 -- Current Architecture Snapshot (as of 2026-03-06)
+## 2 -- Architecture Snapshot Before Transition Implementation
 
 ### What Exists (built and tested)
 
@@ -97,11 +97,11 @@ WORKFLOW detect_and_surface_intent
 | Support agent (UC-C1) | `internal/domain/agent/agents/support.go` | Done |
 | Prospecting agent | `internal/domain/agent/agents/prospecting.go` | Done |
 | KB agent | `internal/domain/agent/agents/kb.go` | Done |
-| Insights agent | `internal/domain/agent/agents/insights.go` | Pending |
+| Insights agent | `internal/domain/agent/agents/insights.go` | Partial |
 | Audit trail (immutable) | `internal/domain/audit/` | Done |
 | Eval service (basic) | `internal/domain/eval/` | Done |
 | BFF gateway (Express.js) | `bff/` | Done |
-| Mobile app (React Native) | `mobile/` | Pending |
+| Mobile app (React Native) | `mobile/` | Done |
 
 ### How Agents Work Today
 
@@ -187,7 +187,7 @@ The fundamental tension is **CRM-first vs. Agent-first**:
 
 ---
 
-## 5 -- Progressive Incorporation Strategy (Summary)
+## 5 -- Progressive Incorporation Strategy (Historical Summary)
 
 ### Guiding Principle
 
@@ -234,7 +234,7 @@ agent_run status                Add ACCEPTED/REJECTED/DELEGATED       Full proto
 
 ---
 
-## 6 -- Next Steps (when resuming this work)
+## 6 -- Next Steps (historical sequence retained for reference)
 
 1. **Finish P0 MVP** -- complete remaining Phase 2-4 tasks per `docs/implementation-plan.md`
 2. **Design pluggable orchestrator interface** -- abstract `TriggerAgent` so it can be backed by Go code or DSL
@@ -255,7 +255,7 @@ agent_run status                Add ACCEPTED/REJECTED/DELEGATED       Full proto
 | AGENT_SPEC (source) | `docs/AGENT_SPEC.md` | The vision document being analyzed |
 | Architecture | `docs/architecture.md` | Current system design (ERD, modules, API, diagrams) |
 | Implementation Plan | `docs/implementation-plan.md` | 13-week P0 plan with task status |
-| Requirements | `agentic_crm_requirements_agent_ready.md` | Original FR/NFR requirements |
+| Requirements | `docs/requirements.md` | FR/NFR/UC requirements (v2.0) |
 | Corrections Applied | `docs/CORRECTIONS-APPLIED.md` | Audit of plan corrections |
 
 ## Appendix B -- AGENT_SPEC DSL Verb -> Current Tool Mapping
@@ -273,7 +273,7 @@ agent_run status                Add ACCEPTED/REJECTED/DELEGATED       Full proto
 
 ## Appendix C -- Interoperability Direction
 
-- `DISPATCH` externo debe ser A2A-first.
-- Exposicion y consumo de tools/contexto debe ser MCP-first.
+- `DISPATCH` externo debe ser A2A-first usando `a2aproject/a2a-go` como primera implementacion en Go.
+- Exposicion y consumo de tools/contexto debe ser MCP-first usando el SDK oficial de MCP para Go.
 - `ProtocolHandler` debe ser un puerto interno con adapters compatibles con estandares, no un protocolo propietario.
 - HTTP no es el contrato objetivo; es el transporte del estandar cuando aplique.

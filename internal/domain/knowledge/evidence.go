@@ -150,21 +150,36 @@ func (s *EvidencePackService) selectCandidates(
 		if len(selected) >= topK {
 			break
 		}
-		if s.isStale(ctx, candidate.KnowledgeItemID, wsID) {
-			staleCount++
-		}
-		vec, hasVec := representativeVectors[candidate.KnowledgeItemID]
-		if hasVec && s.isNearDuplicate(vec, selectedVectors) {
-			dedupCount++
-			continue
-		}
-		selected = append(selected, candidate)
-		if hasVec {
-			selectedVectors = append(selectedVectors, vec)
+		accepted, dedup, stale := s.evaluateCandidate(ctx, wsID, candidate, representativeVectors, selectedVectors)
+		dedupCount += dedup
+		staleCount += stale
+		if accepted {
+			vec := representativeVectors[candidate.KnowledgeItemID]
+			selected = append(selected, candidate)
+			if vec != nil {
+				selectedVectors = append(selectedVectors, vec)
+			}
 		}
 	}
 
 	return selected, dedupCount, staleCount
+}
+
+func (s *EvidencePackService) evaluateCandidate(
+	ctx context.Context,
+	wsID string,
+	candidate SearchResult,
+	representativeVectors map[string][]float32,
+	selectedVectors [][]float32,
+) (accepted bool, dedupCount, staleCount int) {
+	if s.isStale(ctx, candidate.KnowledgeItemID, wsID) {
+		staleCount++
+	}
+	vec, hasVec := representativeVectors[candidate.KnowledgeItemID]
+	if hasVec && s.isNearDuplicate(vec, selectedVectors) {
+		return false, 1, staleCount
+	}
+	return true, 0, staleCount
 }
 
 func (s *EvidencePackService) isNearDuplicate(vec []float32, selectedVectors [][]float32) bool {

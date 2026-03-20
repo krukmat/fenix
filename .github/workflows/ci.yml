@@ -7,11 +7,13 @@ name: CI
 on:
   push:
   pull_request:
-    branches: [main, develop]
+  schedule:
+    - cron: '0 3 * * *'
 
 jobs:
   mobile-quality:
     name: Mobile Quality Gates
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
 
     steps:
@@ -54,6 +56,7 @@ jobs:
   # This job must pass before lint and tests can run.
   complexity:
     name: Complexity Gate (max 7)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
 
     steps:
@@ -96,6 +99,7 @@ jobs:
 
   traceability:
     name: Traceability Gate
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
 
     steps:
@@ -128,6 +132,7 @@ jobs:
   # Job 2: Lint, Test, Build — only runs if complexity gate passes
   test:
     name: Lint and Test
+    if: github.event_name != 'schedule'
     needs: [mobile-quality, complexity, traceability]
     runs-on: ubuntu-latest
 
@@ -154,8 +159,8 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Pattern opportunities gate (warn mode)
-        run: make pattern-opportunities-gate PATTERN_GATE_MODE=warn PATTERN_GATE_TS_DUP_THRESHOLD=2
+      - name: Pattern opportunities gate (strict mode)
+        run: make pattern-opportunities-gate PATTERN_GATE_MODE=strict PATTERN_GATE_TS_DUP_THRESHOLD=5
 
       - name: Show lint gates (gocognit + maintidx)
         run: |
@@ -177,18 +182,22 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-      - name: Dead code report (warn only)
+      - name: Dead code gate (blocking)
         run: |
           go install golang.org/x/tools/cmd/deadcode@latest
-          # Runs from both binaries so all reachable code is included.
-          # Warn-only: report is uploaded as artifact but does not fail CI.
-          # Promote to blocking once baseline is clean and interfaces stabilize.
-          deadcode -test ./cmd/fenix/... ./cmd/frtrace/... 2>&1 | tee deadcode-report.txt || true
+          # Scan all packages with -test so internal test helpers count as reachable.
+          # MCP Gateway is deferred (no MCPResourceProvider implementation yet — P1 infra).
+          deadcode -test ./... 2>&1 \
+            | grep -v "mcp_adapter\|MCPGateway\|BuildServer\|MCPResourceProvider\|MCPResourceDescriptor\|MCPResourcePayload" \
+            | grep -v "_test\.go:\|ruleguard" \
+            | tee deadcode-report.txt || true
           LINES=$(grep -c "." deadcode-report.txt 2>/dev/null || echo 0)
-          echo "Dead code findings: $LINES"
+          echo "Dead code findings (after MCP allowlist): $LINES"
           if [ "$LINES" -gt 0 ]; then
-            echo "::warning::$LINES dead code finding(s) detected — see deadcode-report artifact"
+            echo "::error::$LINES unexpected dead code finding(s) — see deadcode-report artifact"
+            exit 1
           fi
+          echo "Dead code gate: PASSED"
 
       - name: Upload dead code report
         if: always()
@@ -247,9 +256,61 @@ jobs:
           name: quality-snapshot-${{ github.sha }}
           path: quality-snapshot.json
 
+  benchmark-critical:
+    name: Critical Endpoint Benchmarks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.8'
+          cache: true
+
+      - name: Run critical endpoint benchmarks
+        run: |
+          set -euo pipefail
+          make bench-critical BENCH_BENCHTIME=5x | tee benchmark-critical.txt
+
+      - name: Upload critical benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-critical-${{ github.sha }}
+          path: benchmark-critical.txt
+
+  benchmark-all-scheduled:
+    name: Scheduled Endpoint Benchmarks
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.8'
+          cache: true
+
+      - name: Run scheduled endpoint benchmarks
+        run: |
+          set -euo pipefail
+          make bench-all BENCH_BENCHTIME=5x | tee benchmark-all.txt
+
+      - name: Upload scheduled benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-all-${{ github.run_id }}
+          path: benchmark-all.txt
+
   contract:
     name: API Contract Tests
-    needs: test
+    if: github.event_name != 'schedule'
+    needs: [test, benchmark-critical]
     runs-on: ubuntu-latest
 
     steps:

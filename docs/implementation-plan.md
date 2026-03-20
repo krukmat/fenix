@@ -36,7 +36,7 @@
 ### Development Flow per Task
 
 ```
-1. Read requirements (FR/NFR from agentic_crm_requirements_agent_ready.md)
+1. Read requirements (FR/NFR/UC from docs/requirements.md)
 2. Write failing test (unit + integration)
 3. Implement minimum code to pass test
 4. Refactor (if needed)

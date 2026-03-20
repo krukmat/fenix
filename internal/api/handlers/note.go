@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -14,7 +13,10 @@ type NoteHandler struct{ service *crm.NoteService }
 
 func NewNoteHandler(service *crm.NoteService) *NoteHandler { return &NoteHandler{service: service} }
 
-const errNoteNotFound = "note not found"
+const (
+	errNoteNotFound   = "note not found"
+	errNoteIDRequired = "note id is required"
+)
 
 type CreateNoteRequest struct {
 	EntityType string `json:"entityType"`
@@ -95,44 +97,28 @@ func (h *NoteHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *NoteHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-	id := chi.URLParam(r, paramID)
-	_, svcErr := h.service.Get(r.Context(), wsID, id)
-	if handleGetError(w, svcErr, errNoteNotFound, "failed to get note: %v") {
-		return
-	}
-	var req UpdateNoteRequest
-	if !decodeBodyJSON(w, r, &req) {
-		return
-	}
-	out, svcErr := h.service.Update(r.Context(), wsID, id, crm.UpdateNoteInput{Content: req.Content, IsInternal: req.IsInternal, Metadata: req.Metadata})
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update note: %v", svcErr))
-		return
-	}
-	if !writeJSONOr500(w, out) {
-		return
-	}
+	handleEntityUpdate[
+		crm.Note,
+		UpdateNoteRequest,
+		crm.UpdateNoteInput,
+		crm.Note,
+	](
+		w,
+		r,
+		errNoteIDRequired,
+		errNoteNotFound,
+		"failed to get note: %v",
+		"failed to update note: %v",
+		h.service.Get,
+		func(req UpdateNoteRequest, _ *crm.Note) crm.UpdateNoteInput {
+			return crm.UpdateNoteInput{Content: req.Content, IsInternal: req.IsInternal, Metadata: req.Metadata}
+		},
+		h.service.Update,
+	)
 }
 
 func (h *NoteHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-	id := chi.URLParam(r, paramID)
-	if svcErr := h.service.Delete(r.Context(), wsID, id); svcErr != nil {
-		if errors.Is(svcErr, sql.ErrNoRows) {
-			writeError(w, http.StatusNotFound, errNoteNotFound)
-			return
-		}
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete note: %v", svcErr))
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	handleDeleteWithNotFound(w, r, errNoteIDRequired, sql.ErrNoRows, errNoteNotFound, "failed to delete note: %v", h.service.Delete)
 }
 
 // isNoteRequestValid checks required fields for CreateNote.

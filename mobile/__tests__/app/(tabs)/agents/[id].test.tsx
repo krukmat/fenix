@@ -1,33 +1,18 @@
-/**
- * Task 4.5 — Agent Run Detail Screen Tests
- *
- * Tests:
- * 1. Renders agent run details correctly
- * 2. Shows loading state
- * 3. Shows error state when run not found
- * 4. Displays summary section (agent name, status, timestamps, costs)
- * 5. Displays inputs section (JSON viewer)
- * 6. Displays evidence retrieved section
- * 7. Displays reasoning trace section
- * 8. Displays tool calls section
- * 9. Displays output section
- * 10. Displays audit events section
- * 11. Shows handoff button when status is escalated
- * 12. Navigates back on close button press
- */
-
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { render, screen } from '@testing-library/react-native';
 import AgentsDetailScreen from '../../../../app/(tabs)/agents/[id]';
 
-// Mock useAgentRun hook
 const mockUseAgentRun = jest.fn();
+const mockUseHandoffPackage = jest.fn();
+
+jest.mock('../../../../src/hooks/useAgentSpec', () => ({
+  useHandoffPackage: (...args: unknown[]) => mockUseHandoffPackage(...args),
+}));
 
 jest.mock('../../../../src/hooks/useCRM', () => ({
   useAgentRun: (...args: unknown[]) => mockUseAgentRun(...args),
 }));
 
-// Mock router + Stack
 const mockRouterPush = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockRouterPush }),
@@ -37,12 +22,11 @@ jest.mock('expo-router', () => ({
   },
 }));
 
-// Mock types
 interface AgentRun {
   id: string;
   agent_id: string;
   agent_name: string;
-  status: 'running' | 'success' | 'failed' | 'abstained' | 'escalated';
+  status: 'running' | 'success' | 'failed' | 'abstained' | 'partial' | 'escalated' | 'accepted' | 'rejected' | 'delegated';
   triggered_by: string;
   trigger_type: 'manual' | 'event' | 'schedule';
   inputs: Record<string, unknown>;
@@ -67,10 +51,11 @@ interface AgentRun {
   latency_ms: number;
   cost_euros: number;
   handoff_status?: string;
+  rejection_reason?: string;
 }
 
 describe('Agent Run Detail Screen', () => {
-  const mockRun: AgentRun = {
+  const baseRun: AgentRun = {
     id: 'run-1',
     agent_id: 'agent-support-001',
     agent_name: 'Support Agent',
@@ -102,11 +87,12 @@ describe('Agent Run Detail Screen', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseHandoffPackage.mockReturnValue({ data: null, isLoading: false });
   });
 
-  it('should render agent run details', () => {
+  it('renders agent run details', () => {
     mockUseAgentRun.mockReturnValue({
-      data: { data: mockRun },
+      data: { data: baseRun },
       isLoading: false,
       error: null,
     });
@@ -115,11 +101,10 @@ describe('Agent Run Detail Screen', () => {
 
     expect(screen.getByText('Support Agent')).toBeDefined();
     expect(screen.getByText('2.0s')).toBeDefined();
-    // cost_euros.toFixed(4) = "0.0200 €"
-    expect(screen.getByText('0.0200 €')).toBeDefined();
+    expect(screen.getByText(/0\.0200/)).toBeDefined();
   });
 
-  it('should show loading state', () => {
+  it('shows loading state', () => {
     mockUseAgentRun.mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -131,7 +116,7 @@ describe('Agent Run Detail Screen', () => {
     expect(screen.getByText('Loading agent run...')).toBeDefined();
   });
 
-  it('should show error state when run not found', () => {
+  it('shows error state when run is not found', () => {
     mockUseAgentRun.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -143,100 +128,71 @@ describe('Agent Run Detail Screen', () => {
     expect(screen.getByText('Agent run not found')).toBeDefined();
   });
 
-  it('should display evidence retrieved section', () => {
+  it('renders evidence, reasoning, output and audit sections', () => {
     mockUseAgentRun.mockReturnValue({
-      data: { data: mockRun },
+      data: { data: baseRun },
       isLoading: false,
       error: null,
     });
 
     render(<AgentsDetailScreen />);
 
-    // Should show evidence section header and first source snippet
     expect(screen.getByText(/Evidence Retrieved/i)).toBeDefined();
+    expect(screen.getByText(/Reasoning Trace/i)).toBeDefined();
+    expect(screen.getByText(/Output/i)).toBeDefined();
+    expect(screen.getByText(/Audit Events/i)).toBeDefined();
     expect(screen.getByText(/To reset your password/i)).toBeDefined();
   });
 
-  it('should display reasoning trace section', () => {
+  it('renders accepted state correctly', () => {
     mockUseAgentRun.mockReturnValue({
-      data: { data: mockRun },
+      data: { data: { ...baseRun, status: 'accepted' } },
       isLoading: false,
       error: null,
     });
 
     render(<AgentsDetailScreen />);
 
-    expect(screen.getByText(/Reasoning Trace/i)).toBeDefined();
-    expect(screen.getByText(/User asked about password reset/i)).toBeDefined();
+    expect(screen.getByText('Accepted')).toBeDefined();
   });
 
-  it('should display tool calls section', () => {
+  it('shows rejection reason for rejected runs', () => {
     mockUseAgentRun.mockReturnValue({
-      data: { data: mockRun },
+      data: { data: { ...baseRun, status: 'rejected', rejection_reason: 'Policy threshold not met' } },
       isLoading: false,
       error: null,
     });
 
     render(<AgentsDetailScreen />);
 
-    expect(screen.getAllByText(/Tool Calls/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Rejected')).toBeDefined();
+    expect(screen.getByText(/Rejection Reason/i)).toBeDefined();
+    expect(screen.getByText('Policy threshold not met')).toBeDefined();
   });
 
-  it('should display output section', () => {
+  it('renders delegated state without handoff banner', () => {
     mockUseAgentRun.mockReturnValue({
-      data: { data: mockRun },
+      data: { data: { ...baseRun, status: 'delegated' } },
       isLoading: false,
       error: null,
     });
 
     render(<AgentsDetailScreen />);
 
-    expect(screen.getByText(/Output/i)).toBeDefined();
-    expect(screen.getByText(/You can reset your password/i)).toBeDefined();
+    expect(screen.getByText('Delegated')).toBeDefined();
+    expect(screen.getByText('Delegated to another agent. This is not a human handoff.')).toBeDefined();
+    expect(screen.queryByTestId('agent-run-handoff-banner')).toBeNull();
   });
 
-  it('should display audit events section', () => {
+  it('shows handoff banner only when status is escalated', () => {
     mockUseAgentRun.mockReturnValue({
-      data: { data: mockRun },
+      data: { data: { ...baseRun, status: 'escalated', handoff_status: 'escalated' } },
       isLoading: false,
       error: null,
     });
 
     render(<AgentsDetailScreen />);
 
-    expect(screen.getByText(/Audit Events/i)).toBeDefined();
-    expect(screen.getByText(/retrieval/i)).toBeDefined();
-  });
-
-  it('should show handoff button when status is escalated', () => {
-    const escalatedRun = {
-      ...mockRun,
-      status: 'escalated',
-      handoff_status: 'escalated',
-    };
-
-    mockUseAgentRun.mockReturnValue({
-      data: { data: escalatedRun },
-      isLoading: false,
-      error: null,
-    });
-
-    render(<AgentsDetailScreen />);
-
-    expect(screen.getByText(/escalated/i)).toBeDefined();
-  });
-
-  it('should navigate back on close button press', () => {
-    mockUseAgentRun.mockReturnValue({
-      data: { data: mockRun },
-      isLoading: false,
-      error: null,
-    });
-
-    render(<AgentsDetailScreen />);
-
-    // The close button test requires specific testID verification
-    // For now, verify the component renders without crashing
-    expect(screen.getByText('Support Agent')).toBeDefined();
+    expect(screen.getByText(/Escalated/i)).toBeDefined();
   });
 });

@@ -401,6 +401,38 @@ func TestCheckActionPermission(t *testing.T) {
 	})
 }
 
+func TestCheckAgentPermission(t *testing.T) {
+	t.Run("role fallback allows agent execute", func(t *testing.T) {
+		db := setupPolicyTestDB(t)
+		_, userID := seedWorkspaceUserRole(t, db, `{"agents":["execute"]}`)
+
+		engine := NewPolicyEngine(db, nil, nil)
+		ok, err := engine.CheckAgentPermission(context.Background(), userID, "agent-1", "qualify_lead")
+		if err != nil {
+			t.Fatalf("CheckAgentPermission error: %v", err)
+		}
+		if !ok {
+			t.Fatal("expected agent execute granted by role fallback")
+		}
+	})
+
+	t.Run("active policy deny overrides role fallback", func(t *testing.T) {
+		db := setupPolicyTestDB(t)
+		workspaceID, userID := seedWorkspaceUserRole(t, db, `{"agents":["execute"]}`)
+		policyJSON := `{"rules":[{"id":"deny_agent_execute","resource":"agents","action":"execute","effect":"deny","priority":100}]}`
+		seedActivePolicyVersion(t, db, workspaceID, 1, policyJSON)
+
+		engine := NewPolicyEngine(db, nil, nil)
+		ok, err := engine.CheckAgentPermission(context.Background(), userID, "agent-1", "qualify_lead")
+		if err != nil {
+			t.Fatalf("CheckAgentPermission error: %v", err)
+		}
+		if ok {
+			t.Fatal("expected denied by active policy")
+		}
+	})
+}
+
 func seedToolDefinition(t *testing.T, db *sql.DB, workspaceID, toolID, name, requiredPermissionsJSON string) {
 	t.Helper()
 	now := time.Now().UTC().Format(time.RFC3339)

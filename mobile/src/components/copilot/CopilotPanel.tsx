@@ -1,7 +1,8 @@
+// Task Mobile P1.7 — FR-200/UC-A5: signal-aware context banner
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { IconButton, Text, TextInput } from 'react-native-paper';
-import { useSSE, type CopilotMessage } from '../../hooks/useSSE';
+import { IconButton, Text, TextInput, Banner } from 'react-native-paper';
+import { useSSE, type CopilotMessage, type SendContext } from '../../hooks/useSSE';
 import { toolApi } from '../../services/api';
 import { ActionButton, type SuggestedAction } from './ActionButton';
 import { EvidenceCard } from './EvidenceCard';
@@ -44,7 +45,36 @@ function Footer({ lastAssistant }: FooterProps) {
   );
 }
 
-export function CopilotPanel() {
+export interface CopilotInitialContext {
+  signalId?: string;
+  signalType?: string;
+  entityType?: string;
+  entityId?: string;
+}
+
+interface CopilotPanelProps {
+  initialContext?: CopilotInitialContext;
+}
+
+function ContextBanner({ context }: { context: CopilotInitialContext }) {
+  const parts: string[] = [];
+  if (context.signalType) parts.push(`signal: ${context.signalType}`);
+  if (context.entityType && context.entityId) parts.push(`${context.entityType} ${context.entityId}`);
+  if (parts.length === 0) return null;
+
+  return (
+    <Banner
+      visible
+      testID="copilot-context-banner"
+      actions={[]}
+      icon="information-outline"
+    >
+      {`Analyzing ${parts.join(' · ')}`}
+    </Banner>
+  );
+}
+
+export function CopilotPanel({ initialContext }: CopilotPanelProps = {}) {
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList<CopilotMessage>>(null);
   const { messages, isStreaming, error, sendQuery } = useSSE();
@@ -60,15 +90,26 @@ export function CopilotPanel() {
     }
   }, [messages.length]);
 
+  const buildContext = (): SendContext | undefined => {
+    if (!initialContext) return undefined;
+    return {
+      entityType: initialContext.entityType,
+      entityId: initialContext.entityId,
+      signalId: initialContext.signalId,
+      signalType: initialContext.signalType,
+    };
+  };
+
   const onSend = () => {
     const trimmed = inputText.trim();
     if (!trimmed || isStreaming) return;
-    sendQuery(trimmed);
+    sendQuery(trimmed, buildContext());
     setInputText('');
   };
 
   return (
     <View style={styles.container} testID="copilot-panel">
+      {initialContext && <ContextBanner context={initialContext} />}
       <FlatList
         ref={flatListRef}
         data={messages}

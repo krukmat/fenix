@@ -311,3 +311,25 @@ func TestStrPtr(t *testing.T) {
 		t.Fatalf("unexpected ptr result: %v", got)
 	}
 }
+
+func TestStatusRecorderFlush_DelegatesToFlusher(t *testing.T) {
+	t.Parallel()
+
+	base := httptest.NewRecorder()
+	rec := &statusRecorder{ResponseWriter: base, statusCode: http.StatusOK}
+	rec.Flush()
+	if !base.Flushed {
+		t.Fatal("expected underlying ResponseRecorder to be marked flushed")
+	}
+}
+
+func TestStatusRecorderFlush_NoPanicWhenNotFlusher(t *testing.T) {
+	t.Parallel()
+
+	// nonFlusherWriter wraps a recorder but does not expose http.Flusher.
+	type nonFlusherWriter struct{ w *httptest.ResponseRecorder }
+	impl := &nonFlusherWriter{w: httptest.NewRecorder()}
+	rec := &statusRecorder{ResponseWriter: impl.w, statusCode: http.StatusOK}
+	// Should not panic; flusher check should silently no-op.
+	rec.Flush()
+}

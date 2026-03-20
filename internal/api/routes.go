@@ -5,7 +5,9 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -20,7 +22,10 @@ import (
 	domaineval "github.com/matiasleandrokruk/fenix/internal/domain/eval"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
+	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
+	signaldomain "github.com/matiasleandrokruk/fenix/internal/domain/signal"
 	tooldomain "github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
 	"github.com/matiasleandrokruk/fenix/internal/infra/config"
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
@@ -32,9 +37,19 @@ const routeByID = "/{id}"
 // NewRouter creates and configures a new chi router with all routes.
 // Task 1.3.8: Setup go-chi router with middleware + account endpoints
 // Task 1.6.13: Public routes (/health, /auth/*) vs protected routes (/api/v1/*)
+// C2/C4: CORS allowlist + per-IP rate limiting on auth endpoints.
 //
 //nolint:funlen,maintidx // router principal mantiene registro centralizado de rutas por diseño
 func NewRouter(db *sql.DB) *chi.Mux {
+	cfg := config.Load()
+	return newRouterWithConfig(db, cfg)
+}
+
+// newRouterWithConfig is the testable constructor — accepts an explicit Config so tests can
+// inject a custom BFFOrigin without relying on env vars.
+//
+//nolint:funlen,maintidx // router principal mantiene registro centralizado de rutas por diseño
+func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 	r := chi.NewRouter()
 	auditService := domainaudit.NewAuditService(db)
 
@@ -43,6 +58,9 @@ func NewRouter(db *sql.DB) *chi.Mux {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+
+	// C2: CORS — strict origin allowlist (only BFF origin is allowed).
+	r.Use(apmiddleware.CORSMiddleware(cfg.BFFOrigin))
 
 	// Task 4.9 — count all requests for metrics
 	r.Use(func(next http.Handler) http.Handler {
@@ -61,10 +79,13 @@ func NewRouter(db *sql.DB) *chi.Mux {
 	r.Get("/metrics", handlers.MetricsHandler)
 
 	// Auth endpoints — public, no JWT required (Task 1.6.13)
+	// C4: rate limiting — login: 5 req/min per IP; register: 3 req/hour per IP.
 	authHandler := handlers.NewAuthHandler(domainauth.NewAuthServiceWithAudit(db, auditService))
+	loginLimiter := apmiddleware.RateLimitMiddleware(5, time.Minute)
+	registerLimiter := apmiddleware.RateLimitMiddleware(3, time.Hour)
 	r.Route("/auth", func(r chi.Router) {
-		r.Post("/register", authHandler.Register) // POST /auth/register
-		r.Post("/login", authHandler.Login)       // POST /auth/login
+		r.With(registerLimiter).Post("/register", authHandler.Register) // POST /auth/register
+		r.With(loginLimiter).Post("/login", authHandler.Login)          // POST /auth/login
 	})
 
 	// ===== PROTECTED ROUTES (JWT required via AuthMiddleware) =====
@@ -78,7 +99,6 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		// Shared app services for protected APIs
 		knowledgeBus := eventbus.New()
 		auditService.RegisterEventSubscribers(knowledgeBus)
-		cfg := config.Load()
 		// UAT fix: pass embed model + chat model separately — using embed model for chat caused 404.
 		llmProvider := llm.NewOllamaProvider(cfg.OllamaBaseURL, cfg.OllamaModel, cfg.OllamaChatModel)
 		ingestSvc := knowledge.NewIngestService(db, knowledgeBus)
@@ -88,6 +108,10 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		go reindexSvc.Start(context.Background())
 		policyEngine := policy.NewPolicyEngine(db, nil, auditService)
 		toolRegistry := tooldomain.NewToolRegistryWithRuntime(db, policyEngine, auditService)
+		approvalService := policy.NewApprovalService(db, auditService)
+		runnerRegistry := agent.NewRunnerRegistry()
+		agentOrchestrator := agent.NewOrchestratorWithRegistry(db, runnerRegistry)
+		dslRunner := agent.NewDSLRunner(db)
 
 		// Account endpoints (Task 1.3.8)
 		accountHandler := handlers.NewAccountHandler(crm.NewAccountServiceWithBus(db, knowledgeBus))
@@ -121,6 +145,13 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		timelineHandler := handlers.NewTimelineHandler(crm.NewTimelineService(db))
 		reportHandler := handlers.NewReportHandler(crm.NewReportService(db))
 		auditHandler := handlers.NewAuditHandler(auditService)
+		schedulerRepo := schedulerdomain.NewRepository(db)
+		schedulerSvc := schedulerdomain.NewService(schedulerRepo)
+		workflowRepo := workflowdomain.NewRepository(db)
+		workflowService := workflowdomain.NewServiceWithDependencies(workflowRepo, schedulerSvc)
+		workflowHandler := handlers.NewWorkflowHandlerWithRuntime(workflowService, policyEngine, db, agentOrchestrator, toolRegistry, policyEngine, approvalService, dslRunner)
+		signalSvc := signaldomain.NewServiceWithBus(db, signaldomain.NewRepository(db), knowledgeBus)
+		signalHandler := handlers.NewSignalHandlerWithAuthorizer(signalSvc, policyEngine)
 		r.Route("/leads", func(r chi.Router) {
 			r.Post("/", leadHandler.CreateLead)         // POST /api/v1/leads
 			r.Get("/", leadHandler.ListLeads)           // GET /api/v1/leads
@@ -185,6 +216,25 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			r.Get("/{entity_type}/{entity_id}", timelineHandler.ListTimelineByEntity)
 		})
 
+		r.Route("/workflows", func(r chi.Router) {
+			r.Post("/", workflowHandler.Create)
+			r.Get("/", workflowHandler.List)
+			r.Get("/{id}/versions", workflowHandler.ListVersions)
+			r.Post("/{id}/new-version", workflowHandler.NewVersion)
+			r.Post("/{id}/verify", workflowHandler.Verify)
+			r.Post("/{id}/execute", workflowHandler.Execute)
+			r.Get(routeByID, workflowHandler.Get)
+			r.Put("/{id}/activate", workflowHandler.Activate)
+			r.Put("/{id}/rollback", workflowHandler.Rollback)
+			r.Put(routeByID, workflowHandler.Update)
+			r.Delete(routeByID, workflowHandler.Delete)
+		})
+
+		r.Route("/signals", func(r chi.Router) {
+			r.Get("/", signalHandler.List)
+			r.Put("/{id}/dismiss", signalHandler.Dismiss)
+		})
+
 		// Task 4.5e — FR-003: Reporting endpoints.
 		r.Route("/reports", func(r chi.Router) {
 			r.Get("/sales/funnel", reportHandler.GetSalesFunnel)
@@ -211,10 +261,11 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		knowledgeSearchHandler := handlers.NewKnowledgeSearchHandler(searchSvc)
 		knowledgeEvidenceHandler := handlers.NewKnowledgeEvidenceHandler(evidenceSvc)
 		knowledgeReindexHandler := handlers.NewKnowledgeReindexHandler(reindexSvc)
-		approvalHandler := handlers.NewApprovalHandler(policy.NewApprovalService(db, auditService))
+		approvalHandler := handlers.NewApprovalHandler(approvalService)
 		toolHandler := handlers.NewToolHandlerWithAuthorizer(toolRegistry, policyEngine)
 		// Task 3.9: Prompt Versioning
-		promptHandler := handlers.NewPromptHandlerWithAuthorizer(agent.NewPromptService(db, auditService), policyEngine)
+		promptSvc := agent.NewPromptService(db, auditService)
+		promptHandler := handlers.NewPromptHandlerWithAuthorizer(promptSvc, promptSvc, policyEngine)
 		copilotChatSvc := copilotdomain.NewChatService(evidenceSvc, llmProvider, policyEngine, auditService)
 		copilotChatHandler := handlers.NewCopilotChatHandler(copilotChatSvc)
 		copilotActionsSvc := copilotdomain.NewActionService(evidenceSvc, llmProvider, policyEngine, auditService)
@@ -282,7 +333,6 @@ func NewRouter(db *sql.DB) *chi.Mux {
 		})
 
 		// Task 3.7: Agent Runtime routes
-		agentOrchestrator := agent.NewOrchestrator(db)
 		agentHandler := handlers.NewAgentHandler(agentOrchestrator)
 		supportAgent := agents.NewSupportAgentWithDB(agentOrchestrator, toolRegistry, searchSvc, db)
 		supportAgentHandler := handlers.NewSupportAgentHandler(supportAgent)
@@ -314,7 +364,43 @@ func NewRouter(db *sql.DB) *chi.Mux {
 			searchSvc,
 			db,
 		)
-		insightsAgentHandler := handlers.NewInsightsAgentHandler(insightsAgent)
+		insightsAgentHandler := handlers.NewInsightsAgentHandlerWithShadow(
+			insightsAgent,
+			dslRunner,
+			agentOrchestrator,
+			toolRegistry,
+			db,
+		)
+
+		_ = agents.RegisterCurrentGoRunners(runnerRegistry, agents.GoAgentRunners{
+			Support:     supportAgent,
+			Prospecting: prospectingAgent,
+			KB:          kbAgent,
+			Insights:    insightsAgent,
+		})
+		_ = agents.RegisterDSLRunner(runnerRegistry, dslRunner)
+		skillRunner := agent.NewSkillRunner(db)
+		_ = agents.RegisterSkillRunner(runnerRegistry, skillRunner)
+
+		a2aHandler := agent.NewA2AProtocolHandler()
+		resumeRC := &agent.RunContext{
+			Orchestrator:    agentOrchestrator,
+			ToolRegistry:    toolRegistry,
+			PolicyEngine:    policyEngine,
+			ApprovalService: approvalService,
+			Scheduler:       schedulerSvc,
+			SignalService:   signalSvc,
+			AuditService:    auditService,
+			ProtocolHandler: a2aHandler,
+			DB:              db,
+		}
+		resumeHandler := agent.NewWorkflowResumeHandler(dslRunner, resumeRC)
+		schedulerWorker := schedulerdomain.NewWorker(schedulerRepo, resumeHandler.Handle)
+		go func() {
+			if err := schedulerWorker.Start(context.Background()); err != nil && !errors.Is(err, context.Canceled) {
+				_ = err
+			}
+		}()
 
 		// Task 3.8: Handoff Manager (reuses caseService + knowledgeBus from above)
 		handoffService := agent.NewHandoffService(db, caseService, knowledgeBus)

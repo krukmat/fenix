@@ -115,20 +115,22 @@ func (s *ActivityService) Get(ctx context.Context, workspaceID, activityID strin
 }
 
 func (s *ActivityService) List(ctx context.Context, workspaceID string, input ListActivitiesInput) ([]*Activity, int, error) {
-	total, err := s.querier.CountActivitiesByWorkspace(ctx, workspaceID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count activities: %w", err)
-	}
-	rows, err := s.querier.ListActivitiesByWorkspace(ctx, sqlcgen.ListActivitiesByWorkspaceParams{
-		WorkspaceID: workspaceID,
-		Limit:       int64(input.Limit),
-		Offset:      int64(input.Offset),
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("list activities: %w", err)
-	}
-	out := mapRows(rows, rowToActivity)
-	return out, int(total), nil
+	return listWorkspacePage(
+		ctx,
+		workspaceID,
+		"activities",
+		input.Limit,
+		input.Offset,
+		s.querier.CountActivitiesByWorkspace,
+		func(ctx context.Context, workspaceID string, limit, offset int64) ([]sqlcgen.Activity, error) {
+			return s.querier.ListActivitiesByWorkspace(ctx, sqlcgen.ListActivitiesByWorkspaceParams{
+				WorkspaceID: workspaceID,
+				Limit:       limit,
+				Offset:      offset,
+			})
+		},
+		rowToActivity,
+	)
 }
 
 func (s *ActivityService) Update(ctx context.Context, workspaceID, activityID string, input UpdateActivityInput) (*Activity, error) {

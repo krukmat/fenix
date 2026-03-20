@@ -51,17 +51,19 @@ func run(args []string, out io.Writer) int {
 	return 0
 }
 
+func resolveDefaultPort() int {
+	if v := os.Getenv("PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			return p
+		}
+	}
+	return 8080
+}
+
 func runServe(args []string, out io.Writer) int {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-
-	defaultPort := 8080
-	if v := os.Getenv("PORT"); v != "" {
-		if p, err := strconv.Atoi(v); err == nil {
-			defaultPort = p
-		}
-	}
-	port := fs.Int("port", defaultPort, "HTTP port")
+	port := fs.Int("port", resolveDefaultPort(), "HTTP port")
 
 	if err := fs.Parse(args); err != nil {
 		return 2

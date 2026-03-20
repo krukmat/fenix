@@ -13,9 +13,11 @@ linters:
     - ineffassign
     - reassign
     - goconst
-    - gosec       # hardcoded secrets, SQL injection, weak crypto — crítico para policy engine y RBAC
-    - exhaustive  # enum switches completos — evita cases sin cubrir en policy/RBAC
-    - errorlint   # manejo correcto de errors wrapping (errors.Is/As)
+    - gosec          # hardcoded secrets, SQL injection, weak crypto — crítico para policy engine y RBAC
+    - exhaustive     # enum switches completos — evita cases sin cubrir en policy/RBAC
+    - errorlint      # manejo correcto de errors wrapping (errors.Is/As)
+    - interfacebloat # ISP: interfaces con demasiados métodos indican violación de segregación
+    - depguard       # DIP: impide que capas superiores dependan de capas inferiores incorrectas
   disable:
     - gocyclo
 
@@ -32,7 +34,7 @@ linters-settings:
     ignore-string-values:
       - '^[0-9a-f]{8,}$'
   gocognit:
-    min-complexity: 10
+    min-complexity: 8
 
   maintidx:
     # Flaggea funciones con MI < under (más bajo = peor mantenibilidad)
@@ -40,14 +42,14 @@ linters-settings:
 
   # Smells concretos
   nestif:
-    min-complexity: 4
+    min-complexity: 3
 
   funlen:
-    lines: 80
-    statements: 40
+    lines: 70
+    statements: 35
 
   dupl:
-    threshold: 120
+    threshold: 100
 
   govet:
     enable:
@@ -64,6 +66,36 @@ linters-settings:
   gosec:
     excludes:
       - G115  # integer overflow — demasiado ruidoso en conversiones numéricas normales
+
+  # ISP: ninguna interfaz debe tener más de 8 métodos — señal de responsabilidad múltiple
+  interfacebloat:
+    max: 8
+
+  # DIP: enforce que las capas no dependan hacia abajo incorrectamente
+  depguard:
+    rules:
+      handlers-no-infra:
+        # Los handlers HTTP deben depender de interfaces de dominio, nunca de infra directamente
+        list-mode: lax
+        files:
+          - "**/api/handlers/*.go"
+        deny:
+          - pkg: "github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
+            desc: "handlers must use domain interfaces, not infra/sqlite directly (DIP)"
+          - pkg: "github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
+            desc: "handlers must use domain interfaces, not sqlcgen directly (DIP)"
+          - pkg: "github.com/matiasleandrokruk/fenix/internal/infra/llm"
+            desc: "handlers must use domain interfaces, not infra/llm directly (DIP)"
+      domain-no-http-layer:
+        # El dominio no debe conocer la capa HTTP (handlers, middleware)
+        list-mode: lax
+        files:
+          - "**/domain/**/*.go"
+        deny:
+          - pkg: "github.com/matiasleandrokruk/fenix/internal/api/handlers"
+            desc: "domain must not depend on HTTP handlers (DIP — dependency inversion)"
+          - pkg: "github.com/matiasleandrokruk/fenix/internal/api/middleware"
+            desc: "domain must not depend on HTTP middleware (DIP — dependency inversion)"
 
   gocritic:
     enabled-checks:
