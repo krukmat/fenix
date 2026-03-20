@@ -7,6 +7,7 @@ const ROOT = process.cwd();
 const MOBILE_SRC = path.join(ROOT, 'src');
 const ALLOWED_URL_CONFIG_FILES = new Set([
   path.join('src', 'services', 'api.ts'),
+  path.join('src', 'services', 'api.client.ts'),
 ]);
 
 const violations = [];
