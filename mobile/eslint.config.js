@@ -15,7 +15,7 @@ module.exports = defineConfig([
       complexity: ['error', { max: 10 }],
       'sonarjs/cognitive-complexity': ['error', 15],
       'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
-      'max-lines': ['warn', { max: 300, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
 
       // Maintainability gates
       '@typescript-eslint/no-explicit-any': 'error',
