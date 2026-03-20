@@ -1,7 +1,7 @@
 # Plan de Desarrollo AGENT_SPEC
 
 > Fecha: 2026-03-09
-> Estado: Propuesto
+> Estado: Baseline implementado en `agent-spec-transition`; los task docs son la fuente de estado por slice
 > Formato: fases, tareas y analisis de dependencias
 > Naming source of truth: `docs/agent-spec-overview.md`
 
@@ -29,6 +29,11 @@ Set canonico relacionado:
 - `docs/agent-spec-integration-analysis.md`
 - `docs/agent-spec-development-plan.md`
 - `docs/agent-spec-traceability.md`
+
+Nota de estado:
+- este documento queda como plan canonico y mapa de dependencias
+- el branch `agent-spec-transition` ya implementa el baseline F1-F8
+- para cierre de branch, el estado fino vive en `docs/tasks/task_agent_spec_*.md`
 
 ---
 

@@ -1,7 +1,7 @@
 # Plan de Transicion: Arquitectura AGENT_SPEC
 
 > **Fecha**: 2026-03-09
-> **Status**: Aprobacion pendiente
+> **Status**: Referencia historica
 > **Source**: `docs/AGENT_SPEC.md`
 > **Pre-analisis**: `docs/agent-spec-integration-analysis.md`
 > **Secuencia**: P0 completo → Fase 1 (bridge) → Fase 2 (DSL) → Fase 3 (full pipeline)

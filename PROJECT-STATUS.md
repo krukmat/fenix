@@ -1,12 +1,12 @@
 # FenixCRM — Project Status
 
-> **Last Updated**: 2026-02-09
-> **Phase**: Architecture & Planning Complete ✅ — All Decisions Resolved ✅
-> **Next**: Ready for Phase 1 Implementation — No Pending Decisions
+> **Last Updated**: 2026-03-20
+> **Phase**: Historical planning snapshot
+> **Next**: Use `docs/agent-spec-*.md`, task docs, and code status for merge review
 
 ---
 
-## Current Status: ✅ READY FOR IMPLEMENTATION
+## Current Status: Historical Planning Snapshot
 
 ### Completed Milestones
 
@@ -47,7 +47,7 @@
 | `docs/CORRECTIONS-APPLIED.md` | Audit report + fixes | ✅ Complete |
 | `docs/implementation-plan-summary.md` | Quick reference (tables, checklist) | ✅ Complete |
 | `CLAUDE.md` | Project guidance for Claude Code | ✅ Complete |
-| `PROJECT-STATUS.md` | This document — project state | ✅ Current |
+| `PROJECT-STATUS.md` | Historical planning snapshot | Reference |
 
 ---
 
@@ -238,8 +238,8 @@
 
 ---
 
-**Status Summary**: 🟢 All systems go. Ready for implementation kickoff.
+**Status Summary**: Historical planning document retained for reference.
 
-**Last Action**: Architecture-to-implementation audit complete. 7 critical corrections applied. Plan validated. Structure decided (ADR-001).
+**Last Action**: Architecture-to-implementation audit captured in this snapshot.
 
-**Next Action**: Team kickoff → Phase 1, Task 1.1 (Project Setup).
+**Next Action**: Use current implementation-oriented documents for branch closure and merge review.
