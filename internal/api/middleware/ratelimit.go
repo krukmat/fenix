@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const headerXRealIP = "X-Real-IP"
+
 // bucket tracks request count and the start of the current window for one IP.
 type bucket struct {
 	mu        sync.Mutex
@@ -61,7 +63,7 @@ func (l *ipLimiter) allow(ip string) bool {
 
 // remoteIP extracts the client IP, respecting X-Real-IP set by RealIP middleware.
 func remoteIP(r *http.Request) string {
-	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+	if ip := r.Header.Get(headerXRealIP); ip != "" {
 		return ip
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)

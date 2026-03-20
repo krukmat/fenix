@@ -99,7 +99,6 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		// Shared app services for protected APIs
 		knowledgeBus := eventbus.New()
 		auditService.RegisterEventSubscribers(knowledgeBus)
-		cfg := config.Load()
 		// UAT fix: pass embed model + chat model separately — using embed model for chat caused 404.
 		llmProvider := llm.NewOllamaProvider(cfg.OllamaBaseURL, cfg.OllamaModel, cfg.OllamaChatModel)
 		ingestSvc := knowledge.NewIngestService(db, knowledgeBus)

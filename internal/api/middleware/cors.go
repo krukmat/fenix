@@ -6,6 +6,11 @@ import (
 	"net/http"
 )
 
+const (
+	headerOrigin      = "Origin"
+	headerACAllowOrigin = "Access-Control-Allow-Origin"
+)
+
 // CORSMiddleware returns a middleware that enforces a strict CORS allowlist.
 // Only requests whose Origin header exactly matches allowedOrigin receive CORS
 // response headers. Pre-flight OPTIONS requests are terminated with 204.
@@ -18,13 +23,13 @@ import (
 func CORSMiddleware(allowedOrigin string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			origin := r.Header.Get("Origin")
+			origin := r.Header.Get(headerOrigin)
 			if origin == allowedOrigin {
-				w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+				w.Header().Set(headerACAllowOrigin, allowedOrigin)
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
-				w.Header().Set("Vary", "Origin")
+				w.Header().Set("Vary", headerOrigin)
 			}
 
 			// Respond to pre-flight without calling downstream handlers.

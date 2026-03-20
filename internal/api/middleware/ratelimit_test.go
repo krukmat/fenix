@@ -117,7 +117,7 @@ func TestRateLimit_XRealIP_UsedOverRemoteAddr(t *testing.T) {
 	realIP := "192.168.1.50"
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
 	req.RemoteAddr = "10.0.0.99:12345" // different from real IP
-	req.Header.Set("X-Real-IP", realIP)
+	req.Header.Set(headerXRealIP, realIP)
 
 	// First request from realIP — should pass.
 	rr1 := httptest.NewRecorder()
@@ -129,7 +129,7 @@ func TestRateLimit_XRealIP_UsedOverRemoteAddr(t *testing.T) {
 	// Second request with same X-Real-IP — should be limited.
 	req2 := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
 	req2.RemoteAddr = "10.0.0.100:12345" // different RemoteAddr
-	req2.Header.Set("X-Real-IP", realIP)
+	req2.Header.Set(headerXRealIP, realIP)
 
 	rr2 := httptest.NewRecorder()
 	handler.ServeHTTP(rr2, req2)

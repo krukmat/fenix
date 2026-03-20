@@ -18,7 +18,7 @@ var okHandler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 func newCORSRequest(method, origin string) *http.Request {
 	req := httptest.NewRequest(method, "/auth/login", nil)
 	if origin != "" {
-		req.Header.Set("Origin", origin)
+		req.Header.Set(headerOrigin, origin)
 	}
 	return req
 }
@@ -33,7 +33,7 @@ func TestCORSMiddleware_AllowedOrigin_ReceivesHeaders(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	got := rr.Header().Get("Access-Control-Allow-Origin")
+	got := rr.Header().Get(headerACAllowOrigin)
 	if got != testAllowedOrigin {
 		t.Errorf("Access-Control-Allow-Origin = %q; want %q", got, testAllowedOrigin)
 	}
@@ -64,7 +64,7 @@ func TestCORSMiddleware_BlockedOrigin_NoHeaders(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	got := rr.Header().Get("Access-Control-Allow-Origin")
+	got := rr.Header().Get(headerACAllowOrigin)
 	if got != "" {
 		t.Errorf("Access-Control-Allow-Origin = %q; want empty (blocked origin)", got)
 	}
@@ -96,7 +96,7 @@ func TestCORSMiddleware_NoOriginHeader_NoHeaders(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	got := rr.Header().Get("Access-Control-Allow-Origin")
+	got := rr.Header().Get(headerACAllowOrigin)
 	if got != "" {
 		t.Errorf("Access-Control-Allow-Origin = %q; want empty (no origin header)", got)
 	}
@@ -136,7 +136,7 @@ func TestCORSMiddleware_Preflight_BlockedOrigin_Returns204(t *testing.T) {
 		t.Errorf("OPTIONS status = %d; want %d", rr.Code, http.StatusNoContent)
 	}
 
-	got := rr.Header().Get("Access-Control-Allow-Origin")
+	got := rr.Header().Get(headerACAllowOrigin)
 	if got != "" {
 		t.Errorf("Access-Control-Allow-Origin = %q; want empty (blocked origin)", got)
 	}
