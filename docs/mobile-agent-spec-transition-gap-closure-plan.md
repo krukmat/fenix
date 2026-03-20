@@ -23,6 +23,23 @@ This reconstructed phase is limited to four capability groups:
 - CRM entity agent activity
 - signal visibility on CRM entities
 
+## Current Status
+
+The reconstructed Mobile P2 scope is now substantially implemented in the
+repository.
+
+Implemented in code:
+
+- workflow create, edit, version history, new version, and rollback
+- agent run status alignment including `accepted`, `rejected`, and `delegated`
+- `rejection_reason` rendering in mobile list/detail flows
+- `AgentActivitySection` on account, deal, and case detail screens
+- contextual `active_signal_count` badges on CRM lists and aggregated payloads
+- Detox smoke coverage for workflows, rejected runs, and account Agent Activity
+
+This document remains useful as a closure map, but several sections below
+describe gaps that have already been closed.
+
 ## Phase And Task Dependency Model
 
 The reconstructed Mobile P2 phase is layered on top of the completed Mobile P1
@@ -73,11 +90,14 @@ The reconstructed closure phase must preserve all of this behavior.
 
 ## Confirmed Gaps In Current Mobile
 
+The following gap list reflects the original reconstructed plan. It is preserved
+for traceability, but most items are now resolved in the repo.
+
 The current repository still has these confirmed gaps:
 
 ### 1. Workflow authoring and versioning are incomplete in mobile
 
-Current mobile supports workflow list/detail/activate/verify/execute, but not:
+Original gap:
 
 - create workflow
 - edit workflow DSL
@@ -85,7 +105,13 @@ Current mobile supports workflow list/detail/activate/verify/execute, but not:
 - create a new workflow version
 - rollback an archived version
 
-The mobile API layer and query hooks do not yet expose those operations.
+Status now:
+
+- resolved in `mobile/src/services/api.ts`
+- resolved in `mobile/src/hooks/useAgentSpec.ts`
+- resolved in `mobile/app/(tabs)/workflows/new.tsx`
+- resolved in `mobile/app/(tabs)/workflows/edit/[id].tsx`
+- resolved in `mobile/app/(tabs)/workflows/[id].tsx`
 
 ### 2. Agent run status modeling is behind AGENT_SPEC
 
@@ -95,7 +121,7 @@ AGENT_SPEC introduced these additional statuses:
 - `rejected`
 - `delegated`
 
-Current mobile agent run types and screens still model only:
+Original gap:
 
 - `running`
 - `success`
@@ -104,36 +130,52 @@ Current mobile agent run types and screens still model only:
 - `partial`
 - `escalated`
 
-Current mobile detail rendering also lacks explicit `rejection_reason` support.
+Status now:
+
+- mobile list/detail support `accepted`, `rejected`, and `delegated`
+- `rejection_reason` is exposed by API and rendered in mobile
+- yesterday's commits aligned the rejected-run surface and smoke coverage
 
 ### 3. CRM entity detail screens do not surface agent activity
 
-Signals are visible on entity detail screens, but recent or relevant agent runs
-for a CRM entity are not.
+Original gap:
 
-This gap exists for at least:
+Status now:
 
-- `Account`
-- `Deal`
-- `Case`
+- resolved through `AgentActivitySection` on `Account`, `Deal`, and `Case`
+  detail screens
 
 ### 4. CRM lists do not expose contextual signal counts
+
+Original gap:
 
 The app can render signals for a single entity detail, but CRM lists do not
 show a contextual signal badge per entity. This is a product gap and also a
 data-shape gap: mobile should not issue one signal query per row.
 
+Status now:
+
+- resolved via `active_signal_count` in BFF aggregated payloads
+- resolved via mobile signal badges in account, deal, and case lists
+
 ### 5. Part of the missing mobile scope is blocked by missing backend contracts
+
+Original gap:
 
 The workflow domain service already supports versioning and rollback, but the
 required API surface is not fully exposed in the current routes. The mobile
 closure phase therefore includes backend/BFF prerequisites and is not only a UI
 task.
 
+Status now:
+
+- resolved in backend routes and handlers
+- resolved in BFF/mobile consumption paths
+
 ## Required Backend And BFF Prerequisites
 
-The following contracts are required and should be treated as mandatory for the
-mobile closure phase.
+The following contracts were required for the mobile closure phase and are now
+present in the repository.
 
 ### Workflow contracts
 
@@ -318,8 +360,7 @@ not introduce a second parallel signal UX.
 
 ## Validation Strategy
 
-Future implementation of this closure phase must satisfy both backend and mobile
-validation.
+Validation for this closure phase should confirm parity and prevent regression.
 
 ### Backend validation
 
@@ -337,7 +378,7 @@ validation.
 
 ### Mobile smoke E2E
 
-Add targeted Detox smoke scenarios for:
+Targeted Detox smoke scenarios now present:
 
 - creating a draft workflow
 - editing a draft workflow
@@ -361,7 +402,7 @@ No regression is acceptable in those areas.
 
 This master document maps to a reconstructed task series in `docs/tasks`.
 
-Required task set:
+Original required task set:
 
 - `task_mobile_p2_1.md` — backend and BFF prerequisites for workflow versioning,
   filtered agent runs, and signal counts
@@ -374,7 +415,7 @@ Required task set:
 - `task_mobile_p2_7.md` — CRM Agent Activity and contextual signal badges
 - `task_mobile_p2_qa.md` — QA, parity coverage, and E2E smoke coverage
 
-Execution order:
+Original execution order:
 
 1. backend and BFF prerequisites
 2. mobile API and hooks
@@ -383,5 +424,6 @@ Execution order:
 5. CRM activity and signal visibility
 6. QA and parity validation
 
-This ordering is mandatory because the current repo does not yet expose all
-contracts required by the mobile surfaces.
+That ordering is no longer the current repository state. The remaining work
+should focus on parity verification, documentation cleanup, and any missing QA
+coverage discovered during validation.

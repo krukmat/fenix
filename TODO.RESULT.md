@@ -1,67 +1,55 @@
-# TODO.RESULT.md — UC-S1 Copilot entry from Account and Deal detail
+# TODO.RESULT — Hardening de endpoints públicos de autenticación
 
-## Archivos modificados
+## Estado: COMPLETADO
+
+Tarea ejecutada y commiteada en `agent-spec-transition` (commit `6eb5158`).
+
+---
+
+## Verificación por criterio de aceptación
+
+| Criterio | Estado | Evidencia |
+|---|---|---|
+| Requests desde origen no permitido no reciben headers CORS | OK | `cors.go` — solo setea headers si `origin == allowedOrigin` |
+| Requests desde origen permitido reciben headers CORS correctos | OK | `cors.go` — setea `Access-Control-Allow-Origin`, `Methods`, `Headers`, `Credentials`, `Vary` |
+| `POST /auth/register` falla con `400` si password < 12 chars | OK | `auth.go` — `minPasswordLen = 12`, retorna `400` |
+| `POST /auth/login` responde `429` al exceder límite | OK | `ratelimit.go` — 429; `routes.go` — login 5/min |
+| `POST /auth/register` responde `429` al exceder límite | OK | `ratelimit.go` — 429; `routes.go` — register 3/hora |
+| Tests cubren origen permitido, bloqueado, password débil y throttling | OK | 23 tests nuevos — todos PASS |
+| Comportamiento actual de login/registro no roto | OK | `go test ./internal/api/... ./internal/server/...` — todos PASS |
+
+---
+
+## Archivos creados o modificados
 
 | Archivo | Cambio |
-|---------|--------|
-| `mobile/app/(tabs)/accounts/[id].tsx` | Importado `Button`; añadido `onOpenCopilot` a `renderContent`; añadido botón "Open Copilot" con `testID="account-copilot-open-button"` navegando a `/copilot` con `entity_type=account` y `entity_id` |
-| `mobile/app/(tabs)/deals/[id].tsx` | Añadido botón "Open Copilot" con `testID="deal-copilot-open-button"` navegando a `/copilot` con `entity_type=deal` y `entity_id` |
-| `mobile/app/(tabs)/cases/[id].tsx` | Corregido botón existente para pasar `entity_type=case` y `entity_id` al navegar (antes navegaba sin contexto) |
-| `mobile/e2e/copilot-uc-s1.e2e.ts` | NUEVO — Suite Detox UC-S1 con 6 tests (account→copilot y deal→copilot) |
-| `mobile/e2e/accounts.e2e.ts` | Añadido test inline UC-S1 account→copilot al describe existente |
-| `mobile/e2e/deals.e2e.ts` | Añadido test inline UC-S1 deal→copilot al describe existente |
-| `mobile/README.md` | Añadida fila `e2e/copilot-uc-s1.e2e.ts` en tabla de suites E2E |
-| `.gitignore` | Añadidos entries preexistentes de la rama (`.claude/scheduled_tasks.lock`, etc.) |
+|---|---|
+| `internal/api/middleware/cors.go` | NUEVO — `CORSMiddleware(allowedOrigin)`, strict allowlist, preflight 204 |
+| `internal/api/middleware/cors_test.go` | NUEVO — 8 tests unitarios |
+| `internal/api/middleware/ratelimit.go` | NUEVO — `RateLimitMiddleware(limit, window)`, in-memory per-IP, 429 |
+| `internal/api/middleware/ratelimit_test.go` | NUEVO — 5 tests unitarios |
+| `internal/api/handlers/auth.go` | MODIFICADO — `minPasswordLen = 12` en `validateRegisterRequest` |
+| `internal/api/handlers/auth_test.go` | MODIFICADO — 3 tests nuevos de password |
+| `internal/infra/config/config.go` | MODIFICADO — campo `BFFOrigin`, env var `BFF_ORIGIN`, default `http://localhost:3000` |
+| `internal/api/routes.go` | MODIFICADO — CORS global, rate limiters por ruta, `newRouterWithConfig` para testabilidad |
+| `internal/api/routes_test.go` | MODIFICADO — 7 tests de integración nuevos (CORS, password, rate limit) |
 
-## Cobertura añadida
+---
 
-### `e2e/copilot-uc-s1.e2e.ts` (6 tests, suite nueva UC-S1)
+## Resultado de tests
 
-1. `opens account detail screen` — navega desde drawer → accounts list → account detail del seed
-2. `sees Copilot button on account detail` — verifica visibilidad de `account-copilot-open-button`
-3. `opens Copilot from account detail with entity context` — pulsa botón → verifica `copilot-panel` visible
-4. `goes back and opens deal detail screen` — navega desde drawer → deals list → deal detail del seed
-5. `sees Copilot button on deal detail` — verifica visibilidad de `deal-copilot-open-button`
-6. `opens Copilot from deal detail with entity context` — pulsa botón → verifica `copilot-panel` visible
-
-### Tests inline añadidos en suites existentes
-
-- `accounts.e2e.ts`: 1 test UC-S1 `'opens Copilot from account detail with account context'` — navega a account detail del seed, pulsa `account-copilot-open-button`, verifica `copilot-panel` visible
-- `deals.e2e.ts`: 1 test UC-S1 `'opens Copilot from deal detail with deal context'` — navega a deal detail del seed, pulsa `deal-copilot-open-button`, verifica `copilot-panel` visible
-
-## Comandos ejecutados
-
-```bash
-# Atribución de agente
-export AI_AGENT="claude-sonnet-4-6"
-git config fenix.ai-agent "claude-sonnet-4-6"
-
-# Verificar typecheck mobile app
-cd mobile && npm run typecheck
-# → limpio, 0 errores
-
-# Verificar lint
-cd mobile && npm run lint
-# → 0 errores, 1 warning preexistente en api.ts (demasiadas líneas)
-
-# Commit
-git add mobile/app/(tabs)/accounts/[id].tsx mobile/app/(tabs)/deals/[id].tsx \
-        mobile/app/(tabs)/cases/[id].tsx mobile/e2e/copilot-uc-s1.e2e.ts \
-        mobile/e2e/accounts.e2e.ts mobile/e2e/deals.e2e.ts mobile/README.md .gitignore
-git commit -m "feat(mobile): close UC-S1 gap — Copilot entry from account and deal detail"
-# → [agent-spec-transition 9562dce] 8 files changed, 154 insertions(+), 6 deletions(-)
+```
+ok  github.com/matiasleandrokruk/fenix/internal/api/middleware  0.674s
+ok  github.com/matiasleandrokruk/fenix/internal/api/handlers    1.786s
+ok  github.com/matiasleandrokruk/fenix/internal/api             1.665s
+ok  github.com/matiasleandrokruk/fenix/internal/server          0.344s
 ```
 
-## Resultado de verificacion
+---
 
-| Criterio de done | Estado |
-|---|---|
-| `account detail` permite abrir Copilot con contexto (`entity_type=account`, `entity_id`) | OK |
-| `deal detail` permite abrir Copilot con contexto (`entity_type=deal`, `entity_id`) | OK |
-| `case detail` corregido para pasar contexto (antes sin params) | OK (bonus fix) |
-| Smoke E2E para account→copilot | OK — `copilot-uc-s1.e2e.ts` + inline en `accounts.e2e.ts` |
-| Smoke E2E para deal→copilot | OK — `copilot-uc-s1.e2e.ts` + inline en `deals.e2e.ts` |
-| Documentación E2E (`mobile/README.md`) actualizada | OK |
-| `npm run typecheck` | OK — 0 errores |
-| `npm run lint` | OK — 0 errores (1 warning preexistente no relacionado) |
-| Commit en rama `agent-spec-transition` | OK — `9562dce` |
+## Decisiones de diseño respetadas
+
+- CORS configurable por env var (`BFF_ORIGIN`), no hardcodeado.
+- Rate limiting en memoria — válido para MVP/single instance; no cluster-safe (documentado en código).
+- Sin dependencia externa para CORS — implementación stdlib mínima.
+- `minPasswordLen` como constante nombrada.
