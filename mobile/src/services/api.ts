@@ -7,7 +7,7 @@
 
 import { apiClient } from './api.client';
 
-export { BFF_URL } from './api.client';
+export { apiClient, BFF_URL } from './api.client';
 
 // Re-export all types so existing imports (import type { X } from 'services/api') keep working
 export type {
