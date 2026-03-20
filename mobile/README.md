@@ -72,6 +72,7 @@ npm run e2e:test
 | `e2e/cases.e2e.ts` | Case detail → Agent Activity section → navegación a run detail |
 | `e2e/workflows.e2e.ts` | Workflows list → Create draft → Edit → Version actions |
 | `e2e/copilot.e2e.ts` | Cases list → Case detail → Copilot panel → SSE response → Evidence cards |
+| `e2e/copilot-uc-s1.e2e.ts` | Account detail → Copilot button → panel visible; Deal detail → Copilot button → panel visible (UC-S1) |
 | `e2e/agent-runs.e2e.ts` | Activity Log → Trigger agent → Run detail → Rejected run smoke |
 
 ### testIDs requeridos

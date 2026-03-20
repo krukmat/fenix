@@ -82,6 +82,15 @@ function renderContent(deal: DealDetailData, router: ReturnType<typeof useRouter
           Edit Deal
         </Button>
       </View>
+      <View style={styles.section}>
+        <Button
+          mode="contained"
+          onPress={() => router.push({ pathname: '/copilot', params: { entity_type: 'deal', entity_id: deal.id } })}
+          testID="deal-copilot-open-button"
+        >
+          Open Copilot
+        </Button>
+      </View>
     </>
   );
 }

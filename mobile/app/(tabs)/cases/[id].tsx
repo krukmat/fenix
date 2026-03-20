@@ -103,7 +103,11 @@ export function renderCaseContent(caseData: CaseDetailData, colors: ThemeColors,
         </Button>
       </View>
       <View style={styles.section}>
-        <Button mode="contained" onPress={() => router.push('/copilot')} testID="copilot-open-button">
+        <Button
+          mode="contained"
+          onPress={() => router.push({ pathname: '/copilot', params: { entity_type: 'case', entity_id: caseData.id } })}
+          testID="copilot-open-button"
+        >
           Open Copilot
         </Button>
       </View>

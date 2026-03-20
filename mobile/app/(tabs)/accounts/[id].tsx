@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { useTheme, Button } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CRMDetailHeader, EntityTimeline } from '../../../src/components/crm';
 import { AgentActivitySection } from '../../../src/components/agents/AgentActivitySection';
@@ -112,7 +112,7 @@ function renderTimelineSection(timeline: TimelineItem[], colors: ThemeColors) {
   );
 }
 
-function renderContent(account: AccountData, colors: ThemeColors, onOpenContact: (id: string) => void) {
+function renderContent(account: AccountData, colors: ThemeColors, onOpenContact: (id: string) => void, onOpenCopilot: () => void) {
   const metadata = getMetadata(account);
   return (
     <>
@@ -126,6 +126,11 @@ function renderContent(account: AccountData, colors: ThemeColors, onOpenContact:
       {renderTimelineSection(account.timeline || [], colors)}
       <AgentActivitySection entityType="account" entityId={account.id} testIDPrefix="account-agent-activity" />
       <EntitySignalsSection entityType="account" entityId={account.id} testIDPrefix="account-signals" />
+      <View style={styles.section}>
+        <Button mode="contained" onPress={onOpenCopilot} testID="account-copilot-open-button">
+          Open Copilot
+        </Button>
+      </View>
     </>
   );
 }
@@ -170,7 +175,14 @@ export default function AccountDetailScreen() {
     : undefined;
 
   // FIX-1: Removed useMemo wrapping JSX
-  const content = account ? renderContent(account, colors, (contactId) => router.push(`/contacts/${contactId}`)) : null;
+  const content = account
+    ? renderContent(
+        account,
+        colors,
+        (contactId) => router.push(`/contacts/${contactId}`),
+        () => router.push({ pathname: '/copilot', params: { entity_type: 'account', entity_id: account.id } }),
+      )
+    : null;
   const title = account?.name || 'Account';
 
   return (
