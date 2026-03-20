@@ -121,7 +121,7 @@ export default function DealDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ title: deal?.title || deal?.name || 'Deal' }} />
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView testID="deal-detail-screen" style={[styles.container, { backgroundColor: colors.background }]}>
         {isLoading ? (
           <View style={[styles.centered, { backgroundColor: colors.background }]}>
             <ActivityIndicator size="large" color={colors.primary} />

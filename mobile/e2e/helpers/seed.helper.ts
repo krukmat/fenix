@@ -14,12 +14,20 @@ type MobileP2Seed = {
   account: {
     id: string;
   };
+  deal: {
+    id: string;
+  };
+  case: {
+    id: string;
+  };
   workflows: {
     activeId: string;
     archivedId: string;
   };
   agentRuns: {
     rejectedId: string;
+    dealRejectedId: string;
+    caseRejectedId: string;
   };
 };
 

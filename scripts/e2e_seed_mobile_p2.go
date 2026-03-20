@@ -42,12 +42,20 @@ type seedOutput struct {
 	Account struct {
 		ID string `json:"id"`
 	} `json:"account"`
+	Deal struct {
+		ID string `json:"id"`
+	} `json:"deal"`
+	Case struct {
+		ID string `json:"id"`
+	} `json:"case"`
 	Workflows struct {
 		ActiveID   string `json:"activeId"`
 		ArchivedID string `json:"archivedId"`
 	} `json:"workflows"`
 	AgentRuns struct {
-		RejectedID string `json:"rejectedId"`
+		RejectedID     string `json:"rejectedId"`
+		DealRejectedID string `json:"dealRejectedId"`
+		CaseRejectedID string `json:"caseRejectedId"`
 	} `json:"agentRuns"`
 }
 
@@ -97,6 +105,16 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		return nil, err
 	}
 
+	dealID, err := seedDeal(ctx, db, auth, accountID, suffix)
+	if err != nil {
+		return nil, err
+	}
+
+	caseID, err := seedCase(ctx, db, auth, accountID, suffix)
+	if err != nil {
+		return nil, err
+	}
+
 	activeWorkflowID, err := seedActiveWorkflow(ctx, db, auth, suffix)
 	if err != nil {
 		return nil, err
@@ -112,11 +130,25 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		return nil, err
 	}
 
+	dealRejectedRunID, err := seedEntityRejectedRun(ctx, db, auth, "deal", dealID, suffix+"_deal")
+	if err != nil {
+		return nil, err
+	}
+
+	caseRejectedRunID, err := seedEntityRejectedRun(ctx, db, auth, "case", caseID, suffix+"_case")
+	if err != nil {
+		return nil, err
+	}
+
 	out := &seedOutput{}
 	out.Account.ID = accountID
+	out.Deal.ID = dealID
+	out.Case.ID = caseID
 	out.Workflows.ActiveID = activeWorkflowID
 	out.Workflows.ArchivedID = archivedWorkflowID
 	out.AgentRuns.RejectedID = rejectedRunID
+	out.AgentRuns.DealRejectedID = dealRejectedRunID
+	out.AgentRuns.CaseRejectedID = caseRejectedRunID
 	return out, nil
 }
 
@@ -212,6 +244,105 @@ func seedRejectedRun(ctx context.Context, db *sql.DB, auth authResponse, account
 
 	triggerContext := fmt.Sprintf(`{"entity_type":"account","entity_id":"%s","account":{"id":"%s"}}`, accountID, accountID)
 	output := fmt.Sprintf(`{"workflow_id":"wf-seeded-rejected","entity_type":"account","entity_id":"%s","rejection_reason":"Policy threshold not met","reason":"Policy threshold not met"}`, accountID)
+
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO agent_run (
+			id, workspace_id, agent_definition_id, triggered_by_user_id,
+			trigger_type, trigger_context, status, inputs,
+			retrieval_queries, retrieved_evidence_ids, reasoning_trace,
+			tool_calls, output, abstention_reason,
+			total_tokens, total_cost, latency_ms, trace_id,
+			started_at, completed_at, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		runID,
+		auth.WorkspaceID,
+		agentDefinitionID,
+		auth.UserID,
+		"manual",
+		triggerContext,
+		"rejected",
+		`{"source":"mobile-e2e"}`,
+		emptyJSONArray,
+		emptyJSONArray,
+		emptyJSONArray,
+		emptyJSONArray,
+		output,
+		"Policy threshold not met",
+		128,
+		0.01,
+		420,
+		uuid.NewV7().String(),
+		now.Format(time.RFC3339),
+		now.Format(time.RFC3339),
+		now.Format(time.RFC3339),
+		now.Format(time.RFC3339),
+	); err != nil {
+		return "", err
+	}
+
+	return runID, nil
+}
+
+func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
+	svc := crm.NewDealService(db)
+	title := "E2E P2 Deal " + suffix
+	deal, err := svc.Create(ctx, crm.CreateDealInput{
+		WorkspaceID: auth.WorkspaceID,
+		AccountID:   accountID,
+		OwnerID:     auth.UserID,
+		Title:       title,
+		Status:      "open",
+	})
+	if err != nil {
+		return "", err
+	}
+	return deal.ID, nil
+}
+
+func seedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
+	svc := crm.NewCaseService(db)
+	subject := "E2E P2 Case " + suffix
+	ct, err := svc.Create(ctx, crm.CreateCaseInput{
+		WorkspaceID: auth.WorkspaceID,
+		AccountID:   accountID,
+		OwnerID:     auth.UserID,
+		Subject:     subject,
+		Priority:    "medium",
+		Status:      "open",
+	})
+	if err != nil {
+		return "", err
+	}
+	return ct.ID, nil
+}
+
+func seedEntityRejectedRun(ctx context.Context, db *sql.DB, auth authResponse, entityType, entityID, suffix string) (string, error) {
+	agentDefinitionID := uuid.NewV7().String()
+	runID := uuid.NewV7().String()
+	now := time.Now().UTC()
+	agentName := "e2e_p2_agent_" + suffix
+
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO agent_definition (
+			id, workspace_id, name, description, agent_type, objective,
+			allowed_tools, limits, trigger_config, status, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, '[]', '{}', '{}', 'active', ?, ?)
+	`,
+		agentDefinitionID,
+		auth.WorkspaceID,
+		agentName,
+		"Seeded agent definition for Mobile P2 Detox smoke ("+entityType+")",
+		"support",
+		`{"goal":"validate mobile p2 smoke `+entityType+`"}`,
+		now.Format(time.RFC3339),
+		now.Format(time.RFC3339),
+	); err != nil {
+		return "", err
+	}
+
+	triggerContext := fmt.Sprintf(`{"entity_type":%q,"entity_id":%q}`, entityType, entityID)
+	output := fmt.Sprintf(`{"entity_type":%q,"entity_id":%q,"rejection_reason":"Policy threshold not met","reason":"Policy threshold not met"}`, entityType, entityID)
 
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO agent_run (
