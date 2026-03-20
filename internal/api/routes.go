@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -36,9 +37,19 @@ const routeByID = "/{id}"
 // NewRouter creates and configures a new chi router with all routes.
 // Task 1.3.8: Setup go-chi router with middleware + account endpoints
 // Task 1.6.13: Public routes (/health, /auth/*) vs protected routes (/api/v1/*)
+// C2/C4: CORS allowlist + per-IP rate limiting on auth endpoints.
 //
 //nolint:funlen,maintidx // router principal mantiene registro centralizado de rutas por diseño
 func NewRouter(db *sql.DB) *chi.Mux {
+	cfg := config.Load()
+	return newRouterWithConfig(db, cfg)
+}
+
+// newRouterWithConfig is the testable constructor — accepts an explicit Config so tests can
+// inject a custom BFFOrigin without relying on env vars.
+//
+//nolint:funlen,maintidx // router principal mantiene registro centralizado de rutas por diseño
+func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 	r := chi.NewRouter()
 	auditService := domainaudit.NewAuditService(db)
 
@@ -47,6 +58,9 @@ func NewRouter(db *sql.DB) *chi.Mux {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+
+	// C2: CORS — strict origin allowlist (only BFF origin is allowed).
+	r.Use(apmiddleware.CORSMiddleware(cfg.BFFOrigin))
 
 	// Task 4.9 — count all requests for metrics
 	r.Use(func(next http.Handler) http.Handler {
@@ -65,10 +79,13 @@ func NewRouter(db *sql.DB) *chi.Mux {
 	r.Get("/metrics", handlers.MetricsHandler)
 
 	// Auth endpoints — public, no JWT required (Task 1.6.13)
+	// C4: rate limiting — login: 5 req/min per IP; register: 3 req/hour per IP.
 	authHandler := handlers.NewAuthHandler(domainauth.NewAuthServiceWithAudit(db, auditService))
+	loginLimiter := apmiddleware.RateLimitMiddleware(5, time.Minute)
+	registerLimiter := apmiddleware.RateLimitMiddleware(3, time.Hour)
 	r.Route("/auth", func(r chi.Router) {
-		r.Post("/register", authHandler.Register) // POST /auth/register
-		r.Post("/login", authHandler.Login)       // POST /auth/login
+		r.With(registerLimiter).Post("/register", authHandler.Register) // POST /auth/register
+		r.With(loginLimiter).Post("/login", authHandler.Login)          // POST /auth/login
 	})
 
 	// ===== PROTECTED ROUTES (JWT required via AuthMiddleware) =====

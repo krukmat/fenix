@@ -11,6 +11,11 @@ type Config struct {
 	OllamaBaseURL   string // OLLAMA_BASE_URL — default: "http://localhost:11434"
 	OllamaModel     string // OLLAMA_MODEL — default: "nomic-embed-text" (embed model, 768 dims)
 	OllamaChatModel string // OLLAMA_CHAT_MODEL — default: "llama3.2:3b"
+
+	// Security
+	// BFFOrigin is the single allowed CORS origin for the BFF (Express gateway).
+	// Set via BFF_ORIGIN env var. Default: "http://localhost:3000".
+	BFFOrigin string // BFF_ORIGIN — default: "http://localhost:3000"
 }
 
 const (
@@ -18,6 +23,7 @@ const (
 	envKeyOllamaBaseURL   = "OLLAMA_BASE_URL"
 	envKeyOllamaModel     = "OLLAMA_MODEL"
 	envKeyOllamaChatModel = "OLLAMA_CHAT_MODEL"
+	envKeyBFFOrigin       = "BFF_ORIGIN"
 )
 
 // Load reads configuration from environment variables, applying defaults for missing values.
@@ -27,6 +33,7 @@ func Load() Config {
 		OllamaBaseURL:   envOr(envKeyOllamaBaseURL, "http://localhost:11434"),
 		OllamaModel:     envOr(envKeyOllamaModel, "nomic-embed-text"),
 		OllamaChatModel: envOr(envKeyOllamaChatModel, "llama3.2:3b"),
+		BFFOrigin:       envOr(envKeyBFFOrigin, "http://localhost:3000"),
 	}
 }
 
