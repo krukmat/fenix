@@ -175,7 +175,7 @@ func validateWaitStatement(stmt *WaitStatement) error {
 	case "s", "sec", "secs", "second", "seconds",
 		"m", "min", "mins", "minute", "minutes",
 		"h", "hr", "hrs", cartaRateUnitHour, waitUnitHours,
-		"d", "day", "days":
+		"d", "day", cartaDurationDays:
 		return nil
 	default:
 		return validationError(stmt.Pos(), "WAIT duration unit is not supported")
