@@ -7,6 +7,21 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 )
 
+const (
+	cartaKeyword                   = "CARTA"
+	cartaInvariantModeNever        = "never"
+	cartaInvariantModeAlways       = "always"
+	cartaOnExceedPause             = "pause"
+	cartaOnExceedDegrade           = "degrade"
+	cartaOnExceedAbort             = "abort"
+	errInvalidStringLiteral        = "invalid string literal"
+	errInvalidRateUnit             = "invalid rate unit"
+	errRateValueNonNegative        = "rate value must be non-negative"
+	errNewlineAfterPermitClause    = "expected newline after PERMIT clause"
+	errNewlineAfterDelegateClause  = "expected newline after DELEGATE clause"
+	errNewlineAfterBudgetField     = "expected newline after BUDGET field"
+)
+
 type CartaParser struct {
 	tokens   []Token
 	pos      int
@@ -18,7 +33,7 @@ func NewCartaParser(tokens []Token) *CartaParser {
 }
 
 func ParseCarta(source string) (*CartaSummary, error) {
-	if !strings.HasPrefix(strings.TrimSpace(source), "CARTA ") && strings.TrimSpace(source) != "CARTA" {
+	if !strings.HasPrefix(strings.TrimSpace(source), cartaKeyword+" ") && strings.TrimSpace(source) != cartaKeyword {
 		return nil, &ParserError{
 			Line:   1,
 			Column: 1,
@@ -486,7 +501,7 @@ func (p *CartaParser) parseInvariantEntry(current Token) (*CartaInvariant, error
 	}
 	statement, err := strconv.Unquote(statementTok.Literal)
 	if err != nil {
-		return nil, p.errorAt(statementTok, "invalid string literal")
+		return nil, p.errorAt(statementTok, errInvalidStringLiteral)
 	}
 	if err := p.expectNewline("expected newline after invariant statement"); err != nil {
 		return nil, err
@@ -497,9 +512,9 @@ func (p *CartaParser) parseInvariantEntry(current Token) (*CartaInvariant, error
 func (p *CartaParser) parseInvariantMode(current Token) (string, error) {
 	switch current.Type {
 	case TokenNever:
-		return "never", nil
+		return cartaInvariantModeNever, nil
 	case TokenAlways:
-		return "always", nil
+		return cartaInvariantModeAlways, nil
 	default:
 		return "", p.errorAt(current, "expected never or always in INVARIANT block")
 	}
@@ -616,13 +631,13 @@ func (p *CartaParser) parsePermitClause(permit *CartaPermit) error {
 	default:
 		p.addWarning(fieldTok, "carta_unknown_permit_clause", "unknown PERMIT clause: "+fieldTok.Literal)
 		p.skipUntilNewline()
-		return p.expectNewline("expected newline after PERMIT clause")
+		return p.expectNewline(errNewlineAfterPermitClause)
 	}
 }
 
 func (p *CartaParser) parsePermitWhen(permit *CartaPermit) error {
 	permit.When = p.readLineLiteral()
-	return p.expectNewline("expected newline after PERMIT clause")
+	return p.expectNewline(errNewlineAfterPermitClause)
 }
 
 func (p *CartaParser) parsePermitRate(permit *CartaPermit, fieldTok Token) error {
@@ -635,7 +650,7 @@ func (p *CartaParser) parsePermitRate(permit *CartaPermit, fieldTok Token) error
 		return err
 	}
 	if value < 0 {
-		return p.errorAt(valueTok, "rate value must be non-negative")
+		return p.errorAt(valueTok, errRateValueNonNegative)
 	}
 	if _, err := p.expect(TokenSlash, "expected '/' in rate clause"); err != nil {
 		return err
@@ -645,10 +660,10 @@ func (p *CartaParser) parsePermitRate(permit *CartaPermit, fieldTok Token) error
 		return err
 	}
 	if !isCartaRateUnit(unitTok.Literal) {
-		return p.errorAt(unitTok, "invalid rate unit")
+		return p.errorAt(unitTok, errInvalidRateUnit)
 	}
 	permit.Rate = &CartaRate{Value: value, Unit: unitTok.Literal}
-	return p.expectNewline("expected newline after PERMIT clause")
+	return p.expectNewline(errNewlineAfterPermitClause)
 }
 
 func (p *CartaParser) parsePermitApproval(permit *CartaPermit, fieldTok Token) error {
@@ -660,7 +675,7 @@ func (p *CartaParser) parsePermitApproval(permit *CartaPermit, fieldTok Token) e
 		return p.errorAt(modeTok, "invalid approval mode")
 	}
 	permit.Approval = &CartaApprovalConfig{Mode: modeTok.Literal}
-	return p.expectNewline("expected newline after PERMIT clause")
+	return p.expectNewline(errNewlineAfterPermitClause)
 }
 
 func (p *CartaParser) parseDelegateClause(delegate *CartaDelegate) error {
@@ -675,20 +690,20 @@ func (p *CartaParser) parseDelegateClause(delegate *CartaDelegate) error {
 	switch fieldTok.Literal {
 	case "when":
 		return p.parseDelegateWhen(delegate)
-	case "reason":
+	case StepTypeReason:
 		return p.parseDelegateReason(delegate, fieldTok)
 	case "package":
 		return p.parseDelegatePackage(delegate)
 	default:
 		p.addWarning(fieldTok, "carta_unknown_delegate_clause", "unknown DELEGATE clause: "+fieldTok.Literal)
 		p.skipUntilNewline()
-		return p.expectNewline("expected newline after DELEGATE clause")
+		return p.expectNewline(errNewlineAfterDelegateClause)
 	}
 }
 
 func (p *CartaParser) parseDelegateWhen(delegate *CartaDelegate) error {
 	delegate.When = p.readLineLiteral()
-	return p.expectNewline("expected newline after DELEGATE clause")
+	return p.expectNewline(errNewlineAfterDelegateClause)
 }
 
 func (p *CartaParser) parseDelegateReason(delegate *CartaDelegate, fieldTok Token) error {
@@ -698,10 +713,10 @@ func (p *CartaParser) parseDelegateReason(delegate *CartaDelegate, fieldTok Toke
 	}
 	reason, err := strconv.Unquote(reasonTok.Literal)
 	if err != nil {
-		return p.errorAt(reasonTok, "invalid string literal")
+		return p.errorAt(reasonTok, errInvalidStringLiteral)
 	}
 	delegate.Reason = reason
-	return p.expectNewline("expected newline after DELEGATE clause")
+	return p.expectNewline(errNewlineAfterDelegateClause)
 }
 
 func (p *CartaParser) parseDelegatePackage(delegate *CartaDelegate) error {
@@ -715,7 +730,7 @@ func (p *CartaParser) parseDelegatePackage(delegate *CartaDelegate) error {
 		return err
 	}
 	delegate.Package = values
-	return p.expectNewline("expected newline after DELEGATE clause")
+	return p.expectNewline(errNewlineAfterDelegateClause)
 }
 
 func (p *CartaParser) parseBudgetField(budget *CartaBudget) error {
@@ -739,7 +754,7 @@ func (p *CartaParser) parseBudgetField(budget *CartaBudget) error {
 	default:
 		p.addWarning(fieldTok, "carta_unknown_budget_field", "unknown BUDGET field: "+fieldTok.Literal)
 		p.skipUntilNewline()
-		return p.expectNewline("expected newline after BUDGET field")
+		return p.expectNewline(errNewlineAfterBudgetField)
 	}
 }
 
@@ -753,7 +768,7 @@ func (p *CartaParser) parseBudgetFieldDailyTokens(budget *CartaBudget, fieldTok 
 		return err
 	}
 	budget.DailyTokens = value
-	return p.expectNewline("expected newline after BUDGET field")
+	return p.expectNewline(errNewlineAfterBudgetField)
 }
 
 func (p *CartaParser) parseBudgetFieldDailyCostUSD(budget *CartaBudget, fieldTok Token) error {
@@ -766,7 +781,7 @@ func (p *CartaParser) parseBudgetFieldDailyCostUSD(budget *CartaBudget, fieldTok
 		return p.errorAt(valueTok, "invalid daily_cost_usd value")
 	}
 	budget.DailyCostUSD = value
-	return p.expectNewline("expected newline after BUDGET field")
+	return p.expectNewline(errNewlineAfterBudgetField)
 }
 
 func (p *CartaParser) parseBudgetFieldExecutionsPerDay(budget *CartaBudget, fieldTok Token) error {
@@ -779,7 +794,7 @@ func (p *CartaParser) parseBudgetFieldExecutionsPerDay(budget *CartaBudget, fiel
 		return err
 	}
 	budget.ExecutionsPerDay = value
-	return p.expectNewline("expected newline after BUDGET field")
+	return p.expectNewline(errNewlineAfterBudgetField)
 }
 
 func (p *CartaParser) parseBudgetFieldOnExceed(budget *CartaBudget, fieldTok Token) error {
@@ -791,34 +806,13 @@ func (p *CartaParser) parseBudgetFieldOnExceed(budget *CartaBudget, fieldTok Tok
 		return p.errorAt(modeTok, "invalid on_exceed mode")
 	}
 	budget.OnExceed = modeTok.Literal
-	return p.expectNewline("expected newline after BUDGET field")
+	return p.expectNewline(errNewlineAfterBudgetField)
 }
 
 func (p *CartaParser) parseStringList() ([]string, error) {
-	if _, err := p.expect(TokenLBracket, "expected '[' after types"); err != nil {
-		return nil, err
-	}
-
-	values := make([]string, 0)
-	for p.current().Type != TokenRBracket {
-		item, err := p.parseStringListItem()
-		if err != nil {
-			return nil, err
-		}
-		values = append(values, item)
-		if p.current().Type == TokenComma {
-			p.advance()
-			continue
-		}
-		if p.current().Type != TokenRBracket {
-			return nil, p.errorAt(p.current(), "expected ',' or ']' in types list")
-		}
-	}
-
-	if _, err := p.expect(TokenRBracket, "expected ']' after types list"); err != nil {
-		return nil, err
-	}
-	return values, nil
+	return p.parseList("expected '[' after types", "expected ']' after types list", "expected ',' or ']' in types list", func() (string, error) {
+		return p.parseStringListItem()
+	})
 }
 
 func (p *CartaParser) parseStringListItem() (string, error) {
@@ -828,36 +822,59 @@ func (p *CartaParser) parseStringListItem() (string, error) {
 	}
 	value, err := strconv.Unquote(valueTok.Literal)
 	if err != nil {
-		return "", p.errorAt(valueTok, "invalid string literal")
+		return "", p.errorAt(valueTok, errInvalidStringLiteral)
 	}
 	return value, nil
 }
 
 func (p *CartaParser) parseIdentifierList(itemErr, openErr, delimErr, closeErr string) ([]string, error) {
+	return p.parseList(openErr, closeErr, delimErr, func() (string, error) {
+		tok, err := p.expect(TokenIdentifier, itemErr)
+		if err != nil {
+			return "", err
+		}
+		return tok.Literal, nil
+	})
+}
+
+func (p *CartaParser) parseList(openErr, closeErr, delimErr string, itemFn func() (string, error)) ([]string, error) {
 	if _, err := p.expect(TokenLBracket, openErr); err != nil {
 		return nil, err
 	}
-
-	values := make([]string, 0)
-	for p.current().Type != TokenRBracket {
-		valueTok, err := p.expect(TokenIdentifier, itemErr)
-		if err != nil {
-			return nil, err
-		}
-		values = append(values, valueTok.Literal)
-		if p.current().Type == TokenComma {
-			p.advance()
-			continue
-		}
-		if p.current().Type != TokenRBracket {
-			return nil, p.errorAt(p.current(), delimErr)
-		}
+	values, err := p.collectListItems(delimErr, itemFn)
+	if err != nil {
+		return nil, err
 	}
-
 	if _, err := p.expect(TokenRBracket, closeErr); err != nil {
 		return nil, err
 	}
 	return values, nil
+}
+
+func (p *CartaParser) collectListItems(delimErr string, itemFn func() (string, error)) ([]string, error) {
+	values := make([]string, 0)
+	for p.current().Type != TokenRBracket {
+		item, err := itemFn()
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, item)
+		if err := p.advanceListDelimiter(delimErr); err != nil {
+			return nil, err
+		}
+	}
+	return values, nil
+}
+
+func (p *CartaParser) advanceListDelimiter(delimErr string) error {
+	if p.current().Type == TokenComma {
+		p.advance()
+		return nil
+	}
+	if p.current().Type != TokenRBracket {
+		return p.errorAt(p.current(), delimErr)
+	}
+	return nil
 }
 
 func (p *CartaParser) readLineLiteral() string {
@@ -893,7 +910,7 @@ func parseConfidenceLevel(tok Token) (knowledge.ConfidenceLevel, error) {
 
 func isCartaDurationUnit(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "days", "hours", "minutes":
+	case "days", waitUnitHours, "minutes":
 		return true
 	default:
 		return false
@@ -902,7 +919,7 @@ func isCartaDurationUnit(value string) bool {
 
 func isCartaRateUnit(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "min", "hour", "day":
+	case "min", "hour", waitUnitDay:
 		return true
 	default:
 		return false
@@ -920,7 +937,7 @@ func isCartaApprovalMode(value string) bool {
 
 func isCartaOnExceed(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "pause", "degrade", "abort":
+	case cartaOnExceedPause, cartaOnExceedDegrade, cartaOnExceedAbort:
 		return true
 	default:
 		return false

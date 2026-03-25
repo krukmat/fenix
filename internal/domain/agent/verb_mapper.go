@@ -18,6 +18,8 @@ const (
 	RuntimeOperationSurface  RuntimeOperationKind = "surface"
 )
 
+const notifyTargetContactReply = "contact.reply"
+
 type RuntimeOperation struct {
 	Kind      RuntimeOperationKind `json:"kind"`
 	Verb      string               `json:"verb"`
@@ -224,7 +226,7 @@ func mapNotifyOperation(target string, value any, evalCtx map[string]any) (*Runt
 		return nil, fmt.Errorf("%w: unsupported NOTIFY target %s", ErrVerbMappingFailed, target)
 	}
 	switch strings.TrimSpace(target) {
-	case "contact", "contact.reply":
+	case surfaceEntityContact, notifyTargetContactReply:
 		return &RuntimeOperation{
 			Kind:     RuntimeOperationTool,
 			Verb:     "NOTIFY",
@@ -265,7 +267,7 @@ func toolNameForSetTarget(target string) string {
 
 func toolNameForNotifyTarget(target string) string {
 	switch strings.TrimSpace(target) {
-	case "contact", "contact.reply":
+	case surfaceEntityContact, notifyTargetContactReply:
 		return tool.BuiltinSendReply
 	case "salesperson", "salesperson.task":
 		return tool.BuiltinCreateTask

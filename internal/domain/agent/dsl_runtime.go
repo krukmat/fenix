@@ -7,6 +7,8 @@ import (
 
 var ErrDSLRuntimeFailed = fmt.Errorf("dsl runtime failed")
 
+const stmtTypeIf = "IF"
+
 type RuntimeOperationExecutor interface {
 	Execute(ctx context.Context, op *RuntimeOperation, evalCtx map[string]any) (RuntimeExecutionResult, error)
 }
@@ -175,18 +177,18 @@ func (r *DSLRuntime) executeIf(ctx context.Context, stmt *IfStatement, evalCtx m
 	}
 	condOK, err := r.evaluator.EvaluateCondition(stmt.Condition, evalCtx)
 	if err != nil {
-		result := DSLStatementResult{Type: "IF", Status: StepStatusFailed, Position: stmt.Pos()}
+		result := DSLStatementResult{Type: stmtTypeIf, Status: StepStatusFailed, Position: stmt.Pos()}
 		*out = append(*out, result)
 		finishStatementTrace(ctx, executor, traceID, result, err)
 		return false, err
 	}
 	if !condOK {
-		result := DSLStatementResult{Type: "IF", Status: StepStatusSkipped, Position: stmt.Pos()}
+		result := DSLStatementResult{Type: stmtTypeIf, Status: StepStatusSkipped, Position: stmt.Pos()}
 		*out = append(*out, result)
 		finishStatementTrace(ctx, executor, traceID, result, nil)
 		return false, nil
 	}
-	result := DSLStatementResult{Type: "IF", Status: StepStatusSuccess, Position: stmt.Pos()}
+	result := DSLStatementResult{Type: stmtTypeIf, Status: StepStatusSuccess, Position: stmt.Pos()}
 	*out = append(*out, result)
 	finishStatementTrace(ctx, executor, traceID, result, nil)
 	return r.executeStatements(ctx, stmt.Body, evalCtx, executor, out, startIndex, cursor)
@@ -291,7 +293,7 @@ func runtimeLeafStatementType(stmt Statement) (string, bool) {
 
 func runtimeStructuredStatementType(stmt Statement) string {
 	if _, ok := stmt.(*IfStatement); ok {
-		return "IF"
+		return stmtTypeIf
 	}
 	return "UNKNOWN"
 }

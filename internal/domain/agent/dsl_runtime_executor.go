@@ -34,6 +34,7 @@ const (
 	surfacePayloadValueKey  = "value"
 	waitUnitHours           = "hours"
 	waitUnitDay             = "day"
+	waitUnitSecond          = "second"
 	dispatchResultAccepted  = "accepted"
 	dispatchResultRejected  = "rejected"
 	dispatchResultDelegated = "delegated"
@@ -683,7 +684,7 @@ func waitStatementDuration(stmt *WaitStatement) (time.Duration, error) {
 
 func waitDurationMultiplier(unit string) (time.Duration, error) {
 	switch strings.ToLower(strings.TrimSpace(unit)) {
-	case "s", "sec", "secs", "second", "seconds":
+	case "s", "sec", "secs", waitUnitSecond, "seconds":
 		return time.Second, nil
 	case "m", "min", "mins", "minute", "minutes":
 		return time.Minute, nil

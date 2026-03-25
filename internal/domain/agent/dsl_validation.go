@@ -5,7 +5,10 @@ import (
 	"strings"
 )
 
-const surfaceEntityDeal = "deal"
+const (
+	surfaceEntityDeal    = "deal"
+	surfaceEntityContact = "contact"
+)
 
 type DSLValidationError struct {
 	Position Position
@@ -151,7 +154,7 @@ func validateSurfaceStatement(stmt *SurfaceStatement) error {
 
 func isSupportedSurfaceEntity(name string) bool {
 	switch strings.TrimSpace(name) {
-	case "contact", "lead", surfaceEntityDeal, bridgeEntityCase:
+	case surfaceEntityContact, "lead", surfaceEntityDeal, bridgeEntityCase:
 		return true
 	default:
 		return false
