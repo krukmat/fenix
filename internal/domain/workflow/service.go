@@ -255,10 +255,10 @@ func (s *Service) Activate(ctx context.Context, workspaceID, workflowID string) 
 	if err != nil {
 		return nil, err
 	}
-	if err := s.syncCartaBudgetLimits(ctx, existing); err != nil {
+	if err = s.syncCartaBudgetLimits(ctx, existing); err != nil {
 		return nil, err
 	}
-	if err := s.syncCartaInvariantRules(ctx, existing); err != nil {
+	if err = s.syncCartaInvariantRules(ctx, existing); err != nil {
 		return nil, err
 	}
 	archiveErr := s.archivePreviousActiveWorkflow(ctx, existing)
@@ -373,7 +373,7 @@ func (s *Service) loadAgentDefinitionLimits(ctx context.Context, workspaceID, ag
 	}
 
 	limits := make(map[string]any)
-	if err := json.Unmarshal([]byte(raw.String), &limits); err != nil {
+	if err = json.Unmarshal([]byte(raw.String), &limits); err != nil {
 		return nil, fmt.Errorf("decode agent definition limits: %w", err)
 	}
 	return limits, nil

@@ -15,7 +15,9 @@ const (
 	cartaOnExceedDegrade            = "degrade"
 	cartaOnExceedAbort              = "abort"
 	cartaDurationMinutes            = "minutes"
+	cartaDurationDays               = "days"
 	cartaRateUnitHour               = "hour"
+	cartaRateUnitMin                = "min"
 	cartaGroundsFieldMinSources     = "min_sources"
 	cartaWarnUnknownGroundsField    = "carta_unknown_grounds_field"
 	errInvalidStringLiteral         = "invalid string literal"
@@ -331,7 +333,7 @@ func (p *CartaParser) parsePermitBlock() (*CartaPermit, error) {
 	if p.current().Type != TokenIndent {
 		return permit, nil
 	}
-	if _, err := p.expect(TokenIndent, "expected indented block after PERMIT"); err != nil {
+	if _, err = p.expect(TokenIndent, "expected indented block after PERMIT"); err != nil {
 		return nil, err
 	}
 
@@ -340,7 +342,7 @@ func (p *CartaParser) parsePermitBlock() (*CartaPermit, error) {
 		return nil, err
 	}
 
-	if _, err := p.expect(TokenDedent, "expected end of PERMIT block"); err != nil {
+	if _, err = p.expect(TokenDedent, "expected end of PERMIT block"); err != nil {
 		return nil, err
 	}
 	if clauseCount == 0 {
@@ -358,7 +360,7 @@ func (p *CartaParser) expectPermitHeader() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := p.expectNewline("expected newline after PERMIT header"); err != nil {
+	if err = p.expectNewline("expected newline after PERMIT header"); err != nil {
 		return "", err
 	}
 	return toolTok.Literal, nil
@@ -394,7 +396,7 @@ func (p *CartaParser) parseDelegateBlock() (*CartaDelegate, error) {
 		return nil, err
 	}
 
-	if _, err := p.expect(TokenDedent, "expected end of DELEGATE block"); err != nil {
+	if _, err = p.expect(TokenDedent, "expected end of DELEGATE block"); err != nil {
 		return nil, err
 	}
 	if clauseCount == 0 {
@@ -451,7 +453,7 @@ func (p *CartaParser) parseInvariantBlock() ([]CartaInvariant, error) {
 		return nil, err
 	}
 
-	if _, err := p.expect(TokenDedent, "expected end of INVARIANT block"); err != nil {
+	if _, err = p.expect(TokenDedent, "expected end of INVARIANT block"); err != nil {
 		return nil, err
 	}
 	return invariants, nil
@@ -497,7 +499,7 @@ func (p *CartaParser) parseInvariantEntry(current Token) (*CartaInvariant, error
 	}
 	p.advance()
 
-	if _, err := p.expect(TokenColon, "expected ':' after invariant mode"); err != nil {
+	if _, err = p.expect(TokenColon, "expected ':' after invariant mode"); err != nil {
 		return nil, err
 	}
 	statementTok, err := p.expect(TokenString, "expected string literal after invariant mode")
@@ -508,7 +510,7 @@ func (p *CartaParser) parseInvariantEntry(current Token) (*CartaInvariant, error
 	if err != nil {
 		return nil, p.errorAt(statementTok, errInvalidStringLiteral)
 	}
-	if err := p.expectNewline("expected newline after invariant statement"); err != nil {
+	if err = p.expectNewline("expected newline after invariant statement"); err != nil {
 		return nil, err
 	}
 	return &CartaInvariant{Mode: mode, Statement: statement}, nil
@@ -850,7 +852,7 @@ func (p *CartaParser) parseList(openErr, closeErr, delimErr string, itemFn func(
 	if err != nil {
 		return nil, err
 	}
-	if _, err := p.expect(TokenRBracket, closeErr); err != nil {
+	if _, err = p.expect(TokenRBracket, closeErr); err != nil {
 		return nil, err
 	}
 	return values, nil
@@ -864,7 +866,7 @@ func (p *CartaParser) collectListItems(delimErr string, itemFn func() (string, e
 			return nil, err
 		}
 		values = append(values, item)
-		if err := p.advanceListDelimiter(delimErr); err != nil {
+		if err = p.advanceListDelimiter(delimErr); err != nil {
 			return nil, err
 		}
 	}
@@ -915,7 +917,7 @@ func parseConfidenceLevel(tok Token) (knowledge.ConfidenceLevel, error) {
 
 func isCartaDurationUnit(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "days", waitUnitHours, cartaDurationMinutes:
+	case cartaDurationDays, waitUnitHours, cartaDurationMinutes:
 		return true
 	default:
 		return false
@@ -924,7 +926,7 @@ func isCartaDurationUnit(value string) bool {
 
 func isCartaRateUnit(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "min", cartaRateUnitHour, waitUnitDay:
+	case cartaRateUnitMin, cartaRateUnitHour, waitUnitDay:
 		return true
 	default:
 		return false

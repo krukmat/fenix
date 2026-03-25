@@ -686,7 +686,7 @@ func waitDurationMultiplier(unit string) (time.Duration, error) {
 	switch strings.ToLower(strings.TrimSpace(unit)) {
 	case "s", "sec", "secs", waitUnitSecond, "seconds":
 		return time.Second, nil
-	case "m", "min", "mins", "minute", "minutes":
+	case "m", "min", "mins", "minute", cartaDurationMinutes:
 		return time.Minute, nil
 	case "h", "hr", "hrs", "hour", waitUnitHours:
 		return time.Hour, nil

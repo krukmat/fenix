@@ -10,7 +10,10 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 )
 
-const groundsQueryKeySummary = "summary"
+const (
+	groundsQueryKeySummary    = "summary"
+	groundsQueryKeyMessage    = "message"
+)
 
 type groundsEvidencePackBuilder interface {
 	BuildEvidencePack(ctx context.Context, input knowledge.BuildEvidencePackInput) (*knowledge.EvidencePack, error)
@@ -191,7 +194,7 @@ func visitGroundsMap(node map[string]any, out *[]string) {
 	for key, child := range node {
 		lowerKey := strings.ToLower(strings.TrimSpace(key))
 		switch lowerKey {
-		case "query", "customer_query", "message", "title", "subject", groundsQueryKeySummary, "description", "id":
+		case "query", "customer_query", groundsQueryKeyMessage, "title", "subject", groundsQueryKeySummary, "description", "id":
 			if text, ok := child.(string); ok && strings.TrimSpace(text) != "" {
 				*out = append(*out, text)
 				continue

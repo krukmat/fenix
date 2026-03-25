@@ -549,7 +549,7 @@ func extractCaseID(evalCtx map[string]any) string {
 	if !ok {
 		return ""
 	}
-	if id, ok := caseMap["id"].(string); ok {
+	if id, idOk := caseMap["id"].(string); idOk {
 		return strings.TrimSpace(id)
 	}
 	return ""
