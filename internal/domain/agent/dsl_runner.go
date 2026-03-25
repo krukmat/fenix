@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
+	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
 )
@@ -85,8 +87,15 @@ func (r *DSLRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgentI
 	if err != nil {
 		return nil, err
 	}
-	execCtx := rc.WithCall(input.AgentID)
 	evalCtx := mergeDSLContexts(input.TriggerContext, input.Inputs)
+	carta := parseCartaWorkflowSpec(workflow)
+	if delegated, handoffErr := r.preflightDelegate(ctx, rc, workflow, carta, input, run, evalCtx); handoffErr != nil || delegated != nil {
+		return delegated, handoffErr
+	}
+	if abstained, groundsErr := r.preflightGrounds(ctx, rc, carta, input, run); groundsErr != nil || abstained != nil {
+		return abstained, groundsErr
+	}
+	execCtx := rc.WithCall(input.AgentID)
 	baseExecutor, defaultExecutor := r.buildBaseExecutor(execCtx, input, evalCtx, workflow.ID, run.ID)
 	executor := wrapWithTrace(input.WorkspaceID, run.ID, execCtx, r.runtime, baseExecutor, defaultExecutor)
 	result, execErr := r.runtime.ExecuteProgram(ctx, program, evalCtx, executor)
@@ -120,6 +129,13 @@ func (r *DSLRunner) Resume(ctx context.Context, rc *RunContext, workspaceID stri
 		Inputs:         run.Inputs,
 	}
 	evalCtx := mergeDSLContexts(run.TriggerContext, run.Inputs)
+	carta := parseCartaWorkflowSpec(workflow)
+	if delegated, handoffErr := r.preflightDelegate(ctx, rc, workflow, carta, triggerInput, run, evalCtx); handoffErr != nil || delegated != nil {
+		return delegated, handoffErr
+	}
+	if abstained, groundsErr := r.preflightGrounds(ctx, rc, carta, triggerInput, run); groundsErr != nil || abstained != nil {
+		return abstained, groundsErr
+	}
 	baseExecutor, defaultExecutor := r.buildBaseExecutor(execCtx, triggerInput, evalCtx, workflow.ID, input.RunID)
 	executor := wrapWithTrace(workspaceID, input.RunID, execCtx, r.runtime, baseExecutor, defaultExecutor)
 	result, execErr := r.runtime.ExecuteProgramFromIndex(ctx, program, input.ResumeStepIndex, evalCtx, executor)
@@ -375,6 +391,142 @@ func decodeToolCallArray(raw json.RawMessage) []ToolCall {
 		return nil
 	}
 	return calls
+}
+
+func (r *DSLRunner) preflightDelegate(ctx context.Context, rc *RunContext, workflow *workflowdomain.Workflow, carta *CartaSummary, input TriggerAgentInput, run *Run, evalCtx map[string]any) (*Run, error) {
+	if run == nil || workflow == nil {
+		return nil, nil
+	}
+	if carta == nil || len(carta.Delegates) == 0 {
+		return nil, nil
+	}
+
+	decision, err := NewDelegateEvaluator().EvaluateDelegate(carta.Delegates, evalCtx)
+	if err != nil || decision == nil || !decision.Matched || decision.Delegate == nil {
+		return nil, err
+	}
+
+	reason := strings.TrimSpace(decision.Delegate.Reason)
+	output, marshalErr := json.Marshal(map[string]any{
+		"status": "delegated",
+		"reason": reason,
+	})
+	if marshalErr != nil {
+		return nil, marshalErr
+	}
+
+	updated, err := rc.Orchestrator.UpdateAgentRun(ctx, input.WorkspaceID, run.ID, RunUpdates{
+		Status:           StatusDelegated,
+		Output:           output,
+		AbstentionReason: stringPtr(reason),
+		Completed:        true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if caseID := extractCaseID(evalCtx); caseID != "" && rc.DB != nil {
+		handoffSvc := NewHandoffService(rc.DB, crm.NewCaseService(rc.DB), rc.EventBus)
+		_, _ = handoffSvc.InitiateHandoff(ctx, input.WorkspaceID, updated.ID, caseID, reason)
+	}
+	return updated, nil
+}
+
+func (r *DSLRunner) preflightGrounds(ctx context.Context, rc *RunContext, carta *CartaSummary, input TriggerAgentInput, run *Run) (*Run, error) {
+	if run == nil || rc == nil || rc.GroundsValidator == nil || carta == nil || carta.Grounds == nil {
+		return nil, nil
+	}
+
+	result, err := rc.GroundsValidator.Validate(ctx, carta.Grounds, input)
+	if err != nil || result == nil || result.Met {
+		return nil, err
+	}
+
+	output, marshalErr := json.Marshal(map[string]any{
+		"status": "abstained",
+		"reason": result.Reason,
+		"query":  result.Query,
+	})
+	if marshalErr != nil {
+		return nil, marshalErr
+	}
+
+	updated, err := rc.Orchestrator.UpdateAgentRun(ctx, input.WorkspaceID, run.ID, RunUpdates{
+		Status:               StatusAbstained,
+		Output:               output,
+		AbstentionReason:     stringPtr(result.Reason),
+		RetrievalQueries:     marshalStringArray(result.Query),
+		RetrievedEvidenceIDs: marshalEvidenceIDs(result.EvidencePack),
+		Completed:            true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if caseID := extractCaseID(mergeDSLContexts(input.TriggerContext, input.Inputs)); caseID != "" && rc.DB != nil {
+		handoffSvc := NewHandoffService(rc.DB, crm.NewCaseService(rc.DB), rc.EventBus)
+		_, _ = handoffSvc.InitiateHandoff(ctx, input.WorkspaceID, updated.ID, caseID, result.Reason)
+	}
+	return updated, nil
+}
+
+func parseCartaWorkflowSpec(workflow *workflowdomain.Workflow) *CartaSummary {
+	if workflow == nil || workflow.SpecSource == nil {
+		return nil
+	}
+	carta, err := ParseCarta(*workflow.SpecSource)
+	if err != nil {
+		return nil
+	}
+	return carta
+}
+
+func extractCaseID(evalCtx map[string]any) string {
+	caseMap, ok := evalCtx["case"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	if id, ok := caseMap["id"].(string); ok {
+		return strings.TrimSpace(id)
+	}
+	return ""
+}
+
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func marshalStringArray(values ...string) json.RawMessage {
+	items := make([]string, 0, len(values))
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			items = append(items, trimmed)
+		}
+	}
+	if len(items) == 0 {
+		return json.RawMessage(emptyJSONArray)
+	}
+	raw, err := json.Marshal(items)
+	if err != nil {
+		return json.RawMessage(emptyJSONArray)
+	}
+	return raw
+}
+
+func marshalEvidenceIDs(pack *knowledge.EvidencePack) json.RawMessage {
+	if pack == nil || len(pack.Sources) == 0 {
+		return json.RawMessage(emptyJSONArray)
+	}
+	ids := make([]string, 0, len(pack.Sources))
+	for _, source := range pack.Sources {
+		if trimmed := strings.TrimSpace(source.ID); trimmed != "" {
+			ids = append(ids, trimmed)
+		}
+	}
+	return marshalStringArray(ids...)
 }
 
 func buildDSLRunOutputPayload(workflow *workflowdomain.Workflow, result *DSLRuntimeResult) DSLRunOutput {

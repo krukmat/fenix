@@ -48,6 +48,7 @@ func TestRunContextClonePreservesDepsAndCopiesChain(t *testing.T) {
 	policyEngine := &policy.PolicyEngine{}
 	approvalService := &policy.ApprovalService{}
 	auditService := &audit.AuditService{}
+	groundsValidator := &GroundsValidator{}
 
 	original := &RunContext{
 		Orchestrator:    orch,
@@ -56,6 +57,7 @@ func TestRunContextClonePreservesDepsAndCopiesChain(t *testing.T) {
 		AuditService:    auditService,
 		EventBus:        bus,
 		RunnerRegistry:  NewRunnerRegistry(),
+		GroundsValidator: groundsValidator,
 		DB:              db,
 		CallDepth:       1,
 		CallChain:       []string{"support-agent"},
@@ -70,6 +72,9 @@ func TestRunContextClonePreservesDepsAndCopiesChain(t *testing.T) {
 	}
 	if clone.RunnerRegistry != original.RunnerRegistry {
 		t.Fatal("Clone() did not preserve runner registry")
+	}
+	if clone.GroundsValidator != groundsValidator {
+		t.Fatal("Clone() did not preserve grounds validator")
 	}
 
 	clone.CallChain[0] = "changed"

@@ -2,6 +2,8 @@ package workflow
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -651,6 +653,288 @@ func TestService_Activate_ArchivesPreviousActiveVersion(t *testing.T) {
 	if previous.ArchivedAt == nil {
 		t.Fatal("expected ArchivedAt on previous active workflow")
 	}
+}
+
+func TestWorkflowActivateBudgetSync(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+	svc := NewServiceWithRepository(repo)
+
+	oldResolver := cartaBudgetLimitsResolver
+	cartaBudgetLimitsResolver = func(source string) (map[string]any, error) {
+		if !isCartaSource(source) {
+			return nil, nil
+		}
+		return map[string]any{"daily_tokens": 50000}, nil
+	}
+	t.Cleanup(func() {
+		cartaBudgetLimitsResolver = oldResolver
+	})
+
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, limits, status, created_at, updated_at)
+		VALUES ('agent_1', 'ws_test', 'Agent 1', 'dsl', '{"existing_limit":1}', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`); err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+
+	agentDefinitionID := "agent_1"
+	spec := "CARTA policy\nBUDGET\n  daily_tokens: 50000\nAGENT support"
+	for _, input := range []CreateInput{
+		{ID: "wf-active-1", WorkspaceID: "ws_test", AgentDefinitionID: &agentDefinitionID, Name: "triage_case", DSLSource: "WORKFLOW triage_case\nON case.created\nSET case.status = \"open\"", Version: 1, Status: StatusActive},
+		{ID: "wf-testing-2", WorkspaceID: "ws_test", AgentDefinitionID: &agentDefinitionID, Name: "triage_case", DSLSource: "WORKFLOW triage_case\nON case.updated\nSET case.status = \"resolved\"", SpecSource: &spec, Version: 2, Status: StatusTesting},
+	} {
+		if _, err := repo.Create(context.Background(), input); err != nil {
+			t.Fatalf("repo.Create(%s) error = %v", input.ID, err)
+		}
+	}
+
+	if _, err := svc.Activate(context.Background(), "ws_test", "wf-testing-2"); err != nil {
+		t.Fatalf("Activate() error = %v", err)
+	}
+
+	got := loadAgentDefinitionLimits(t, db, "ws_test", "agent_1")
+	if got["daily_tokens"] != float64(50000) {
+		t.Fatalf("daily_tokens = %#v, want 50000", got["daily_tokens"])
+	}
+	if got["existing_limit"] != float64(1) {
+		t.Fatalf("existing_limit = %#v, want 1", got["existing_limit"])
+	}
+}
+
+func TestWorkflowActivateBudgetSyncNoBudgetLeavesLimitsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+	svc := NewServiceWithRepository(repo)
+
+	oldResolver := cartaBudgetLimitsResolver
+	cartaBudgetLimitsResolver = func(source string) (map[string]any, error) {
+		if !isCartaSource(source) {
+			return nil, nil
+		}
+		return nil, nil
+	}
+	t.Cleanup(func() {
+		cartaBudgetLimitsResolver = oldResolver
+	})
+
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, limits, status, created_at, updated_at)
+		VALUES ('agent_1', 'ws_test', 'Agent 1', 'dsl', '{"existing_limit":1}', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`); err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+
+	agentDefinitionID := "agent_1"
+	spec := "CARTA policy\nAGENT support"
+	for _, input := range []CreateInput{
+		{ID: "wf-active-1", WorkspaceID: "ws_test", AgentDefinitionID: &agentDefinitionID, Name: "triage_case", DSLSource: "WORKFLOW triage_case\nON case.created\nSET case.status = \"open\"", Version: 1, Status: StatusActive},
+		{ID: "wf-testing-2", WorkspaceID: "ws_test", AgentDefinitionID: &agentDefinitionID, Name: "triage_case", DSLSource: "WORKFLOW triage_case\nON case.updated\nSET case.status = \"resolved\"", SpecSource: &spec, Version: 2, Status: StatusTesting},
+	} {
+		if _, err := repo.Create(context.Background(), input); err != nil {
+			t.Fatalf("repo.Create(%s) error = %v", input.ID, err)
+		}
+	}
+
+	if _, err := svc.Activate(context.Background(), "ws_test", "wf-testing-2"); err != nil {
+		t.Fatalf("Activate() error = %v", err)
+	}
+
+	got := loadAgentDefinitionLimits(t, db, "ws_test", "agent_1")
+	if len(got) != 1 || got["existing_limit"] != float64(1) {
+		t.Fatalf("limits = %#v, want unchanged existing_limit only", got)
+	}
+}
+
+func TestWorkflowActivateInvariantSync(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+	svc := NewServiceWithRepository(repo)
+
+	oldResolver := cartaInvariantRulesResolver
+	cartaInvariantRulesResolver = func(source string) ([]map[string]any, error) {
+		if !isCartaSource(source) {
+			return nil, nil
+		}
+		return []map[string]any{
+			{"id": "carta_invariant_1", "resource": "tools", "action": "send_pii", "effect": "deny", "priority": 1000},
+		}, nil
+	}
+	t.Cleanup(func() {
+		cartaInvariantRulesResolver = oldResolver
+	})
+
+	if _, err := db.Exec(`
+		INSERT INTO policy_set (id, workspace_id, name, description, is_active, created_at, updated_at)
+		VALUES ('ps_1', 'ws_test', 'default-policy', 'test set', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`); err != nil {
+		t.Fatalf("insert policy_set: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO policy_version (id, policy_set_id, workspace_id, version_number, policy_json, status, created_at)
+		VALUES ('pv_1', 'ps_1', 'ws_test', 1, '{"rules":[{"id":"existing","resource":"tools","action":"update_case","effect":"allow","priority":1}]}', 'active', CURRENT_TIMESTAMP)
+	`); err != nil {
+		t.Fatalf("insert policy_version: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, policy_set_id, status, created_at, updated_at)
+		VALUES ('agent_1', 'ws_test', 'Agent 1', 'dsl', 'ps_1', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`); err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+
+	agentDefinitionID := "agent_1"
+	spec := "CARTA policy\nINVARIANT\n  never: \"send_pii\"\nAGENT support"
+	for _, input := range []CreateInput{
+		{ID: "wf-active-1", WorkspaceID: "ws_test", AgentDefinitionID: &agentDefinitionID, Name: "triage_case", DSLSource: "WORKFLOW triage_case\nON case.created\nSET case.status = \"open\"", Version: 1, Status: StatusActive},
+		{ID: "wf-testing-2", WorkspaceID: "ws_test", AgentDefinitionID: &agentDefinitionID, Name: "triage_case", DSLSource: "WORKFLOW triage_case\nON case.updated\nSET case.status = \"resolved\"", SpecSource: &spec, Version: 2, Status: StatusTesting},
+	} {
+		if _, err := repo.Create(context.Background(), input); err != nil {
+			t.Fatalf("repo.Create(%s) error = %v", input.ID, err)
+		}
+	}
+
+	if _, err := svc.Activate(context.Background(), "ws_test", "wf-testing-2"); err != nil {
+		t.Fatalf("Activate() error = %v", err)
+	}
+
+	rules := loadPolicyVersionRules(t, db, "pv_1")
+	if len(rules) != 2 {
+		t.Fatalf("len(rules) = %d, want 2", len(rules))
+	}
+	if !policyRuleExists(rules, "send_pii", "deny") {
+		t.Fatalf("expected send_pii deny rule in %#v", rules)
+	}
+}
+
+func TestWorkflowActivateInvariantSyncDoesNotDuplicateAction(t *testing.T) {
+	t.Parallel()
+
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+	svc := NewServiceWithRepository(repo)
+
+	oldResolver := cartaInvariantRulesResolver
+	cartaInvariantRulesResolver = func(source string) ([]map[string]any, error) {
+		if !isCartaSource(source) {
+			return nil, nil
+		}
+		return []map[string]any{
+			{"id": "carta_invariant_1", "resource": "tools", "action": "send_pii", "effect": "deny", "priority": 1000},
+		}, nil
+	}
+	t.Cleanup(func() {
+		cartaInvariantRulesResolver = oldResolver
+	})
+
+	if _, err := db.Exec(`
+		INSERT INTO policy_set (id, workspace_id, name, description, is_active, created_at, updated_at)
+		VALUES ('ps_1', 'ws_test', 'default-policy', 'test set', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`); err != nil {
+		t.Fatalf("insert policy_set: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO policy_version (id, policy_set_id, workspace_id, version_number, policy_json, status, created_at)
+		VALUES ('pv_1', 'ps_1', 'ws_test', 1, '{\"rules\":[{\"id\":\"existing\",\"resource\":\"tools\",\"action\":\"send_pii\",\"effect\":\"allow\",\"priority\":1}]}', 'active', CURRENT_TIMESTAMP)
+	`); err != nil {
+		t.Fatalf("insert policy_version: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, policy_set_id, status, created_at, updated_at)
+		VALUES ('agent_1', 'ws_test', 'Agent 1', 'dsl', 'ps_1', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`); err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+
+	agentDefinitionID := "agent_1"
+	spec := "CARTA policy\nINVARIANT\n  never: \"send_pii\"\nAGENT support"
+	for _, input := range []CreateInput{
+		{ID: "wf-active-1", WorkspaceID: "ws_test", AgentDefinitionID: &agentDefinitionID, Name: "triage_case", DSLSource: "WORKFLOW triage_case\nON case.created\nSET case.status = \"open\"", Version: 1, Status: StatusActive},
+		{ID: "wf-testing-2", WorkspaceID: "ws_test", AgentDefinitionID: &agentDefinitionID, Name: "triage_case", DSLSource: "WORKFLOW triage_case\nON case.updated\nSET case.status = \"resolved\"", SpecSource: &spec, Version: 2, Status: StatusTesting},
+	} {
+		if _, err := repo.Create(context.Background(), input); err != nil {
+			t.Fatalf("repo.Create(%s) error = %v", input.ID, err)
+		}
+	}
+
+	if _, err := svc.Activate(context.Background(), "ws_test", "wf-testing-2"); err != nil {
+		t.Fatalf("Activate() error = %v", err)
+	}
+
+	rules := loadPolicyVersionRules(t, db, "pv_1")
+	if countPolicyRuleAction(rules, "send_pii") != 1 {
+		t.Fatalf("expected one send_pii rule, got %#v", rules)
+	}
+	if !policyRuleExists(rules, "send_pii", "deny") {
+		t.Fatalf("expected send_pii deny rule in %#v", rules)
+	}
+}
+
+func loadPolicyVersionRules(t *testing.T, db *sql.DB, versionID string) []map[string]any {
+	t.Helper()
+
+	var raw string
+	if err := db.QueryRow(`
+		SELECT policy_json
+		FROM policy_version
+		WHERE id = ?
+	`, versionID).Scan(&raw); err != nil {
+		t.Fatalf("select policy_version: %v", err)
+	}
+
+	var doc struct {
+		Rules []map[string]any `json:"rules"`
+	}
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("unmarshal policy_json: %v", err)
+	}
+	return doc.Rules
+}
+
+func policyRuleExists(rules []map[string]any, action, effect string) bool {
+	for _, rule := range rules {
+		if rule["action"] == action && rule["effect"] == effect {
+			return true
+		}
+	}
+	return false
+}
+
+func countPolicyRuleAction(rules []map[string]any, action string) int {
+	count := 0
+	for _, rule := range rules {
+		if rule["action"] == action {
+			count++
+		}
+	}
+	return count
+}
+
+func loadAgentDefinitionLimits(t *testing.T, db *sql.DB, workspaceID, agentDefinitionID string) map[string]any {
+	t.Helper()
+
+	var raw sql.NullString
+	if err := db.QueryRow(`
+		SELECT limits
+		FROM agent_definition
+		WHERE workspace_id = ? AND id = ?
+	`, workspaceID, agentDefinitionID).Scan(&raw); err != nil {
+		t.Fatalf("select agent_definition limits: %v", err)
+	}
+
+	out := make(map[string]any)
+	if raw.Valid && strings.TrimSpace(raw.String) != "" {
+		if err := json.Unmarshal([]byte(raw.String), &out); err != nil {
+			t.Fatalf("unmarshal limits: %v", err)
+		}
+	}
+	return out
 }
 
 func TestService_Activate_RejectsNonTestingWorkflow(t *testing.T) {

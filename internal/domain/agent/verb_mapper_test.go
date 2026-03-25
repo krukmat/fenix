@@ -7,6 +7,53 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 )
 
+func TestToolNameForStatement(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		stmt Statement
+		want string
+	}{
+		{
+			name: "set case status maps to update_case",
+			stmt: &SetStatement{Target: &IdentifierExpr{Name: "case.status"}},
+			want: tool.BuiltinUpdateCase,
+		},
+		{
+			name: "notify salesperson maps to create_task",
+			stmt: &NotifyStatement{Target: &IdentifierExpr{Name: "salesperson"}},
+			want: tool.BuiltinCreateTask,
+		},
+		{
+			name: "notify contact maps to send_reply",
+			stmt: &NotifyStatement{Target: &IdentifierExpr{Name: "contact"}},
+			want: tool.BuiltinSendReply,
+		},
+		{
+			name: "if statement has no tool",
+			stmt: &IfStatement{},
+			want: "",
+		},
+		{
+			name: "wait statement has no tool",
+			stmt: &WaitStatement{},
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := ToolNameForStatement(tt.stmt); got != tt.want {
+				t.Fatalf("ToolNameForStatement() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestVerbMapperMapStatementSet(t *testing.T) {
 	t.Parallel()
 

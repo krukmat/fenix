@@ -35,6 +35,23 @@ func NewVerbMapper() *VerbMapper {
 	return &VerbMapper{evaluator: NewExpressionEvaluator()}
 }
 
+func ToolNameForStatement(stmt Statement) string {
+	switch node := stmt.(type) {
+	case *SetStatement:
+		if node == nil || node.Target == nil {
+			return ""
+		}
+		return toolNameForSetTarget(node.Target.Name)
+	case *NotifyStatement:
+		if node == nil || node.Target == nil {
+			return ""
+		}
+		return toolNameForNotifyTarget(node.Target.Name)
+	default:
+		return ""
+	}
+}
+
 func (m *VerbMapper) MapStatement(stmt Statement, evalCtx map[string]any) (*RuntimeOperation, error) {
 	if handled, op, err := m.mapLeafStatement(stmt, evalCtx); handled {
 		return op, err
@@ -167,13 +184,19 @@ func validateSurfaceMapping(stmt *SurfaceStatement) error {
 }
 
 func mapSetOperation(target string, value any, evalCtx map[string]any) (*RuntimeOperation, error) {
+	toolName := toolNameForSetTarget(target)
+	switch toolName {
+	case tool.BuiltinUpdateCase:
+	default:
+		return nil, fmt.Errorf("%w: unsupported SET target %s", ErrVerbMappingFailed, target)
+	}
 	switch strings.TrimSpace(target) {
 	case "case.status":
 		return &RuntimeOperation{
 			Kind:     RuntimeOperationTool,
 			Verb:     "SET",
 			Target:   target,
-			ToolName: tool.BuiltinUpdateCase,
+			ToolName: toolName,
 			Params: map[string]any{
 				"case_id": resolveEntityID(evalCtx, bridgeEntityCase),
 				"status":  value,
@@ -184,7 +207,7 @@ func mapSetOperation(target string, value any, evalCtx map[string]any) (*Runtime
 			Kind:     RuntimeOperationTool,
 			Verb:     "SET",
 			Target:   target,
-			ToolName: tool.BuiltinUpdateCase,
+			ToolName: toolName,
 			Params: map[string]any{
 				"case_id":  resolveEntityID(evalCtx, bridgeEntityCase),
 				"priority": value,
@@ -196,13 +219,17 @@ func mapSetOperation(target string, value any, evalCtx map[string]any) (*Runtime
 }
 
 func mapNotifyOperation(target string, value any, evalCtx map[string]any) (*RuntimeOperation, error) {
+	toolName := toolNameForNotifyTarget(target)
+	if toolName == "" {
+		return nil, fmt.Errorf("%w: unsupported NOTIFY target %s", ErrVerbMappingFailed, target)
+	}
 	switch strings.TrimSpace(target) {
 	case "contact", "contact.reply":
 		return &RuntimeOperation{
 			Kind:     RuntimeOperationTool,
 			Verb:     "NOTIFY",
 			Target:   target,
-			ToolName: tool.BuiltinSendReply,
+			ToolName: toolName,
 			Params: map[string]any{
 				"case_id": resolveEntityID(evalCtx, bridgeEntityCase),
 				"body":    value,
@@ -214,7 +241,7 @@ func mapNotifyOperation(target string, value any, evalCtx map[string]any) (*Runt
 			Kind:     RuntimeOperationTool,
 			Verb:     "NOTIFY",
 			Target:   target,
-			ToolName: tool.BuiltinCreateTask,
+			ToolName: toolName,
 			Params: map[string]any{
 				"owner_id":    resolveOwnerID(evalCtx),
 				"title":       value,
@@ -224,6 +251,26 @@ func mapNotifyOperation(target string, value any, evalCtx map[string]any) (*Runt
 		}, nil
 	default:
 		return nil, fmt.Errorf("%w: unsupported NOTIFY target %s", ErrVerbMappingFailed, target)
+	}
+}
+
+func toolNameForSetTarget(target string) string {
+	switch strings.TrimSpace(target) {
+	case "case.status", "case.priority":
+		return tool.BuiltinUpdateCase
+	default:
+		return ""
+	}
+}
+
+func toolNameForNotifyTarget(target string) string {
+	switch strings.TrimSpace(target) {
+	case "contact", "contact.reply":
+		return tool.BuiltinSendReply
+	case "salesperson", "salesperson.task":
+		return tool.BuiltinCreateTask
+	default:
+		return ""
 	}
 }
 

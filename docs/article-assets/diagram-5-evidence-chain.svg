@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="160" viewBox="0 0 960 160" font-family="'Segoe UI', Arial, sans-serif">
+
+  <!-- Background -->
+  <rect width="900" height="160" fill="#ffffff"/>
+
+  <!-- Box 1: Data & Events -->
+  <rect x="20" y="40" width="140" height="70" rx="6" fill="#ffffff" stroke="#cccccc" stroke-width="1.5"/>
+  <text x="90" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1a1a">Data &amp; Events</text>
+  <text x="90" y="91" text-anchor="middle" font-size="10" fill="#888888">emails, calls,</text>
+  <text x="90" y="104" text-anchor="middle" font-size="10" fill="#888888">CRM changes</text>
+
+  <!-- Arrow 1 -->
+  <line x1="162" y1="75" x2="192" y2="75" stroke="#aaaaaa" stroke-width="1.5"/>
+  <polygon points="192,70 202,75 192,80" fill="#aaaaaa"/>
+
+  <!-- Box 2: Evidence -->
+  <rect x="204" y="40" width="140" height="70" rx="6" fill="#ffffff" stroke="#cccccc" stroke-width="1.5"/>
+  <text x="274" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1a1a">Evidence</text>
+  <text x="274" y="91" text-anchor="middle" font-size="10" fill="#888888">scored, cited,</text>
+  <text x="274" y="104" text-anchor="middle" font-size="10" fill="#888888">permission-filtered</text>
+
+  <!-- Arrow 2 -->
+  <line x1="346" y1="75" x2="376" y2="75" stroke="#aaaaaa" stroke-width="1.5"/>
+  <polygon points="376,70 386,75 376,80" fill="#aaaaaa"/>
+
+  <!-- Box 3: Signals -->
+  <rect x="388" y="40" width="140" height="70" rx="6" fill="#ffffff" stroke="#cccccc" stroke-width="1.5"/>
+  <text x="458" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1a1a">Signals</text>
+  <text x="458" y="91" text-anchor="middle" font-size="10" fill="#888888">actionable</text>
+  <text x="458" y="104" text-anchor="middle" font-size="10" fill="#888888">conclusions</text>
+
+  <!-- Arrow 3 -->
+  <line x1="530" y1="75" x2="560" y2="75" stroke="#aaaaaa" stroke-width="1.5"/>
+  <polygon points="560,70 570,75 560,80" fill="#aaaaaa"/>
+
+  <!-- Box 4: Workflows -->
+  <rect x="572" y="40" width="140" height="70" rx="6" fill="#ffffff" stroke="#cccccc" stroke-width="1.5"/>
+  <text x="642" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1a1a">Workflows</text>
+  <text x="642" y="91" text-anchor="middle" font-size="10" fill="#888888">explicit, versioned,</text>
+  <text x="642" y="104" text-anchor="middle" font-size="10" fill="#888888">auditable</text>
+
+  <!-- Arrow 4 -->
+  <line x1="714" y1="75" x2="744" y2="75" stroke="#aaaaaa" stroke-width="1.5"/>
+  <polygon points="744,70 754,75 744,80" fill="#aaaaaa"/>
+
+  <!-- Box 5: Governed Actions -->
+  <rect x="756" y="40" width="184" height="70" rx="6" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1.5"/>
+  <text x="848" y="72" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">Governed</text>
+  <text x="848" y="89" text-anchor="middle" font-size="13" font-weight="600" fill="#ffffff">Actions</text>
+  <text x="848" y="107" text-anchor="middle" font-size="10" fill="#aaaaaa">tool-gated, approved, traced</text>
+
+</svg>

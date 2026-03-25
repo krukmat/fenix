@@ -1,0 +1,844 @@
+package agent
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
+)
+
+type CartaParser struct {
+	tokens   []Token
+	pos      int
+	warnings []Warning
+}
+
+func NewCartaParser(tokens []Token) *CartaParser {
+	return &CartaParser{tokens: tokens}
+}
+
+func ParseCarta(source string) (*CartaSummary, error) {
+	if !strings.HasPrefix(strings.TrimSpace(source), "CARTA ") && strings.TrimSpace(source) != "CARTA" {
+		return nil, &ParserError{
+			Line:   1,
+			Column: 1,
+			Reason: "expected CARTA declaration",
+			Found:  Token{Type: TokenIllegal, Literal: firstCartaTokenLiteral(source), Line: 1, Column: 1},
+		}
+	}
+
+	tokens, err := NewCartaLexer().Lex(source)
+	if err != nil {
+		return nil, err
+	}
+
+	parser := NewCartaParser(tokens)
+	summary, err := parser.parseProgram()
+	if err != nil {
+		return nil, err
+	}
+	summary.Warnings = parser.Warnings()
+	if summary.Grounds == nil {
+		parser.addWarning(Token{Line: 1, Column: 1}, "carta_missing_grounds", "Carta has no GROUNDS block")
+		summary.Warnings = parser.Warnings()
+	}
+	return summary, nil
+}
+
+func (p *CartaParser) Warnings() []Warning {
+	if len(p.warnings) == 0 {
+		return nil
+	}
+	out := make([]Warning, len(p.warnings))
+	copy(out, p.warnings)
+	return out
+}
+
+func (p *CartaParser) parseProgram() (*CartaSummary, error) {
+	p.skipNewlines()
+
+	if _, err := p.expect(TokenCarta, "expected CARTA declaration"); err != nil {
+		return nil, err
+	}
+	nameTok, err := p.expect(TokenIdentifier, "expected Carta program name")
+	if err != nil {
+		return nil, err
+	}
+	if err := p.expectNewline("expected newline after CARTA header"); err != nil {
+		return nil, err
+	}
+
+	summary := &CartaSummary{Name: nameTok.Literal}
+	topIndented := false
+	if p.current().Type == TokenIndent {
+		topIndented = true
+		p.advance()
+	}
+
+	for {
+		p.skipNewlines()
+		current := p.current()
+		if current.Type == TokenEOF {
+			break
+		}
+		if topIndented && current.Type == TokenDedent {
+			p.advance()
+			break
+		}
+
+		switch current.Type {
+		case TokenAgent:
+			agent, err := p.parseAgentBlock(summary)
+			if err != nil {
+				return nil, err
+			}
+			summary.Agents = append(summary.Agents, *agent)
+		case TokenBudget:
+			if summary.Budget != nil {
+				return nil, p.errorAt(current, "duplicate BUDGET block")
+			}
+			budget, err := p.parseBudgetBlock()
+			if err != nil {
+				return nil, err
+			}
+			summary.Budget = budget
+		case TokenSkill:
+			return nil, p.errorAt(current, "SKILL blocks are not supported in this tranche")
+		default:
+			return nil, p.errorAt(current, "unexpected Carta block")
+		}
+	}
+
+	if len(summary.Agents) == 0 {
+		return nil, p.errorAt(nameTok, "CARTA must declare at least one AGENT")
+	}
+	return summary, nil
+}
+
+func (p *CartaParser) parseAgentBlock(summary *CartaSummary) (*CartaAgent, error) {
+	if _, err := p.expect(TokenAgent, "expected AGENT"); err != nil {
+		return nil, err
+	}
+	nameTok, err := p.expect(TokenIdentifier, "expected agent name after AGENT")
+	if err != nil {
+		return nil, err
+	}
+	if err := p.expectNewline("expected newline after AGENT header"); err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(TokenIndent, "expected indented block after AGENT"); err != nil {
+		return nil, err
+	}
+
+	agent := &CartaAgent{Name: nameTok.Literal}
+	var seenGrounds bool
+	var seenDelegate bool
+	var seenInvariant bool
+
+	for {
+		p.skipNewlines()
+		current := p.current()
+		if current.Type == TokenDedent {
+			break
+		}
+		if current.Type == TokenEOF {
+			return nil, p.errorAt(current, "expected end of AGENT block")
+		}
+
+		switch current.Type {
+		case TokenGrounds:
+			if seenGrounds {
+				return nil, p.errorAt(current, "duplicate GROUNDS block")
+			}
+			grounds, err := p.parseGroundsBlock()
+			if err != nil {
+				return nil, err
+			}
+			summary.Grounds = grounds
+			seenGrounds = true
+		case TokenPermit:
+			permit, err := p.parsePermitBlock()
+			if err != nil {
+				return nil, err
+			}
+			summary.Permits = append(summary.Permits, *permit)
+		case TokenDelegate:
+			if seenDelegate {
+				return nil, p.errorAt(current, "duplicate DELEGATE block")
+			}
+			delegate, err := p.parseDelegateBlock()
+			if err != nil {
+				return nil, err
+			}
+			summary.Delegates = append(summary.Delegates, *delegate)
+			seenDelegate = true
+		case TokenInvariant:
+			if seenInvariant {
+				return nil, p.errorAt(current, "duplicate INVARIANT block")
+			}
+			invariants, err := p.parseInvariantBlock()
+			if err != nil {
+				return nil, err
+			}
+			summary.Invariants = append(summary.Invariants, invariants...)
+			seenInvariant = true
+		default:
+			return nil, p.errorAt(current, "unexpected AGENT directive")
+		}
+	}
+
+	if _, err := p.expect(TokenDedent, "expected end of AGENT block"); err != nil {
+		return nil, err
+	}
+	return agent, nil
+}
+
+func (p *CartaParser) parseGroundsBlock() (*CartaGrounds, error) {
+	if _, err := p.expect(TokenGrounds, "expected GROUNDS"); err != nil {
+		return nil, err
+	}
+	if err := p.expectNewline("expected newline after GROUNDS"); err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(TokenIndent, "expected indented block after GROUNDS"); err != nil {
+		return nil, err
+	}
+
+	grounds := &CartaGrounds{}
+	fieldCount := 0
+	for {
+		p.skipNewlines()
+		current := p.current()
+		if current.Type == TokenDedent {
+			break
+		}
+		if current.Type == TokenEOF {
+			return nil, p.errorAt(current, "expected end of GROUNDS block")
+		}
+		if err := p.parseGroundsField(grounds); err != nil {
+			return nil, err
+		}
+		fieldCount++
+	}
+
+	if _, err := p.expect(TokenDedent, "expected end of GROUNDS block"); err != nil {
+		return nil, err
+	}
+	if fieldCount == 0 {
+		return nil, p.errorAt(p.current(), "GROUNDS block must contain at least one field")
+	}
+
+	return grounds, nil
+}
+
+func (p *CartaParser) parsePermitBlock() (*CartaPermit, error) {
+	if _, err := p.expect(TokenPermit, "expected PERMIT"); err != nil {
+		return nil, err
+	}
+	toolTok, err := p.expect(TokenIdentifier, "expected tool name after PERMIT")
+	if err != nil {
+		return nil, err
+	}
+	if err := p.expectNewline("expected newline after PERMIT header"); err != nil {
+		return nil, err
+	}
+
+	permit := &CartaPermit{Tool: toolTok.Literal}
+	if p.current().Type != TokenIndent {
+		return permit, nil
+	}
+	if _, err := p.expect(TokenIndent, "expected indented block after PERMIT"); err != nil {
+		return nil, err
+	}
+
+	clauseCount := 0
+	for {
+		p.skipNewlines()
+		current := p.current()
+		if current.Type == TokenDedent {
+			break
+		}
+		if current.Type == TokenEOF {
+			return nil, p.errorAt(current, "expected end of PERMIT block")
+		}
+		if err := p.parsePermitClause(permit); err != nil {
+			return nil, err
+		}
+		clauseCount++
+	}
+
+	if _, err := p.expect(TokenDedent, "expected end of PERMIT block"); err != nil {
+		return nil, err
+	}
+	if clauseCount == 0 {
+		return nil, p.errorAt(p.current(), "PERMIT block must contain at least one clause")
+	}
+
+	return permit, nil
+}
+
+func (p *CartaParser) parseDelegateBlock() (*CartaDelegate, error) {
+	if _, err := p.expect(TokenDelegate, "expected DELEGATE"); err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(TokenTo, "expected TO after DELEGATE"); err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(TokenHuman, "expected HUMAN after DELEGATE TO"); err != nil {
+		return nil, err
+	}
+	if err := p.expectNewline("expected newline after DELEGATE TO HUMAN"); err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(TokenIndent, "expected indented block after DELEGATE TO HUMAN"); err != nil {
+		return nil, err
+	}
+
+	delegate := &CartaDelegate{}
+	clauseCount := 0
+	for {
+		p.skipNewlines()
+		current := p.current()
+		if current.Type == TokenDedent {
+			break
+		}
+		if current.Type == TokenEOF {
+			return nil, p.errorAt(current, "expected end of DELEGATE block")
+		}
+		if err := p.parseDelegateClause(delegate); err != nil {
+			return nil, err
+		}
+		clauseCount++
+	}
+
+	if _, err := p.expect(TokenDedent, "expected end of DELEGATE block"); err != nil {
+		return nil, err
+	}
+	if clauseCount == 0 {
+		return nil, p.errorAt(p.current(), "DELEGATE TO HUMAN block must contain at least one clause")
+	}
+	return delegate, nil
+}
+
+func (p *CartaParser) parseInvariantBlock() ([]CartaInvariant, error) {
+	if _, err := p.expect(TokenInvariant, "expected INVARIANT"); err != nil {
+		return nil, err
+	}
+	if err := p.expectNewline("expected newline after INVARIANT"); err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(TokenIndent, "expected indented block after INVARIANT"); err != nil {
+		return nil, err
+	}
+
+	invariants := make([]CartaInvariant, 0)
+	for {
+		p.skipNewlines()
+		current := p.current()
+		if current.Type == TokenDedent {
+			break
+		}
+		if current.Type == TokenEOF {
+			return nil, p.errorAt(current, "expected end of INVARIANT block")
+		}
+
+		mode := ""
+		switch current.Type {
+		case TokenNever:
+			mode = "never"
+		case TokenAlways:
+			mode = "always"
+		default:
+			return nil, p.errorAt(current, "expected never or always in INVARIANT block")
+		}
+		p.advance()
+
+		if _, err := p.expect(TokenColon, "expected ':' after invariant mode"); err != nil {
+			return nil, err
+		}
+		statementTok, err := p.expect(TokenString, "expected string literal after invariant mode")
+		if err != nil {
+			return nil, err
+		}
+		statement, err := strconv.Unquote(statementTok.Literal)
+		if err != nil {
+			return nil, p.errorAt(statementTok, "invalid string literal")
+		}
+		if err := p.expectNewline("expected newline after invariant statement"); err != nil {
+			return nil, err
+		}
+
+		invariants = append(invariants, CartaInvariant{
+			Mode:      mode,
+			Statement: statement,
+		})
+	}
+
+	if _, err := p.expect(TokenDedent, "expected end of INVARIANT block"); err != nil {
+		return nil, err
+	}
+	return invariants, nil
+}
+
+func (p *CartaParser) parseBudgetBlock() (*CartaBudget, error) {
+	if _, err := p.expect(TokenBudget, "expected BUDGET"); err != nil {
+		return nil, err
+	}
+	if err := p.expectNewline("expected newline after BUDGET"); err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(TokenIndent, "expected indented block after BUDGET"); err != nil {
+		return nil, err
+	}
+
+	budget := &CartaBudget{}
+	fieldCount := 0
+	for {
+		p.skipNewlines()
+		current := p.current()
+		if current.Type == TokenDedent {
+			break
+		}
+		if current.Type == TokenEOF {
+			return nil, p.errorAt(current, "expected end of BUDGET block")
+		}
+		if err := p.parseBudgetField(budget); err != nil {
+			return nil, err
+		}
+		fieldCount++
+	}
+
+	if _, err := p.expect(TokenDedent, "expected end of BUDGET block"); err != nil {
+		return nil, err
+	}
+	if fieldCount == 0 {
+		return nil, p.errorAt(p.current(), "BUDGET block must contain at least one field")
+	}
+	return budget, nil
+}
+
+func (p *CartaParser) parseGroundsField(grounds *CartaGrounds) error {
+	fieldTok, err := p.expect(TokenIdentifier, "expected GROUNDS field name")
+	if err != nil {
+		return err
+	}
+	if _, err := p.expect(TokenColon, "expected ':' after GROUNDS field"); err != nil {
+		return err
+	}
+
+	switch fieldTok.Literal {
+	case "min_sources":
+		valueTok, err := p.expect(TokenNumber, "expected integer after min_sources")
+		if err != nil {
+			return err
+		}
+		value, err := parseCartaInt(valueTok, "invalid min_sources value")
+		if err != nil {
+			return err
+		}
+		grounds.MinSources = value
+	case "min_confidence":
+		valueTok, err := p.expect(TokenIdentifier, "expected confidence level after min_confidence")
+		if err != nil {
+			return err
+		}
+		confidence, err := parseConfidenceLevel(valueTok)
+		if err != nil {
+			return err
+		}
+		grounds.MinConfidence = confidence
+	case "max_staleness":
+		valueTok, err := p.expect(TokenNumber, "expected integer after max_staleness")
+		if err != nil {
+			return err
+		}
+		value, err := parseCartaInt(valueTok, "invalid max_staleness value")
+		if err != nil {
+			return err
+		}
+		unitTok, err := p.expect(TokenIdentifier, "expected duration unit after max_staleness")
+		if err != nil {
+			return err
+		}
+		if !isCartaDurationUnit(unitTok.Literal) {
+			return p.errorAt(unitTok, "invalid duration unit")
+		}
+		grounds.MaxStaleness = value
+		grounds.MaxAgeUnit = unitTok.Literal
+	case "types":
+		types, err := p.parseStringList()
+		if err != nil {
+			return err
+		}
+		grounds.Types = types
+	default:
+		p.addWarning(fieldTok, "carta_unknown_grounds_field", "unknown GROUNDS field: "+fieldTok.Literal)
+		p.skipUntilNewline()
+		return p.expectNewline("expected newline after GROUNDS field")
+	}
+
+	return p.expectNewline("expected newline after GROUNDS field")
+}
+
+func (p *CartaParser) parsePermitClause(permit *CartaPermit) error {
+	fieldTok, err := p.expect(TokenIdentifier, "expected PERMIT clause name")
+	if err != nil {
+		return err
+	}
+	if _, err := p.expect(TokenColon, "expected ':' after PERMIT clause"); err != nil {
+		return err
+	}
+
+	switch fieldTok.Literal {
+	case "when":
+		permit.When = p.readLineLiteral()
+		return p.expectNewline("expected newline after PERMIT clause")
+	case "rate":
+		valueTok, err := p.expect(TokenNumber, "expected integer after rate")
+		if err != nil {
+			return err
+		}
+		value, err := parseCartaInt(valueTok, "invalid rate value")
+		if err != nil {
+			return err
+		}
+		if value < 0 {
+			return p.errorAt(valueTok, "rate value must be non-negative")
+		}
+		if _, err := p.expect(TokenSlash, "expected '/' in rate clause"); err != nil {
+			return err
+		}
+		unitTok, err := p.expect(TokenIdentifier, "expected rate unit after '/'")
+		if err != nil {
+			return err
+		}
+		if !isCartaRateUnit(unitTok.Literal) {
+			return p.errorAt(unitTok, "invalid rate unit")
+		}
+		permit.Rate = &CartaRate{Value: value, Unit: unitTok.Literal}
+		return p.expectNewline("expected newline after PERMIT clause")
+	case "approval":
+		modeTok, err := p.expect(TokenIdentifier, "expected approval mode after approval")
+		if err != nil {
+			return err
+		}
+		if !isCartaApprovalMode(modeTok.Literal) {
+			return p.errorAt(modeTok, "invalid approval mode")
+		}
+		permit.Approval = &CartaApprovalConfig{Mode: modeTok.Literal}
+		return p.expectNewline("expected newline after PERMIT clause")
+	default:
+		p.addWarning(fieldTok, "carta_unknown_permit_clause", "unknown PERMIT clause: "+fieldTok.Literal)
+		p.skipUntilNewline()
+		return p.expectNewline("expected newline after PERMIT clause")
+	}
+}
+
+func (p *CartaParser) parseDelegateClause(delegate *CartaDelegate) error {
+	fieldTok, err := p.expect(TokenIdentifier, "expected DELEGATE clause name")
+	if err != nil {
+		return err
+	}
+	if _, err := p.expect(TokenColon, "expected ':' after DELEGATE clause"); err != nil {
+		return err
+	}
+
+	switch fieldTok.Literal {
+	case "when":
+		delegate.When = p.readLineLiteral()
+		return p.expectNewline("expected newline after DELEGATE clause")
+	case "reason":
+		reasonTok, err := p.expect(TokenString, "expected string after reason")
+		if err != nil {
+			return err
+		}
+		reason, err := strconv.Unquote(reasonTok.Literal)
+		if err != nil {
+			return p.errorAt(reasonTok, "invalid string literal")
+		}
+		delegate.Reason = reason
+		return p.expectNewline("expected newline after DELEGATE clause")
+	case "package":
+		values, err := p.parseIdentifierList("expected identifier in package list", "expected '[' after package", "expected ',' or ']' in package list", "expected ']' after package list")
+		if err != nil {
+			return err
+		}
+		delegate.Package = values
+		return p.expectNewline("expected newline after DELEGATE clause")
+	default:
+		p.addWarning(fieldTok, "carta_unknown_delegate_clause", "unknown DELEGATE clause: "+fieldTok.Literal)
+		p.skipUntilNewline()
+		return p.expectNewline("expected newline after DELEGATE clause")
+	}
+}
+
+func (p *CartaParser) parseBudgetField(budget *CartaBudget) error {
+	fieldTok, err := p.expect(TokenIdentifier, "expected BUDGET field name")
+	if err != nil {
+		return err
+	}
+	if _, err := p.expect(TokenColon, "expected ':' after BUDGET field"); err != nil {
+		return err
+	}
+
+	switch fieldTok.Literal {
+	case "daily_tokens":
+		valueTok, err := p.expect(TokenNumber, "expected integer after daily_tokens")
+		if err != nil {
+			return err
+		}
+		value, err := parseCartaInt(valueTok, "invalid daily_tokens value")
+		if err != nil {
+			return err
+		}
+		budget.DailyTokens = value
+	case "daily_cost_usd":
+		valueTok, err := p.expect(TokenNumber, "expected number after daily_cost_usd")
+		if err != nil {
+			return err
+		}
+		value, err := strconv.ParseFloat(valueTok.Literal, 64)
+		if err != nil {
+			return p.errorAt(valueTok, "invalid daily_cost_usd value")
+		}
+		budget.DailyCostUSD = value
+	case "executions_per_day":
+		valueTok, err := p.expect(TokenNumber, "expected integer after executions_per_day")
+		if err != nil {
+			return err
+		}
+		value, err := parseCartaInt(valueTok, "invalid executions_per_day value")
+		if err != nil {
+			return err
+		}
+		budget.ExecutionsPerDay = value
+	case "on_exceed":
+		modeTok, err := p.expect(TokenIdentifier, "expected on_exceed mode")
+		if err != nil {
+			return err
+		}
+		if !isCartaOnExceed(modeTok.Literal) {
+			return p.errorAt(modeTok, "invalid on_exceed mode")
+		}
+		budget.OnExceed = modeTok.Literal
+	default:
+		p.addWarning(fieldTok, "carta_unknown_budget_field", "unknown BUDGET field: "+fieldTok.Literal)
+		p.skipUntilNewline()
+		return p.expectNewline("expected newline after BUDGET field")
+	}
+
+	return p.expectNewline("expected newline after BUDGET field")
+}
+
+func (p *CartaParser) parseStringList() ([]string, error) {
+	if _, err := p.expect(TokenLBracket, "expected '[' after types"); err != nil {
+		return nil, err
+	}
+
+	values := make([]string, 0)
+	for p.current().Type != TokenRBracket {
+		valueTok, err := p.expect(TokenString, "expected string in types list")
+		if err != nil {
+			return nil, err
+		}
+		value, err := strconv.Unquote(valueTok.Literal)
+		if err != nil {
+			return nil, p.errorAt(valueTok, "invalid string literal")
+		}
+		values = append(values, value)
+		if p.current().Type == TokenComma {
+			p.advance()
+			continue
+		}
+		if p.current().Type != TokenRBracket {
+			return nil, p.errorAt(p.current(), "expected ',' or ']' in types list")
+		}
+	}
+
+	if _, err := p.expect(TokenRBracket, "expected ']' after types list"); err != nil {
+		return nil, err
+	}
+	return values, nil
+}
+
+func (p *CartaParser) parseIdentifierList(itemErr, openErr, delimErr, closeErr string) ([]string, error) {
+	if _, err := p.expect(TokenLBracket, openErr); err != nil {
+		return nil, err
+	}
+
+	values := make([]string, 0)
+	for p.current().Type != TokenRBracket {
+		valueTok, err := p.expect(TokenIdentifier, itemErr)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, valueTok.Literal)
+		if p.current().Type == TokenComma {
+			p.advance()
+			continue
+		}
+		if p.current().Type != TokenRBracket {
+			return nil, p.errorAt(p.current(), delimErr)
+		}
+	}
+
+	if _, err := p.expect(TokenRBracket, closeErr); err != nil {
+		return nil, err
+	}
+	return values, nil
+}
+
+func (p *CartaParser) readLineLiteral() string {
+	parts := make([]string, 0)
+	for {
+		current := p.current()
+		if current.Type == TokenNewline || current.Type == TokenEOF || current.Type == TokenDedent {
+			break
+		}
+		parts = append(parts, current.Literal)
+		p.advance()
+	}
+	return strings.Join(parts, " ")
+}
+
+func parseConfidenceLevel(tok Token) (knowledge.ConfidenceLevel, error) {
+	switch strings.ToLower(tok.Literal) {
+	case string(knowledge.ConfidenceLow):
+		return knowledge.ConfidenceLow, nil
+	case string(knowledge.ConfidenceMedium):
+		return knowledge.ConfidenceMedium, nil
+	case string(knowledge.ConfidenceHigh):
+		return knowledge.ConfidenceHigh, nil
+	default:
+		return "", &ParserError{
+			Line:   tok.Line,
+			Column: tok.Column,
+			Reason: "invalid confidence level",
+			Found:  tok,
+		}
+	}
+}
+
+func isCartaDurationUnit(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "days", "hours", "minutes":
+		return true
+	default:
+		return false
+	}
+}
+
+func isCartaRateUnit(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "min", "hour", "day":
+		return true
+	default:
+		return false
+	}
+}
+
+func isCartaApprovalMode(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "none", "required":
+		return true
+	default:
+		return false
+	}
+}
+
+func isCartaOnExceed(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "pause", "degrade", "abort":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseCartaInt(tok Token, reason string) (int, error) {
+	if strings.Contains(tok.Literal, ".") {
+		return 0, &ParserError{Line: tok.Line, Column: tok.Column, Reason: reason, Found: tok}
+	}
+	value, err := strconv.Atoi(tok.Literal)
+	if err != nil {
+		return 0, &ParserError{Line: tok.Line, Column: tok.Column, Reason: reason, Found: tok}
+	}
+	return value, nil
+}
+
+func (p *CartaParser) addWarning(tok Token, code, description string) {
+	p.warnings = append(p.warnings, Warning{
+		Code:        code,
+		Description: description,
+		Location:    "line " + strconv.Itoa(tok.Line),
+		Line:        tok.Line,
+		Column:      tok.Column,
+	})
+}
+
+func (p *CartaParser) skipUntilNewline() {
+	for {
+		current := p.current()
+		if current.Type == TokenNewline || current.Type == TokenEOF || current.Type == TokenDedent {
+			return
+		}
+		p.advance()
+	}
+}
+
+func (p *CartaParser) expect(tokenType TokenType, reason string) (Token, error) {
+	current := p.current()
+	if current.Type != tokenType {
+		return Token{}, p.errorAt(current, reason)
+	}
+	p.advance()
+	return current, nil
+}
+
+func (p *CartaParser) expectNewline(reason string) error {
+	if p.current().Type != TokenNewline {
+		return p.errorAt(p.current(), reason)
+	}
+	p.skipNewlines()
+	return nil
+}
+
+func (p *CartaParser) skipNewlines() {
+	for p.current().Type == TokenNewline {
+		p.advance()
+	}
+}
+
+func (p *CartaParser) current() Token {
+	if p.pos >= len(p.tokens) {
+		return Token{Type: TokenEOF}
+	}
+	return p.tokens[p.pos]
+}
+
+func (p *CartaParser) advance() {
+	if p.pos < len(p.tokens) {
+		p.pos++
+	}
+}
+
+func (p *CartaParser) errorAt(tok Token, reason string) error {
+	return &ParserError{
+		Line:   tok.Line,
+		Column: tok.Column,
+		Reason: reason,
+		Found:  tok,
+	}
+}
+
+func firstCartaTokenLiteral(source string) string {
+	trimmed := strings.TrimSpace(source)
+	if trimmed == "" {
+		return ""
+	}
+	parts := strings.Fields(trimmed)
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[0]
+}

@@ -224,3 +224,112 @@ func TestWorkflowJudgeVerify_RejectsNilWorkflow(t *testing.T) {
 		t.Fatalf("Description = %q", result.Violations[0].Description)
 	}
 }
+
+func TestWorkflowJudgeVerify_UsesCartaBranchForCartaSpecs(t *testing.T) {
+	t.Parallel()
+
+	judge := NewJudge()
+	spec := `CARTA resolve_support_case
+AGENT search_knowledge
+  GROUNDS
+    min_sources: 2`
+
+	result, err := judge.Verify(context.Background(), &workflowdomain.Workflow{
+		ID:         "wf-carta",
+		DSLSource:  "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		SpecSource: &spec,
+	})
+	if err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+	for _, violation := range result.Violations {
+		if violation.Code == "carta_parse_error" {
+			t.Fatalf("unexpected carta parse error: %#v", result.Violations)
+		}
+	}
+}
+
+func TestWorkflowJudgeVerify_AddsCartaParseErrorWhenCartaIsInvalid(t *testing.T) {
+	t.Parallel()
+
+	judge := NewJudge()
+	spec := `CARTA resolve_support_case
+AGENT search_knowledge
+  GROUNDS
+    min_confidence: invalid`
+
+	result, err := judge.Verify(context.Background(), &workflowdomain.Workflow{
+		ID:         "wf-carta-invalid",
+		DSLSource:  "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		SpecSource: &spec,
+	})
+	if err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+	found := false
+	for _, violation := range result.Violations {
+		if violation.Code == "carta_parse_error" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Violations = %#v, want carta_parse_error", result.Violations)
+	}
+}
+
+func TestWorkflowJudgeVerify_AddsCartaParseErrorWhenCartaHeaderIsBare(t *testing.T) {
+	t.Parallel()
+
+	judge := NewJudge()
+	spec := "CARTA"
+
+	result, err := judge.Verify(context.Background(), &workflowdomain.Workflow{
+		ID:         "wf-carta-bare",
+		DSLSource:  "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		SpecSource: &spec,
+	})
+	if err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+	found := false
+	for _, violation := range result.Violations {
+		if violation.Code == "carta_parse_error" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Violations = %#v, want carta_parse_error", result.Violations)
+	}
+}
+
+func TestWorkflowJudgeVerify_FlagsToolNotPermittedForCarta(t *testing.T) {
+	t.Parallel()
+
+	judge := NewJudge()
+	spec := `CARTA resolve_support_case
+AGENT search_knowledge
+  GROUNDS
+    min_sources: 2
+  PERMIT send_reply`
+
+	result, err := judge.Verify(context.Background(), &workflowdomain.Workflow{
+		ID:         "wf-carta-missing-permit",
+		DSLSource:  "WORKFLOW resolve_support_case\nON case.created\nNOTIFY salesperson WITH \"review\"",
+		SpecSource: &spec,
+	})
+	if err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+	found := false
+	for _, violation := range result.Violations {
+		if violation.Code == "tool_not_permitted" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Violations = %#v, want tool_not_permitted", result.Violations)
+	}
+}

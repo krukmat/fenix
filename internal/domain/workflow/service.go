@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -56,6 +57,24 @@ type workflowScheduler interface {
 	CancelBySource(ctx context.Context, workspaceID, sourceID string) (int64, error)
 }
 
+var cartaBudgetLimitsResolver = func(string) (map[string]any, error) {
+	return nil, nil
+}
+
+var cartaInvariantRulesResolver = func(string) ([]map[string]any, error) {
+	return nil, nil
+}
+
+func RegisterCartaBudgetLimitsResolver(resolver func(string) (map[string]any, error)) {
+	if resolver == nil {
+		cartaBudgetLimitsResolver = func(string) (map[string]any, error) {
+			return nil, nil
+		}
+		return
+	}
+	cartaBudgetLimitsResolver = resolver
+}
+
 func NewService(db *sql.DB) *Service {
 	return &Service{repo: NewRepository(db)}
 }
@@ -69,6 +88,16 @@ func NewServiceWithDependencies(repo *Repository, scheduler workflowScheduler) *
 		repo:      repo,
 		scheduler: scheduler,
 	}
+}
+
+func RegisterCartaInvariantRulesResolver(resolver func(string) ([]map[string]any, error)) {
+	if resolver == nil {
+		cartaInvariantRulesResolver = func(string) ([]map[string]any, error) {
+			return nil, nil
+		}
+		return
+	}
+	cartaInvariantRulesResolver = resolver
 }
 
 func (s *Service) Create(ctx context.Context, input CreateWorkflowInput) (*Workflow, error) {
@@ -226,6 +255,12 @@ func (s *Service) Activate(ctx context.Context, workspaceID, workflowID string) 
 	if err != nil {
 		return nil, err
 	}
+	if err := s.syncCartaBudgetLimits(ctx, existing); err != nil {
+		return nil, err
+	}
+	if err := s.syncCartaInvariantRules(ctx, existing); err != nil {
+		return nil, err
+	}
 	archiveErr := s.archivePreviousActiveWorkflow(ctx, existing)
 	if archiveErr != nil {
 		return nil, archiveErr
@@ -265,6 +300,221 @@ func (s *Service) archivePreviousActiveWorkflow(ctx context.Context, workflow *W
 		ArchivedAt:        archivedAtForStatus(StatusArchived, active.ArchivedAt),
 	})
 	return err
+}
+
+func (s *Service) syncCartaBudgetLimits(ctx context.Context, workflow *Workflow) error {
+	if workflow == nil || workflow.AgentDefinitionID == nil || workflow.SpecSource == nil {
+		return nil
+	}
+	if !isCartaSource(*workflow.SpecSource) {
+		return nil
+	}
+
+	limits, err := cartaBudgetLimitsResolver(*workflow.SpecSource)
+	if err != nil {
+		return fmt.Errorf("resolve carta budget limits: %w", err)
+	}
+	if limits == nil {
+		return nil
+	}
+
+	current, err := s.loadAgentDefinitionLimits(ctx, workflow.WorkspaceID, *workflow.AgentDefinitionID)
+	if err != nil {
+		return err
+	}
+	merged := mergeAgentDefinitionLimits(current, limits)
+	return s.updateAgentDefinitionLimits(ctx, workflow.WorkspaceID, *workflow.AgentDefinitionID, merged)
+}
+
+func (s *Service) syncCartaInvariantRules(ctx context.Context, workflow *Workflow) error {
+	if workflow == nil || workflow.AgentDefinitionID == nil || workflow.SpecSource == nil {
+		return nil
+	}
+	if !isCartaSource(*workflow.SpecSource) {
+		return nil
+	}
+
+	policySetID, ok, err := s.loadAgentDefinitionPolicySetID(ctx, workflow.WorkspaceID, *workflow.AgentDefinitionID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+
+	rules, err := cartaInvariantRulesResolver(*workflow.SpecSource)
+	if err != nil {
+		return fmt.Errorf("resolve carta invariant rules: %w", err)
+	}
+	if len(rules) == 0 {
+		return nil
+	}
+
+	current, versionID, err := s.loadActivePolicyRules(ctx, workflow.WorkspaceID, policySetID)
+	if err != nil {
+		return err
+	}
+	merged := mergePolicyRulesByAction(current, rules)
+	return s.updatePolicyVersionRules(ctx, versionID, merged)
+}
+
+func (s *Service) loadAgentDefinitionLimits(ctx context.Context, workspaceID, agentDefinitionID string) (map[string]any, error) {
+	var raw sql.NullString
+	err := s.repo.db.QueryRowContext(ctx, `
+		SELECT limits
+		FROM agent_definition
+		WHERE id = ? AND workspace_id = ?
+	`, agentDefinitionID, workspaceID).Scan(&raw)
+	if err != nil {
+		return nil, fmt.Errorf("load agent definition limits: %w", err)
+	}
+	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
+		return map[string]any{}, nil
+	}
+
+	limits := make(map[string]any)
+	if err := json.Unmarshal([]byte(raw.String), &limits); err != nil {
+		return nil, fmt.Errorf("decode agent definition limits: %w", err)
+	}
+	return limits, nil
+}
+
+func (s *Service) updateAgentDefinitionLimits(ctx context.Context, workspaceID, agentDefinitionID string, limits map[string]any) error {
+	payload, err := json.Marshal(limits)
+	if err != nil {
+		return fmt.Errorf("encode agent definition limits: %w", err)
+	}
+	_, err = s.repo.db.ExecContext(ctx, `
+		UPDATE agent_definition
+		SET limits = ?, updated_at = datetime('now')
+		WHERE id = ? AND workspace_id = ?
+	`, string(payload), agentDefinitionID, workspaceID)
+	if err != nil {
+		return fmt.Errorf("sync agent definition limits: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) loadAgentDefinitionPolicySetID(ctx context.Context, workspaceID, agentDefinitionID string) (string, bool, error) {
+	var raw sql.NullString
+	err := s.repo.db.QueryRowContext(ctx, `
+		SELECT policy_set_id
+		FROM agent_definition
+		WHERE id = ? AND workspace_id = ?
+	`, agentDefinitionID, workspaceID).Scan(&raw)
+	if err != nil {
+		return "", false, fmt.Errorf("load agent definition policy set: %w", err)
+	}
+	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
+		return "", false, nil
+	}
+	return raw.String, true, nil
+}
+
+func (s *Service) loadActivePolicyRules(ctx context.Context, workspaceID, policySetID string) ([]map[string]any, string, error) {
+	var versionID string
+	var raw string
+	err := s.repo.db.QueryRowContext(ctx, `
+		SELECT id, policy_json
+		FROM policy_version
+		WHERE workspace_id = ?
+		  AND policy_set_id = ?
+		  AND status = 'active'
+		ORDER BY version_number DESC, created_at DESC
+		LIMIT 1
+	`, workspaceID, policySetID).Scan(&versionID, &raw)
+	if err != nil {
+		return nil, "", fmt.Errorf("load active policy rules: %w", err)
+	}
+	rules, err := decodePolicyRules(raw)
+	if err != nil {
+		return nil, "", err
+	}
+	return rules, versionID, nil
+}
+
+func (s *Service) updatePolicyVersionRules(ctx context.Context, versionID string, rules []map[string]any) error {
+	payload, err := json.Marshal(map[string]any{"rules": rules})
+	if err != nil {
+		return fmt.Errorf("encode policy rules: %w", err)
+	}
+	_, err = s.repo.db.ExecContext(ctx, `
+		UPDATE policy_version
+		SET policy_json = ?
+		WHERE id = ?
+	`, string(payload), versionID)
+	if err != nil {
+		return fmt.Errorf("sync policy version rules: %w", err)
+	}
+	return nil
+}
+
+func mergeAgentDefinitionLimits(current, carta map[string]any) map[string]any {
+	merged := make(map[string]any, len(current)+len(carta))
+	for key, value := range current {
+		merged[key] = value
+	}
+	for key, value := range carta {
+		merged[key] = value
+	}
+	return merged
+}
+
+func mergePolicyRulesByAction(current, carta []map[string]any) []map[string]any {
+	merged := make([]map[string]any, 0, len(current)+len(carta))
+	indexByAction := make(map[string]int, len(current)+len(carta))
+
+	for _, rule := range current {
+		cloned := clonePolicyRule(rule)
+		action, _ := cloned["action"].(string)
+		indexByAction[action] = len(merged)
+		merged = append(merged, cloned)
+	}
+	for _, rule := range carta {
+		cloned := clonePolicyRule(rule)
+		action, _ := cloned["action"].(string)
+		if idx, ok := indexByAction[action]; ok {
+			merged[idx] = cloned
+			continue
+		}
+		indexByAction[action] = len(merged)
+		merged = append(merged, cloned)
+	}
+
+	return merged
+}
+
+func decodePolicyRules(raw string) ([]map[string]any, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return []map[string]any{}, nil
+	}
+
+	var doc struct {
+		Rules []map[string]any `json:"rules"`
+	}
+	if err := json.Unmarshal([]byte(trimmed), &doc); err == nil && doc.Rules != nil {
+		return doc.Rules, nil
+	}
+
+	var rules []map[string]any
+	if err := json.Unmarshal([]byte(trimmed), &rules); err != nil {
+		return nil, fmt.Errorf("decode policy rules: %w", err)
+	}
+	return rules, nil
+}
+
+func clonePolicyRule(rule map[string]any) map[string]any {
+	cloned := make(map[string]any, len(rule))
+	for key, value := range rule {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func isCartaSource(source string) bool {
+	trimmed := strings.TrimSpace(source)
+	return trimmed == "CARTA" || strings.HasPrefix(trimmed, "CARTA ")
 }
 
 func (s *Service) promoteWorkflowToActive(ctx context.Context, workflow *Workflow) (*Workflow, error) {

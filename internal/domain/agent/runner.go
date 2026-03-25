@@ -28,6 +28,7 @@ type RunContext struct {
 	EventBus        eventbus.EventBus
 	RunnerRegistry  *RunnerRegistry
 	ProtocolHandler ProtocolHandler // nil = internal dispatch only
+	GroundsValidator *GroundsValidator
 	DB              *sql.DB
 
 	// Call metadata is used by future nested executions and delegation flow.
