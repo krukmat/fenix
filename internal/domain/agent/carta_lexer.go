@@ -30,27 +30,7 @@ func (l *CartaLexer) Lex(source string) ([]Token, error) {
 }
 
 func processCartaLexerLine(lineIndex int, rawLine string, indentStack *[]int) ([]Token, error) {
-	lineNo := lineIndex + 1
-	indentWidth, content := splitIndentation(rawLine)
-	trimmed := strings.TrimSpace(content)
-
-	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-		return nil, nil
-	}
-
-	indentTokens, err := emitIndentationTokens(lineNo, indentWidth, indentStack)
-	if err != nil {
-		return nil, err
-	}
-
-	lineTokens, err := lexCartaLine(content, lineNo, indentWidth+1)
-	if err != nil {
-		return nil, err
-	}
-
-	indentTokens = append(indentTokens, lineTokens...)
-	indentTokens = append(indentTokens, Token{Type: TokenNewline, Literal: "\n", Line: lineNo, Column: len(rawLine) + 1})
-	return indentTokens, nil
+	return processLexerLineWith(lineIndex, rawLine, indentStack, lexCartaLine)
 }
 
 func lexCartaLine(line string, lineNo, startColumn int) ([]Token, error) {

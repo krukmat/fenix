@@ -244,33 +244,27 @@ func (p *CartaParser) parseAgentInvariantDirective(summary *CartaSummary, seen *
 }
 
 func (p *CartaParser) parseGroundsBlock() (*CartaGrounds, error) {
-	if _, err := p.expect(TokenGrounds, "expected GROUNDS"); err != nil {
-		return nil, err
-	}
-	if err := p.expectNewline("expected newline after GROUNDS"); err != nil {
-		return nil, err
-	}
-	if _, err := p.expect(TokenIndent, "expected indented block after GROUNDS"); err != nil {
-		return nil, err
-	}
-
 	grounds := &CartaGrounds{}
-	fieldCount, err := p.parseGroundsFields(grounds)
+	err := p.parseFieldBlock(TokenGrounds, "GROUNDS", func() error {
+		return p.parseGroundsField(grounds)
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	if _, err := p.expect(TokenDedent, "expected end of GROUNDS block"); err != nil {
-		return nil, err
-	}
-	if fieldCount == 0 {
-		return nil, p.errorAt(p.current(), "GROUNDS block must contain at least one field")
-	}
-
 	return grounds, nil
 }
 
-func (p *CartaParser) parseGroundsFields(grounds *CartaGrounds) (int, error) {
+func (p *CartaParser) parseFieldBlock(keyword TokenType, name string, parseFn func() error) error {
+	if _, err := p.expect(keyword, "expected "+name); err != nil {
+		return err
+	}
+	if err := p.expectNewline("expected newline after " + name); err != nil {
+		return err
+	}
+	if _, err := p.expect(TokenIndent, "expected indented block after "+name); err != nil {
+		return err
+	}
+
 	fieldCount := 0
 	for {
 		p.skipNewlines()
@@ -279,14 +273,21 @@ func (p *CartaParser) parseGroundsFields(grounds *CartaGrounds) (int, error) {
 			break
 		}
 		if current.Type == TokenEOF {
-			return 0, p.errorAt(current, "expected end of GROUNDS block")
+			return p.errorAt(current, "expected end of "+name+" block")
 		}
-		if err := p.parseGroundsField(grounds); err != nil {
-			return 0, err
+		if err := parseFn(); err != nil {
+			return err
 		}
 		fieldCount++
 	}
-	return fieldCount, nil
+
+	if _, err := p.expect(TokenDedent, "expected end of "+name+" block"); err != nil {
+		return err
+	}
+	if fieldCount == 0 {
+		return p.errorAt(p.current(), name+" block must contain at least one field")
+	}
+	return nil
 }
 
 func (p *CartaParser) parsePermitBlock() (*CartaPermit, error) {
@@ -494,48 +495,14 @@ func (p *CartaParser) parseInvariantMode(current Token) (string, error) {
 }
 
 func (p *CartaParser) parseBudgetBlock() (*CartaBudget, error) {
-	if _, err := p.expect(TokenBudget, "expected BUDGET"); err != nil {
-		return nil, err
-	}
-	if err := p.expectNewline("expected newline after BUDGET"); err != nil {
-		return nil, err
-	}
-	if _, err := p.expect(TokenIndent, "expected indented block after BUDGET"); err != nil {
-		return nil, err
-	}
-
 	budget := &CartaBudget{}
-	fieldCount, err := p.parseBudgetFields(budget)
+	err := p.parseFieldBlock(TokenBudget, "BUDGET", func() error {
+		return p.parseBudgetField(budget)
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	if _, err := p.expect(TokenDedent, "expected end of BUDGET block"); err != nil {
-		return nil, err
-	}
-	if fieldCount == 0 {
-		return nil, p.errorAt(p.current(), "BUDGET block must contain at least one field")
-	}
 	return budget, nil
-}
-
-func (p *CartaParser) parseBudgetFields(budget *CartaBudget) (int, error) {
-	fieldCount := 0
-	for {
-		p.skipNewlines()
-		current := p.current()
-		if current.Type == TokenDedent {
-			break
-		}
-		if current.Type == TokenEOF {
-			return 0, p.errorAt(current, "expected end of BUDGET block")
-		}
-		if err := p.parseBudgetField(budget); err != nil {
-			return 0, err
-		}
-		fieldCount++
-	}
-	return fieldCount, nil
 }
 
 func (p *CartaParser) parseGroundsField(grounds *CartaGrounds) error {

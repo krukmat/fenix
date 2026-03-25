@@ -33,6 +33,10 @@ func (l *Lexer) Lex() ([]Token, error) {
 }
 
 func processLexerLine(lineIndex int, rawLine string, indentStack *[]int) ([]Token, error) {
+	return processLexerLineWith(lineIndex, rawLine, indentStack, lexLine)
+}
+
+func processLexerLineWith(lineIndex int, rawLine string, indentStack *[]int, lexFn func(string, int, int) ([]Token, error)) ([]Token, error) {
 	lineNo := lineIndex + 1
 	indentWidth, content := splitIndentation(rawLine)
 	trimmed := strings.TrimSpace(content)
@@ -46,7 +50,7 @@ func processLexerLine(lineIndex int, rawLine string, indentStack *[]int) ([]Toke
 		return nil, err
 	}
 
-	lineTokens, err := lexLine(content, lineNo, indentWidth+1)
+	lineTokens, err := lexFn(content, lineNo, indentWidth+1)
 	if err != nil {
 		return nil, err
 	}
