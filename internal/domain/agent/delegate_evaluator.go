@@ -26,31 +26,35 @@ func (e *DelegateEvaluator) EvaluateDelegate(delegates []CartaDelegate, evalCtx 
 	}
 
 	for i := range delegates {
-		delegate := delegates[i]
-		if delegate.When == "" {
-			return &DelegateDecision{
-				Matched:  true,
-				Delegate: &delegate,
-			}, nil
-		}
-
-		expr, err := parseDelegateCondition(delegate.When)
+		decision, err := e.evaluateSingleDelegate(delegates[i], evalCtx)
 		if err != nil {
 			return nil, err
 		}
-		matched, err := e.evaluator.EvaluateCondition(expr, evalCtx)
-		if err != nil {
-			return nil, err
-		}
-		if matched {
-			return &DelegateDecision{
-				Matched:  true,
-				Delegate: &delegate,
-			}, nil
+		if decision != nil {
+			return decision, nil
 		}
 	}
 
 	return &DelegateDecision{}, nil
+}
+
+func (e *DelegateEvaluator) evaluateSingleDelegate(delegate CartaDelegate, evalCtx map[string]any) (*DelegateDecision, error) {
+	if delegate.When == "" {
+		return &DelegateDecision{Matched: true, Delegate: &delegate}, nil
+	}
+
+	expr, err := parseDelegateCondition(delegate.When)
+	if err != nil {
+		return nil, err
+	}
+	matched, err := e.evaluator.EvaluateCondition(expr, evalCtx)
+	if err != nil {
+		return nil, err
+	}
+	if matched {
+		return &DelegateDecision{Matched: true, Delegate: &delegate}, nil
+	}
+	return nil, nil
 }
 
 func parseDelegateCondition(condition string) (Expression, error) {

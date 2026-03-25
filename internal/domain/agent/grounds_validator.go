@@ -51,34 +51,60 @@ func (v *GroundsValidator) Validate(ctx context.Context, grounds *CartaGrounds, 
 		return nil, err
 	}
 
-	result := &GroundsResult{
-		Met:          true,
-		Query:        query,
-		EvidencePack: pack,
-	}
+	return applyGroundsConstraints(v.now(), grounds, pack, query), nil
+}
 
+func applyGroundsConstraints(now time.Time, grounds *CartaGrounds, pack *knowledge.EvidencePack, query string) *GroundsResult {
+	if failed := validateGroundsSources(grounds, pack); failed != nil {
+		failed.Query = query
+		return failed
+	}
+	if failed := validateGroundsConfidence(grounds, pack); failed != nil {
+		failed.Query = query
+		return failed
+	}
+	if failed := validateGroundsStaleness(now, grounds, pack); failed != nil {
+		failed.Query = query
+		return failed
+	}
+	return &GroundsResult{Met: true, Query: query, EvidencePack: pack}
+}
+
+func validateGroundsSources(grounds *CartaGrounds, pack *knowledge.EvidencePack) *GroundsResult {
 	if len(pack.Sources) < grounds.MinSources {
-		result.Met = false
-		result.Reason = fmt.Sprintf("insufficient evidence: %d source(s) (need %d)", len(pack.Sources), grounds.MinSources)
-		return result, nil
-	}
-
-	if !groundsConfidenceMet(pack.Confidence, grounds.MinConfidence) {
-		result.Met = false
-		result.Reason = fmt.Sprintf("insufficient evidence: confidence=%s (need %s)", pack.Confidence, grounds.MinConfidence)
-		return result, nil
-	}
-
-	if grounds.MaxStaleness > 0 && grounds.MaxAgeUnit != "" {
-		allowedAge := cartaDuration(grounds.MaxStaleness, grounds.MaxAgeUnit)
-		if allowedAge > 0 && evidencePackIsStale(v.now(), pack, allowedAge) {
-			result.Met = false
-			result.Reason = fmt.Sprintf("insufficient evidence: stale sources exceed %d %s", grounds.MaxStaleness, grounds.MaxAgeUnit)
-			return result, nil
+		return &GroundsResult{
+			Met:          false,
+			Reason:       fmt.Sprintf("insufficient evidence: %d source(s) (need %d)", len(pack.Sources), grounds.MinSources),
+			EvidencePack: pack,
 		}
 	}
+	return nil
+}
 
-	return result, nil
+func validateGroundsConfidence(grounds *CartaGrounds, pack *knowledge.EvidencePack) *GroundsResult {
+	if !groundsConfidenceMet(pack.Confidence, grounds.MinConfidence) {
+		return &GroundsResult{
+			Met:          false,
+			Reason:       fmt.Sprintf("insufficient evidence: confidence=%s (need %s)", pack.Confidence, grounds.MinConfidence),
+			EvidencePack: pack,
+		}
+	}
+	return nil
+}
+
+func validateGroundsStaleness(now time.Time, grounds *CartaGrounds, pack *knowledge.EvidencePack) *GroundsResult {
+	if grounds.MaxStaleness <= 0 || grounds.MaxAgeUnit == "" {
+		return nil
+	}
+	allowedAge := cartaDuration(grounds.MaxStaleness, grounds.MaxAgeUnit)
+	if allowedAge > 0 && evidencePackIsStale(now, pack, allowedAge) {
+		return &GroundsResult{
+			Met:          false,
+			Reason:       fmt.Sprintf("insufficient evidence: stale sources exceed %d %s", grounds.MaxStaleness, grounds.MaxAgeUnit),
+			EvidencePack: pack,
+		}
+	}
+	return nil
 }
 
 func groundsConfidenceMet(actual, required knowledge.ConfidenceLevel) bool {
@@ -151,26 +177,34 @@ func collectGroundsQueryValues(raw json.RawMessage) []string {
 func visitGroundsQueryValue(value any, out *[]string) {
 	switch node := value.(type) {
 	case map[string]any:
-		for key, child := range node {
-			lowerKey := strings.ToLower(strings.TrimSpace(key))
-			switch lowerKey {
-			case "query", "customer_query", "message", "title", "subject", "summary", "description", "id":
-				if text, ok := child.(string); ok && strings.TrimSpace(text) != "" {
-					*out = append(*out, text)
-					continue
-				}
-			}
-			visitGroundsQueryValue(child, out)
-		}
+		visitGroundsMap(node, out)
 	case []any:
-		for _, child := range node {
-			visitGroundsQueryValue(child, out)
-		}
+		visitGroundsList(node, out)
 	case string:
 		trimmed := strings.TrimSpace(node)
 		if trimmed != "" && len(*out) < 6 {
 			*out = append(*out, trimmed)
 		}
+	}
+}
+
+func visitGroundsMap(node map[string]any, out *[]string) {
+	for key, child := range node {
+		lowerKey := strings.ToLower(strings.TrimSpace(key))
+		switch lowerKey {
+		case "query", "customer_query", "message", "title", "subject", "summary", "description", "id":
+			if text, ok := child.(string); ok && strings.TrimSpace(text) != "" {
+				*out = append(*out, text)
+				continue
+			}
+		}
+		visitGroundsQueryValue(child, out)
+	}
+}
+
+func visitGroundsList(node []any, out *[]string) {
+	for _, child := range node {
+		visitGroundsQueryValue(child, out)
 	}
 }
 

@@ -72,17 +72,25 @@ func RunCartaCoverageChecks(carta *CartaSummary, spec *SpecSummary) []Violation 
 		return nil
 	}
 
-	permitLabels := make([]DSLCoverageLabel, 0, len(carta.Permits))
-	for _, permit := range carta.Permits {
+	permitLabels := buildPermitLabels(carta.Permits)
+	return collectUncoveredBehaviors(spec.Behaviors, permitLabels)
+}
+
+func buildPermitLabels(permits []CartaPermit) []DSLCoverageLabel {
+	labels := make([]DSLCoverageLabel, 0, len(permits))
+	for _, permit := range permits {
 		toolName := strings.TrimSpace(permit.Tool)
 		if toolName == "" {
 			continue
 		}
-		permitLabels = append(permitLabels, newCoverageLabel("permit", toolName))
+		labels = append(labels, newCoverageLabel("permit", toolName))
 	}
+	return labels
+}
 
+func collectUncoveredBehaviors(behaviors []SpecBehavior, permitLabels []DSLCoverageLabel) []Violation {
 	var violations []Violation
-	for _, behavior := range spec.Behaviors {
+	for _, behavior := range behaviors {
 		if cartaBehaviorCovered(behavior, permitLabels) {
 			continue
 		}

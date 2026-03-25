@@ -309,21 +309,26 @@ func (s *Service) syncCartaBudgetLimits(ctx context.Context, workflow *Workflow)
 	if !isCartaSource(*workflow.SpecSource) {
 		return nil
 	}
-
-	limits, err := cartaBudgetLimitsResolver(*workflow.SpecSource)
-	if err != nil {
-		return fmt.Errorf("resolve carta budget limits: %w", err)
-	}
-	if limits == nil {
-		return nil
-	}
-
-	current, err := s.loadAgentDefinitionLimits(ctx, workflow.WorkspaceID, *workflow.AgentDefinitionID)
-	if err != nil {
+	merged, err := s.resolveMergedBudgetLimits(ctx, workflow.WorkspaceID, *workflow.AgentDefinitionID, *workflow.SpecSource)
+	if err != nil || merged == nil {
 		return err
 	}
-	merged := mergeAgentDefinitionLimits(current, limits)
 	return s.updateAgentDefinitionLimits(ctx, workflow.WorkspaceID, *workflow.AgentDefinitionID, merged)
+}
+
+func (s *Service) resolveMergedBudgetLimits(ctx context.Context, workspaceID, agentDefinitionID, specSource string) (map[string]any, error) {
+	limits, err := cartaBudgetLimitsResolver(specSource)
+	if err != nil {
+		return nil, fmt.Errorf("resolve carta budget limits: %w", err)
+	}
+	if limits == nil {
+		return nil, nil
+	}
+	current, err := s.loadAgentDefinitionLimits(ctx, workspaceID, agentDefinitionID)
+	if err != nil {
+		return nil, err
+	}
+	return mergeAgentDefinitionLimits(current, limits), nil
 }
 
 func (s *Service) syncCartaInvariantRules(ctx context.Context, workflow *Workflow) error {
@@ -335,14 +340,15 @@ func (s *Service) syncCartaInvariantRules(ctx context.Context, workflow *Workflo
 	}
 
 	policySetID, ok, err := s.loadAgentDefinitionPolicySetID(ctx, workflow.WorkspaceID, *workflow.AgentDefinitionID)
-	if err != nil {
+	if err != nil || !ok {
 		return err
 	}
-	if !ok {
-		return nil
-	}
 
-	rules, err := cartaInvariantRulesResolver(*workflow.SpecSource)
+	return s.loadAndMergeInvariantRules(ctx, workflow.WorkspaceID, policySetID, *workflow.SpecSource)
+}
+
+func (s *Service) loadAndMergeInvariantRules(ctx context.Context, workspaceID, policySetID, specSource string) error {
+	rules, err := cartaInvariantRulesResolver(specSource)
 	if err != nil {
 		return fmt.Errorf("resolve carta invariant rules: %w", err)
 	}
@@ -350,7 +356,7 @@ func (s *Service) syncCartaInvariantRules(ctx context.Context, workflow *Workflo
 		return nil
 	}
 
-	current, versionID, err := s.loadActivePolicyRules(ctx, workflow.WorkspaceID, policySetID)
+	current, versionID, err := s.loadActivePolicyRules(ctx, workspaceID, policySetID)
 	if err != nil {
 		return err
 	}

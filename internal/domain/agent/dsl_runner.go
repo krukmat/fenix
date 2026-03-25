@@ -71,29 +71,14 @@ func (r *DSLRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgentI
 	if rc == nil || rc.Orchestrator == nil {
 		return nil, ErrDSLRunnerMissingOrchestrator
 	}
-	workflow, err := r.loadActiveWorkflow(ctx, input.WorkspaceID, input.AgentID)
-	if err != nil {
-		return nil, err
-	}
-	program, err := r.loadProgram(workflow)
-	if err != nil {
-		return nil, err
-	}
-	run, err := rc.Orchestrator.TriggerAgent(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-	run, err = rc.Orchestrator.UpdateAgentRunStatus(ctx, input.WorkspaceID, run.ID, StatusAccepted)
+	workflow, program, run, err := r.initializeRun(ctx, rc, input)
 	if err != nil {
 		return nil, err
 	}
 	evalCtx := mergeDSLContexts(input.TriggerContext, input.Inputs)
 	carta := parseCartaWorkflowSpec(workflow)
-	if delegated, handoffErr := r.preflightDelegate(ctx, rc, workflow, carta, input, run, evalCtx); handoffErr != nil || delegated != nil {
-		return delegated, handoffErr
-	}
-	if abstained, groundsErr := r.preflightGrounds(ctx, rc, carta, input, run); groundsErr != nil || abstained != nil {
-		return abstained, groundsErr
+	if early, earlyErr := r.runPreflights(ctx, rc, workflow, carta, input, run, evalCtx); earlyErr != nil || early != nil {
+		return early, earlyErr
 	}
 	execCtx := rc.WithCall(input.AgentID)
 	baseExecutor, defaultExecutor := r.buildBaseExecutor(execCtx, input, evalCtx, workflow.ID, run.ID)
@@ -102,25 +87,75 @@ func (r *DSLRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgentI
 	return r.finalizeRun(ctx, rc, input.WorkspaceID, run.ID, workflow, result, defaultExecutor, execErr)
 }
 
-func (r *DSLRunner) Resume(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload) (*Run, error) {
-	run, workflow, err := r.prepareResume(ctx, rc, workspaceID, input)
+func (r *DSLRunner) initializeRun(ctx context.Context, rc *RunContext, input TriggerAgentInput) (*workflowdomain.Workflow, *Program, *Run, error) {
+	workflow, err := r.loadActiveWorkflow(ctx, input.WorkspaceID, input.AgentID)
 	if err != nil {
-		if run != nil {
-			return r.failResumeAndReturnErr(ctx, rc, workspaceID, input, workflow, run, err)
-		}
-		return nil, err
+		return nil, nil, nil, err
 	}
-
 	program, err := r.loadProgram(workflow)
 	if err != nil {
-		return r.failResumeAndReturnErr(ctx, rc, workspaceID, input, workflow, run, err)
+		return nil, nil, nil, err
 	}
-	if _, err = rc.Orchestrator.UpdateAgentRunStatus(ctx, workspaceID, input.RunID, StatusAccepted); err != nil {
-		return r.failResumeAndReturnErr(ctx, rc, workspaceID, input, workflow, run, err)
+	run, err := rc.Orchestrator.TriggerAgent(ctx, input)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	run, err = rc.Orchestrator.UpdateAgentRunStatus(ctx, input.WorkspaceID, run.ID, StatusAccepted)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return workflow, program, run, nil
+}
+
+func (r *DSLRunner) runPreflights(ctx context.Context, rc *RunContext, workflow *workflowdomain.Workflow, carta *CartaSummary, input TriggerAgentInput, run *Run, evalCtx map[string]any) (*Run, error) {
+	if delegated, handoffErr := r.preflightDelegate(ctx, rc, workflow, carta, input, run, evalCtx); handoffErr != nil || delegated != nil {
+		return delegated, handoffErr
+	}
+	return r.preflightGrounds(ctx, rc, carta, input, run)
+}
+
+func (r *DSLRunner) Resume(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload) (*Run, error) {
+	run, workflow, program, err := r.prepareResumeWithProgram(ctx, rc, workspaceID, input)
+	if err != nil {
+		return run, err
 	}
 
 	execCtx := rc.WithCall(run.DefinitionID)
-	triggerInput := TriggerAgentInput{
+	triggerInput := buildResumeTriggerInput(run, workspaceID)
+	evalCtx := mergeDSLContexts(run.TriggerContext, run.Inputs)
+	carta := parseCartaWorkflowSpec(workflow)
+	if early, earlyErr := r.runPreflights(ctx, rc, workflow, carta, triggerInput, run, evalCtx); earlyErr != nil || early != nil {
+		return early, earlyErr
+	}
+	baseExecutor, defaultExecutor := r.buildBaseExecutor(execCtx, triggerInput, evalCtx, workflow.ID, input.RunID)
+	executor := wrapWithTrace(workspaceID, input.RunID, execCtx, r.runtime, baseExecutor, defaultExecutor)
+	result, execErr := r.runtime.ExecuteProgramFromIndex(ctx, program, input.ResumeStepIndex, evalCtx, executor)
+	return r.finalizeResumedRun(ctx, rc, workspaceID, input.RunID, input, workflow, run, result, defaultExecutor, execErr)
+}
+
+func (r *DSLRunner) prepareResumeWithProgram(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload) (*Run, *workflowdomain.Workflow, *Program, error) {
+	run, workflow, err := r.prepareResume(ctx, rc, workspaceID, input)
+	if err != nil {
+		if run != nil {
+			failed, failErr := r.failResumeAndReturnErr(ctx, rc, workspaceID, input, workflow, run, err)
+			return failed, workflow, nil, failErr
+		}
+		return nil, nil, nil, err
+	}
+	program, err := r.loadProgram(workflow)
+	if err != nil {
+		failed, failErr := r.failResumeAndReturnErr(ctx, rc, workspaceID, input, workflow, run, err)
+		return failed, workflow, nil, failErr
+	}
+	if _, err = rc.Orchestrator.UpdateAgentRunStatus(ctx, workspaceID, input.RunID, StatusAccepted); err != nil {
+		failed, failErr := r.failResumeAndReturnErr(ctx, rc, workspaceID, input, workflow, run, err)
+		return failed, workflow, nil, failErr
+	}
+	return run, workflow, program, nil
+}
+
+func buildResumeTriggerInput(run *Run, workspaceID string) TriggerAgentInput {
+	return TriggerAgentInput{
 		AgentID:        run.DefinitionID,
 		WorkspaceID:    workspaceID,
 		TriggeredBy:    run.TriggeredByUserID,
@@ -128,18 +163,6 @@ func (r *DSLRunner) Resume(ctx context.Context, rc *RunContext, workspaceID stri
 		TriggerContext: run.TriggerContext,
 		Inputs:         run.Inputs,
 	}
-	evalCtx := mergeDSLContexts(run.TriggerContext, run.Inputs)
-	carta := parseCartaWorkflowSpec(workflow)
-	if delegated, handoffErr := r.preflightDelegate(ctx, rc, workflow, carta, triggerInput, run, evalCtx); handoffErr != nil || delegated != nil {
-		return delegated, handoffErr
-	}
-	if abstained, groundsErr := r.preflightGrounds(ctx, rc, carta, triggerInput, run); groundsErr != nil || abstained != nil {
-		return abstained, groundsErr
-	}
-	baseExecutor, defaultExecutor := r.buildBaseExecutor(execCtx, triggerInput, evalCtx, workflow.ID, input.RunID)
-	executor := wrapWithTrace(workspaceID, input.RunID, execCtx, r.runtime, baseExecutor, defaultExecutor)
-	result, execErr := r.runtime.ExecuteProgramFromIndex(ctx, program, input.ResumeStepIndex, evalCtx, executor)
-	return r.finalizeResumedRun(ctx, rc, workspaceID, input.RunID, input, workflow, run, result, defaultExecutor, execErr)
 }
 
 func (r *DSLRunner) prepareResume(ctx context.Context, rc *RunContext, workspaceID string, input schedulerdomain.WorkflowResumePayload) (*Run, *workflowdomain.Workflow, error) {
@@ -394,23 +417,32 @@ func decodeToolCallArray(raw json.RawMessage) []ToolCall {
 }
 
 func (r *DSLRunner) preflightDelegate(ctx context.Context, rc *RunContext, workflow *workflowdomain.Workflow, carta *CartaSummary, input TriggerAgentInput, run *Run, evalCtx map[string]any) (*Run, error) {
-	if run == nil || workflow == nil {
-		return nil, nil
-	}
-	if carta == nil || len(carta.Delegates) == 0 {
+	if !delegatePolicyApplies(run, workflow, carta) {
 		return nil, nil
 	}
 
 	decision, err := NewDelegateEvaluator().EvaluateDelegate(carta.Delegates, evalCtx)
-	if err != nil || decision == nil || !decision.Matched || decision.Delegate == nil {
+	if err != nil {
 		return nil, err
 	}
+	if !delegateDecisionMatched(decision) {
+		return nil, nil
+	}
 
-	reason := strings.TrimSpace(decision.Delegate.Reason)
-	output, marshalErr := json.Marshal(map[string]any{
-		"status": "delegated",
-		"reason": reason,
-	})
+	return r.applyDelegateDecision(ctx, rc, input, run, decision.Delegate.Reason, evalCtx)
+}
+
+func delegatePolicyApplies(run *Run, workflow *workflowdomain.Workflow, carta *CartaSummary) bool {
+	return run != nil && workflow != nil && carta != nil && len(carta.Delegates) > 0
+}
+
+func delegateDecisionMatched(decision *DelegateDecision) bool {
+	return decision != nil && decision.Matched && decision.Delegate != nil
+}
+
+func (r *DSLRunner) applyDelegateDecision(ctx context.Context, rc *RunContext, input TriggerAgentInput, run *Run, reason string, evalCtx map[string]any) (*Run, error) {
+	reason = strings.TrimSpace(reason)
+	output, marshalErr := buildDelegatePayload(reason)
 	if marshalErr != nil {
 		return nil, marshalErr
 	}
@@ -425,28 +457,46 @@ func (r *DSLRunner) preflightDelegate(ctx context.Context, rc *RunContext, workf
 		return nil, err
 	}
 
-	if caseID := extractCaseID(evalCtx); caseID != "" && rc.DB != nil {
-		handoffSvc := NewHandoffService(rc.DB, crm.NewCaseService(rc.DB), rc.EventBus)
-		_, _ = handoffSvc.InitiateHandoff(ctx, input.WorkspaceID, updated.ID, caseID, reason)
-	}
+	initiateDelegateHandoff(ctx, rc, input, updated.ID, reason, evalCtx)
 	return updated, nil
 }
 
+func buildDelegatePayload(reason string) (json.RawMessage, error) {
+	return json.Marshal(map[string]any{
+		"status": "delegated",
+		"reason": reason,
+	})
+}
+
+func initiateDelegateHandoff(ctx context.Context, rc *RunContext, input TriggerAgentInput, runID, reason string, evalCtx map[string]any) {
+	if caseID := extractCaseID(evalCtx); caseID != "" && rc.DB != nil {
+		handoffSvc := NewHandoffService(rc.DB, crm.NewCaseService(rc.DB), rc.EventBus)
+		_, _ = handoffSvc.InitiateHandoff(ctx, input.WorkspaceID, runID, caseID, reason)
+	}
+}
+
 func (r *DSLRunner) preflightGrounds(ctx context.Context, rc *RunContext, carta *CartaSummary, input TriggerAgentInput, run *Run) (*Run, error) {
-	if run == nil || rc == nil || rc.GroundsValidator == nil || carta == nil || carta.Grounds == nil {
+	if !groundsPolicyApplies(run, rc, carta) {
 		return nil, nil
 	}
 
 	result, err := rc.GroundsValidator.Validate(ctx, carta.Grounds, input)
-	if err != nil || result == nil || result.Met {
+	if err != nil {
 		return nil, err
 	}
+	if result == nil || result.Met {
+		return nil, nil
+	}
 
-	output, marshalErr := json.Marshal(map[string]any{
-		"status": "abstained",
-		"reason": result.Reason,
-		"query":  result.Query,
-	})
+	return r.applyGroundsAbstention(ctx, rc, input, run, result)
+}
+
+func groundsPolicyApplies(run *Run, rc *RunContext, carta *CartaSummary) bool {
+	return run != nil && rc != nil && rc.GroundsValidator != nil && carta != nil && carta.Grounds != nil
+}
+
+func (r *DSLRunner) applyGroundsAbstention(ctx context.Context, rc *RunContext, input TriggerAgentInput, run *Run, result *GroundsResult) (*Run, error) {
+	output, marshalErr := buildGroundsAbstainPayload(result)
 	if marshalErr != nil {
 		return nil, marshalErr
 	}
@@ -463,11 +513,24 @@ func (r *DSLRunner) preflightGrounds(ctx context.Context, rc *RunContext, carta 
 		return nil, err
 	}
 
-	if caseID := extractCaseID(mergeDSLContexts(input.TriggerContext, input.Inputs)); caseID != "" && rc.DB != nil {
-		handoffSvc := NewHandoffService(rc.DB, crm.NewCaseService(rc.DB), rc.EventBus)
-		_, _ = handoffSvc.InitiateHandoff(ctx, input.WorkspaceID, updated.ID, caseID, result.Reason)
-	}
+	initiateGroundsHandoff(ctx, rc, input, updated.ID, result.Reason)
 	return updated, nil
+}
+
+func buildGroundsAbstainPayload(result *GroundsResult) (json.RawMessage, error) {
+	return json.Marshal(map[string]any{
+		"status": "abstained",
+		"reason": result.Reason,
+		"query":  result.Query,
+	})
+}
+
+func initiateGroundsHandoff(ctx context.Context, rc *RunContext, input TriggerAgentInput, runID, reason string) {
+	evalCtx := mergeDSLContexts(input.TriggerContext, input.Inputs)
+	if caseID := extractCaseID(evalCtx); caseID != "" && rc.DB != nil {
+		handoffSvc := NewHandoffService(rc.DB, crm.NewCaseService(rc.DB), rc.EventBus)
+		_, _ = handoffSvc.InitiateHandoff(ctx, input.WorkspaceID, runID, caseID, reason)
+	}
 }
 
 func parseCartaWorkflowSpec(workflow *workflowdomain.Workflow) *CartaSummary {

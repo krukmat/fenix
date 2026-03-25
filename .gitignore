@@ -29,3 +29,7 @@ docs/ci-local.md
 .claude/scheduled_tasks.lock
 scripts/wait-for-coder.ps1
 e2e_seed_mobile_p2.exe
+docs/audit_output.md
+docs/audit.md
+.gitignore
+agent.test.exe
