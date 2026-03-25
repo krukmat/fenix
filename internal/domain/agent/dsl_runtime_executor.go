@@ -690,7 +690,7 @@ func waitDurationMultiplier(unit string) (time.Duration, error) {
 		return time.Minute, nil
 	case "h", "hr", "hrs", "hour", waitUnitHours:
 		return time.Hour, nil
-	case "d", waitUnitDay, "days":
+	case "d", waitUnitDay, cartaDurationDays:
 		return 24 * time.Hour, nil
 	default:
 		return 0, fmt.Errorf("%w: unsupported WAIT duration unit %q", ErrDSLRuntimeFailed, unit)
