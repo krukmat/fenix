@@ -255,16 +255,34 @@ func (p *CartaParser) parseGroundsBlock() (*CartaGrounds, error) {
 }
 
 func (p *CartaParser) parseFieldBlock(keyword TokenType, name string, parseFn func() error) error {
+	if err := p.expectBlockHeader(keyword, name); err != nil {
+		return err
+	}
+	fieldCount, err := p.iterateBlockFields(name, parseFn)
+	if err != nil {
+		return err
+	}
+	if _, err := p.expect(TokenDedent, "expected end of "+name+" block"); err != nil {
+		return err
+	}
+	if fieldCount == 0 {
+		return p.errorAt(p.current(), name+" block must contain at least one field")
+	}
+	return nil
+}
+
+func (p *CartaParser) expectBlockHeader(keyword TokenType, name string) error {
 	if _, err := p.expect(keyword, "expected "+name); err != nil {
 		return err
 	}
 	if err := p.expectNewline("expected newline after " + name); err != nil {
 		return err
 	}
-	if _, err := p.expect(TokenIndent, "expected indented block after "+name); err != nil {
-		return err
-	}
+	_, err := p.expect(TokenIndent, "expected indented block after "+name)
+	return err
+}
 
+func (p *CartaParser) iterateBlockFields(name string, parseFn func() error) (int, error) {
 	fieldCount := 0
 	for {
 		p.skipNewlines()
@@ -273,21 +291,14 @@ func (p *CartaParser) parseFieldBlock(keyword TokenType, name string, parseFn fu
 			break
 		}
 		if current.Type == TokenEOF {
-			return p.errorAt(current, "expected end of "+name+" block")
+			return 0, p.errorAt(current, "expected end of "+name+" block")
 		}
 		if err := parseFn(); err != nil {
-			return err
+			return 0, err
 		}
 		fieldCount++
 	}
-
-	if _, err := p.expect(TokenDedent, "expected end of "+name+" block"); err != nil {
-		return err
-	}
-	if fieldCount == 0 {
-		return p.errorAt(p.current(), name+" block must contain at least one field")
-	}
-	return nil
+	return fieldCount, nil
 }
 
 func (p *CartaParser) parsePermitBlock() (*CartaPermit, error) {
