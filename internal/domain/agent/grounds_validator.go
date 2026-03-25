@@ -10,6 +10,8 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 )
 
+const groundsQueryKeySummary = "summary"
+
 type groundsEvidencePackBuilder interface {
 	BuildEvidencePack(ctx context.Context, input knowledge.BuildEvidencePackInput) (*knowledge.EvidencePack, error)
 }
@@ -45,7 +47,7 @@ func (v *GroundsValidator) Validate(ctx context.Context, grounds *CartaGrounds, 
 	pack, err := v.evidence.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
 		Query:       query,
 		WorkspaceID: input.WorkspaceID,
-		Limit:       max(grounds.MinSources, 1),
+		Limit:       maxInt(grounds.MinSources, 1),
 	})
 	if err != nil {
 		return nil, err
@@ -142,10 +144,7 @@ func evidencePackIsStale(now time.Time, pack *knowledge.EvidencePack, allowedAge
 		return true
 	}
 	for _, source := range pack.Sources {
-		if source.CreatedAt.IsZero() {
-			return true
-		}
-		if now.Sub(source.CreatedAt) > allowedAge {
+		if source.CreatedAt.IsZero() || now.Sub(source.CreatedAt) > allowedAge {
 			return true
 		}
 	}
@@ -192,7 +191,7 @@ func visitGroundsMap(node map[string]any, out *[]string) {
 	for key, child := range node {
 		lowerKey := strings.ToLower(strings.TrimSpace(key))
 		switch lowerKey {
-		case "query", "customer_query", "message", "title", "subject", "summary", "description", "id":
+		case "query", "customer_query", "message", "title", "subject", groundsQueryKeySummary, "description", "id":
 			if text, ok := child.(string); ok && strings.TrimSpace(text) != "" {
 				*out = append(*out, text)
 				continue
@@ -226,7 +225,7 @@ func dedupeGroundsValues(values []string) []string {
 	return out
 }
 
-func max(a, b int) int {
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}

@@ -555,12 +555,6 @@ func extractCaseID(evalCtx map[string]any) string {
 	return ""
 }
 
-func derefString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
-}
 
 func marshalStringArray(values ...string) json.RawMessage {
 	items := make([]string, 0, len(values))

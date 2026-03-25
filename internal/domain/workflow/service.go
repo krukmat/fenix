@@ -303,10 +303,7 @@ func (s *Service) archivePreviousActiveWorkflow(ctx context.Context, workflow *W
 }
 
 func (s *Service) syncCartaBudgetLimits(ctx context.Context, workflow *Workflow) error {
-	if workflow == nil || workflow.AgentDefinitionID == nil || workflow.SpecSource == nil {
-		return nil
-	}
-	if !isCartaSource(*workflow.SpecSource) {
+	if workflow == nil || workflow.AgentDefinitionID == nil || workflow.SpecSource == nil || !isCartaSource(*workflow.SpecSource) {
 		return nil
 	}
 	merged, err := s.resolveMergedBudgetLimits(ctx, workflow.WorkspaceID, *workflow.AgentDefinitionID, *workflow.SpecSource)
@@ -332,10 +329,7 @@ func (s *Service) resolveMergedBudgetLimits(ctx context.Context, workspaceID, ag
 }
 
 func (s *Service) syncCartaInvariantRules(ctx context.Context, workflow *Workflow) error {
-	if workflow == nil || workflow.AgentDefinitionID == nil || workflow.SpecSource == nil {
-		return nil
-	}
-	if !isCartaSource(*workflow.SpecSource) {
+	if workflow == nil || workflow.AgentDefinitionID == nil || workflow.SpecSource == nil || !isCartaSource(*workflow.SpecSource) {
 		return nil
 	}
 

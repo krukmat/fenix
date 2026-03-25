@@ -174,7 +174,7 @@ func validateWaitStatement(stmt *WaitStatement) error {
 	switch strings.ToLower(strings.TrimSpace(stmt.Unit)) {
 	case "s", "sec", "secs", "second", "seconds",
 		"m", "min", "mins", "minute", "minutes",
-		"h", "hr", "hrs", "hour", "hours",
+		"h", "hr", "hrs", cartaRateUnitHour, waitUnitHours,
 		"d", "day", "days":
 		return nil
 	default:

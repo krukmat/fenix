@@ -65,10 +65,7 @@ func cartaStatementLocation(stmt Statement) string {
 }
 
 func RunCartaCoverageChecks(carta *CartaSummary, spec *SpecSummary) []Violation {
-	if carta == nil || spec == nil || len(spec.Behaviors) == 0 {
-		return nil
-	}
-	if len(carta.Delegates) != 0 {
+	if carta == nil || spec == nil || len(spec.Behaviors) == 0 || len(carta.Delegates) != 0 {
 		return nil
 	}
 

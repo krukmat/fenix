@@ -8,18 +8,23 @@ import (
 )
 
 const (
-	cartaKeyword                   = "CARTA"
-	cartaInvariantModeNever        = "never"
-	cartaInvariantModeAlways       = "always"
-	cartaOnExceedPause             = "pause"
-	cartaOnExceedDegrade           = "degrade"
-	cartaOnExceedAbort             = "abort"
-	errInvalidStringLiteral        = "invalid string literal"
-	errInvalidRateUnit             = "invalid rate unit"
-	errRateValueNonNegative        = "rate value must be non-negative"
-	errNewlineAfterPermitClause    = "expected newline after PERMIT clause"
-	errNewlineAfterDelegateClause  = "expected newline after DELEGATE clause"
-	errNewlineAfterBudgetField     = "expected newline after BUDGET field"
+	cartaKeyword                    = "CARTA"
+	cartaInvariantModeNever         = "never"
+	cartaInvariantModeAlways        = "always"
+	cartaOnExceedPause              = "pause"
+	cartaOnExceedDegrade            = "degrade"
+	cartaOnExceedAbort              = "abort"
+	cartaDurationMinutes            = "minutes"
+	cartaRateUnitHour               = "hour"
+	cartaGroundsFieldMinSources     = "min_sources"
+	cartaWarnUnknownGroundsField    = "carta_unknown_grounds_field"
+	errInvalidStringLiteral         = "invalid string literal"
+	errInvalidRateUnit              = "invalid rate unit"
+	errRateValueNonNegative         = "rate value must be non-negative"
+	errNewlineAfterPermitClause     = "expected newline after PERMIT clause"
+	errNewlineAfterDelegateClause   = "expected newline after DELEGATE clause"
+	errNewlineAfterBudgetField      = "expected newline after BUDGET field"
+	errNewlineAfterGroundsField     = "expected newline after GROUNDS field"
 )
 
 type CartaParser struct {
@@ -79,13 +84,13 @@ func (p *CartaParser) parseProgram() (*CartaSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := p.expectNewline("expected newline after CARTA header"); err != nil {
+	if err = p.expectNewline("expected newline after CARTA header"); err != nil {
 		return nil, err
 	}
 
 	summary := &CartaSummary{Name: nameTok.Literal}
 	topIndented := p.consumeOptionalIndent()
-	if err := p.parseProgramBlocks(summary, topIndented); err != nil {
+	if err = p.parseProgramBlocks(summary, topIndented); err != nil {
 		return nil, err
 	}
 
@@ -154,18 +159,18 @@ func (p *CartaParser) parseAgentBlock(summary *CartaSummary) (*CartaAgent, error
 	if err != nil {
 		return nil, err
 	}
-	if err := p.expectNewline("expected newline after AGENT header"); err != nil {
+	if err = p.expectNewline("expected newline after AGENT header"); err != nil {
 		return nil, err
 	}
-	if _, err := p.expect(TokenIndent, "expected indented block after AGENT"); err != nil {
+	if _, err = p.expect(TokenIndent, "expected indented block after AGENT"); err != nil {
 		return nil, err
 	}
 
 	agent := &CartaAgent{Name: nameTok.Literal}
-	if err := p.parseAgentDirectives(summary); err != nil {
+	if err = p.parseAgentDirectives(summary); err != nil {
 		return nil, err
 	}
-	if _, err := p.expect(TokenDedent, "expected end of AGENT block"); err != nil {
+	if _, err = p.expect(TokenDedent, "expected end of AGENT block"); err != nil {
 		return nil, err
 	}
 	return agent, nil
@@ -277,7 +282,7 @@ func (p *CartaParser) parseFieldBlock(keyword TokenType, name string, parseFn fu
 	if err != nil {
 		return err
 	}
-	if _, err := p.expect(TokenDedent, "expected end of "+name+" block"); err != nil {
+	if _, err = p.expect(TokenDedent, "expected end of "+name+" block"); err != nil {
 		return err
 	}
 	if fieldCount == 0 {
@@ -536,12 +541,12 @@ func (p *CartaParser) parseGroundsField(grounds *CartaGrounds) error {
 	if err != nil {
 		return err
 	}
-	if _, err := p.expect(TokenColon, "expected ':' after GROUNDS field"); err != nil {
+	if _, err = p.expect(TokenColon, "expected ':' after GROUNDS field"); err != nil {
 		return err
 	}
 
 	switch fieldTok.Literal {
-	case "min_sources":
+	case cartaGroundsFieldMinSources:
 		return p.parseGroundsFieldMinSources(grounds, fieldTok)
 	case "min_confidence":
 		return p.parseGroundsFieldMinConfidence(grounds, fieldTok)
@@ -550,13 +555,13 @@ func (p *CartaParser) parseGroundsField(grounds *CartaGrounds) error {
 	case "types":
 		return p.parseGroundsFieldTypes(grounds)
 	default:
-		p.addWarning(fieldTok, "carta_unknown_grounds_field", "unknown GROUNDS field: "+fieldTok.Literal)
+		p.addWarning(fieldTok, cartaWarnUnknownGroundsField, "unknown GROUNDS field: "+fieldTok.Literal)
 		p.skipUntilNewline()
-		return p.expectNewline("expected newline after GROUNDS field")
+		return p.expectNewline(errNewlineAfterGroundsField)
 	}
 }
 
-func (p *CartaParser) parseGroundsFieldMinSources(grounds *CartaGrounds, fieldTok Token) error {
+func (p *CartaParser) parseGroundsFieldMinSources(grounds *CartaGrounds, _ Token) error {
 	valueTok, err := p.expect(TokenNumber, "expected integer after min_sources")
 	if err != nil {
 		return err
@@ -566,10 +571,10 @@ func (p *CartaParser) parseGroundsFieldMinSources(grounds *CartaGrounds, fieldTo
 		return err
 	}
 	grounds.MinSources = value
-	return p.expectNewline("expected newline after GROUNDS field")
+	return p.expectNewline(errNewlineAfterGroundsField)
 }
 
-func (p *CartaParser) parseGroundsFieldMinConfidence(grounds *CartaGrounds, fieldTok Token) error {
+func (p *CartaParser) parseGroundsFieldMinConfidence(grounds *CartaGrounds, _ Token) error {
 	valueTok, err := p.expect(TokenIdentifier, "expected confidence level after min_confidence")
 	if err != nil {
 		return err
@@ -579,10 +584,10 @@ func (p *CartaParser) parseGroundsFieldMinConfidence(grounds *CartaGrounds, fiel
 		return err
 	}
 	grounds.MinConfidence = confidence
-	return p.expectNewline("expected newline after GROUNDS field")
+	return p.expectNewline(errNewlineAfterGroundsField)
 }
 
-func (p *CartaParser) parseGroundsFieldMaxStaleness(grounds *CartaGrounds, fieldTok Token) error {
+func (p *CartaParser) parseGroundsFieldMaxStaleness(grounds *CartaGrounds, _ Token) error {
 	valueTok, err := p.expect(TokenNumber, "expected integer after max_staleness")
 	if err != nil {
 		return err
@@ -600,7 +605,7 @@ func (p *CartaParser) parseGroundsFieldMaxStaleness(grounds *CartaGrounds, field
 	}
 	grounds.MaxStaleness = value
 	grounds.MaxAgeUnit = unitTok.Literal
-	return p.expectNewline("expected newline after GROUNDS field")
+	return p.expectNewline(errNewlineAfterGroundsField)
 }
 
 func (p *CartaParser) parseGroundsFieldTypes(grounds *CartaGrounds) error {
@@ -609,7 +614,7 @@ func (p *CartaParser) parseGroundsFieldTypes(grounds *CartaGrounds) error {
 		return err
 	}
 	grounds.Types = types
-	return p.expectNewline("expected newline after GROUNDS field")
+	return p.expectNewline(errNewlineAfterGroundsField)
 }
 
 func (p *CartaParser) parsePermitClause(permit *CartaPermit) error {
@@ -617,7 +622,7 @@ func (p *CartaParser) parsePermitClause(permit *CartaPermit) error {
 	if err != nil {
 		return err
 	}
-	if _, err := p.expect(TokenColon, "expected ':' after PERMIT clause"); err != nil {
+	if _, err = p.expect(TokenColon, "expected ':' after PERMIT clause"); err != nil {
 		return err
 	}
 
@@ -640,7 +645,7 @@ func (p *CartaParser) parsePermitWhen(permit *CartaPermit) error {
 	return p.expectNewline(errNewlineAfterPermitClause)
 }
 
-func (p *CartaParser) parsePermitRate(permit *CartaPermit, fieldTok Token) error {
+func (p *CartaParser) parsePermitRate(permit *CartaPermit, _ Token) error {
 	valueTok, err := p.expect(TokenNumber, "expected integer after rate")
 	if err != nil {
 		return err
@@ -652,7 +657,7 @@ func (p *CartaParser) parsePermitRate(permit *CartaPermit, fieldTok Token) error
 	if value < 0 {
 		return p.errorAt(valueTok, errRateValueNonNegative)
 	}
-	if _, err := p.expect(TokenSlash, "expected '/' in rate clause"); err != nil {
+	if _, err = p.expect(TokenSlash, "expected '/' in rate clause"); err != nil {
 		return err
 	}
 	unitTok, err := p.expect(TokenIdentifier, "expected rate unit after '/'")
@@ -666,7 +671,7 @@ func (p *CartaParser) parsePermitRate(permit *CartaPermit, fieldTok Token) error
 	return p.expectNewline(errNewlineAfterPermitClause)
 }
 
-func (p *CartaParser) parsePermitApproval(permit *CartaPermit, fieldTok Token) error {
+func (p *CartaParser) parsePermitApproval(permit *CartaPermit, _ Token) error {
 	modeTok, err := p.expect(TokenIdentifier, "expected approval mode after approval")
 	if err != nil {
 		return err
@@ -683,7 +688,7 @@ func (p *CartaParser) parseDelegateClause(delegate *CartaDelegate) error {
 	if err != nil {
 		return err
 	}
-	if _, err := p.expect(TokenColon, "expected ':' after DELEGATE clause"); err != nil {
+	if _, err = p.expect(TokenColon, "expected ':' after DELEGATE clause"); err != nil {
 		return err
 	}
 
@@ -706,7 +711,7 @@ func (p *CartaParser) parseDelegateWhen(delegate *CartaDelegate) error {
 	return p.expectNewline(errNewlineAfterDelegateClause)
 }
 
-func (p *CartaParser) parseDelegateReason(delegate *CartaDelegate, fieldTok Token) error {
+func (p *CartaParser) parseDelegateReason(delegate *CartaDelegate, _ Token) error {
 	reasonTok, err := p.expect(TokenString, "expected string after reason")
 	if err != nil {
 		return err
@@ -738,7 +743,7 @@ func (p *CartaParser) parseBudgetField(budget *CartaBudget) error {
 	if err != nil {
 		return err
 	}
-	if _, err := p.expect(TokenColon, "expected ':' after BUDGET field"); err != nil {
+	if _, err = p.expect(TokenColon, "expected ':' after BUDGET field"); err != nil {
 		return err
 	}
 
@@ -758,7 +763,7 @@ func (p *CartaParser) parseBudgetField(budget *CartaBudget) error {
 	}
 }
 
-func (p *CartaParser) parseBudgetFieldDailyTokens(budget *CartaBudget, fieldTok Token) error {
+func (p *CartaParser) parseBudgetFieldDailyTokens(budget *CartaBudget, _ Token) error {
 	valueTok, err := p.expect(TokenNumber, "expected integer after daily_tokens")
 	if err != nil {
 		return err
@@ -771,7 +776,7 @@ func (p *CartaParser) parseBudgetFieldDailyTokens(budget *CartaBudget, fieldTok 
 	return p.expectNewline(errNewlineAfterBudgetField)
 }
 
-func (p *CartaParser) parseBudgetFieldDailyCostUSD(budget *CartaBudget, fieldTok Token) error {
+func (p *CartaParser) parseBudgetFieldDailyCostUSD(budget *CartaBudget, _ Token) error {
 	valueTok, err := p.expect(TokenNumber, "expected number after daily_cost_usd")
 	if err != nil {
 		return err
@@ -784,7 +789,7 @@ func (p *CartaParser) parseBudgetFieldDailyCostUSD(budget *CartaBudget, fieldTok
 	return p.expectNewline(errNewlineAfterBudgetField)
 }
 
-func (p *CartaParser) parseBudgetFieldExecutionsPerDay(budget *CartaBudget, fieldTok Token) error {
+func (p *CartaParser) parseBudgetFieldExecutionsPerDay(budget *CartaBudget, _ Token) error {
 	valueTok, err := p.expect(TokenNumber, "expected integer after executions_per_day")
 	if err != nil {
 		return err
@@ -797,7 +802,7 @@ func (p *CartaParser) parseBudgetFieldExecutionsPerDay(budget *CartaBudget, fiel
 	return p.expectNewline(errNewlineAfterBudgetField)
 }
 
-func (p *CartaParser) parseBudgetFieldOnExceed(budget *CartaBudget, fieldTok Token) error {
+func (p *CartaParser) parseBudgetFieldOnExceed(budget *CartaBudget, _ Token) error {
 	modeTok, err := p.expect(TokenIdentifier, "expected on_exceed mode")
 	if err != nil {
 		return err
@@ -910,7 +915,7 @@ func parseConfidenceLevel(tok Token) (knowledge.ConfidenceLevel, error) {
 
 func isCartaDurationUnit(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "days", waitUnitHours, "minutes":
+	case "days", waitUnitHours, cartaDurationMinutes:
 		return true
 	default:
 		return false
@@ -919,7 +924,7 @@ func isCartaDurationUnit(value string) bool {
 
 func isCartaRateUnit(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "min", "hour", waitUnitDay:
+	case "min", cartaRateUnitHour, waitUnitDay:
 		return true
 	default:
 		return false
