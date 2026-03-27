@@ -33,3 +33,4 @@ docs/audit_output.md
 docs/audit.md
 .gitignore
 agent.test.exe
+.claude/settings.json

@@ -70,28 +70,7 @@ type openaiChatResponse struct {
 
 // ChatCompletion performs a non-streaming chat via POST /v1/chat/completions.
 func (p *OpenAICompatProvider) ChatCompletion(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
-	model := req.Model
-	if model == "" {
-		model = p.model
-	}
-
-	msgs := make([]openaiMessage, len(req.Messages))
-	for i, m := range req.Messages {
-		msgs[i] = openaiMessage{Role: m.Role, Content: m.Content}
-	}
-
-	oaiReq := openaiChatRequest{
-		Model:    model,
-		Messages: msgs,
-	}
-	if req.Temperature != 0 {
-		oaiReq.Temperature = req.Temperature
-	}
-	if req.MaxTokens != 0 {
-		oaiReq.MaxTokens = req.MaxTokens
-	}
-
-	body, err := json.Marshal(oaiReq)
+	body, err := json.Marshal(buildOpenAIChatRequest(req, p.model))
 	if err != nil {
 		return nil, fmt.Errorf("openai-compat: marshal request: %w", err)
 	}
@@ -102,14 +81,46 @@ func (p *OpenAICompatProvider) ChatCompletion(ctx context.Context, req ChatReque
 	}
 	defer respBody.Close()
 
+	return decodeChatResponse(respBody)
+}
+
+func buildOpenAIChatRequest(req ChatRequest, defaultModel string) openaiChatRequest {
+	oaiReq := openaiChatRequest{
+		Model:    coalesceModel(req.Model, defaultModel),
+		Messages: toOpenAIMessages(req.Messages),
+	}
+	if req.Temperature != 0 {
+		oaiReq.Temperature = req.Temperature
+	}
+	if req.MaxTokens != 0 {
+		oaiReq.MaxTokens = req.MaxTokens
+	}
+	return oaiReq
+}
+
+func coalesceModel(model, fallback string) string {
+	if model != "" {
+		return model
+	}
+	return fallback
+}
+
+func toOpenAIMessages(messages []Message) []openaiMessage {
+	msgs := make([]openaiMessage, len(messages))
+	for i, m := range messages {
+		msgs[i] = openaiMessage{Role: m.Role, Content: m.Content}
+	}
+	return msgs
+}
+
+func decodeChatResponse(respBody io.Reader) (*ChatResponse, error) {
 	var oaiResp openaiChatResponse
-	if decodeErr := json.NewDecoder(respBody).Decode(&oaiResp); decodeErr != nil {
-		return nil, fmt.Errorf("openai-compat: decode response: %w", decodeErr)
+	if err := json.NewDecoder(respBody).Decode(&oaiResp); err != nil {
+		return nil, fmt.Errorf("openai-compat: decode response: %w", err)
 	}
 	if len(oaiResp.Choices) == 0 {
 		return nil, fmt.Errorf("openai-compat: empty choices in response")
 	}
-
 	return &ChatResponse{
 		Content:    oaiResp.Choices[0].Message.Content,
 		StopReason: oaiResp.Choices[0].FinishReason,
@@ -149,32 +160,45 @@ func (p *OpenAICompatProvider) HealthCheck(ctx context.Context) error {
 // Caller is responsible for closing the returned ReadCloser.
 func (p *OpenAICompatProvider) doRequest(ctx context.Context, method, path string, body []byte) (io.ReadCloser, error) {
 	url := p.baseURL + path
-
-	var bodyReader io.Reader
-	if body != nil {
-		bodyReader = bytes.NewReader(body)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, url, requestBodyReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("openai-compat %s %s: build request: %w", method, path, err)
 	}
-	if body != nil {
-		req.Header.Set(headerContentType, mimeJSON)
-	}
-	if p.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+p.apiKey)
-	}
+	setOpenAICompatHeaders(req, body != nil, p.apiKey)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("openai-compat %s %s: %w", method, path, err)
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		errBody, _ := io.ReadAll(resp.Body)
-		resp.Body.Close() //nolint:errcheck
-		log.Printf("[openai-compat] %s %s: status %d body=%s", method, path, resp.StatusCode, string(errBody))
-		return nil, fmt.Errorf("openai-compat %s %s: status %d", method, path, resp.StatusCode)
+	if err := ensureSuccessStatus(resp, method, path); err != nil {
+		return nil, err
 	}
 	return resp.Body, nil
+}
+
+func requestBodyReader(body []byte) io.Reader {
+	if body == nil {
+		return nil
+	}
+	return bytes.NewReader(body)
+}
+
+func setOpenAICompatHeaders(req *http.Request, hasBody bool, apiKey string) {
+	if hasBody {
+		req.Header.Set(headerContentType, mimeJSON)
+	}
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+}
+
+func ensureSuccessStatus(resp *http.Response, method, path string) error {
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+
+	errBody, _ := io.ReadAll(resp.Body)
+	resp.Body.Close() //nolint:errcheck
+	log.Printf("[openai-compat] %s %s: status %d body=%s", method, path, resp.StatusCode, string(errBody))
+	return fmt.Errorf("openai-compat %s %s: status %d", method, path, resp.StatusCode)
 }
