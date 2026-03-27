@@ -405,8 +405,8 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		resumeHandler := agent.NewWorkflowResumeHandler(dslRunner, resumeRC)
 		schedulerWorker := schedulerdomain.NewWorker(schedulerRepo, resumeHandler.Handle)
 		go func() {
-			if err := schedulerWorker.Start(context.Background()); err != nil && !errors.Is(err, context.Canceled) {
-				_ = err
+			if workerErr := schedulerWorker.Start(context.Background()); workerErr != nil && !errors.Is(workerErr, context.Canceled) {
+				_ = workerErr
 			}
 		}()
 

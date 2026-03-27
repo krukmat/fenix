@@ -18,6 +18,8 @@ import (
 	"time"
 )
 
+const headerAuthorization = "Authorization"
+
 // OpenAICompatProvider implements LLMProvider against any OpenAI-compatible API.
 type OpenAICompatProvider struct {
 	baseURL    string
@@ -108,7 +110,7 @@ func coalesceModel(model, fallback string) string {
 func toOpenAIMessages(messages []Message) []openaiMessage {
 	msgs := make([]openaiMessage, len(messages))
 	for i, m := range messages {
-		msgs[i] = openaiMessage{Role: m.Role, Content: m.Content}
+		msgs[i] = openaiMessage(m)
 	}
 	return msgs
 }
@@ -170,8 +172,8 @@ func (p *OpenAICompatProvider) doRequest(ctx context.Context, method, path strin
 	if err != nil {
 		return nil, fmt.Errorf("openai-compat %s %s: %w", method, path, err)
 	}
-	if err := ensureSuccessStatus(resp, method, path); err != nil {
-		return nil, err
+	if statusErr := ensureSuccessStatus(resp, method, path); statusErr != nil {
+		return nil, statusErr
 	}
 	return resp.Body, nil
 }
@@ -188,7 +190,7 @@ func setOpenAICompatHeaders(req *http.Request, hasBody bool, apiKey string) {
 		req.Header.Set(headerContentType, mimeJSON)
 	}
 	if apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
+		req.Header.Set(headerAuthorization, "Bearer "+apiKey)
 	}
 }
 

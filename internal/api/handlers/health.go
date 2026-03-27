@@ -10,6 +10,7 @@ import (
 const (
 	healthStatusOK       = "ok"
 	healthStatusDegraded = "degraded"
+	healthStatusError    = "error"
 )
 
 // NewHealthHandler checks DB connectivity and returns structured JSON.
@@ -20,7 +21,7 @@ func NewHealthHandler(db *sql.DB) http.HandlerFunc {
 
 		dbStatus := healthStatusOK
 		if err := db.Ping(); err != nil {
-			dbStatus = "error"
+			dbStatus = healthStatusError
 		}
 
 		status := healthStatusOK

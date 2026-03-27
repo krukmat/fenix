@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
-
-	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
 )
 
 const readyStatusReady = "ready"
@@ -19,8 +17,12 @@ type readyzResponse struct {
 	Embed    string `json:"embed"`
 }
 
+type readinessChecker interface {
+	HealthCheck(context.Context) error
+}
+
 // NewReadyzHandler checks DB, chat provider and embed provider readiness.
-func NewReadyzHandler(db *sql.DB, chat, embed llm.LLMProvider) http.HandlerFunc {
+func NewReadyzHandler(db *sql.DB, chat, embed readinessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set(headerContentType, mimeJSON)
 
@@ -33,15 +35,15 @@ func NewReadyzHandler(db *sql.DB, chat, embed llm.LLMProvider) http.HandlerFunc 
 
 		if err := checkDBReady(db); err != nil {
 			resp.Status = healthStatusDegraded
-			resp.Database = "error"
+			resp.Database = healthStatusError
 		}
 		if err := checkProviderReady(chat); err != nil {
 			resp.Status = healthStatusDegraded
-			resp.Chat = "error"
+			resp.Chat = healthStatusError
 		}
 		if err := checkProviderReady(embed); err != nil {
 			resp.Status = healthStatusDegraded
-			resp.Embed = "error"
+			resp.Embed = healthStatusError
 		}
 
 		code := http.StatusOK
@@ -59,7 +61,7 @@ func checkDBReady(db *sql.DB) error {
 	return db.PingContext(ctx)
 }
 
-func checkProviderReady(provider llm.LLMProvider) error {
+func checkProviderReady(provider readinessChecker) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return provider.HealthCheck(ctx)

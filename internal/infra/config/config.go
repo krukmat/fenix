@@ -30,6 +30,8 @@ type Config struct {
 }
 
 const (
+	defaultProviderOllama = "ollama"
+
 	envKeyLLMProvider     = "LLM_PROVIDER"
 	envKeyOllamaBaseURL   = "OLLAMA_BASE_URL"
 	envKeyOllamaModel     = "OLLAMA_MODEL"
@@ -39,13 +41,14 @@ const (
 	envKeyChatProvider        = "CHAT_PROVIDER"
 	envKeyEmbedProvider       = "EMBED_PROVIDER"
 	envKeyOpenAICompatBaseURL = "OPENAI_COMPAT_BASE_URL"
-	envKeyOpenAICompatAPIKey  = "OPENAI_COMPAT_API_KEY"
-	envKeyOpenAICompatModel   = "OPENAI_COMPAT_MODEL"
+	//nolint:gosec // env var key name, not a credential value
+	envKeyOpenAICompatAPIKey = "OPENAI_COMPAT_API_KEY"
+	envKeyOpenAICompatModel  = "OPENAI_COMPAT_MODEL"
 )
 
 // Load reads configuration from environment variables, applying defaults for missing values.
 func Load() Config {
-	llmProvider := envOr(envKeyLLMProvider, "ollama")
+	llmProvider := envOr(envKeyLLMProvider, defaultProviderOllama)
 
 	// ChatProvider: CHAT_PROVIDER → LLM_PROVIDER → "ollama"
 	chatProvider := envOr(envKeyChatProvider, "")
@@ -59,7 +62,7 @@ func Load() Config {
 		OllamaModel:         envOr(envKeyOllamaModel, "nomic-embed-text"),
 		OllamaChatModel:     envOr(envKeyOllamaChatModel, "llama3.2:3b"),
 		ChatProvider:        chatProvider,
-		EmbedProvider:       envOr(envKeyEmbedProvider, "ollama"),
+		EmbedProvider:       envOr(envKeyEmbedProvider, defaultProviderOllama),
 		OpenAICompatBaseURL: envOr(envKeyOpenAICompatBaseURL, ""),
 		OpenAICompatAPIKey:  envOr(envKeyOpenAICompatAPIKey, ""),
 		OpenAICompatModel:   envOr(envKeyOpenAICompatModel, ""),
