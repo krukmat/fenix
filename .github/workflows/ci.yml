@@ -150,9 +150,10 @@ jobs:
 
       - name: Install golangci-lint
         run: |
-          # v1.55.2 is not compatible with Go 1.24 typecheck in this project.
-          # Keep linter version aligned with current Go toolchain used in CI.
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.8
+          # Install via go install so the binary is compiled with the same Go toolchain as CI (Go 1.25.8).
+          # The curl/sh binary installer ships a pre-built binary compiled with Go 1.24, which rejects
+          # modules declaring go 1.25.0 (our go.mod was bumped to 1.25.0 by mcp go-sdk v1.4.1).
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
 
       - name: Setup Node.js (for jscpd in pattern gate)
         uses: actions/setup-node@v4
