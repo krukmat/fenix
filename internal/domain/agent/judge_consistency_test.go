@@ -104,7 +104,7 @@ func TestRunCartaPermitChecks_IgnoresNonToolStatementsAndRecurseIf(t *testing.T)
 	carta := &CartaSummary{
 		Permits: []CartaPermit{{Tool: "update_case"}},
 	}
-	program, err := ParseAndValidateDSL("WORKFLOW resolve_support_case\nON case.created\nIF case.priority == \"high\"\n  NOTIFY contact WITH \"done\"\nWAIT 5 minutes")
+	program, err := ParseAndValidateDSL("WORKFLOW resolve_support_case\nON case.created\nIF case.priority == \"high\":\n  NOTIFY contact WITH \"done\"\nWAIT 5 minutes")
 	if err != nil {
 		t.Fatalf("ParseAndValidateDSL() error = %v", err)
 	}

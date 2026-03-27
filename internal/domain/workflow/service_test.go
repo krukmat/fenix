@@ -841,7 +841,7 @@ func TestWorkflowActivateInvariantSyncDoesNotDuplicateAction(t *testing.T) {
 	}
 	if _, err := db.Exec(`
 		INSERT INTO policy_version (id, policy_set_id, workspace_id, version_number, policy_json, status, created_at)
-		VALUES ('pv_1', 'ps_1', 'ws_test', 1, '{\"rules\":[{\"id\":\"existing\",\"resource\":\"tools\",\"action\":\"send_pii\",\"effect\":\"allow\",\"priority\":1}]}', 'active', CURRENT_TIMESTAMP)
+		VALUES ('pv_1', 'ps_1', 'ws_test', 1, '{"rules":[{"id":"existing","resource":"tools","action":"send_pii","effect":"allow","priority":1}]}', 'active', CURRENT_TIMESTAMP)
 	`); err != nil {
 		t.Fatalf("insert policy_version: %v", err)
 	}
