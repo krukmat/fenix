@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -52,6 +53,14 @@ func NewRouter(db *sql.DB) *chi.Mux {
 func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 	r := chi.NewRouter()
 	auditService := domainaudit.NewAuditService(db)
+	chatProvider, err := llm.NewChatProvider(cfg)
+	if err != nil {
+		log.Fatalf("api: create chat provider: %v", err)
+	}
+	embedProvider, err := llm.NewEmbedProvider(cfg)
+	if err != nil {
+		log.Fatalf("api: create embed provider: %v", err)
+	}
 
 	// Global middleware (runs on all routes)
 	r.Use(middleware.RequestID)
@@ -74,6 +83,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 
 	// Health check — unauthenticated, checks DB (Task 4.9 — NFR-030)
 	r.Get("/health", handlers.NewHealthHandler(db))
+	r.Get("/readyz", handlers.NewReadyzHandler(db, chatProvider, embedProvider))
 
 	// Metrics — unauthenticated, Prometheus text format (Task 4.9 — NFR-030)
 	r.Get("/metrics", handlers.MetricsHandler)
@@ -99,10 +109,8 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		// Shared app services for protected APIs
 		knowledgeBus := eventbus.New()
 		auditService.RegisterEventSubscribers(knowledgeBus)
-		// UAT fix: pass embed model + chat model separately — using embed model for chat caused 404.
-		llmProvider := llm.NewOllamaProvider(cfg.OllamaBaseURL, cfg.OllamaModel, cfg.OllamaChatModel)
 		ingestSvc := knowledge.NewIngestService(db, knowledgeBus)
-		embedder := knowledge.NewEmbedderService(db, llmProvider)
+		embedder := knowledge.NewEmbedderService(db, embedProvider)
 		reindexSvc := knowledge.NewReindexService(db, knowledgeBus, ingestSvc, auditService)
 		go embedder.Start(context.Background(), knowledgeBus)
 		go reindexSvc.Start(context.Background())
@@ -253,7 +261,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		})
 
 		// Task 2.5: SearchService — hybrid BM25 + vector search with RRF ranking
-		searchSvc := knowledge.NewSearchService(db, llmProvider)
+		searchSvc := knowledge.NewSearchService(db, embedProvider)
 		// Task 2.6: EvidencePackService — curated evidence packs for AI layer
 		evidenceSvc := knowledge.NewEvidencePackService(db, searchSvc, knowledge.DefaultEvidenceConfig())
 
@@ -266,9 +274,9 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		// Task 3.9: Prompt Versioning
 		promptSvc := agent.NewPromptService(db, auditService)
 		promptHandler := handlers.NewPromptHandlerWithAuthorizer(promptSvc, promptSvc, policyEngine)
-		copilotChatSvc := copilotdomain.NewChatService(evidenceSvc, llmProvider, policyEngine, auditService)
+		copilotChatSvc := copilotdomain.NewChatService(evidenceSvc, chatProvider, policyEngine, auditService)
 		copilotChatHandler := handlers.NewCopilotChatHandler(copilotChatSvc)
-		copilotActionsSvc := copilotdomain.NewActionService(evidenceSvc, llmProvider, policyEngine, auditService)
+		copilotActionsSvc := copilotdomain.NewActionService(evidenceSvc, chatProvider, policyEngine, auditService)
 		copilotActionsHandler := handlers.NewCopilotActionsHandler(copilotActionsSvc)
 
 		_ = tooldomain.RegisterBuiltInExecutors(toolRegistry, tooldomain.BuiltinServices{
@@ -341,7 +349,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 			agentOrchestrator,
 			toolRegistry,
 			searchSvc,
-			llmProvider,
+			chatProvider,
 			crm.NewLeadService(db),
 			crm.NewAccountService(db),
 			db,
@@ -352,7 +360,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 			agentOrchestrator,
 			toolRegistry,
 			searchSvc,
-			llmProvider,
+			chatProvider,
 			caseService,
 			db,
 		)

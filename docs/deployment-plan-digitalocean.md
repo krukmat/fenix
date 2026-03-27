@@ -1,249 +1,570 @@
 ---
-title: "FenixCRM - Plan de despliegue e instalacion en DigitalOcean"
-version: "1.0"
-date: "2026-03-23"
+title: "FenixCRM - Plan de despliegue en DigitalOcean"
+version: "2.1"
+date: "2026-03-27"
 timezone: "Europe/Madrid"
 language: "es-ES"
 status: "proposed"
-audience: ["engineering", "platform", "security", "revops"]
-tags: ["deployment", "digitalocean", "operations", "observability", "logging", "alerts"]
-canonical_id: "fenix-deploy-do-v1"
-source_of_truth: ["docs/requirements.md", "docs/architecture.md"]
+audience: ["engineering", "platform", "security", "product"]
+tags: ["deployment", "digitalocean", "gradient", "open-models", "costs", "poc"]
+canonical_id: "fenix-deploy-do-v2.1"
+source_of_truth: ["docs/requirements.md", "repo state verified on 2026-03-27"]
 ---
 
-# FenixCRM - Plan de despliegue e instalacion en DigitalOcean
+# FenixCRM - Plan de despliegue en DigitalOcean
 
-> **Proposito**: Definir un plan operativo y tecnico para publicar una version funcional de FenixCRM en DigitalOcean, incluyendo backend Go, runtime agentico, BFF, observabilidad, logging robusto y alertas criticas al admin por email.
+> **Proposito**: definir un plan realista y low-cost para desplegar FenixCRM en DigitalOcean durante los proximos meses, cubriendo backend, BFF, SQLite y AI con modelos abiertos, sin depender de modelos comerciales.
 
-> **Importante**: Este documento no reemplaza `docs/requirements.md`. `docs/requirements.md` sigue siendo la fuente de requisitos de producto y arquitectura funcional. Este documento cubre despliegue, operacion y hardening.
-
----
-
-## Indice
-
-1. [Objetivo y alcance](#1--objetivo-y-alcance)
-2. [Estado actual verificado del repo](#2--estado-actual-verificado-del-repo)
-3. [Decision de despliegue en DigitalOcean](#3--decision-de-despliegue-en-digitalocean)
-4. [Arquitectura objetivo](#4--arquitectura-objetivo)
-5. [Configuracion y despliegue](#5--configuracion-y-despliegue)
-6. [Observabilidad y operacion](#6--observabilidad-y-operacion)
-7. [Logging robusto](#7--logging-robusto)
-8. [Alertas criticas al admin por email](#8--alertas-criticas-al-admin-por-email)
-9. [Backups, restauracion y continuidad](#9--backups-restauracion-y-continuidad)
-10. [Checklist de aceptacion](#10--checklist-de-aceptacion)
-11. [Riesgos y limites actuales](#11--riesgos-y-limites-actuales)
-12. [Cambios tecnicos previstos](#12--cambios-tecnicos-previstos)
+> **Criterio**: este documento parte del estado real del repositorio a fecha **2026-03-27** y de precios/documentacion oficial de DigitalOcean validados el **2026-03-27**.
 
 ---
 
-## 1 -- Objetivo y alcance
+## 1 -- Resumen ejecutivo
 
-### Objetivo
+### Decision recomendada
 
-Publicar una version funcional de FenixCRM en DigitalOcean con:
+La opcion principal para la POC pasa a ser:
 
-- backend Go
-- runtime agentico embebido en el backend
-- BFF Node/TypeScript
-- base de datos SQLite persistida en volumen
-- runtime AI basado en Ollama sobre infraestructura DigitalOcean
-- operacion observable con logs, metricas, health checks y alertas
+- **`app-droplet` unico** para `reverse proxy + BFF + backend Go + SQLite`
+- **`Volume Block Storage`** para DB y adjuntos
+- **DigitalOcean Gradient serverless inference** para chat con **modelos abiertos**
+- **sin GPU dedicada** en la primera POC
 
-### Alcance incluido
+### Por que esta es ahora la opcion recomendada
 
-- despliegue del backend, BFF y capa agentica
-- configuracion de red, persistencia, TLS y variables de entorno
-- observabilidad self-hosted
-- logging estructurado
-- alertas criticas al admin por email
-- estrategia de backups y restauracion
+Porque reduce el coste fijo de forma muy agresiva:
 
-### Fuera de alcance
+- evita un `gpu-droplet` 24x7
+- evita operar Ollama grande en produccion desde el primer dia
+- mantiene todo el hosting principal dentro de DigitalOcean
+- sigue cumpliendo la restriccion de **no usar modelos comerciales**
 
-- publicacion de la app mobile en stores
-- migracion a PostgreSQL
-- despliegue multi-region
-- escalado horizontal del backend
-- sustitucion del runtime AI actual por otro proveedor
+### Coste objetivo mensual
+
+Precios en **USD/mes**, sin IVA/VAT ni conversion EUR/USD.
+
+- **Perfil POC minimo recomendado**: **$33/mes + uso de tokens**
+- **Perfil POC mas comodo**: **$57/mes + uso de tokens**
+- **Perfil self-hosted CPU-only**: **$57-$66/mes**
+
+### Conclusiones clave
+
+1. El documento anterior sobrecosteaba la POC al asumir infraestructura AI demasiado pesada para una primera salida.
+2. El repo actual ya tiene mucho runtime de negocio, pero su capa AI productiva sigue acoplada a Ollama.
+3. La forma mas barata de salir a una POC realista en DigitalOcean es **mover chat/completions a Gradient serverless con modelos abiertos**.
+4. Para minimizar riesgo tecnico, conviene **mantener embeddings locales** en una primera iteracion y separar `chat provider` de `embed provider`.
+5. La recomendacion principal es **Droplet pequeno + Gradient serverless open-source**.
 
 ---
 
-## 2 -- Estado actual verificado del repo
+## 2 -- Estado real verificado del repo
 
-### Arquitectura actual
+### Wiring actual
 
-El estado real del codigo confirma:
+El estado real del codigo hoy es:
 
-- backend principal en Go con entrypoint en `cmd/fenix/main.go`
+- entrypoint Go en `cmd/fenix/main.go`
 - servidor HTTP en `internal/server/server.go`
-- router en `internal/api/routes.go`
+- router principal en `internal/api/routes.go`
 - BFF separado en `bff/`
-- despliegue previsto de dos procesos, documentado en `docs/architecture.md`
-- imagen Docker para backend en `deploy/Dockerfile`
-- imagen Docker para BFF en `deploy/Dockerfile.bff`
-- `docker-compose.yml` ya orientado a levantar backend + BFF
+- imagen Docker del backend en `deploy/Dockerfile`
+- imagen Docker del BFF en `deploy/Dockerfile.bff`
+- `docker-compose.yml` solo levanta `backend + bff`
 
-### Runtime agentico
+### Runtime actual del backend
 
-La parte agentica no es un servicio aparte. Vive dentro del backend Go:
+El backend ya monta:
 
-- el router protegido instancia `PolicyEngine`, `ToolRegistry`, `ApprovalService`, `RunnerRegistry`, `Orchestrator` y `DSLRunner`
-- el runtime real actual usa `OllamaProvider` en `internal/infra/llm/ollama.go`
-- la abstraccion de proveedor existe, pero el wiring productivo actual esta acoplado a Ollama
+- `PolicyEngine`
+- `ToolRegistry`
+- `ApprovalService`
+- `RunnerRegistry`
+- `Orchestrator`
+- `DSLRunner`
+- `WorkflowService`
+- `SchedulerService + Worker`
+- `SignalService`
+- `Eval services`
+- agentes `support`, `prospecting`, `kb`, `insights`
 
-### Persistencia
+### Estado actual de AI
 
-- el backend usa SQLite embebido
-- `DATABASE_URL` apunta a un fichero local
-- el `docker-compose.yml` ya persiste la DB en un volumen Docker
+Hoy la capa AI real del repo es:
 
-### Logging y observabilidad actuales
+- provider productivo acoplado a **Ollama**
+- `internal/infra/llm/ollama.go` implementa `ChatCompletion`, `Embed` y `HealthCheck`
+- `docker-compose.yml` no levanta Ollama dentro de Docker
+- el despliegue local actual apunta a `OLLAMA_BASE_URL=http://host.docker.internal:11434`
 
-El estado actual es funcional pero basico:
+### Implicacion directa para el plan low-cost
 
-- backend:
-  - usa `middleware.Logger` y `middleware.Recoverer` de chi (`internal/api/routes.go:57-60`)
-  - usa `fmt.Printf`/`fmt.Println` en `internal/server/server.go` (lineas 63, 69, 81)
-  - usa `log.Printf` en `internal/infra/llm/ollama.go` (linea 223) y `internal/api/handlers/copilot_chat.go` (linea 50)
-  - expone `/health` y `/metrics`
-  - `MetricsCollector` con `IncErrors()` existe en `internal/api/handlers/metrics.go` pero nunca es llamado en el flujo real
-- BFF:
-  - usa `console.log` en `bff/src/server.ts` (lineas 9, 10, 11, 17)
-  - expone `/bff/health` y `/bff/metrics`
-  - `incErrors()` existe en `bff/src/routes/metrics.ts` pero no es llamada desde `bff/src/middleware/errorHandler.ts`
-  - tiene middleware de errores para envelope HTTP
+El plan low-cost **no** es "cambiar solo infraestructura". Requiere un cambio tecnico concreto:
 
-### Limitaciones verificadas en codigo
+- el repo debe dejar de asumir que chat y embeddings salen del mismo provider Ollama
 
-- **no existe logging JSON estructurado** — `middleware.Logger` de chi emite texto plano; `fmt.Printf`/`log.Printf` no tienen campos estructurados
-- **contadores de error desconectados** — `Metrics.IncErrors()` (backend) e `incErrors()` (BFF) existen pero no se invocan en ningun flujo real; los contadores en `/metrics` siempre marcan 0
-- **no existe endpoint `/readyz`** — `/health` solo valida DB con `db.Ping()`; no valida disponibilidad de Ollama ni estado del runtime agentico
-- **OllamaProvider tiene `HealthCheck()` implementado** (`internal/infra/llm/ollama.go`) pero no se usa en ningun endpoint publico
-- **no existe agregacion centralizada de logs** — no hay Loki, Promtail ni equivalente configurado
-- **no existe notificacion por email al admin** — no hay codigo SMTP ni `IncidentNotifier`
-- **docker-compose.yml actual** solo tiene `backend` y `bff`; no incluye stack de observabilidad
+Ese es el punto mas importante del nuevo plan.
 
-Estas limitaciones condicionan el plan y deben tratarse como trabajo tecnico explicito, no como capacidades ya resueltas.
+### Observabilidad real hoy
 
----
+Hoy existen:
 
-## 3 -- Decision de despliegue en DigitalOcean
+- `/health`
+- `/metrics`
+- `/bff/health`
+- `/bff/metrics`
 
-### Decision
+Pero siguen faltando:
 
-La opcion elegida para v1 es:
+- `/readyz`
+- logging estructurado consistente
+- contadores reales de 5xx conectados al flujo
+- stack centralizado de logs
+- alertas SMTP de aplicacion
 
-- **DigitalOcean Droplets + Docker Compose**
+### Persistencia y adjuntos
 
-### Justificacion
+Persistencia actual:
 
-Esta es la mejor opcion para el estado actual del repo porque:
+- SQLite local en fichero
+- WAL activado
+- migraciones al arranque
 
-1. `SQLite` necesita persistencia local fiable y controlada.
-2. El repo ya esta organizado para un despliegue de dos procesos con Docker.
-3. `Ollama` encaja mejor en un host controlado por nosotros que en una plataforma mas opinionada.
-4. El backend no esta preparado para multi-instancia con `SQLite`.
-5. La capa agentica vive dentro del backend, por lo que no hay beneficio real en fragmentar el despliegue.
+Adjuntos:
 
-### Por que no App Platform
+- hoy se guarda `storage_path`
+- no existe una capa blob storage completa dentro del backend
 
-No se recomienda `App Platform` para esta v1 porque:
+Implicacion:
 
-- complica el uso de almacenamiento local persistente
-- no encaja bien con `SQLite` como datastore principal
-- complica un runtime AI autoservido como Ollama
-- forzaria decisiones de arquitectura prematuras
-
-### Por que no Kubernetes
-
-No se recomienda `Kubernetes` en esta fase porque:
-
-- incrementa mucho la complejidad operativa
-- no resuelve la limitacion principal de `SQLite`
-- el sistema sigue siendo logicamente single-node
+- para la POC low-cost es suficiente un volumen local
+- `Spaces` queda como opcion posterior, no como prerequisito
 
 ---
 
-## 4 -- Arquitectura objetivo
+## 3 -- Arquitectura objetivo low-cost
 
-### Topologia
-
-Se define una arquitectura de dos droplets:
-
-#### 1. app-droplet
-
-Responsabilidades:
-
-- reverse proxy con TLS
-- BFF Node/TypeScript
-- backend Go
-- volumen persistente para SQLite y adjuntos
-- stack de observabilidad self-hosted
-
-#### 2. ai-droplet
-
-Responsabilidades:
-
-- servicio Ollama
-- exposicion solo por red privada de DigitalOcean
-
-### Diagrama logico
+### Topologia recomendada
 
 ```text
 Internet
   |
   v
-Reverse Proxy (TLS)
+Caddy o Nginx
   |
   v
 BFF :3000
   |
   v
 Backend Go :8080
-  | \
-  |  \-- SQLite + adjuntos en volumen persistente
   |
-  \----> Ollama en ai-droplet por red privada
-
-Promtail --> Loki
-Prometheus --> Backend/BFF/host metrics
-Grafana --> Loki + Prometheus
-Alertmanager --> Email admin
-DigitalOcean Monitoring/Uptime --> Email admin
+  +--> SQLite en Volume Block Storage
+  |
+  +--> Embeddings locales de bajo coste (fase 1)
+  |
+  \--> DigitalOcean Gradient Serverless Inference
+        usando modelos abiertos
 ```
 
-### Exposicion de puertos
+### Que se queda en DigitalOcean
 
-- publico:
-  - `443` HTTPS
-  - `80` solo para redireccion a HTTPS
-- privado:
-  - `3000` BFF
-  - `8080` backend Go
-  - `11434` Ollama
-  - puertos internos del stack de observabilidad
+- `app-droplet`
+- `Volume Block Storage`
+- DNS, firewall, monitoring, uptime
+- AI via **DigitalOcean Gradient**
+
+### Que eliminamos de la recomendacion principal
+
+- Ollama grande 24x7
 
 ### Restricciones operativas
 
-- un solo nodo de aplicacion para no romper consistencia de SQLite
-- backend Go no debe exponerse directamente a Internet
-- Ollama no debe exponerse publicamente
+- backend Go no expuesto publicamente
+- un solo nodo de aplicacion por SQLite
+- sin balanceador gestionado en dia 1
+- sin Kubernetes
 
 ---
 
-## 5 -- Configuracion y despliegue
+## 4 -- Perfiles de despliegue
 
-### Prerequisitos de infraestructura
+### Perfil A -- POC minima recomendada
 
-- cuenta activa en DigitalOcean
-- VPC privada creada
-- dominio o subdominio para exponer el BFF
-- `app-droplet` con Ubuntu LTS
-- `ai-droplet` con Ubuntu LTS
-- Docker Engine + Compose Plugin en ambos hosts
-- volumen persistente adjunto al `app-droplet`
+#### Arquitectura
 
-### Layout propuesto en app-droplet
+- `app-droplet` Basic `4GB / 2 vCPU`
+- `Volume Block Storage` `50 GiB`
+- AI en **DigitalOcean Gradient serverless inference**
+- sin GPU dedicada
+
+#### Cuando usarlo
+
+- POC externa
+- demos con usuarios reales
+- presupuesto controlado
+- necesidad de salir rapido
+
+#### Ventajas
+
+- el menor coste total razonable
+- suficiente para una POC real
+- no hay que operar GPU
+- se mantiene el stack principal dentro de DigitalOcean
+
+#### Limites
+
+- menos margen de RAM y CPU
+- requiere cambios de codigo en la capa LLM
+- ya no es AI self-hosted pura
+- dependes de un servicio gestionado de DigitalOcean para inferencia
+
+### Perfil A2 -- POC mas comoda
+
+#### Arquitectura
+
+- `app-droplet` Basic `8GB / 4 vCPU`
+- `Volume Block Storage` `50 GiB`
+- AI en **DigitalOcean Gradient serverless inference**
+
+#### Uso recomendado
+
+Usarla si:
+
+- vas a hacer demos frecuentes
+- esperas algo mas de concurrencia
+- quieres menos riesgo operativo
+
+### Perfil B -- Self-hosted CPU-only
+
+#### Arquitectura
+
+- `app-droplet` Basic `8GB / 4 vCPU`
+- `Volume Block Storage` `50 GiB`
+- backend + BFF + SQLite
+- Ollama local solo en CPU
+
+#### Cuando usarlo
+
+Solo si priorizamos:
+
+- cero cambio de provider
+- despliegue totalmente self-hosted de AI
+
+#### Ventajas
+
+- no requiere integrar Gradient
+- mantiene el wiring actual mas cerca del repo
+
+#### Limites
+
+- peor latencia
+- peor calidad si usamos modelos pequeños
+- para una POC externa suele sentirse mas debil
+
+## 5 -- Modelos abiertos recomendados
+
+### Restriccion de producto
+
+No se usaran modelos comerciales. Por tanto:
+
+- no OpenAI cerrado
+- no Anthropic
+- no Gemini
+- no APIs propietarias como opcion principal
+
+### Recomendacion para el perfil low-cost
+
+La recomendacion se separa en dos capas:
+
+#### Chat / generation
+
+Usar **DigitalOcean Gradient serverless inference** con modelos abiertos.
+
+#### Embeddings
+
+Mantener **locales** en una primera fase para no rediseñar RAG completo de golpe.
+
+### Modelos de chat candidatos en DigitalOcean Gradient
+
+Segun la documentacion oficial validada el **2026-03-27**, Gradient ofrece varios modelos abiertos para serverless inference.
+
+| Modelo | Tipo | Coste oficial | Recomendacion |
+|---|---|---:|---|
+| `llama3-8b-instruct` | open-weight | `$0.198` input / `$0.198` output por 1M tokens | **Mejor coste** |
+| `alibaba-qwen3-32b` | open-license | `$0.25` input / `$0.55` output por 1M tokens | **Mejor calidad probable** |
+| `mistral-nemo-instruct-2407` | open-weight | `$0.30` input / `$0.30` output por 1M tokens | Alternativa equilibrada |
+
+### Decision recomendada de modelos
+
+#### Opcion principal low-cost
+
+- chat: `llama3-8b-instruct`
+- embeddings: `nomic-embed-text` local
+
+Motivo:
+
+- es la opcion con menor coste operativo en Gradient
+- encaja bien con el uso real del repo
+
+#### Opcion alternativa si priorizamos licencia mas abierta y mejor calidad
+
+- chat: `alibaba-qwen3-32b`
+- embeddings: `nomic-embed-text` local
+
+Motivo:
+
+- `Qwen3-32B` aparece como modelo abierto hospedado por DigitalOcean
+- es mejor opcion si preferimos una licencia mas cercana a open-source que Llama
+
+### Embeddings recomendados
+
+#### Fase 1
+
+- mantener `nomic-embed-text` local en Ollama o en el host
+
+Motivo:
+
+- el repo ya esta cableado para embeddings por provider propio
+- evita rehacer la parte de RAG y sqlite-vec de golpe
+- su peso operativo es muy pequeno comparado con servir un chat model grande
+
+#### Fase 2 opcional
+
+Evaluar migracion de embeddings a Gradient si:
+
+- validamos compatibilidad tecnica del endpoint
+- queremos quitar Ollama por completo
+- nos compensa pagar el coste por token de embeddings
+
+### Uso real del repo y sizing de modelo
+
+El uso real del LLM hoy es acotado:
+
+- `copilot/chat`
+- `copilot/suggest-actions`
+- `copilot/summarize`
+- `prospecting` para draft corto
+
+Y ademas:
+
+- `support` no depende de chat largo
+- `kb` no necesita gran modelo para la primera POC
+- `insights` hoy es mas retrieval/metrics que generacion pesada
+
+Implicacion:
+
+- no hace falta un modelo 70B para la primera POC
+
+---
+
+## 6 -- Costes detallados
+
+### Notas de coste
+
+- precios validados contra documentacion oficial de DigitalOcean el **2026-03-27**
+- importes en **USD/mes**
+- `Monitoring` y `Cloud Firewalls` vienen incluidos con Droplets
+- una `Uptime check` es gratis; las adicionales cuestan `$1/mes`
+
+### Costes fijos de infraestructura
+
+| Recurso | Precio oficial |
+|---|---:|
+| Basic Droplet 4GB / 2 vCPU | $24/mes |
+| Basic Droplet 8GB / 4 vCPU | $48/mes |
+| Volume Block Storage 50 GiB | $5/mes |
+| Volume Snapshot 50 GiB | $3/mes |
+| Uptime adicional | $1/mes |
+
+### Escenario 1 -- POC minima recomendada
+
+Supuestos:
+
+- 1 x Basic Droplet `4GB / 2 vCPU`
+- 1 x Volume `50 GiB`
+- 1 x snapshot mensual estimado sobre `50 GiB`
+- 2 uptime checks en total -> 1 gratis + 1 de pago
+
+| Concepto | Importe |
+|---|---:|
+| Basic Droplet 4GB | $24 |
+| Volume 50 GiB | $5 |
+| Snapshot 50 GiB | $3 |
+| Uptime extra | $1 |
+| **Total fijo base** | **$33/mes** |
+
+### Escenario 2 -- POC mas comoda
+
+Supuestos:
+
+- 1 x Basic Droplet `8GB / 4 vCPU`
+- 1 x Volume `50 GiB`
+- 1 x snapshot mensual estimado sobre `50 GiB`
+- 2 uptime checks en total -> 1 gratis + 1 de pago
+
+| Concepto | Importe |
+|---|---:|
+| Basic Droplet 8GB | $48 |
+| Volume 50 GiB | $5 |
+| Snapshot 50 GiB | $3 |
+| Uptime extra | $1 |
+| **Total fijo base** | **$57/mes** |
+
+### Escenario 3 -- Self-hosted CPU-only
+
+Supuestos:
+
+- mismo perfil de infraestructura que la POC mas comoda
+- sin coste variable de Gradient
+
+| Concepto | Importe |
+|---|---:|
+| Total fijo base | $57 |
+
+Comentario:
+
+- es barato
+- pero la experiencia de IA probablemente sera peor que el perfil low-cost con Gradient
+
+### Coste variable de AI en Gradient
+
+#### Modelo mas barato: `llama3-8b-instruct`
+
+Precio oficial:
+
+- input: `$0.198` por 1M tokens
+- output: `$0.198` por 1M tokens
+
+Ejemplo de referencia:
+
+- `1,000` interacciones de `4k input + 1k output`
+- input total: `4M tokens`
+- output total: `1M tokens`
+
+Calculo:
+
+- input: `4 * 0.198 = $0.792`
+- output: `1 * 0.198 = $0.198`
+- **total = $0.99**
+
+Por tanto:
+
+- `1,000` interacciones medianas -> **~$0.99**
+- `10,000` interacciones medianas -> **~$9.90**
+
+#### Alternativa: `alibaba-qwen3-32b`
+
+Precio oficial:
+
+- input: `$0.25` por 1M tokens
+- output: `$0.55` por 1M tokens
+
+Mismo ejemplo:
+
+- input: `4M * 0.25 = $1.00`
+- output: `1M * 0.55 = $0.55`
+- **total = $1.55**
+
+Por tanto:
+
+- `1,000` interacciones medianas -> **~$1.55**
+- `10,000` interacciones medianas -> **~$15.50**
+
+### Lectura de negocio
+
+Para una POC pura, el suelo fijo mas razonable es **$33/mes** y el resto crece con uso real.
+
+Si esa configuracion se queda corta, el siguiente salto natural es **$57/mes**.
+
+---
+
+## 7 -- Cambios tecnicos necesarios en el repo
+
+### Cambio principal
+
+Para implantar la opcion low-cost hay que dejar de asumir que un unico provider resuelve todo.
+
+Hoy el repo asume:
+
+- un `LLMProvider`
+- ese provider hace **chat + embeddings**
+
+La opcion low-cost necesita:
+
+- **chat/completions en Gradient**
+- **embeddings locales** en fase 1
+
+### Cambio recomendado de arquitectura en codigo
+
+Separar la configuracion en dos proveedores:
+
+- `CHAT_PROVIDER`
+- `EMBED_PROVIDER`
+
+Ejemplo:
+
+```env
+CHAT_PROVIDER=openai-compat
+EMBED_PROVIDER=ollama
+OPENAI_COMPAT_BASE_URL=https://inference.do-ai.run
+OPENAI_COMPAT_API_KEY=...
+OPENAI_COMPAT_MODEL=llama3-8b-instruct
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=nomic-embed-text
+```
+
+### Trabajo tecnico minimo
+
+1. integrar Gradient a traves de un provider `openai-compat`
+2. aprovechar formato OpenAI-compatible en chat completions
+3. separar provider de chat y provider de embeddings
+4. mantener `OllamaProvider` solo para embeddings en la primera salida
+5. exponer `/readyz` para DB + chat provider + embed provider
+6. conectar metricas reales de 5xx
+7. introducir logging estructurado
+
+### Trabajo tecnico opcional posterior
+
+1. mover embeddings tambien a Gradient si validamos compatibilidad y coste
+2. retirar Ollama por completo
+3. evaluar storage de adjuntos en `Spaces`
+
+---
+
+## 8 -- Plan de implantacion
+
+### Fase 0 -- Preparacion del repo
+
+Antes de desplegar:
+
+1. verificar `openai-compat` para chat serverless en Gradient
+2. separar `chat` y `embed` provider
+3. mantener `nomic-embed-text` local para embeddings
+4. verificar `/readyz`
+5. mejorar logging y metricas
+
+### Fase 1 -- Provisioning
+
+Recursos:
+
+- 1 proyecto DigitalOcean
+- 1 VPC
+- 1 Cloud Firewall
+- 1 `app-droplet`
+- 1 `Volume Block Storage`
+- 1 o 2 Uptime checks
+
+### Fase 2 -- App host
+
+En el `app-droplet`:
+
+- Ubuntu LTS
+- Docker Engine + Compose plugin
+- `Caddy` o `Nginx`
+- volumen montado para SQLite y adjuntos
+- backend + BFF
+- Ollama local solo si mantenemos embeddings locales
+
+Layout recomendado:
 
 ```text
 /srv/fenix/
@@ -253,567 +574,172 @@ DigitalOcean Monitoring/Uptime --> Email admin
     fenixcrm.db
     attachments/
   backups/
-  observability/
 ```
 
-### Variables de entorno requeridas
-
-#### Aplicacion
-
-- `JWT_SECRET`
-- `DATABASE_URL`
-- `BFF_ORIGIN`
-- `BACKEND_URL`
-- `BFF_PORT`
-- `PORT`
-- `NODE_ENV`
-- `LLM_PROVIDER`
-- `OLLAMA_BASE_URL`
-- `OLLAMA_MODEL`
-- `OLLAMA_CHAT_MODEL`
-
-#### Logging y operacion
-
-- `LOG_LEVEL`
-- `LOG_FORMAT`
-- `SERVICE_NAME`
-- `ENVIRONMENT`
-
-#### Alertas al admin
-
-- `ADMIN_ALERT_EMAILS`
-- `SMTP_HOST`
-- `SMTP_PORT`
-- `SMTP_USER`
-- `SMTP_PASS`
-- `SMTP_FROM`
-- `ALERT_COOLDOWN_MINUTES`
-
-#### Readiness y dependencias criticas
-
-- `OLLAMA_HEALTH_TIMEOUT_MS`
-- `READINESS_FAIL_THRESHOLD`
-
-### Valores operativos recomendados
+### Fase 3 -- Configuracion recomendada
 
 ```env
 NODE_ENV=production
 ENVIRONMENT=production
-LOG_FORMAT=json
-LOG_LEVEL=info
-DATABASE_URL=/srv/fenix/data/fenixcrm.db
+BFF_PORT=3000
 BACKEND_URL=http://backend:8080
-OLLAMA_BASE_URL=http://10.0.0.20:11434
-ALERT_COOLDOWN_MINUTES=15
-OLLAMA_HEALTH_TIMEOUT_MS=2000
-READINESS_FAIL_THRESHOLD=3
+DATABASE_URL=/srv/fenix/data/fenixcrm.db
+JWT_SECRET=...
+BFF_ORIGIN=https://app.tudominio.com
+
+CHAT_PROVIDER=openai-compat
+EMBED_PROVIDER=ollama
+
+OPENAI_COMPAT_BASE_URL=https://inference.do-ai.run
+OPENAI_COMPAT_API_KEY=...
+OPENAI_COMPAT_MODEL=llama3-8b-instruct
+
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=nomic-embed-text
 ```
 
-### Estrategia de volumen
-
-- montar un `Block Storage Volume` en el `app-droplet`
-- alojar `fenixcrm.db` y adjuntos en ese volumen
-- separar configuracion del codigo de los datos persistentes
-
-### TLS y proxy inverso
-
-El reverse proxy debe:
-
-- terminar TLS
-- redirigir `80 -> 443`
-- exponer solo el BFF
-- inyectar cabeceras seguras
-- mantener timeouts compatibles con SSE
-
-### Flujo de despliegue
-
-1. crear VPC, droplets y volumen
-2. instalar Docker y Compose
-3. montar volumen en `app-droplet`
-4. desplegar Ollama en `ai-droplet`
-5. descargar modelos requeridos en Ollama
-6. desplegar backend y BFF en `app-droplet`
-7. desplegar stack de observabilidad
-8. configurar DNS y TLS
-9. ejecutar smoke checks
-10. habilitar alertas de infra y uptime
-
-### Smoke checks minimos
-
-- `GET /health` backend devuelve `200`
-- `GET /bff/health` devuelve `200`
-- login y registro funcionan
-- CRUD basico responde
-- Copilot SSE abre stream
-- agent runs pueden dispararse y consultarse
-
----
-
-## 6 -- Observabilidad y operacion
-
-### Objetivos
-
-La plataforma debe poder responder a estas preguntas operativas:
-
-- esta vivo el servicio publico
-- esta disponible el backend
-- esta disponible Ollama
-- hay errores 5xx sostenidos
-- los agent runs estan fallando
-- hay degradacion de latencia o saturacion
-- los logs necesarios para diagnostico estan accesibles
-
-### Componentes self-hosted
-
-#### Prometheus
-
-Responsabilidades:
-
-- scrappear metricas del backend
-- scrappear metricas del BFF
-- scrappear metricas del host
-- alimentar reglas de alerta
-
-#### Loki
-
-Responsabilidades:
-
-- almacenamiento y consulta centralizada de logs
-
-#### Promtail
-
-Responsabilidades:
-
-- recoger logs de contenedores y sistema
-- etiquetar por servicio y entorno
-- enviarlos a Loki
-
-#### Grafana
-
-Responsabilidades:
-
-- dashboards operativos
-- exploracion de logs y metricas
-
-#### Alertmanager
-
-Responsabilidades:
-
-- deduplicacion de alertas
-- agrupacion
-- enrutado al email del admin
-
-### Dashboards minimos
-
-- disponibilidad del BFF
-- disponibilidad del backend
-- estado de Ollama
-- tasa de 5xx
-- latencia de endpoints criticos
-- errores de copilot SSE
-- errores de agent runs
-- consumo de CPU, RAM y disco
-- crecimiento del volumen SQLite
-
-### Checks operativos
-
-#### Health
-
-`/health` debe responder rapido y validar:
-
-- proceso vivo
-- conectividad con DB
-
-#### Readiness
-
-`/readyz` debe validar:
-
-- DB disponible
-- Ollama disponible
-- servicios criticos inicializados
-- estado apto para servir trafico
-
-#### Metrics
-
-Debe existir cobertura de:
-
-- total de requests
-- total de 5xx
-- panics recuperados
-- fallos de Ollama
-- fallos de copilot SSE
-- agent runs fallidos
-- latencia por endpoint
-- uptime de proceso
-
-### Alertas de infraestructura en DigitalOcean
-
-Ademas del stack self-hosted, se deben configurar alertas de DigitalOcean para:
-
-- CPU alta sostenida
-- memoria alta sostenida
-- disco casi lleno
-- droplet no reachable
-- uptime check fallando
-
-Estas alertas sirven como fallback si la propia aplicacion esta demasiado degradada para emitir sus propios avisos.
-
----
-
-## 7 -- Logging robusto
-
-### Objetivo
-
-Pasar del logging actual, basado en logs de consola y middleware generico, a un sistema de logging estructurado y correlacionable.
-
-### Estado actual
-
-Hoy el repo usa:
-
-- `chi/middleware.Logger`
-- `chi/middleware.Recoverer`
-- `fmt.Printf`
-- `fmt.Println`
-- `log.Printf`
-- `console.log`
-
-Eso es suficiente para desarrollo, pero insuficiente para operacion seria.
-
-### Objetivo tecnico
-
-Implementar logs JSON estructurados y consistentes en backend y BFF.
-
-### Campos minimos del log
-
-Cada linea de log debe incluir, segun disponibilidad:
-
-- `ts`
-- `level`
-- `service`
-- `environment`
-- `message`
-- `request_id`
-- `trace_id`
-- `workspace_id`
-- `user_id`
-- `agent_run_id`
-- `method`
-- `route`
-- `status`
-- `latency_ms`
-- `error`
-
-### Backend Go
-
-Cambios requeridos:
-
-- introducir logger estructurado unico
-- reemplazar `fmt.*` y `log.Printf` en runtime productivo
-- añadir middleware de access log propio
-- añadir middleware de recovery con logging estructurado de panic
-- propagar `request_id` y `trace_id` al contexto
-- registrar errores internos con suficiente contexto
-
-### BFF
-
-Cambios requeridos:
-
-- sustituir `console.log` por logger JSON
-- loggear inicio, parada, errores de proxy y fallos SSE
-- instrumentar el middleware de errores para incrementar el contador real de errores
-- propagar `request_id` desde proxy a backend cuando sea posible
-
-### Correlacion
-
-La correlacion debe funcionar entre:
-
-- reverse proxy
-- BFF
-- backend
-- runtime agentico
-- tool execution
-- auditoria
-
-El mismo `request_id` y, cuando aplique, `trace_id`, deben aparecer en todo el recorrido.
-
-### Politica de niveles
-
-- `debug`: diagnostico fino en entornos controlados
-- `info`: trafico normal, lifecycle y eventos esperados
-- `warn`: degradaciones recuperables
-- `error`: errores que afectan una operacion
-- `fatal`: errores que fuerzan parada o impiden el arranque
-
-### Retencion
-
-- logs calientes en Loki con retencion corta o media segun coste
-- snapshots o exportes periodicos si compliance lo requiere
-
----
-
-## 8 -- Alertas criticas al admin por email
-
-### Objetivo
-
-Disponer de un sistema explicito de notificacion por email para incidencias criticas.
-
-### Canal principal
-
-- email
-
-### Canal de respaldo
-
+### Fase 4 -- Validacion funcional
+
+Smoke checks minimos:
+
+- `GET /health`
+- `GET /readyz`
+- `GET /bff/health`
+- login y registro
+- CRUD base
+- `knowledge/ingest`
+- `knowledge/search`
+- `copilot/chat`
+- `copilot/suggest-actions`
+- `copilot/summarize`
+- `agents/prospecting/trigger`
+
+### Fase 5 -- Operacion
+
+Dia 1:
+
+- snapshots de volumen
+- Uptime checks
 - alertas de DigitalOcean por email
+- logs locales del host
 
-### Eventos que deben notificar
+Despues:
 
-El sistema debe enviar email al admin cuando ocurra alguno de estos casos:
-
-- fallo de arranque del backend
-- fallo de migraciones
-- base de datos no disponible
-- `readyz` en estado no apto de forma sostenida
-- Ollama no disponible durante una ventana configurable
-- panic recuperado en backend o BFF
-- tasa de 5xx sostenida por encima del umbral definido
-- fallo sostenido en Copilot SSE
-- agent runs fallando por encima del umbral definido
-- disco del volumen en nivel critico
-
-### Eventos que no deben notificar directamente por email
-
-No deben generar email por si solos:
-
-- errores 4xx normales
-- timeouts puntuales aislados
-- una unica peticion fallida sin patron sostenido
-- logs de negocio no criticos
-
-### Anti-spam, cooldown y deduplicacion
-
-El sistema debe:
-
-- deduplicar alertas iguales dentro de una ventana temporal
-- agrupar alertas repetidas
-- aplicar cooldown por tipo de incidente
-- enviar aviso de resolucion cuando el sistema vuelva a estado sano
-
-### Fallback operativo
-
-Si la propia aplicacion no puede enviar correos:
-
-- las alertas de infraestructura y uptime de DigitalOcean deben seguir notificando
-- el stack Prometheus + Alertmanager debe poder emitir el correo aunque el backend este degradado
-
-### Implementacion recomendada
-
-Separar dos capas:
-
-#### Capa 1. Alertas de plataforma
-
-- emitidas por Prometheus/Alertmanager
-- cubren salud del sistema y umbrales
-
-#### Capa 2. Alertas de aplicacion
-
-- emitidas por un `IncidentNotifier` o `CriticalAlertService`
-- cubren fallos de arranque, migraciones y eventos internos de alta severidad
-
-### Formato minimo del email
-
-Cada email critico debe incluir:
-
-- servicio afectado
-- entorno
-- severidad
-- timestamp
-- resumen del incidente
-- clave de deduplicacion
-- contexto tecnico basico
-- enlace al dashboard o query de logs
+- observabilidad mas completa
+- backup de adjuntos
+- posible migracion de embeddings a servicio gestionado
 
 ---
 
-## 9 -- Backups, restauracion y continuidad
+## 9 -- Riesgos y limites
 
-### SQLite
+### Riesgo 1 -- Hay cambio de provider
 
-La DB requiere estrategia explicita de backup porque es single-file y single-node.
+El mayor riesgo del nuevo plan es tecnico, no de infraestructura:
 
-### Politica recomendada
+- el repo hoy solo esta cableado a Ollama
+- la opcion low-cost requiere introducir Gradient
 
-- snapshot programado del volumen
-- backup logico de SQLite antes de despliegues
-- retencion definida segun RPO/RTO
+### Riesgo 2 -- SQLite sigue siendo single-node
 
-### Restauracion
+Mientras usemos SQLite:
 
-Debe existir runbook para:
+- no hay horizontal scaling real
+- seguimos siendo single-node
 
-- detener trafico
-- restaurar snapshot o backup logico
-- validar integridad de DB
-- levantar backend y BFF
-- ejecutar smoke checks
+### Riesgo 3 -- Embeddings quedan hibridos en fase 1
 
-### Validacion periodica
+Durante la primera salida:
 
-No basta con hacer backups. Debe probarse la restauracion.
+- chat en Gradient
+- embeddings locales
 
----
+Eso es una solucion pragmatica, no una arquitectura final.
 
-## 10 -- Checklist de aceptacion
+### Riesgo 4 -- 4GB es agresivo
 
-### Salud basica
+El perfil de `4GB` puede quedarse corto si:
 
-- [ ] `GET /health` responde correctamente
-- [ ] `GET /bff/health` responde correctamente
-- [ ] `GET /readyz` refleja salud real de DB + Ollama
-- [ ] `GET /metrics` backend disponible
-- [ ] `GET /bff/metrics` BFF disponible
+- la base crece rapido
+- hay varias sesiones simultaneas
+- mantenemos demasiados procesos auxiliares en el mismo host
 
-### Funcionalidad
+Por eso el `4GB` pasa a ser la recomendacion principal de POC, y `8GB` queda como mejora inmediata si hiciera falta.
 
-- [ ] registro y login funcionan
-- [ ] CRUD CRM basico funciona
-- [ ] knowledge ingest/reindex funciona
-- [ ] Copilot SSE funciona extremo a extremo
-- [ ] agent runs pueden ejecutarse y consultarse
+### Riesgo 5 -- Observabilidad sigue basica en dia 1
 
-### Persistencia
+No recomiendo meter Loki/Grafana/Prometheus como requisito previo del low-cost. Primero hay que arreglar:
 
-- [ ] la DB persiste tras reinicio
-- [ ] los adjuntos persisten tras redeploy
-
-### Observabilidad
-
-- [ ] logs de backend visibles en Loki
-- [ ] logs de BFF visibles en Loki
-- [ ] dashboards base visibles en Grafana
-- [ ] metricas reales de error se incrementan ante fallos
-
-### Alertas
-
-- [ ] caida simulada de Ollama degrada `readyz`
-- [ ] la degradacion sostenida de Ollama envia email al admin
-- [ ] un panic controlado genera alerta y log estructurado
-- [ ] un fallo de uptime genera alerta de DigitalOcean por email
-- [ ] las alertas repetidas no generan spam
-
-### Continuidad
-
-- [ ] se puede restaurar backup de SQLite
-- [ ] tras restauracion, los smoke checks vuelven a pasar
-
----
-
-## 11 -- Riesgos y limites actuales
-
-### SQLite implica single-node
-
-Mientras la persistencia principal siga en SQLite:
-
-- no debe escalarse horizontalmente el backend
-- no debe plantearse HA activa-activa
-
-### Ollama es dependencia critica
-
-La capa agentica y de copilot depende operativamente de Ollama:
-
-- si cae Ollama, la app puede seguir viva pero perder funcionalidad clave
-- eso obliga a readiness real y alertas dedicadas
-
-### Logging y alertas hoy son insuficientes
-
-El repo no tiene aun:
-
-- logging estructurado consistente (backend usa `middleware.Logger` chi + `fmt`/`log`; BFF usa `console.log`)
-- contadores de error reales en metricas (los contadores existen pero no se invocan — `fenixcrm_request_errors_total` y `bff_request_errors_total` siempre son 0)
-- endpoint `/readyz` (solo existe `/health` que valida DB pero no Ollama)
-- agregacion centralizada de logs (Loki/Promtail no configurados)
-- correos criticos al admin (no existe codigo SMTP ni servicio de alertas de aplicacion)
-
-Trabajo tecnico identificado antes de operacion seria:
-1. logging JSON estructurado en backend (`slog`) y BFF (`pino`)
-2. conectar `IncErrors()`/`incErrors()` al flujo real de 5xx
-3. implementar `/readyz` que valide DB + Ollama
-4. docker-compose de observabilidad (Prometheus + Loki + Promtail + Grafana + Alertmanager)
-5. `IncidentNotifier` con SMTP para alertas criticas al admin
-
-Por tanto, la operacion propuesta requiere implementacion adicional y no debe asumirse como ya disponible.
-
-### Coste operativo
-
-El stack self-hosted de observabilidad añade:
-
-- mas consumo de recursos
-- mas componentes a operar
-- mas trabajo de mantenimiento
-
-Se acepta este coste porque se ha priorizado observabilidad completa self-hosted.
-
----
-
-## 12 -- Cambios tecnicos previstos
-
-### Documento y alcance
-
-- nuevo documento tecnico: `docs/deployment-plan-digitalocean.md`
-
-### Variables operativas previstas
-
-- `LOG_LEVEL`
-- `LOG_FORMAT`
-- `SERVICE_NAME`
-- `ENVIRONMENT`
-- `ADMIN_ALERT_EMAILS`
-- `SMTP_HOST`
-- `SMTP_PORT`
-- `SMTP_USER`
-- `SMTP_PASS`
-- `SMTP_FROM`
-- `ALERT_COOLDOWN_MINUTES`
-- `OLLAMA_HEALTH_TIMEOUT_MS`
-- `READINESS_FAIL_THRESHOLD`
-
-### Endpoint operativo previsto
-
+- logs estructurados
 - `/readyz`
-
-### Cambios funcionales esperados en codigo
-
-#### Fase A — logging + metricas + readyz (prerequisito para observabilidad util)
-
-- `internal/infra/config/config.go` — añadir `LOG_LEVEL`, `LOG_FORMAT`, `SERVICE_NAME`, `ENVIRONMENT`, `OLLAMA_HEALTH_TIMEOUT_MS`
-- `cmd/fenix/main.go` — inicializar `slog` segun `LOG_FORMAT`/`LOG_LEVEL` al arranque
-- `internal/server/server.go` — reemplazar `fmt.Printf`/`fmt.Println` por `slog`
-- `internal/infra/llm/ollama.go` — reemplazar `log.Printf` por `slog.Warn`
-- `internal/api/handlers/copilot_chat.go` — reemplazar `log.Printf` por `slog.Error`
-- `internal/api/routes.go` — reemplazar `middleware.Logger` por middleware de access log JSON propio; añadir middleware que conecta `IncErrors()` al flujo real de 5xx
-- `internal/api/handlers/health.go` — nuevo `NewReadyzHandler` (valida DB + Ollama con timeout)
-- `internal/api/routes.go` — registrar `/readyz` como ruta publica
-- `bff/src/config.ts` — añadir `logLevel`, `serviceName`, `environment`
-- `bff/src/server.ts` — reemplazar `console.log` por `pino`
-- `bff/src/middleware/errorHandler.ts` — llamar `incErrors()` en ramas 5xx
-- `bff/package.json` — añadir dependencia `pino`
-
-#### Fase B — stack de observabilidad (post Fase A)
-
-- docker-compose de observabilidad: Prometheus + Loki + Promtail + Grafana + Alertmanager
-- reglas de alerta en Prometheus/Alertmanager
-
-#### Fase C — alertas al admin por email (post Fase B)
-
-- servicio de alertas criticas por email (`IncidentNotifier` / `CriticalAlertService`)
-- integracion SMTP en backend Go
+- metricas de error reales
 
 ---
 
-## Notas finales
+## 10 -- Checklist de aceptacion de la POC low-cost
 
-- Este plan asume `Droplet + Docker Compose` como decision cerrada para v1.
-- Este plan asume `Ollama` en DigitalOcean como runtime AI de v1.
-- Este plan asume stack de observabilidad self-hosted.
-- Este plan asume alertas criticas por email como canal principal al admin.
+- [ ] `app-droplet` desplegado con TLS
+- [ ] backend no expuesto publicamente
+- [ ] `GET /health` responde
+- [ ] `GET /readyz` valida DB + provider de chat + embeddings
+- [ ] `GET /bff/health` responde
+- [ ] login y registro funcionan
+- [ ] CRUD base funciona
+- [ ] `knowledge/ingest` y `knowledge/search` funcionan
+- [ ] `copilot/chat` funciona via Gradient
+- [ ] `copilot/suggest-actions` funciona via Gradient
+- [ ] `prospecting` genera draft
+- [ ] snapshots configurados
+- [ ] uptime alerts por email configuradas
 
-Si en una fase posterior cambia la persistencia a PostgreSQL o se externaliza el runtime AI, este documento debera revisarse porque varias restricciones operativas dejarian de aplicar.
+---
+
+## 11 -- Decision final recomendada
+
+### Lo que recomiendo hacer ahora
+
+Para la POC low-cost:
+
+1. **usar `app-droplet` Basic 4GB**
+2. **usar `Volume Block Storage` de 50 GiB**
+3. **usar DigitalOcean Gradient serverless inference con modelos abiertos**
+4. **separar `chat provider` y `embed provider`**
+5. **mantener embeddings locales en fase 1**
+
+### Coste a presupuestar
+
+#### Recomendacion principal
+
+- **$33/mes fijos**
+- **+$1 a $20/mes tipicos de tokens** para una POC normal
+
+Orden de magnitud realista:
+
+- **~$35-$55/mes**
+
+#### Opcion mas comoda
+
+- **$57/mes fijos**
+- menos riesgo operativo
+
+---
+
+## 12 -- Fuentes externas usadas
+
+DigitalOcean:
+
+- Droplets pricing: https://www.digitalocean.com/pricing/droplets
+- Volumes pricing: https://docs.digitalocean.com/products/volumes/details/pricing/
+- Uptime pricing: https://docs.digitalocean.com/products/uptime/details/pricing/
+- VPC pricing: https://docs.digitalocean.com/products/networking/vpc/details/pricing/
+- Gradient AI pricing: https://docs.digitalocean.com/products/gradient-ai-platform/details/pricing/
+- Gradient available models: https://docs.digitalocean.com/products/gradient-ai-platform/details/models/
+- Gradient serverless inference: https://docs.digitalocean.com/products/gradient-ai-platform/how-to/use-serverless-inference/
+- Gradient limits: https://docs.digitalocean.com/products/gradient-ai-platform/details/limits/
+
+Modelos:
+
+- Qwen3-32B model card: https://huggingface.co/Qwen/Qwen3-32B
+- Llama 3.1 8B Instruct model card: https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
+- Mistral NeMo model page: https://mistral.ai/news/mistral-nemo/
+- Nomic Embed v1.5 model card: https://huggingface.co/nomic-ai/nomic-embed-text-v1.5

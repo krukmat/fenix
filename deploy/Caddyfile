@@ -1,0 +1,9 @@
+{$DOMAIN:localhost} {
+    handle /bff/* {
+        reverse_proxy bff:3000
+    }
+
+    handle {
+        reverse_proxy backend:8080
+    }
+}

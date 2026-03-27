@@ -56,6 +56,25 @@ func TestNewRouter_HealthEndpoint(t *testing.T) {
 	}
 }
 
+func TestNewRouter_ReadyzEndpoint(t *testing.T) {
+	db := mustOpenAPITestDB(t)
+	cfg := testCfg()
+	cfg.OllamaBaseURL = "http://127.0.0.1:1"
+
+	router := newRouterWithConfig(db, cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 from /readyz, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), `"status":"degraded"`) {
+		t.Errorf("expected degraded body, got %q", w.Body.String())
+	}
+}
+
 // TestNewRouter_KnowledgeIngestEndpoint_Unauthorized verifies that
 // POST /api/v1/knowledge/ingest is registered and returns 401 without JWT.
 // This confirms the knowledge ingest route (and embedder wiring) is present.

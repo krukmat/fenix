@@ -10,6 +10,11 @@ func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("OLLAMA_BASE_URL", "")
 	t.Setenv("OLLAMA_MODEL", "")
 	t.Setenv("OLLAMA_CHAT_MODEL", "")
+	t.Setenv("CHAT_PROVIDER", "")
+	t.Setenv("EMBED_PROVIDER", "")
+	t.Setenv("OPENAI_COMPAT_BASE_URL", "")
+	t.Setenv("OPENAI_COMPAT_API_KEY", "")
+	t.Setenv("OPENAI_COMPAT_MODEL", "")
 
 	cfg := Load()
 
@@ -24,6 +29,16 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.OllamaChatModel != "llama3.2:3b" {
 		t.Errorf("expected OllamaChatModel 'llama3.2:3b', got %q", cfg.OllamaChatModel)
+	}
+	// Split provider defaults: ChatProvider falls back to LLMProvider ("ollama").
+	if cfg.ChatProvider != "ollama" {
+		t.Errorf("expected ChatProvider 'ollama', got %q", cfg.ChatProvider)
+	}
+	if cfg.EmbedProvider != "ollama" {
+		t.Errorf("expected EmbedProvider 'ollama', got %q", cfg.EmbedProvider)
+	}
+	if cfg.OpenAICompatBaseURL != "" {
+		t.Errorf("expected empty OpenAICompatBaseURL, got %q", cfg.OpenAICompatBaseURL)
 	}
 }
 
@@ -46,6 +61,44 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	}
 	if cfg.OllamaChatModel != "llama3.1:8b" {
 		t.Errorf("expected OllamaChatModel 'llama3.1:8b', got %q", cfg.OllamaChatModel)
+	}
+}
+
+func TestLoad_ChatProvider_FallsBackToLLMProvider(t *testing.T) {
+	t.Setenv("CHAT_PROVIDER", "")
+	t.Setenv("LLM_PROVIDER", "custom-llm")
+
+	cfg := Load()
+	if cfg.ChatProvider != "custom-llm" {
+		t.Errorf("expected ChatProvider to fall back to LLM_PROVIDER 'custom-llm', got %q", cfg.ChatProvider)
+	}
+}
+
+func TestLoad_ChatProvider_OverridesLLMProvider(t *testing.T) {
+	t.Setenv("LLM_PROVIDER", "ollama")
+	t.Setenv("CHAT_PROVIDER", "openai-compat")
+
+	cfg := Load()
+	if cfg.ChatProvider != "openai-compat" {
+		t.Errorf("expected ChatProvider 'openai-compat', got %q", cfg.ChatProvider)
+	}
+}
+
+func TestLoad_OpenAICompatFields(t *testing.T) {
+	t.Setenv("CHAT_PROVIDER", "openai-compat")
+	t.Setenv("OPENAI_COMPAT_BASE_URL", "https://api.groq.com/openai")
+	t.Setenv("OPENAI_COMPAT_API_KEY", "gsk_test123")
+	t.Setenv("OPENAI_COMPAT_MODEL", "llama3-8b-8192")
+
+	cfg := Load()
+	if cfg.OpenAICompatBaseURL != "https://api.groq.com/openai" {
+		t.Errorf("expected OpenAICompatBaseURL, got %q", cfg.OpenAICompatBaseURL)
+	}
+	if cfg.OpenAICompatAPIKey != "gsk_test123" {
+		t.Errorf("expected OpenAICompatAPIKey, got %q", cfg.OpenAICompatAPIKey)
+	}
+	if cfg.OpenAICompatModel != "llama3-8b-8192" {
+		t.Errorf("expected OpenAICompatModel, got %q", cfg.OpenAICompatModel)
 	}
 }
 

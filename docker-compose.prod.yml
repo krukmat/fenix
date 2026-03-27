@@ -1,20 +1,32 @@
-# Post-MVP Polish — Docker Compose: Go backend + BFF
-# Ollama runs on the HOST machine (localhost:11434) — no Docker Ollama container needed.
-# Usage: docker compose up --build backend bff
 version: '3.9'
 
 services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      bff:
+        condition: service_healthy
+    restart: unless-stopped
+
   backend:
     build:
       context: .
       dockerfile: deploy/Dockerfile
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     environment:
-      - JWT_SECRET=${JWT_SECRET:-dev-secret-key-32-chars-minimum!!}
+      - JWT_SECRET=${JWT_SECRET}
       - DATABASE_URL=/data/fenixcrm.db
-      # Task 4.4 UAT fix: use host Ollama (already has all models) instead of Docker Ollama container
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
       - OLLAMA_CHAT_MODEL=${OLLAMA_CHAT_MODEL:-llama3.2:3b-instruct-q4_K_M}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-nomic-embed-text}
       - CHAT_PROVIDER=${CHAT_PROVIDER:-ollama}
@@ -29,13 +41,14 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
 
   bff:
     build:
       context: .
       dockerfile: deploy/Dockerfile.bff
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       - BACKEND_URL=http://backend:8080
       - NODE_ENV=production
@@ -47,6 +60,20 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles:
+      - with-ollama
+    expose:
+      - "11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
 
 volumes:
+  caddy_data:
+  caddy_config:
   db_data:
+  ollama_data:
