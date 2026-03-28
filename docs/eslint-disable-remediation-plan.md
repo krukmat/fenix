@@ -31,6 +31,33 @@ Distribucion principal:
 - tests BFF con `any` repetido;
 - 2 casos en codigo de produccion BFF.
 
+### Inventario Verificado (46 comentarios) — 2026-03-28
+
+#### mobile/ (34 comentarios)
+
+| Archivo | Líneas | Regla | Naturaleza | Acción |
+|---|---|---|---|---|
+| `authStore.test.ts` | 16 | `no-var-requires` | Simple import (module-level require) | → static `import` |
+| `workflows.test.tsx` | 105,120,133,156,174,190,212,233,250,265,291,307 (×12) | `no-require-imports` | Cached module, sin resetModules (require en it() pero módulo no se reevalúa) | → static `import` al tope del archivo |
+| `home.test.tsx` | 102,113,125,139,154,168,179 (×7) | `no-require-imports` | Cached module, sin resetModules | → static `import` al tope del archivo |
+| `copilot.test.tsx` | 23,34,49,69,84 (×5) | `no-require-imports` | **Re-evaluación real**: jest.resetModules() en beforeEach reevalúa módulo por test | → `jest.isolateModules()` por test |
+| `drawer.test.tsx` | 35,37,48,50 (×4) | `no-require-imports` | Dentro de `jest.mock()` factory — require es obligatorio (hoisting) | → eliminar comentario solo (require se mantiene; regla ya desactivada en config para tests) |
+| `drawer.test.tsx` | 72,242 (×2) | `no-require-imports` | Simple import disfrazado (helper + it body) | → static `import` al tope |
+| `CopilotPanel.context.test.tsx` | 35 (×1) | `no-require-imports` | Simple import (dentro de helper, sin resetModules) | → static `import` |
+| `seed.helper.ts` | 4,6 (×2) | `no-require-imports` | Node built-ins, simple import | → static `import` |
+
+#### bff/ (12 comentarios)
+
+| Archivo | Líneas | Regla | Naturaleza | Acción |
+|---|---|---|---|---|
+| `src/routes/copilot.ts` | 37 | `no-explicit-any` | **Obsoleto**: línea 38 ya usa tipo concreto `import('stream').Readable`, no `any` | → eliminar comentario |
+| `src/middleware/errorHandler.ts` | 23 | `no-unused-vars` | **Excepción real**: Express 5 requiere firma 4-params; `_req` y `_next` declarados sin uso intencional | → mover a comentario explicativo; BFF no tiene ESLint |
+| `tests/proxy.test.ts` | 7,18 (×2) | `no-explicit-any` | Patrón repetido: proxy stub jest.fn con parámetros `any` y `as any` cast | → helper tipado |
+| `tests/mobileHeaders.test.ts` | 7,9 (×2) | `no-explicit-any` | Patrón repetido: proxy stub | → helper tipado |
+| `tests/errorHandler.test.ts` | 7,9 (×2) | `no-explicit-any` | Patrón repetido: proxy stub | → helper tipado |
+| `tests/copilot.test.ts` | 6,8 (×2) | `no-explicit-any` | Patrón repetido: proxy stub | → helper tipado |
+| `tests/e2e/fullstack.test.ts` | 4,6 (×2) | `no-explicit-any` | Patrón repetido: proxy stub | → helper tipado |
+
 ## Hallazgos Priorizados
 
 - suppression obsoleta en `bff/src/routes/copilot.ts`;
@@ -140,14 +167,17 @@ Dependencias:
 
 ### T5. Extender el control a BFF
 
-- cubrir `bff` con la misma politica que `mobile`;
-- como minimo, hacer pasar `bff` por el gate textual;
-- opcion recomendada: incorporar ESLint en `bff` con la misma politica de
-  inline config deshabilitada.
+**Decisión**: Sin instalar ESLint en BFF. Solo gate textual.
+
+- hacer pasar `bff` por el gate textual (script check-no-inline-eslint-disable.sh);
+- BFF no tendrá ESLint completo (no hay lint script en package.json hoy);
+- los comentarios `eslint-disable` en `bff/` son inertos hoy pero se eliminan para que no sean detectados por el gate;
+- las excepciones reales (como `errorHandler.ts`) se documentan con comentarios de código, no directivas ESLint.
 
 Dependencias:
 
 - `T1`.
+- `T3` (el gate debe estar listo).
 
 ### T6. Remediar suppressions obsoletas de bajo riesgo
 
@@ -180,14 +210,24 @@ Dependencias:
 
 ### T8. Remediar tests BFF con `any` repetido
 
-- crear helper tipado compartido para el stub de `http-proxy-middleware`;
-- eliminar `req/res/next: any` y `as any` repetidos;
-- priorizar:
-  - `bff/tests/proxy.test.ts`
-  - `bff/tests/mobileHeaders.test.ts`
-  - `bff/tests/errorHandler.test.ts`
-  - `bff/tests/copilot.test.ts`
-  - `bff/tests/e2e/fullstack.test.ts`
+- crear helper tipado compartido `bff/tests/helpers/proxyStub.ts`:
+  ```typescript
+  import type { Request, Response, NextFunction } from 'express';
+  import type { RequestHandler } from 'http-proxy-middleware';
+
+  export function makeProxyStub(): RequestHandler {
+    const fn = jest.fn((_req: Request, _res: Response, next: NextFunction) => next());
+    return Object.assign(fn, { upgrade: () => {} }) as unknown as RequestHandler;
+  }
+  ```
+- usar el helper en lugar de `jest.fn((_req: any, _res: any, next: any) => ...)` y `as any`;
+- eliminar 10 comentarios `eslint-disable-next-line @typescript-eslint/no-explicit-any` en los 5 files;
+- archivos afectados:
+  - `bff/tests/proxy.test.ts` (2 comentarios)
+  - `bff/tests/mobileHeaders.test.ts` (2 comentarios)
+  - `bff/tests/errorHandler.test.ts` (2 comentarios)
+  - `bff/tests/copilot.test.ts` (2 comentarios)
+  - `bff/tests/e2e/fullstack.test.ts` (2 comentarios)
 
 Dependencias:
 
@@ -258,11 +298,11 @@ Trabajo paralelizable:
 
 ### Controles en ESLint
 
-- activar `linterOptions.noInlineConfig = true` para que los comentarios inline
+- activar `linterOptions.noInlineConfig = true` en `mobile/eslint.config.js` para que los comentarios inline
   no tengan efecto;
 - activar `linterOptions.reportUnusedDisableDirectives = "error"` para tratar
   disables muertos como fallo;
-- aplicar la misma politica a `mobile` y `bff`, no solo a `mobile`.
+- solo aplica a `mobile` (BFF no tiene ESLint instalado).
 
 ### Controles en Pipeline
 
@@ -306,21 +346,24 @@ Trabajo paralelizable:
 - si alguna excepcion sobrevive, debe estar fuera del codigo y quedar
   explicitamente justificada.
 
-## Cambios de Implementacion Posteriores a la Aprobacion
+## Ejecución de Implementación — Aprobada 2026-03-28
 
-Cuando se apruebe la remediacion tecnica, la implementacion debe hacer
-exactamente esto:
+La remediación técnica ha sido **aprobada**. Orden de ejecución:
 
-- crear este documento como referencia previa;
-- no editar `docs/mobile-agent-spec-transition-gap-closure-plan.md` ni
-  `docs/handoffs/mobile-bff-remediation-pipeline-handoff.md`;
-- dejar el documento como referencia de aprobacion previa antes de tocar codigo;
-- endurecer la configuracion de ESLint para desactivar inline config;
-- introducir un script de gate para bloquear inline disables en CI;
-- extender el control a `bff` aunque hoy no tenga el mismo circuito de lint que
-  `mobile`;
-- esperar despues de crear el doc, sin ejecutar la remediacion tecnica, hasta
-  nueva instruccion.
+1. **T0** — Ajustar este documento con inventario y decisiones (EN PROGRESO)
+2. **T6** — Eliminar suppressions obsoletas en BFF (`copilot.ts` + `errorHandler.ts`)
+3. **T8** — Crear helper tipado para proxy stubs + actualizar 5 test files BFF
+4. **T7a–T7g** — Convertir `require()` a `import` en mobile tests (paralelo)
+5. **T2** — Añadir `linterOptions` a `mobile/eslint.config.js`
+6. **T3** — Crear script gate `scripts/check-no-inline-eslint-disable.sh`
+7. **T4** — Añadir job `no-inline-disable-gate` a `.github/workflows/ci.yml`
+8. **T10** — Validación final: lint + gate + tests
+
+### Restricciones de Implementación
+
+- No editar `docs/mobile-agent-spec-transition-gap-closure-plan.md` ni `docs/handoffs/`
+- No tocar suppressions dentro de `jest.mock()` factories salvo eliminar el comentario
+- No reestructurar reglas globales de ESLint más allá de `linterOptions`
 
 ## Pruebas y Verificacion
 
@@ -336,14 +379,18 @@ Tras la futura aprobacion de implementacion:
   streaming;
 - verificar que cualquier excepcion residual esta centralizada y documentada.
 
+## Excepciones Residuales Aprobadas
+
+| Archivo | Regla | Motivo | Mecanismo | Revisado |
+|---|---|---|---|---|
+| `bff/src/middleware/errorHandler.ts` | `no-unused-vars` | Express 5 requiere 4 params para reconocer error handler; `_req` y `_next` intencionales | Comentario de código explicativo (BFF sin ESLint) | 2026-03-28 |
+| `mobile/__tests__/navigation/drawer.test.tsx` mock factories | `no-require-imports` | `jest.mock()` factories son hoisted antes de ES imports; `require()` es obligatorio | Regla ya desactivada en config para tests; sin comentario inline | 2026-03-28 |
+
+---
+
 ## Supuestos
 
-- se documenta en un archivo nuevo para evitar conflictos con docs abiertas o ya
-  modificadas;
-- la aprobacion del documento no implica aprobacion automatica de la
-  remediacion tecnica;
-- la politica objetivo del repo pasa a ser cero disables inline por defecto;
+- la política objetivo del repo es **cero disables inline por defecto**;
 - las excepciones, si existen, deben aprobarse fuera del archivo afectado y con
   trazabilidad;
-- hasta nueva orden, el trabajo queda detenido despues de dejar la
-  documentacion creada.
+- la implementación está aprobada. Iniciar ejecución según orden definido arriba.

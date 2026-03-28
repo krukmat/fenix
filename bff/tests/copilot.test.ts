@@ -1,12 +1,10 @@
 // Task 4.1 — FR-301: SSE proxy tests (TDD — written before implementation)
 import request from 'supertest';
 import { PassThrough } from 'stream';
+import { makeProxyStub } from './helpers/proxyStub';
 
 // Mock http-proxy-middleware (required at module import in routes/proxy.ts)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const proxyHandlerFn = jest.fn((_req: any, _res: any, next: any) => next());
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const proxyStub = Object.assign(proxyHandlerFn, { upgrade: () => {} }) as any;
+const proxyStub = makeProxyStub();
 jest.mock('http-proxy-middleware', () => ({
   createProxyMiddleware: jest.fn(() => proxyStub),
 }));

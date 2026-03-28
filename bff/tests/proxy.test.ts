@@ -3,9 +3,9 @@
 // The proxy middleware is created at module import time, so the mock must be set up
 // via jest.mock factory function (hoisted before imports).
 import request from 'supertest';
+import { makeProxyStub } from './helpers/proxyStub';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const proxyHandlerFn = jest.fn((req: any, res: any, _next: any) => {
+const proxyHandlerFn = jest.fn((req, res, _next) => {
   // Default: simulate auth-required endpoint
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -14,9 +14,7 @@ const proxyHandlerFn = jest.fn((req: any, res: any, _next: any) => {
   }
   res.status(200).json([{ id: 'acc-1', name: 'Acme Corp' }]);
 });
-// http-proxy-middleware v3 RequestHandler requires upgrade — add via cast
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const proxyHandler = Object.assign(proxyHandlerFn, { upgrade: () => {} }) as any;
+const proxyHandler = makeProxyStub();
 
 jest.mock('http-proxy-middleware', () => ({
   // createProxyMiddleware is called at module import time in routes/proxy.ts

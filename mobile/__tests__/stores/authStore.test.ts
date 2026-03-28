@@ -11,10 +11,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-
-// Import the store after mocking
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { useAuthStore } = require('../../src/stores/authStore');
+import { useAuthStore } from '../../src/stores/authStore';
 
 describe('authStore', () => {
   beforeEach(() => {

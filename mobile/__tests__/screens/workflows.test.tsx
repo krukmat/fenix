@@ -4,6 +4,10 @@ import { fireEvent, render, waitFor, within } from '@testing-library/react-nativ
 import { Alert } from 'react-native';
 import { Provider as PaperProvider } from 'react-native-paper';
 import type { Workflow } from '../../src/services/api';
+import WorkflowsIndex from '../../app/(tabs)/workflows/index';
+import WorkflowDetail from '../../app/(tabs)/workflows/[id]';
+import WorkflowNew from '../../app/(tabs)/workflows/new';
+import WorkflowEdit from '../../app/(tabs)/workflows/edit/[id]';
 
 const mockUseWorkflows = jest.fn();
 const mockUseWorkflow = jest.fn();
@@ -102,8 +106,7 @@ describe('Workflows screens', () => {
   describe('list', () => {
     it('renders workflow cards and list actions', () => {
       setupListMock([activeWorkflow, draftWorkflow]);
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/index').default;
+      const Screen = WorkflowsIndex;
       const { getByTestId } = render(
         <PaperProvider>
           <Screen />
@@ -117,8 +120,7 @@ describe('Workflows screens', () => {
 
     it('shows empty state when no workflows exist', () => {
       setupListMock([]);
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/index').default;
+      const Screen = WorkflowsIndex;
       const { getByTestId } = render(
         <PaperProvider>
           <Screen />
@@ -130,8 +132,7 @@ describe('Workflows screens', () => {
 
     it('passes status filter to useWorkflows and navigates to new/detail screens', () => {
       setupListMock([activeWorkflow]);
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/index').default;
+      const Screen = WorkflowsIndex;
       const { getByTestId } = render(
         <PaperProvider>
           <Screen />
@@ -153,8 +154,7 @@ describe('Workflows screens', () => {
     it('renders workflow metadata and DSL', () => {
       mockUseWorkflow.mockReturnValue({ data: activeWorkflow, isLoading: false, refetch: jest.fn() });
       mockUseWorkflowVersions.mockReturnValue({ data: [activeWorkflow, draftWorkflow] });
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/[id]').default;
+      const Screen = WorkflowDetail;
       const { getByTestId } = render(
         <PaperProvider>
           <Screen />
@@ -171,8 +171,7 @@ describe('Workflows screens', () => {
 
     it('shows execute only for active workflows', () => {
       mockUseWorkflow.mockReturnValue({ data: activeWorkflow, isLoading: false, refetch: jest.fn() });
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/[id]').default;
+      const Screen = WorkflowDetail;
       const { getByTestId, queryByTestId } = render(
         <PaperProvider>
           <Screen />
@@ -187,8 +186,7 @@ describe('Workflows screens', () => {
 
     it('shows edit, activate and verify for draft workflows', () => {
       mockUseWorkflow.mockReturnValue({ data: draftWorkflow, isLoading: false, refetch: jest.fn() });
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/[id]').default;
+      const Screen = WorkflowDetail;
       const { getByTestId, queryByTestId } = render(
         <PaperProvider>
           <Screen />
@@ -209,8 +207,7 @@ describe('Workflows screens', () => {
       const mutate = jest.fn((_id, options) => options?.onSuccess?.({ id: 'wf-9' }));
       mockUseWorkflow.mockReturnValue({ data: activeWorkflow, isLoading: false, refetch: jest.fn() });
       mockUseNewVersion.mockReturnValue({ mutate, isPending: false });
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/[id]').default;
+      const Screen = WorkflowDetail;
       const { getByTestId } = render(
         <PaperProvider>
           <Screen />
@@ -230,8 +227,7 @@ describe('Workflows screens', () => {
       mockUseWorkflow.mockReturnValue({ data: archivedWorkflow, isLoading: false, refetch: jest.fn() });
       mockUseWorkflowVersions.mockReturnValue({ data: [activeWorkflow, archivedWorkflow] });
       mockUseRollback.mockReturnValue({ mutate, isPending: false });
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/[id]').default;
+      const Screen = WorkflowDetail;
       const { getByTestId } = render(
         <PaperProvider>
           <Screen />
@@ -247,8 +243,7 @@ describe('Workflows screens', () => {
     it('blocks submit when required fields are empty', () => {
       const mutateAsync = jest.fn();
       mockUseCreateWorkflow.mockReturnValue({ mutateAsync, isPending: false });
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/new').default;
+      const Screen = WorkflowNew;
       const { getByTestId } = render(
         <PaperProvider>
           <Screen />
@@ -262,8 +257,7 @@ describe('Workflows screens', () => {
     it('creates a draft workflow and navigates to detail', async () => {
       const mutateAsync = jest.fn().mockResolvedValue({ id: 'wf-3' });
       mockUseCreateWorkflow.mockReturnValue({ mutateAsync, isPending: false });
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/new').default;
+      const Screen = WorkflowNew;
       const { getByTestId } = render(
         <PaperProvider>
           <Screen />
@@ -289,8 +283,7 @@ describe('Workflows screens', () => {
   describe('edit workflow', () => {
     it('shows a disabled state for non-draft workflows', () => {
       mockUseWorkflow.mockReturnValue({ data: activeWorkflow, isLoading: false });
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/edit/[id]').default;
+      const Screen = WorkflowEdit;
       const { getByTestId } = render(
         <PaperProvider>
           <Screen />
@@ -304,8 +297,7 @@ describe('Workflows screens', () => {
       const mutateAsync = jest.fn().mockResolvedValue({ id: 'wf-1' });
       mockUseWorkflow.mockReturnValue({ data: { ...draftWorkflow, id: 'wf-1' }, isLoading: false });
       mockUseUpdateWorkflow.mockReturnValue({ mutateAsync, isPending: false });
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Screen = require('../../app/(tabs)/workflows/edit/[id]').default;
+      const Screen = WorkflowEdit;
       const { getByTestId } = render(
         <PaperProvider>
           <Screen />

@@ -6,6 +6,12 @@ const sonarjs = require('eslint-plugin-sonarjs');
 module.exports = defineConfig([
   expoConfig,
   {
+    linterOptions: {
+      noInlineConfig: true,
+      reportUnusedDisableDirectives: 'error',
+    },
+  },
+  {
     plugins: {
       sonarjs,
     },

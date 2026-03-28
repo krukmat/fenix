@@ -6,6 +6,7 @@ import React from 'react';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { render, fireEvent, within } from '@testing-library/react-native';
 import { Provider as PaperProvider } from 'react-native-paper';
+import Layout from '../../app/(tabs)/_layout';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -32,9 +33,7 @@ jest.mock('expo-router', () => ({
 
 jest.mock('expo-router/drawer', () => {
   function DrawerMock({ drawerContent, children }: { drawerContent: (p: unknown) => unknown; children?: unknown }) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { View } = require('react-native');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const React = require('react');
     const fakeProps = { navigation: { navigate: mockNavigate, openDrawer: jest.fn() } };
     return React.createElement(View, null, drawerContent(fakeProps), children);
@@ -45,9 +44,7 @@ jest.mock('expo-router/drawer', () => {
 
 jest.mock('@react-navigation/drawer', () => ({
   DrawerContentScrollView: ({ children, testID }: { children: unknown; testID?: string }) => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { View } = require('react-native');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const React = require('react');
     return React.createElement(View, { testID }, children);
   },
@@ -70,7 +67,6 @@ function setupAuth(isAuthenticated = true) {
 
 function renderLayout() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Layout = require('../../app/(tabs)/_layout').default;
   return render(
     <PaperProvider>
       <Layout />
@@ -239,9 +235,7 @@ describe('Drawer layout — auth guard', () => {
   it('renders Redirect when not authenticated', () => {
     setupAuth(false);
     mockUsePendingApprovals.mockReturnValue({ data: [] });
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Layout = require('../../app/(tabs)/_layout').default;
-    // When unauthenticated, Layout returns <Redirect> which renders null in our mock
+      // When unauthenticated, Layout returns <Redirect> which renders null in our mock
     const { queryByTestId } = render(
       <PaperProvider>
         <Layout />

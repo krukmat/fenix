@@ -1,10 +1,8 @@
 // Seed helper for Mobile P2 Detox smoke suites.
 // Uses a repo-local Go helper so the tests run against deterministic SQLite data.
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { execFileSync } = require('node:child_process');
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const path = require('node:path');
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 
 type MobileP2Seed = {
   credentials: {

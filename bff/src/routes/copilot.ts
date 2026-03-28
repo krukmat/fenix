@@ -34,7 +34,6 @@ router.post('/chat', async (req: BffRequest, res: Response, next: NextFunction):
     res.flushHeaders();
 
     // Relay chunks from Go to mobile client
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const stream = goRes.data as import('stream').Readable;
     stream.pipe(res);
 

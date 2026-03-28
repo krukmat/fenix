@@ -1,10 +1,8 @@
 import request from 'supertest';
+import { makeProxyStub } from '../helpers/proxyStub';
 
 // Mock http-proxy-middleware before importing app (proxy.ts imports at module-level)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const proxyHandlerFn = jest.fn((_req: any, _res: any, next: any) => next());
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const proxyStub = Object.assign(proxyHandlerFn, { upgrade: () => {} }) as any;
+const proxyStub = makeProxyStub();
 jest.mock('http-proxy-middleware', () => ({
   createProxyMiddleware: jest.fn(() => proxyStub),
 }));

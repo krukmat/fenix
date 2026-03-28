@@ -6,6 +6,8 @@ import React from 'react';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { render, fireEvent, within } from '@testing-library/react-native';
 import { Provider as PaperProvider } from 'react-native-paper';
+import HomeScreen from '../../app/(tabs)/home/index';
+import CRMHub from '../../app/(tabs)/crm/index';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -99,8 +101,6 @@ describe('Home screen (index)', () => {
   });
 
   it('renders HomeFeed with signals and approvals', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const HomeScreen = require('../../app/(tabs)/home/index').default;
     const { getByTestId } = render(
       <PaperProvider>
         <HomeScreen />
@@ -110,8 +110,6 @@ describe('Home screen (index)', () => {
   });
 
   it('passes pending approval count to HomeFeed', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const HomeScreen = require('../../app/(tabs)/home/index').default;
     const { getByTestId } = render(
       <PaperProvider>
         <HomeScreen />
@@ -122,8 +120,6 @@ describe('Home screen (index)', () => {
   });
 
   it('navigates to signal detail on signal press', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const HomeScreen = require('../../app/(tabs)/home/index').default;
     const { getByTestId } = render(
       <PaperProvider>
         <HomeScreen />
@@ -136,8 +132,6 @@ describe('Home screen (index)', () => {
   it('shows empty state when no signals and no approvals', () => {
     mockUseSignals.mockReturnValue({ data: { pages: [] }, isLoading: false, refetch: jest.fn() });
     mockUsePendingApprovals.mockReturnValue({ data: [], isLoading: false, refetch: jest.fn() });
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const HomeScreen = require('../../app/(tabs)/home/index').default;
     const { getByTestId } = render(
       <PaperProvider>
         <HomeScreen />
@@ -151,8 +145,6 @@ describe('Home screen (index)', () => {
 
 describe('CRM Hub screen', () => {
   it('renders 4 entity cards', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const CRMHub = require('../../app/(tabs)/crm/index').default;
     const { getByTestId } = render(
       <PaperProvider>
         <CRMHub />
@@ -165,8 +157,6 @@ describe('CRM Hub screen', () => {
   });
 
   it('navigates to /crm/accounts when Accounts card is pressed', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const CRMHub = require('../../app/(tabs)/crm/index').default;
     const { getByTestId } = render(
       <PaperProvider>
         <CRMHub />
@@ -177,8 +167,6 @@ describe('CRM Hub screen', () => {
   });
 
   it('navigates to /crm/deals when Deals card is pressed', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const CRMHub = require('../../app/(tabs)/crm/index').default;
     const { getByTestId } = render(
       <PaperProvider>
         <CRMHub />

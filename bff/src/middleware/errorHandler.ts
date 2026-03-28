@@ -19,8 +19,7 @@ function isAxiosLikeError(err: unknown): err is AxiosError {
   return err instanceof AxiosError || (err instanceof Error && 'isAxiosError' in err && (err as { isAxiosError: unknown }).isAxiosError === true);
 }
 
-// Express 5 error handler: 4 params required
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// Express 5 error handler: 4 params required for handler recognition; _req and _next are intentional
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
   if (isAxiosLikeError(err)) {
     const axiosErr = err as AxiosError<{ message?: string }>;

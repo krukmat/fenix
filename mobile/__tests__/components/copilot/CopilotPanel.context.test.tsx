@@ -32,7 +32,6 @@ function setupSSE() {
 }
 
 function renderPanel(props?: Record<string, unknown>) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { CopilotPanel } = require('../../../src/components/copilot/CopilotPanel');
   return render(
     <PaperProvider>

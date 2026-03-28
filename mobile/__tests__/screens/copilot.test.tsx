@@ -20,19 +20,17 @@ jest.mock('../../src/components/copilot', () => ({
   },
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const CopilotScreen = () => require('../../app/(tabs)/copilot/index').default;
-
 describe('CopilotScreen — route params to context mapping', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.resetModules();
   });
 
   it('passes undefined initialContext when no params are present', () => {
     mockUseLocalSearchParams.mockReturnValue({});
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Screen = require('../../app/(tabs)/copilot/index').default;
+    let Screen: any;
+    jest.isolateModules(() => {
+      Screen = require('../../app/(tabs)/copilot/index').default;
+    });
     render(<Screen />);
     expect(mockCopilotPanel).toHaveBeenCalledWith(
       expect.objectContaining({ initialContext: undefined }),
@@ -46,8 +44,10 @@ describe('CopilotScreen — route params to context mapping', () => {
       signal_id: 'sig-1',
       signal_type: 'churn_risk',
     });
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Screen = require('../../app/(tabs)/copilot/index').default;
+    let Screen: any;
+    jest.isolateModules(() => {
+      Screen = require('../../app/(tabs)/copilot/index').default;
+    });
     render(<Screen />);
     expect(mockCopilotPanel).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -66,8 +66,10 @@ describe('CopilotScreen — route params to context mapping', () => {
       entity_type: 'account',
       entity_id: 'a-99',
     });
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Screen = require('../../app/(tabs)/copilot/index').default;
+    let Screen: any;
+    jest.isolateModules(() => {
+      Screen = require('../../app/(tabs)/copilot/index').default;
+    });
     render(<Screen />);
     expect(mockCopilotPanel).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -81,8 +83,10 @@ describe('CopilotScreen — route params to context mapping', () => {
 
   it('builds initialContext when only signal_id is present', () => {
     mockUseLocalSearchParams.mockReturnValue({ signal_id: 'sig-42' });
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Screen = require('../../app/(tabs)/copilot/index').default;
+    let Screen: any;
+    jest.isolateModules(() => {
+      Screen = require('../../app/(tabs)/copilot/index').default;
+    });
     render(<Screen />);
     expect(mockCopilotPanel).toHaveBeenCalledWith(
       expect.objectContaining({

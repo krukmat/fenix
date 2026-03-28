@@ -129,11 +129,22 @@ jobs:
       - name: FR-to-test traceability check
         run: make trace-check
 
+  # Job 1.5: Check no inline eslint-disable comments
+  no-inline-disable-gate:
+    name: No Inline ESLint Disable
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Check no inline eslint-disable
+        run: bash scripts/check-no-inline-eslint-disable.sh
+
   # Job 2: Lint, Test, Build — only runs if complexity gate passes
   test:
     name: Lint and Test
     if: github.event_name != 'schedule'
-    needs: [mobile-quality, complexity, traceability]
+    needs: [mobile-quality, complexity, traceability, no-inline-disable-gate]
     runs-on: ubuntu-latest
 
     steps:
