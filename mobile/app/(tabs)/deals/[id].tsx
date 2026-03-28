@@ -95,7 +95,69 @@ function renderContent(deal: DealDetailData, router: ReturnType<typeof useRouter
   );
 }
 
-// eslint-disable-next-line complexity
+function s(o: Record<string, unknown> | null | undefined, key: string): string | undefined {
+  return o?.[key] as string | undefined;
+}
+
+function n(o: Record<string, unknown> | null | undefined, key: string): number | undefined {
+  return o?.[key] as number | undefined;
+}
+
+function parseDealCore(d: Record<string, unknown>): Omit<DealDetailData, 'accountName' | 'activeSignalCount'> {
+  return {
+    id: String(d.id ?? ''),
+    title: s(d, 'title'),
+    name: s(d, 'name') ?? s(d, 'title'),
+    amount: n(d, 'amount'),
+    value: n(d, 'value') ?? n(d, 'amount'),
+    status: (s(d, 'status') as 'open' | 'won' | 'lost' | undefined) ?? 'open',
+    stage: s(d, 'stage'),
+    accountId: s(d, 'accountId') ?? s(d, 'account_id'),
+    closeDate: s(d, 'closeDate') ?? s(d, 'expectedClose'),
+    description: s(d, 'description'),
+    pipeline: s(d, 'pipeline'),
+  };
+}
+
+function parseDealPayload(data: unknown): DealDetailData | undefined {
+  const payload = (data ?? null) as Record<string, unknown> | null;
+  const d = (payload?.deal as Record<string, unknown> | undefined) ?? payload ?? undefined;
+  if (!d) return undefined;
+  const acct = payload?.account as Record<string, unknown> | undefined;
+  const signalCount = payload?.active_signal_count;
+  return {
+    ...parseDealCore(d),
+    accountName: s(acct, 'name'),
+    activeSignalCount: typeof signalCount === 'number' ? signalCount : 0,
+  };
+}
+
+function renderScreenBody(
+  isLoading: boolean,
+  error: Error | null,
+  content: React.ReactNode,
+  colors: ThemeColors,
+  loadingLabel: string,
+  emptyLabel: string,
+): React.ReactNode {
+  if (isLoading) {
+    return (
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.onSurfaceVariant, marginTop: 12 }}>{loadingLabel}</Text>
+      </View>
+    );
+  }
+  if (error || !content) {
+    return (
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.error, fontSize: 16 }}>{error?.message || emptyLabel}</Text>
+      </View>
+    );
+  }
+  return content;
+}
+
 export default function DealDetailScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -103,44 +165,14 @@ export default function DealDetailScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data, isLoading, error } = useDeal(id);
-  const payload = (data ?? null) as Record<string, unknown> | null;
-  const dealObj = (payload?.deal as Record<string, unknown> | undefined) ?? payload ?? undefined;
-  const accountObj = payload?.account as Record<string, unknown> | undefined;
-  const deal: DealDetailData | undefined = dealObj
-    ? {
-        id: String(dealObj.id ?? ''),
-        title: dealObj.title as string | undefined,
-        name: (dealObj.name as string | undefined) ?? (dealObj.title as string | undefined),
-        amount: dealObj.amount as number | undefined,
-        value: (dealObj.value as number | undefined) ?? (dealObj.amount as number | undefined),
-        status: ((dealObj.status as 'open' | 'won' | 'lost' | undefined) ?? 'open'),
-        stage: dealObj.stage as string | undefined,
-        accountId: (dealObj.accountId as string | undefined) ?? (dealObj.account_id as string | undefined),
-        accountName: accountObj?.name as string | undefined,
-        closeDate: (dealObj.closeDate as string | undefined) ?? (dealObj.expectedClose as string | undefined),
-        description: dealObj.description as string | undefined,
-        pipeline: dealObj.pipeline as string | undefined,
-        activeSignalCount: typeof payload?.active_signal_count === 'number' ? payload.active_signal_count : 0,
-      }
-    : undefined;
-
-  // FIX-1: Removed useMemo wrapping JSX
+  const deal = parseDealPayload(data);
   const content = deal ? renderContent(deal, router, colors) : null;
 
   return (
     <>
       <Stack.Screen options={{ title: deal?.title || deal?.name || 'Deal' }} />
       <ScrollView testID="deal-detail-screen" style={[styles.container, { backgroundColor: colors.background }]}>
-        {isLoading ? (
-          <View style={[styles.centered, { backgroundColor: colors.background }]}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={{ color: colors.onSurfaceVariant, marginTop: 12 }}>Loading deal...</Text>
-          </View>
-        ) : error || !deal ? (
-          <View style={[styles.centered, { backgroundColor: colors.background }]}>
-            <Text style={{ color: colors.error, fontSize: 16 }}>{error?.message || 'Deal not found'}</Text>
-          </View>
-        ) : content}
+        {renderScreenBody(isLoading, error ?? null, content, colors, 'Loading deal...', 'Deal not found')}
       </ScrollView>
     </>
   );

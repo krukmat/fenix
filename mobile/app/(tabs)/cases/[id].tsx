@@ -115,7 +115,41 @@ export function renderCaseContent(caseData: CaseDetailData, colors: ThemeColors,
   );
 }
 
-// eslint-disable-next-line complexity
+function s(o: Record<string, unknown> | null | undefined, key: string): string | undefined {
+  return o?.[key] as string | undefined;
+}
+
+function parseCaseCore(
+  c: Record<string, unknown>,
+  handoff: Record<string, unknown> | undefined,
+): Omit<CaseDetailData, 'accountName' | 'activeSignalCount'> {
+  return {
+    id: String(c.id ?? ''),
+    subject: s(c, 'subject'),
+    status: s(c, 'status') ?? 'open',
+    priority: (s(c, 'priority') as 'low' | 'medium' | 'high' | undefined) ?? 'medium',
+    description: s(c, 'description'),
+    accountId: s(c, 'accountId') ?? s(c, 'account_id'),
+    slaDeadline: s(c, 'slaDeadline') ?? s(c, 'sla_deadline'),
+    handoffStatus: s(handoff, 'status') ?? s(c, 'handoffStatus'),
+    assignee: s(c, 'assignee'),
+  };
+}
+
+function parseCasePayload(data: unknown): CaseDetailData | undefined {
+  const payload = (data ?? null) as Record<string, unknown> | null;
+  const c = (payload?.case as Record<string, unknown> | undefined) ?? payload ?? undefined;
+  if (!c) return undefined;
+  const acct = payload?.account as Record<string, unknown> | undefined;
+  const handoff = payload?.handoff as Record<string, unknown> | undefined;
+  const signalCount = payload?.active_signal_count;
+  return {
+    ...parseCaseCore(c, handoff),
+    accountName: s(acct, 'name'),
+    activeSignalCount: typeof signalCount === 'number' ? signalCount : 0,
+  };
+}
+
 export default function CaseDetailScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -123,25 +157,7 @@ export default function CaseDetailScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data, isLoading, error } = useCase(id);
-  const payload = (data ?? null) as Record<string, unknown> | null;
-  const caseObj = (payload?.case as Record<string, unknown> | undefined) ?? payload ?? undefined;
-  const accountObj = payload?.account as Record<string, unknown> | undefined;
-  const handoffObj = payload?.handoff as Record<string, unknown> | undefined;
-  const caseData: CaseDetailData | undefined = caseObj
-    ? {
-        id: String(caseObj.id ?? ''),
-        subject: caseObj.subject as string | undefined,
-        status: (caseObj.status as string | undefined) ?? 'open',
-        priority: ((caseObj.priority as 'low' | 'medium' | 'high' | undefined) ?? 'medium'),
-        description: caseObj.description as string | undefined,
-        accountId: (caseObj.accountId as string | undefined) ?? (caseObj.account_id as string | undefined),
-        accountName: accountObj?.name as string | undefined,
-        slaDeadline: (caseObj.slaDeadline as string | undefined) ?? (caseObj.sla_deadline as string | undefined),
-        handoffStatus: (handoffObj?.status as string | undefined) ?? (caseObj.handoffStatus as string | undefined),
-        assignee: caseObj.assignee as string | undefined,
-        activeSignalCount: typeof payload?.active_signal_count === 'number' ? payload.active_signal_count : 0,
-      }
-    : undefined;
+  const caseData = parseCasePayload(data);
 
   // FIX-1: Removed useMemo wrapping JSX
   const content = caseData ? renderCaseContent(caseData, colors, router) : null;

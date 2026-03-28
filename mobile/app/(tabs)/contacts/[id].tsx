@@ -65,7 +65,26 @@ function renderContent(contact: ContactDetailData, router: ReturnType<typeof use
   );
 }
 
-// eslint-disable-next-line complexity
+function s(o: Record<string, unknown> | null | undefined, key: string): string | undefined {
+  return o?.[key] as string | undefined;
+}
+
+function parseContactPayload(data: unknown): ContactDetailData | undefined {
+  const r = (data ?? null) as Record<string, unknown> | null;
+  if (!r) return undefined;
+  const fullName = [r.firstName, r.lastName].filter(Boolean).join(' ') || undefined;
+  return {
+    id: String(r.id ?? ''),
+    name: s(r, 'name') ?? fullName,
+    email: s(r, 'email'),
+    phone: s(r, 'phone'),
+    accountId: s(r, 'accountId') ?? s(r, 'account_id'),
+    accountName: s(r, 'accountName'),
+    title: s(r, 'title'),
+    department: s(r, 'department'),
+  };
+}
+
 export default function ContactDetailScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -73,19 +92,7 @@ export default function ContactDetailScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data, isLoading, error } = useContact(id);
-  const raw = (data?.data ?? data ?? null) as Record<string, unknown> | null;
-  const contact: ContactDetailData | undefined = raw
-    ? {
-        id: String(raw.id ?? ''),
-        name: (raw.name as string | undefined) ?? ([raw.firstName, raw.lastName].filter(Boolean).join(' ') || undefined),
-        email: raw.email as string | undefined,
-        phone: raw.phone as string | undefined,
-        accountId: (raw.accountId as string | undefined) ?? (raw.account_id as string | undefined),
-        accountName: raw.accountName as string | undefined,
-        title: raw.title as string | undefined,
-        department: raw.department as string | undefined,
-      }
-    : undefined;
+  const contact = parseContactPayload(data);
 
   // FIX-1: Removed useMemo wrapping JSX
   const content = contact ? renderContent(contact, router, colors) : null;

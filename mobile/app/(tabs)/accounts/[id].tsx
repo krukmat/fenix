@@ -135,7 +135,56 @@ function renderContent(account: AccountData, colors: ThemeColors, onOpenContact:
   );
 }
 
-// eslint-disable-next-line complexity
+function s(o: Record<string, unknown> | null | undefined, key: string): string | undefined {
+  return o?.[key] as string | undefined;
+}
+
+
+function unwrapArray<T>(v: { data?: T[] } | T[] | undefined): T[] | undefined {
+  return Array.isArray(v) ? v : v?.data;
+}
+
+function parseContact(contact: unknown): ContactItem {
+  const r = contact as Record<string, unknown>;
+  const fullName = [r.firstName, r.lastName].filter(Boolean).join(' ').trim();
+  return {
+    id: String(r.id ?? ''),
+    name: s(r, 'name') ?? (fullName || 'Unnamed Contact'),
+    email: s(r, 'email'),
+    phone: s(r, 'phone'),
+    title: s(r, 'title'),
+  };
+}
+
+function parseAccountRelations(payload: Record<string, unknown> | null) {
+  const contactsRaw = payload?.contacts as { data?: ContactItem[] } | ContactItem[] | undefined;
+  const dealsRaw = payload?.deals as { data?: DealItem[] } | DealItem[] | undefined;
+  const timelineRaw = payload?.timeline as { data?: TimelineItem[] } | TimelineItem[] | undefined;
+  const signalCount = payload?.active_signal_count;
+  return {
+    contacts: unwrapArray<ContactItem>(contactsRaw)?.map(parseContact),
+    deals: unwrapArray<DealItem>(dealsRaw),
+    timeline: unwrapArray<TimelineItem>(timelineRaw),
+    activeSignalCount: typeof signalCount === 'number' ? signalCount : 0,
+  };
+}
+
+function parseAccountPayload(data: unknown): AccountData | undefined {
+  const payload = (data ?? null) as Record<string, unknown> | null;
+  const accountObj = (payload?.account as Record<string, unknown> | undefined) ?? payload ?? undefined;
+  if (!accountObj) return undefined;
+  return {
+    id: String(accountObj.id ?? ''),
+    name: s(accountObj, 'name'),
+    industry: s(accountObj, 'industry'),
+    phone: s(accountObj, 'phone'),
+    email: s(accountObj, 'email'),
+    website: s(accountObj, 'website'),
+    description: s(accountObj, 'description'),
+    ...parseAccountRelations(payload),
+  };
+}
+
 export default function AccountDetailScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -143,36 +192,7 @@ export default function AccountDetailScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data, isLoading, error } = useAccount(id);
-  const payload = (data ?? null) as Record<string, unknown> | null;
-  const accountObj = (payload?.account as Record<string, unknown> | undefined) ?? payload ?? undefined;
-  const contactsData = payload?.contacts as { data?: ContactItem[] } | ContactItem[] | undefined;
-  const dealsData = payload?.deals as { data?: DealItem[] } | DealItem[] | undefined;
-  const timelineData = payload?.timeline as { data?: TimelineItem[] } | TimelineItem[] | undefined;
-  const account: AccountData | undefined = accountObj
-    ? {
-        id: String(accountObj.id ?? ''),
-        name: accountObj.name as string | undefined,
-        industry: accountObj.industry as string | undefined,
-        phone: accountObj.phone as string | undefined,
-        email: accountObj.email as string | undefined,
-        website: accountObj.website as string | undefined,
-        description: accountObj.description as string | undefined,
-        contacts: (Array.isArray(contactsData) ? contactsData : contactsData?.data)?.map((contact) => {
-          const raw = contact as unknown as Record<string, unknown>;
-          const fullName = [raw.firstName, raw.lastName].filter(Boolean).join(' ').trim();
-          return {
-            id: String(raw.id ?? ''),
-            name: (raw.name as string | undefined) ?? (fullName || 'Unnamed Contact'),
-            email: raw.email as string | undefined,
-            phone: raw.phone as string | undefined,
-            title: raw.title as string | undefined,
-          };
-        }),
-        deals: Array.isArray(dealsData) ? dealsData : dealsData?.data,
-        timeline: Array.isArray(timelineData) ? timelineData : timelineData?.data,
-        activeSignalCount: typeof payload?.active_signal_count === 'number' ? payload.active_signal_count : 0,
-      }
-    : undefined;
+  const account = parseAccountPayload(data);
 
   // FIX-1: Removed useMemo wrapping JSX
   const content = account
