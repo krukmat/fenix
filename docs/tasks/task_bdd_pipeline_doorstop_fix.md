@@ -40,6 +40,8 @@ That caused Doorstop integrity validation to fail in CI with:
 
 - set `parent: FR` in `reqs/UC/.doorstop.yml`
 - aligned `cmd/frtrace` UC testdata with the same Doorstop hierarchy
+- normalized `UC -> FR` links to Doorstop UID format such as `FR001`
+- updated `cmd/frtrace` to normalize compact Doorstop link IDs back to repo file IDs
 
 ---
 

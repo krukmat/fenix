@@ -4,13 +4,12 @@ derived: false
 header: ''
 level: 1
 links:
-- FR_091
-- FR_092
-- FR_200
+- FR091
+- FR092
+- FR200
 normative: true
 ref: docs/agent-spec-overview.md
 reviewed: null
 text: |
   UC-A5: Signal Detection and Lifecycle
   Detect, surface, and maintain actionable signals grounded in evidence.
-

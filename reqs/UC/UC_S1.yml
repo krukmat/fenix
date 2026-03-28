@@ -3,15 +3,14 @@ derived: false
 header: ''
 level: 1
 links:
-- FR_001
-- FR_200
-- FR_201
-- FR_202
-- FR_092
+- FR001
+- FR200
+- FR201
+- FR202
+- FR092
 normative: true
 ref: docs/requirements.md
 reviewed: null
 text: |
   UC-S1: Sales Copilot
   Summarize account or deal context and propose evidence-grounded next steps inside the CRM flow.
-

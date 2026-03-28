@@ -3,14 +3,13 @@ derived: false
 header: ''
 level: 1
 links:
-- FR_090
-- FR_091
-- FR_092
-- FR_230
+- FR090
+- FR091
+- FR092
+- FR230
 normative: true
 ref: docs/requirements.md
 reviewed: null
 text: |
   UC-D1: Data Insights Agent
   Answer analytical questions with evidence-grounded outputs and safe failure modes.
-

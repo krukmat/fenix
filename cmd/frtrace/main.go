@@ -61,6 +61,8 @@ var requiredUCIDs = []string{
 	"UC_A2", "UC_A3", "UC_A4", "UC_A5", "UC_A6", "UC_A7", "UC_A8", "UC_A9",
 }
 
+var compactDoorstopIDRegex = regexp.MustCompile(`^([A-Z]+)(\d+)$`)
+
 func main() {
 	reqsDir := flag.String(flagReqs, defaultReqsDir, "Path to Doorstop requirements directory")
 	rootDir := flag.String("root", ".", "Project root directory")
@@ -210,14 +212,25 @@ func extractFRLinks(links interface{}) []string {
 	for _, item := range linkSlice {
 		switch v := item.(type) {
 		case string:
-			result = append(result, v)
+			result = append(result, normalizeDoorstopLinkID(v))
 		case map[string]interface{}:
 			for key := range v {
-				result = append(result, key)
+				result = append(result, normalizeDoorstopLinkID(key))
 			}
 		}
 	}
 	return result
+}
+
+func normalizeDoorstopLinkID(id string) string {
+	if strings.Contains(id, "_") {
+		return id
+	}
+	matches := compactDoorstopIDRegex.FindStringSubmatch(id)
+	if len(matches) != 3 {
+		return id
+	}
+	return matches[1] + "_" + matches[2]
 }
 
 var tracesRegex = regexp.MustCompile(`//\s*Traces:\s*(.+)`)

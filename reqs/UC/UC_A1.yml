@@ -3,13 +3,12 @@ derived: false
 header: ''
 level: 1
 links:
-- FR_240
-- FR_202
-- FR_070
+- FR240
+- FR202
+- FR070
 normative: true
 ref: docs/requirements.md
 reviewed: null
 text: |
   UC-A1: Agent Studio
   Create skills, policies, evals, and behavior contracts, then promote them to production.
-
