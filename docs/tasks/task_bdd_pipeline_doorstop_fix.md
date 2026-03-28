@@ -34,6 +34,10 @@ That caused Doorstop integrity validation to fail in CI with:
 
 `ERROR: multiple root documents: FR and UC`
 
+The follow-up failure was caused by active UC items linking to FR items that exist on disk
+but are still marked `active: false` in the FR Doorstop family. Doorstop does not accept those
+inactive FR items as valid link targets during integrity validation.
+
 ---
 
 ## Implemented
@@ -43,6 +47,8 @@ That caused Doorstop integrity validation to fail in CI with:
 - replaced compact `UC -> FR` links with Doorstop-style reviewed mappings such as `FR_202: <hash>`
 - aligned the UC link format with the existing `TST -> FR` pattern already accepted by the repository
 - kept `cmd/frtrace` compatible with both compact and file-style Doorstop link IDs
+- removed links from UC items to inactive FR items that are not yet valid Doorstop targets
+- marked `UC-A2` and `UC-A3` inactive until their implementing FR items are activated in Doorstop
 
 ---
 

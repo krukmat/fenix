@@ -1,11 +1,9 @@
-active: true
+active: false
 behavior_family: verify_workflow*
 derived: false
 header: ''
 level: 1
-links:
-- FR_230: null
-- FR_240: null
+links: []
 normative: true
 ref: docs/agent-spec-overview.md
 reviewed: null
