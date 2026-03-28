@@ -187,6 +187,19 @@ func (r *Repository) GetByEntity(ctx context.Context, workspaceID, entityType, e
 	return scanSignalRows(rows)
 }
 
+func buildCountActiveQuery(n int) string {
+	var qb strings.Builder
+	qb.WriteString("SELECT entity_id, COUNT(*) FROM signal WHERE workspace_id = ? AND entity_type = ? AND status = ? AND entity_id IN (")
+	for i := range n {
+		if i > 0 {
+			qb.WriteString(",")
+		}
+		qb.WriteString("?")
+	}
+	qb.WriteString(") GROUP BY entity_id")
+	return qb.String()
+}
+
 func (r *Repository) CountActiveByEntities(ctx context.Context, workspaceID, entityType string, entityIDs []string) (map[string]int, error) {
 	counts := make(map[string]int, len(entityIDs))
 	if len(entityIDs) == 0 {
@@ -194,17 +207,10 @@ func (r *Repository) CountActiveByEntities(ctx context.Context, workspaceID, ent
 	}
 	args := make([]any, 0, len(entityIDs)+3)
 	args = append(args, workspaceID, entityType, string(StatusActive))
-	var qb strings.Builder
-	qb.WriteString("SELECT entity_id, COUNT(*) FROM signal WHERE workspace_id = ? AND entity_type = ? AND status = ? AND entity_id IN (")
-	for i, entityID := range entityIDs {
-		if i > 0 {
-			qb.WriteString(",")
-		}
-		qb.WriteString("?")
+	for _, entityID := range entityIDs {
 		args = append(args, entityID)
 	}
-	qb.WriteString(") GROUP BY entity_id")
-	query := qb.String()
+	query := buildCountActiveQuery(len(entityIDs))
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("count active signals by entities: %w", err)
