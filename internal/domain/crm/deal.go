@@ -12,22 +12,23 @@ import (
 )
 
 type Deal struct {
-	ID            string     `json:"id"`
-	WorkspaceID   string     `json:"workspaceId"`
-	AccountID     string     `json:"accountId"`
-	ContactID     *string    `json:"contactId,omitempty"`
-	PipelineID    string     `json:"pipelineId"`
-	StageID       string     `json:"stageId"`
-	OwnerID       string     `json:"ownerId"`
-	Title         string     `json:"title"`
-	Amount        *float64   `json:"amount,omitempty"`
-	Currency      *string    `json:"currency,omitempty"`
-	ExpectedClose *string    `json:"expectedClose,omitempty"`
-	Status        string     `json:"status"`
-	Metadata      *string    `json:"metadata,omitempty"`
-	CreatedAt     time.Time  `json:"createdAt"`
-	UpdatedAt     time.Time  `json:"updatedAt"`
-	DeletedAt     *time.Time `json:"deletedAt,omitempty"`
+	ID                string     `json:"id"`
+	WorkspaceID       string     `json:"workspaceId"`
+	AccountID         string     `json:"accountId"`
+	ContactID         *string    `json:"contactId,omitempty"`
+	PipelineID        string     `json:"pipelineId"`
+	StageID           string     `json:"stageId"`
+	OwnerID           string     `json:"ownerId"`
+	Title             string     `json:"title"`
+	Amount            *float64   `json:"amount,omitempty"`
+	Currency          *string    `json:"currency,omitempty"`
+	ExpectedClose     *string    `json:"expectedClose,omitempty"`
+	Status            string     `json:"status"`
+	Metadata          *string    `json:"metadata,omitempty"`
+	ActiveSignalCount *int       `json:"active_signal_count,omitempty"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
+	DeletedAt         *time.Time `json:"deletedAt,omitempty"`
 }
 
 type CreateDealInput struct {

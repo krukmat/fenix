@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -11,9 +12,16 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 )
 
-type DealHandler struct{ service *crm.DealService }
+type DealHandler struct {
+	service       *crm.DealService
+	signalCounter activeSignalCounter
+}
 
 func NewDealHandler(service *crm.DealService) *DealHandler { return &DealHandler{service: service} }
+
+func NewDealHandlerWithSignalCounter(service *crm.DealService, signalCounter activeSignalCounter) *DealHandler {
+	return &DealHandler{service: service, signalCounter: signalCounter}
+}
 
 const errDealNotFound = "deal not found"
 
@@ -90,13 +98,39 @@ func (h *DealHandler) GetDeal(w http.ResponseWriter, r *http.Request) {
 	if handleGetError(w, svcErr, errDealNotFound, "failed to get deal: %v") {
 		return
 	}
+	h.attachActiveSignalCount(r.Context(), wsID, out)
 	if !writeJSONOr500(w, out) {
 		return
 	}
 }
 
 func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
-	handleParsedListWithPagination(w, r, parseDealListInput, h.service.List, "failed to list deals: %v")
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+	page := parsePaginationParams(r)
+	input, err := parseDealListInput(r, page)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	items, total, svcErr := h.service.List(r.Context(), wsID, input)
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list deals: %v", svcErr))
+		return
+	}
+	counts := countActiveSignalsByEntity(r.Context(), h.signalCounter, wsID, "deal", collectEntityIDs(items, func(item *crm.Deal) string {
+		return item.ID
+	}))
+	for _, item := range items {
+		if count, ok := counts[item.ID]; ok {
+			item.ActiveSignalCount = intPtr(count)
+		}
+	}
+	if !writePaginatedOr500(w, items, total, page) {
+		return
+	}
 }
 
 func parseDealListInput(r *http.Request, page paginationParams) (crm.ListDealsInput, error) {
@@ -134,6 +168,20 @@ func parseDealListInput(r *http.Request, page paginationParams) (crm.ListDealsIn
 		StageID:    stageID,
 		Sort:       sortParam,
 	}, nil
+}
+
+func (h *DealHandler) attachActiveSignalCount(ctx context.Context, workspaceID string, deal *crm.Deal) {
+	if deal == nil || deal.ID == "" {
+		return
+	}
+	counts := countActiveSignalsByEntity(ctx, h.signalCounter, workspaceID, "deal", []string{deal.ID})
+	if count, ok := counts[deal.ID]; ok {
+		deal.ActiveSignalCount = intPtr(count)
+	}
+}
+
+func intPtr(value int) *int {
+	return &value
 }
 
 func (h *DealHandler) UpdateDeal(w http.ResponseWriter, r *http.Request) {

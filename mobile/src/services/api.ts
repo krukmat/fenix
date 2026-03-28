@@ -52,11 +52,20 @@ export const authApi = {
   },
 };
 
+async function getOrNull(path: string, params?: Record<string, string | number | undefined>) {
+  try {
+    const response = await apiClient.get(path, params ? { params } : undefined);
+    return response.data;
+  } catch {
+    return null;
+  }
+}
+
 // CRM API - Generic fetch helpers
 export const crmApi = {
   // Lists
   getAccounts: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/accounts', {
+    const response = await apiClient.get('/bff/api/v1/accounts', {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
@@ -76,14 +85,14 @@ export const crmApi = {
   },
 
   getDeals: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/deals', {
+    const response = await apiClient.get('/bff/api/v1/deals', {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
   },
 
   getCases: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/cases', {
+    const response = await apiClient.get('/bff/api/v1/cases', {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
@@ -165,18 +174,60 @@ export const crmApi = {
 
   // Details (aggregated)
   getAccountFull: async (id: string) => {
-    const response = await apiClient.get(`/bff/accounts/${id}/full`);
-    return response.data;
+    const [account, contacts, deals, timeline] = await Promise.all([
+      apiClient.get(`/bff/api/v1/accounts/${id}`).then((response) => response.data),
+      getOrNull(`/bff/api/v1/accounts/${id}/contacts`),
+      getOrNull('/bff/api/v1/deals', { account_id: id, limit: 50 }),
+      getOrNull(`/bff/api/v1/timeline/account/${id}`),
+    ]);
+    return {
+      account,
+      contacts,
+      deals,
+      timeline,
+      active_signal_count:
+        typeof account?.active_signal_count === 'number' ? account.active_signal_count : 0,
+    };
   },
 
   getDealFull: async (id: string) => {
-    const response = await apiClient.get(`/bff/deals/${id}/full`);
-    return response.data;
+    const deal = await apiClient.get(`/bff/api/v1/deals/${id}`).then((response) => response.data);
+    const accountId = (deal?.accountId as string | undefined) ?? (deal?.account_id as string | undefined);
+    const contactId = (deal?.contactId as string | undefined) ?? (deal?.contact_id as string | undefined);
+    const [account, contact, activities] = await Promise.all([
+      accountId ? getOrNull(`/bff/api/v1/accounts/${accountId}`) : Promise.resolve(null),
+      contactId ? getOrNull(`/bff/api/v1/contacts/${contactId}`) : Promise.resolve(null),
+      getOrNull('/bff/api/v1/activities', { deal_id: id, limit: 50 }),
+    ]);
+    return {
+      deal,
+      account,
+      contact,
+      activities,
+      active_signal_count:
+        typeof deal?.active_signal_count === 'number' ? deal.active_signal_count : 0,
+    };
   },
 
   getCaseFull: async (id: string) => {
-    const response = await apiClient.get(`/bff/cases/${id}/full`);
-    return response.data;
+    const caseData = await apiClient.get(`/bff/api/v1/cases/${id}`).then((response) => response.data);
+    const accountId = (caseData?.accountId as string | undefined) ?? (caseData?.account_id as string | undefined);
+    const contactId = (caseData?.contactId as string | undefined) ?? (caseData?.contact_id as string | undefined);
+    const handoffStatus = (caseData?.handoffStatus as string | undefined) ?? (caseData?.handoff_status as string | undefined);
+    const [account, contact, activities] = await Promise.all([
+      accountId ? getOrNull(`/bff/api/v1/accounts/${accountId}`) : Promise.resolve(null),
+      contactId ? getOrNull(`/bff/api/v1/contacts/${contactId}`) : Promise.resolve(null),
+      getOrNull('/bff/api/v1/activities', { case_id: id, limit: 50 }),
+    ]);
+    return {
+      case: caseData,
+      account,
+      contact,
+      activities,
+      handoff: handoffStatus ? { status: handoffStatus } : null,
+      active_signal_count:
+        typeof caseData?.active_signal_count === 'number' ? caseData.active_signal_count : 0,
+    };
   },
 
   // Contact (no aggregated endpoint)

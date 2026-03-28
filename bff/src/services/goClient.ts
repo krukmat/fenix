@@ -2,7 +2,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { config } from '../config';
 
-// Default timeout for Go API calls (aggregated routes use this per sub-call)
+// Default timeout for Go API calls
 const GO_TIMEOUT_MS = 5000;
 const GO_HEALTH_TIMEOUT_MS = 2000;
 
@@ -21,11 +21,11 @@ export function createGoClient(token?: string): AxiosInstance {
   });
 }
 
-// Ping Go /health — used by BFF health route
+// Ping Go /readyz — used by BFF health route
 export async function pingGoBackend(): Promise<{ reachable: boolean; latencyMs: number }> {
   const start = Date.now();
   try {
-    await axios.get(`${config.backendUrl}/health`, {
+    await axios.get(`${config.backendUrl}/readyz`, {
       timeout: GO_HEALTH_TIMEOUT_MS,
     } satisfies AxiosRequestConfig);
     return { reachable: true, latencyMs: Date.now() - start };

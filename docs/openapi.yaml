@@ -17,6 +17,26 @@ paths:
                 $ref: '#/components/schemas/AnyResponse'
         default:
           description: Unexpected response
+  /readyz:
+    get:
+      summary: Readiness check
+      x-fr-traces:
+      - NFR-033
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        '503':
+          description: Not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
   /auth/register:
     post:
       summary: Register
@@ -1145,6 +1165,240 @@ paths:
       summary: Summarize copilot entity context
       x-fr-traces:
       - FR-200
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/workflows:
+    get:
+      summary: List workflows
+      x-fr-traces:
+      - FR-220
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+    post:
+      summary: Create workflow
+      x-fr-traces:
+      - FR-220
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/workflows/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
+    get:
+      summary: Get workflow
+      x-fr-traces:
+      - FR-220
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+    patch:
+      summary: Update workflow
+      x-fr-traces:
+      - FR-220
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/workflows/{id}/versions:
+    parameters:
+    - $ref: '#/components/parameters/ID'
+    get:
+      summary: List workflow versions
+      x-fr-traces:
+      - FR-220
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/workflows/{id}/new-version:
+    parameters:
+    - $ref: '#/components/parameters/ID'
+    post:
+      summary: Create workflow version
+      x-fr-traces:
+      - FR-220
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/workflows/{id}/rollback:
+    parameters:
+    - $ref: '#/components/parameters/ID'
+    post:
+      summary: Roll back workflow
+      x-fr-traces:
+      - FR-220
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/signals:
+    get:
+      summary: List signals
+      x-fr-traces:
+      - FR-210
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+    post:
+      summary: Create signal
+      x-fr-traces:
+      - FR-210
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/signals/{id}/dismiss:
+    parameters:
+    - $ref: '#/components/parameters/ID'
+    post:
+      summary: Dismiss signal
+      x-fr-traces:
+      - FR-210
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/agents/runs:
+    get:
+      summary: List agent runs
+      x-fr-traces:
+      - FR-202
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+    post:
+      summary: Create agent run
+      x-fr-traces:
+      - FR-202
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/agents/runs/{id}:
+    parameters:
+    - $ref: '#/components/parameters/ID'
+    get:
+      summary: Get agent run
+      x-fr-traces:
+      - FR-202
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/agents/runs/{id}/handoff:
+    parameters:
+    - $ref: '#/components/parameters/ID'
+    post:
+      summary: Create agent run handoff
+      x-fr-traces:
+      - FR-202
       responses:
         '200':
           description: OK

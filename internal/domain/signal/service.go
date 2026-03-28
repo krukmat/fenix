@@ -29,27 +29,27 @@ const (
 )
 
 type CreatedEventPayload struct {
-	SignalID     string    `json:"signalId"`
-	WorkspaceID  string    `json:"workspaceId"`
-	EntityType   string    `json:"entityType"`
-	EntityID     string    `json:"entityId"`
-	SignalType   string    `json:"signalType"`
-	Confidence   float64   `json:"confidence"`
-	SourceType   string    `json:"sourceType"`
-	SourceID     string    `json:"sourceId"`
-	Status       Status    `json:"status"`
-	CreatedAt    time.Time `json:"createdAt"`
+	SignalID    string    `json:"signalId"`
+	WorkspaceID string    `json:"workspaceId"`
+	EntityType  string    `json:"entityType"`
+	EntityID    string    `json:"entityId"`
+	SignalType  string    `json:"signalType"`
+	Confidence  float64   `json:"confidence"`
+	SourceType  string    `json:"sourceType"`
+	SourceID    string    `json:"sourceId"`
+	Status      Status    `json:"status"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 type DismissedEventPayload struct {
-	SignalID     string     `json:"signalId"`
-	WorkspaceID  string     `json:"workspaceId"`
-	EntityType   string     `json:"entityType"`
-	EntityID     string     `json:"entityId"`
-	SignalType   string     `json:"signalType"`
-	Status       Status     `json:"status"`
-	DismissedBy  string     `json:"dismissedBy"`
-	DismissedAt  *time.Time `json:"dismissedAt,omitempty"`
+	SignalID    string     `json:"signalId"`
+	WorkspaceID string     `json:"workspaceId"`
+	EntityType  string     `json:"entityType"`
+	EntityID    string     `json:"entityId"`
+	SignalType  string     `json:"signalType"`
+	Status      Status     `json:"status"`
+	DismissedBy string     `json:"dismissedBy"`
+	DismissedAt *time.Time `json:"dismissedAt,omitempty"`
 }
 
 type CreateSignalInput struct {
@@ -123,6 +123,10 @@ func (s *Service) Create(ctx context.Context, input CreateSignalInput) (*Signal,
 
 func (s *Service) List(ctx context.Context, workspaceID string, filters Filters) ([]*Signal, error) {
 	return s.repo.List(ctx, workspaceID, filters)
+}
+
+func (s *Service) CountActiveByEntities(ctx context.Context, workspaceID, entityType string, entityIDs []string) (map[string]int, error) {
+	return s.repo.CountActiveByEntities(ctx, workspaceID, entityType, entityIDs)
 }
 
 func (s *Service) GetByEntity(ctx context.Context, workspaceID, entityType, entityID string) ([]*Signal, error) {

@@ -121,9 +121,30 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		agentOrchestrator := agent.NewOrchestratorWithRegistry(db, runnerRegistry)
 		dslRunner := agent.NewDSLRunner(db)
 
-		// Account endpoints (Task 1.3.8)
-		accountHandler := handlers.NewAccountHandler(crm.NewAccountServiceWithBus(db, knowledgeBus))
-		contactHandler := handlers.NewContactHandler(crm.NewContactService(db))
+		// Lead endpoints (Task 1.5)
+		accountService := crm.NewAccountServiceWithBus(db, knowledgeBus)
+		contactService := crm.NewContactService(db)
+		dealService := crm.NewDealService(db)
+		caseService := crm.NewCaseServiceWithBus(db, knowledgeBus)
+		leadHandler := handlers.NewLeadHandler(crm.NewLeadService(db))
+		pipelineHandler := handlers.NewPipelineHandler(crm.NewPipelineService(db))
+		activityHandler := handlers.NewActivityHandler(crm.NewActivityService(db))
+		noteHandler := handlers.NewNoteHandler(crm.NewNoteService(db))
+		attachmentHandler := handlers.NewAttachmentHandler(crm.NewAttachmentService(db))
+		timelineHandler := handlers.NewTimelineHandler(crm.NewTimelineService(db))
+		reportHandler := handlers.NewReportHandler(crm.NewReportService(db))
+		auditHandler := handlers.NewAuditHandler(auditService)
+		schedulerRepo := schedulerdomain.NewRepository(db)
+		schedulerSvc := schedulerdomain.NewService(schedulerRepo)
+		workflowRepo := workflowdomain.NewRepository(db)
+		workflowService := workflowdomain.NewServiceWithDependencies(workflowRepo, schedulerSvc)
+		workflowHandler := handlers.NewWorkflowHandlerWithRuntime(workflowService, policyEngine, db, agentOrchestrator, toolRegistry, policyEngine, approvalService, dslRunner)
+		signalSvc := signaldomain.NewServiceWithBus(db, signaldomain.NewRepository(db), knowledgeBus)
+		signalHandler := handlers.NewSignalHandlerWithAuthorizer(signalSvc, policyEngine)
+		accountHandler := handlers.NewAccountHandlerWithSignalCounter(accountService, signalSvc)
+		contactHandler := handlers.NewContactHandler(contactService)
+		dealHandler := handlers.NewDealHandlerWithSignalCounter(dealService, signalSvc)
+		caseHandler := handlers.NewCaseHandlerWithSignalCounter(caseService, signalSvc)
 		r.Route("/accounts", func(r chi.Router) {
 			r.Post("/", accountHandler.CreateAccount)         // POST /api/v1/accounts
 			r.Get("/", accountHandler.ListAccounts)           // GET /api/v1/accounts
@@ -140,26 +161,6 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 			r.Put(routeByID, contactHandler.UpdateContact)    // PUT /api/v1/contacts/{id}
 			r.Delete(routeByID, contactHandler.DeleteContact) // DELETE /api/v1/contacts/{id}
 		})
-
-		// Lead endpoints (Task 1.5)
-		leadHandler := handlers.NewLeadHandler(crm.NewLeadService(db))
-		dealHandler := handlers.NewDealHandler(crm.NewDealService(db))
-		caseService := crm.NewCaseServiceWithBus(db, knowledgeBus)
-		caseHandler := handlers.NewCaseHandler(caseService)
-		pipelineHandler := handlers.NewPipelineHandler(crm.NewPipelineService(db))
-		activityHandler := handlers.NewActivityHandler(crm.NewActivityService(db))
-		noteHandler := handlers.NewNoteHandler(crm.NewNoteService(db))
-		attachmentHandler := handlers.NewAttachmentHandler(crm.NewAttachmentService(db))
-		timelineHandler := handlers.NewTimelineHandler(crm.NewTimelineService(db))
-		reportHandler := handlers.NewReportHandler(crm.NewReportService(db))
-		auditHandler := handlers.NewAuditHandler(auditService)
-		schedulerRepo := schedulerdomain.NewRepository(db)
-		schedulerSvc := schedulerdomain.NewService(schedulerRepo)
-		workflowRepo := workflowdomain.NewRepository(db)
-		workflowService := workflowdomain.NewServiceWithDependencies(workflowRepo, schedulerSvc)
-		workflowHandler := handlers.NewWorkflowHandlerWithRuntime(workflowService, policyEngine, db, agentOrchestrator, toolRegistry, policyEngine, approvalService, dslRunner)
-		signalSvc := signaldomain.NewServiceWithBus(db, signaldomain.NewRepository(db), knowledgeBus)
-		signalHandler := handlers.NewSignalHandlerWithAuthorizer(signalSvc, policyEngine)
 		r.Route("/leads", func(r chi.Router) {
 			r.Post("/", leadHandler.CreateLead)         // POST /api/v1/leads
 			r.Get("/", leadHandler.ListLeads)           // GET /api/v1/leads

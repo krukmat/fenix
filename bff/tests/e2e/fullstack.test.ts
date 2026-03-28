@@ -24,7 +24,7 @@ describe('BFF fullstack integration', () => {
     jest.clearAllMocks();
   });
 
-  describe('Auth flow: login → protected endpoint', () => {
+  describe('Auth flow: login -> protected endpoint', () => {
     it('login returns JWT and token can be sent to a protected proxy route', async () => {
       const mockToken = 'eyJhbGciOiJIUzI1NiJ9.fullstack-token';
       const mockUser = { id: 'user-1', email: 'test@example.com', workspace_id: 'ws-1' };
@@ -52,100 +52,13 @@ describe('BFF fullstack integration', () => {
     });
   });
 
-  describe('Aggregated endpoint: GET /bff/accounts/:id/full', () => {
-    it('returns merged account + contacts + deals + timeline', async () => {
-      const accountID = 'acc-fullstack-test';
-
-      mockCreateGoClient.mockReturnValue({
-        get: jest.fn().mockImplementation((path: string) => {
-          if (path === `/api/v1/accounts/${accountID}`) {
-            return Promise.resolve({ data: { id: accountID, name: 'Acme Corp' } });
-          }
-          if (path.includes('/contacts')) {
-            return Promise.resolve({ data: { items: [{ id: 'c-1', name: 'John' }] } });
-          }
-          if (path.includes('/deals')) {
-            return Promise.resolve({ data: { items: [] } });
-          }
-          if (path.includes('timeline')) {
-            return Promise.resolve({ data: { items: [] } });
-          }
-          return Promise.resolve({ data: null });
-        }),
-      } as unknown as ReturnType<typeof createGoClient>);
-
+  describe('Removed custom BFF CRM routes', () => {
+    it('returns 404 for legacy aggregated account route', async () => {
       const res = await request(app)
-        .get(`/bff/accounts/${accountID}/full`)
+        .get('/bff/accounts/acc-fullstack-test/full')
         .set('Authorization', 'Bearer mock-token');
 
-      expect(res.status).toBe(200);
-      expect(res.body.account).toMatchObject({ id: accountID, name: 'Acme Corp' });
-      expect(res.body.contacts).toMatchObject({ items: expect.any(Array) });
-      expect(res.body.deals).toBeDefined();
-      expect(res.body.timeline).toBeDefined();
-    });
-
-    it('returns null for failed sub-call but still responds 200', async () => {
-      const accountID = 'acc-partial-test';
-
-      mockCreateGoClient.mockReturnValue({
-        get: jest.fn().mockImplementation((path: string) => {
-          if (path === `/api/v1/accounts/${accountID}`) {
-            return Promise.resolve({ data: { id: accountID, name: 'Partial Corp' } });
-          }
-          return Promise.reject(new Error('service unavailable'));
-        }),
-      } as unknown as ReturnType<typeof createGoClient>);
-
-      const res = await request(app)
-        .get(`/bff/accounts/${accountID}/full`)
-        .set('Authorization', 'Bearer mock-token');
-
-      expect(res.status).toBe(200);
-      expect(res.body.account).toMatchObject({ id: accountID });
-      expect(res.body.contacts).toBeNull();
-    });
-  });
-
-  describe('SSE copilot proxy: POST /bff/copilot/chat', () => {
-    it('sets SSE headers and relays stream from Go backend', async () => {
-      const nock = require('nock');
-      const backendURL = process.env.BACKEND_URL || 'http://localhost:8080';
-
-      nock(backendURL)
-        .post('/api/v1/copilot/chat')
-        .reply(200, 'data: {"token":"hello"}\n\ndata: [DONE]\n\n', {
-          'Content-Type': 'text/event-stream',
-        });
-
-      const res = await request(app)
-        .post('/bff/copilot/chat')
-        .set('Authorization', 'Bearer mock-token')
-        .send({ case_id: 'case-1', message: 'test question' });
-
-      expect(res.status).toBe(200);
-      expect(res.headers['content-type']).toMatch(/text\/event-stream/);
-      nock.cleanAll();
-    });
-  });
-
-  describe('Error handling: Go backend unavailable', () => {
-    it('returns 502 when Go backend rejects connection', async () => {
-      const axiosError = Object.assign(new Error('ECONNREFUSED'), {
-        code: 'ECONNREFUSED',
-        isAxiosError: true,
-        response: undefined,
-      });
-
-      mockCreateGoClient.mockReturnValue({
-        post: jest.fn().mockRejectedValue(axiosError),
-      } as unknown as ReturnType<typeof createGoClient>);
-
-      const res = await request(app)
-        .post('/bff/auth/login')
-        .send({ email: 'test@example.com', password: 'pass' });
-
-      expect(res.status).toBe(502);
+      expect(res.status).toBe(404);
     });
   });
 });

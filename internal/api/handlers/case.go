@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -12,9 +13,16 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 )
 
-type CaseHandler struct{ service *crm.CaseService }
+type CaseHandler struct {
+	service       *crm.CaseService
+	signalCounter activeSignalCounter
+}
 
 func NewCaseHandler(service *crm.CaseService) *CaseHandler { return &CaseHandler{service: service} }
+
+func NewCaseHandlerWithSignalCounter(service *crm.CaseService, signalCounter activeSignalCounter) *CaseHandler {
+	return &CaseHandler{service: service, signalCounter: signalCounter}
+}
 
 type CreateCaseRequest struct {
 	AccountID   string `json:"accountId,omitempty"`
@@ -127,6 +135,7 @@ func (h *CaseHandler) GetCase(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get case: %v", svcErr))
 		return
 	}
+	h.attachActiveSignalCount(r.Context(), wsID, out)
 	if encodeErr := json.NewEncoder(w).Encode(out); encodeErr != nil {
 		writeError(w, http.StatusInternalServerError, errFailedToEncode)
 		return
@@ -134,7 +143,33 @@ func (h *CaseHandler) GetCase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CaseHandler) ListCases(w http.ResponseWriter, r *http.Request) {
-	handleParsedListWithPagination(w, r, parseCaseListInput, h.service.List, "failed to list cases: %v")
+	wsID, wsErr := getWorkspaceID(r.Context())
+	if wsErr != nil {
+		writeError(w, http.StatusBadRequest, errMissingWorkspaceID)
+		return
+	}
+	page := parsePaginationParams(r)
+	input, err := parseCaseListInput(r, page)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	items, total, svcErr := h.service.List(r.Context(), wsID, input)
+	if svcErr != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list cases: %v", svcErr))
+		return
+	}
+	counts := countActiveSignalsByEntity(r.Context(), h.signalCounter, wsID, "case", collectEntityIDs(items, func(item *crm.CaseTicket) string {
+		return item.ID
+	}))
+	for _, item := range items {
+		if count, ok := counts[item.ID]; ok {
+			item.ActiveSignalCount = intPtr(count)
+		}
+	}
+	if !writePaginatedOr500(w, items, total, page) {
+		return
+	}
 }
 
 func (h *CaseHandler) UpdateCase(w http.ResponseWriter, r *http.Request) {
@@ -227,4 +262,14 @@ func parseCaseListInput(r *http.Request, page paginationParams) (crm.ListCasesIn
 		AccountID: accountID,
 		Sort:      sortParam,
 	}, nil
+}
+
+func (h *CaseHandler) attachActiveSignalCount(ctx context.Context, workspaceID string, item *crm.CaseTicket) {
+	if item == nil || item.ID == "" {
+		return
+	}
+	counts := countActiveSignalsByEntity(ctx, h.signalCounter, workspaceID, "case", []string{item.ID})
+	if count, ok := counts[item.ID]; ok {
+		item.ActiveSignalCount = intPtr(count)
+	}
 }

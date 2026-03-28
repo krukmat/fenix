@@ -14,24 +14,25 @@ import (
 )
 
 type CaseTicket struct {
-	ID          string     `json:"id"`
-	WorkspaceID string     `json:"workspaceId"`
-	AccountID   *string    `json:"accountId,omitempty"`
-	ContactID   *string    `json:"contactId,omitempty"`
-	PipelineID  *string    `json:"pipelineId,omitempty"`
-	StageID     *string    `json:"stageId,omitempty"`
-	OwnerID     string     `json:"ownerId"`
-	Subject     string     `json:"subject"`
-	Description *string    `json:"description,omitempty"`
-	Priority    string     `json:"priority"`
-	Status      string     `json:"status"`
-	Channel     *string    `json:"channel,omitempty"`
-	SLAConfig   *string    `json:"slaConfig,omitempty"`
-	SLADeadline *string    `json:"slaDeadline,omitempty"`
-	Metadata    *string    `json:"metadata,omitempty"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	UpdatedAt   time.Time  `json:"updatedAt"`
-	DeletedAt   *time.Time `json:"deletedAt,omitempty"`
+	ID                string     `json:"id"`
+	WorkspaceID       string     `json:"workspaceId"`
+	AccountID         *string    `json:"accountId,omitempty"`
+	ContactID         *string    `json:"contactId,omitempty"`
+	PipelineID        *string    `json:"pipelineId,omitempty"`
+	StageID           *string    `json:"stageId,omitempty"`
+	OwnerID           string     `json:"ownerId"`
+	Subject           string     `json:"subject"`
+	Description       *string    `json:"description,omitempty"`
+	Priority          string     `json:"priority"`
+	Status            string     `json:"status"`
+	Channel           *string    `json:"channel,omitempty"`
+	SLAConfig         *string    `json:"slaConfig,omitempty"`
+	SLADeadline       *string    `json:"slaDeadline,omitempty"`
+	Metadata          *string    `json:"metadata,omitempty"`
+	ActiveSignalCount *int       `json:"active_signal_count,omitempty"`
+	CreatedAt         time.Time  `json:"createdAt"`
+	UpdatedAt         time.Time  `json:"updatedAt"`
+	DeletedAt         *time.Time `json:"deletedAt,omitempty"`
 }
 
 type CreateCaseInput struct {

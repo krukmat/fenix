@@ -10,7 +10,6 @@ import { errorHandler } from './middleware/errorHandler';
 import healthRouter from './routes/health';
 import authRouter from './routes/auth';
 import proxyRouter from './routes/proxy';
-import aggregatedRouter from './routes/aggregated';
 import copilotRouter from './routes/copilot';
 import metricsRouter, { incRequests } from './routes/metrics';
 
@@ -40,9 +39,6 @@ app.use('/bff/health', healthRouter);
 app.use('/bff/metrics', metricsRouter);
 app.use('/bff/auth', authRouter);
 app.use('/bff/copilot', copilotRouter);
-
-// Aggregated routes (before proxy to avoid being caught by proxy wildcard)
-app.use('/bff', aggregatedRouter);
 
 // Transparent proxy for all other /bff/api/v1/* calls
 app.use('/bff/api/v1', proxyRouter);

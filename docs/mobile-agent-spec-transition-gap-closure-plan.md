@@ -5,6 +5,10 @@
 This document is the source of truth for closing the mobile gaps of
 `agent-spec-transition`.
 
+Deployment-topology audit and the BFF minimization/remediation rationale are
+tracked separately in `docs/mobile-bff-api-audit-remediation-plan.md` so this
+document can stay focused on mobile scope closure and contract consumption.
+
 It is reconstructed from four confirmed sources:
 
 1. Completed Mobile P1 task documents in `docs/tasks/task_mobile_p1_*`

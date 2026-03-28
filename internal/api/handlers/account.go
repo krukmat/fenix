@@ -15,12 +15,20 @@ import (
 // AccountHandler handles HTTP requests for account CRUD operations.
 type AccountHandler struct {
 	accountService *crm.AccountService
+	signalCounter  activeSignalCounter
 }
 
 // NewAccountHandler creates a new AccountHandler instance.
 func NewAccountHandler(accountService *crm.AccountService) *AccountHandler {
 	return &AccountHandler{
 		accountService: accountService,
+	}
+}
+
+func NewAccountHandlerWithSignalCounter(accountService *crm.AccountService, signalCounter activeSignalCounter) *AccountHandler {
+	return &AccountHandler{
+		accountService: accountService,
+		signalCounter:  signalCounter,
 	}
 }
 
@@ -48,18 +56,19 @@ type UpdateAccountRequest struct {
 
 // AccountResponse is the response body for account operations.
 type AccountResponse struct {
-	ID          string  `json:"id"`
-	WorkspaceID string  `json:"workspaceId"`
-	Name        string  `json:"name"`
-	Domain      *string `json:"domain,omitempty"`
-	Industry    *string `json:"industry,omitempty"`
-	SizeSegment *string `json:"sizeSegment,omitempty"`
-	OwnerID     string  `json:"ownerId"`
-	Address     *string `json:"address,omitempty"`
-	Metadata    *string `json:"metadata,omitempty"`
-	CreatedAt   string  `json:"createdAt"`
-	UpdatedAt   string  `json:"updatedAt"`
-	DeletedAt   *string `json:"deletedAt,omitempty"`
+	ID                string  `json:"id"`
+	WorkspaceID       string  `json:"workspaceId"`
+	Name              string  `json:"name"`
+	Domain            *string `json:"domain,omitempty"`
+	Industry          *string `json:"industry,omitempty"`
+	SizeSegment       *string `json:"sizeSegment,omitempty"`
+	OwnerID           string  `json:"ownerId"`
+	Address           *string `json:"address,omitempty"`
+	Metadata          *string `json:"metadata,omitempty"`
+	ActiveSignalCount *int    `json:"active_signal_count,omitempty"`
+	CreatedAt         string  `json:"createdAt"`
+	UpdatedAt         string  `json:"updatedAt"`
+	DeletedAt         *string `json:"deletedAt,omitempty"`
 }
 
 // ListAccountsResponse is the response body for listing accounts.
@@ -140,7 +149,9 @@ func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write response
-	if !writeJSONOr500(w, accountToResponse(account)) {
+	resp := accountToResponse(account)
+	h.attachActiveSignalCount(ctx, wsID, &resp)
+	if !writeJSONOr500(w, resp) {
 		return
 	}
 }
@@ -148,12 +159,31 @@ func (h *AccountHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 // ListAccounts handles GET /api/v1/accounts with pagination
 // Task 1.3.7: List accounts with pagination filters
 func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
-	handleMappedListWithPagination(w, r, "failed to list accounts: %v",
-		func(ctx context.Context, wsID string, limit, offset int) ([]*crm.Account, int, error) {
-			return h.accountService.List(ctx, wsID, crm.ListAccountsInput{Limit: limit, Offset: offset})
-		},
-		accountToResponse,
-	)
+	ctx := r.Context()
+	wsID, ok := requireWorkspaceID(w, r)
+	if !ok {
+		return
+	}
+	page := parsePaginationParams(r)
+	items, total, err := h.accountService.List(ctx, wsID, crm.ListAccountsInput{Limit: page.Limit, Offset: page.Offset})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list accounts: %v", err))
+		return
+	}
+	counts := countActiveSignalsByEntity(ctx, h.signalCounter, wsID, "account", collectEntityIDs(items, func(acc *crm.Account) string {
+		return acc.ID
+	}))
+	resp := make([]AccountResponse, 0, len(items))
+	for _, item := range items {
+		mapped := accountToResponse(item)
+		if count, ok := counts[item.ID]; ok {
+			mapped.ActiveSignalCount = &count
+		}
+		resp = append(resp, mapped)
+	}
+	if !writePaginatedOr500(w, resp, total, page) {
+		return
+	}
 }
 
 // UpdateAccount handles PUT /api/v1/accounts/{id}
@@ -212,6 +242,16 @@ func accountToResponse(acc *crm.Account) AccountResponse {
 		CreatedAt:   acc.CreatedAt.Format(timeFormatISO),
 		UpdatedAt:   acc.UpdatedAt.Format(timeFormatISO),
 		DeletedAt:   formatDeletedAt(acc.DeletedAt),
+	}
+}
+
+func (h *AccountHandler) attachActiveSignalCount(ctx context.Context, workspaceID string, resp *AccountResponse) {
+	if resp == nil || resp.ID == "" {
+		return
+	}
+	counts := countActiveSignalsByEntity(ctx, h.signalCounter, workspaceID, "account", []string{resp.ID})
+	if count, ok := counts[resp.ID]; ok {
+		resp.ActiveSignalCount = &count
 	}
 }
 

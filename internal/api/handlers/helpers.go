@@ -15,6 +15,10 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 )
 
+type activeSignalCounter interface {
+	CountActiveByEntities(ctx context.Context, workspaceID, entityType string, entityIDs []string) (map[string]int, error)
+}
+
 // paginationParams holds parsed limit and offset values.
 type paginationParams struct {
 	Limit  int
@@ -209,6 +213,37 @@ func writePaginatedOr500(w http.ResponseWriter, items any, total int, page pagin
 		"data": items,
 		"meta": Meta{Total: total, Limit: page.Limit, Offset: page.Offset},
 	})
+}
+
+func collectEntityIDs[T any](items []*T, idFn func(*T) string) []string {
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		id := idFn(item)
+		if id == "" {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func countActiveSignalsByEntity(
+	ctx context.Context,
+	counter activeSignalCounter,
+	workspaceID, entityType string,
+	entityIDs []string,
+) map[string]int {
+	if counter == nil || len(entityIDs) == 0 {
+		return map[string]int{}
+	}
+	counts, err := counter.CountActiveByEntities(ctx, workspaceID, entityType, entityIDs)
+	if err != nil {
+		return map[string]int{}
+	}
+	return counts
 }
 
 // handleGetError unifica manejo ErrNoRows + error interno para endpoints Get.

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -22,22 +23,22 @@ const (
 )
 
 type Signal struct {
-	ID           string          `json:"id"`
-	WorkspaceID  string          `json:"workspaceId"`
-	EntityType   string          `json:"entityType"`
-	EntityID     string          `json:"entityId"`
-	SignalType   string          `json:"signalType"`
-	Confidence   float64         `json:"confidence"`
-	EvidenceIDs  []string        `json:"evidenceIds"`
-	SourceType   string          `json:"sourceType"`
-	SourceID     string          `json:"sourceId"`
-	Metadata     json.RawMessage `json:"metadata"`
-	Status       Status          `json:"status"`
-	DismissedBy  *string         `json:"dismissedBy,omitempty"`
-	DismissedAt  *time.Time      `json:"dismissedAt,omitempty"`
-	ExpiresAt    *time.Time      `json:"expiresAt,omitempty"`
-	CreatedAt    time.Time       `json:"createdAt"`
-	UpdatedAt    time.Time       `json:"updatedAt"`
+	ID          string          `json:"id"`
+	WorkspaceID string          `json:"workspaceId"`
+	EntityType  string          `json:"entityType"`
+	EntityID    string          `json:"entityId"`
+	SignalType  string          `json:"signalType"`
+	Confidence  float64         `json:"confidence"`
+	EvidenceIDs []string        `json:"evidenceIds"`
+	SourceType  string          `json:"sourceType"`
+	SourceID    string          `json:"sourceId"`
+	Metadata    json.RawMessage `json:"metadata"`
+	Status      Status          `json:"status"`
+	DismissedBy *string         `json:"dismissedBy,omitempty"`
+	DismissedAt *time.Time      `json:"dismissedAt,omitempty"`
+	ExpiresAt   *time.Time      `json:"expiresAt,omitempty"`
+	CreatedAt   time.Time       `json:"createdAt"`
+	UpdatedAt   time.Time       `json:"updatedAt"`
 }
 
 type Filters struct {
@@ -184,6 +185,42 @@ func (r *Repository) GetByEntity(ctx context.Context, workspaceID, entityType, e
 	}
 	defer rows.Close()
 	return scanSignalRows(rows)
+}
+
+func (r *Repository) CountActiveByEntities(ctx context.Context, workspaceID, entityType string, entityIDs []string) (map[string]int, error) {
+	counts := make(map[string]int, len(entityIDs))
+	if len(entityIDs) == 0 {
+		return counts, nil
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(entityIDs)), ",")
+	args := make([]any, 0, len(entityIDs)+3)
+	args = append(args, workspaceID, entityType, string(StatusActive))
+	for _, entityID := range entityIDs {
+		args = append(args, entityID)
+	}
+	query := fmt.Sprintf(`
+		SELECT entity_id, COUNT(*)
+		FROM signal
+		WHERE workspace_id = ? AND entity_type = ? AND status = ? AND entity_id IN (%s)
+		GROUP BY entity_id
+	`, placeholders)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("count active signals by entities: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var entityID string
+		var count int
+		if err := rows.Scan(&entityID, &count); err != nil {
+			return nil, fmt.Errorf("scan active signal count: %w", err)
+		}
+		counts[entityID] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate active signal counts: %w", err)
+	}
+	return counts, nil
 }
 
 func (r *Repository) Dismiss(ctx context.Context, workspaceID, signalID, actorID string) (*Signal, error) {

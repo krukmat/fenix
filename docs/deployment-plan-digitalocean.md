@@ -17,6 +17,8 @@ source_of_truth: ["docs/requirements.md", "repo state verified on 2026-03-27"]
 
 > **Criterio**: este documento parte del estado real del repositorio a fecha **2026-03-27** y de precios/documentacion oficial de DigitalOcean validados el **2026-03-27**.
 
+> **Referencia de contrato mobile/BFF/API**: la auditoria especifica de interfaz mobile, BFF y API se mantiene separada en `docs/mobile-bff-api-audit-remediation-plan.md` para no mezclar decisiones de despliegue con remediacion de contrato.
+
 ---
 
 ## 1 -- Resumen ejecutivo
