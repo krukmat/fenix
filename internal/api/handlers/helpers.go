@@ -56,8 +56,12 @@ const (
 	errFailedToEncodeJSON = `{"error":"failed to encode response"}`
 	errEmptyJSON          = "{}"
 
+	// Entity type constants for signal counting.
+	entityTypeAccount = "account"
+	entityTypeCase    = "case"
+
 	// Error messages — account
-	errAccountIDRequired  = "account id is required"
+	errAccountIDRequired = "account id is required"
 	errAccountNotFound    = "account not found"
 	errFailedToGetAccount = "failed to get account: %v"
 
@@ -351,33 +355,6 @@ func handleMappedListWithPagination[T any, R any](
 	_ = writePaginatedOr500(w, mapped, total, page)
 }
 
-func handleParsedListWithPagination[T any, In any](
-	w http.ResponseWriter,
-	r *http.Request,
-	parseInput func(*http.Request, paginationParams) (In, error),
-	listFn func(context.Context, string, In) ([]*T, int, error),
-	errFmt string,
-) {
-	wsID, ok := requireWorkspaceID(w, r)
-	if !ok {
-		return
-	}
-
-	page := parsePaginationParams(r)
-	input, err := parseInput(r, page)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	items, total, svcErr := listFn(r.Context(), wsID, input)
-	if svcErr != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf(errFmt, svcErr))
-		return
-	}
-
-	_ = writePaginatedOr500(w, items, total, page)
-}
 
 // handleEntityUpdate centraliza el flujo común de UPDATE por entidad:
 // workspace + carga previa + decode + update + respuesta JSON.

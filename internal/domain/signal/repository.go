@@ -198,12 +198,7 @@ func (r *Repository) CountActiveByEntities(ctx context.Context, workspaceID, ent
 	for _, entityID := range entityIDs {
 		args = append(args, entityID)
 	}
-	query := fmt.Sprintf(`
-		SELECT entity_id, COUNT(*)
-		FROM signal
-		WHERE workspace_id = ? AND entity_type = ? AND status = ? AND entity_id IN (%s)
-		GROUP BY entity_id
-	`, placeholders)
+	query := "SELECT entity_id, COUNT(*) FROM signal WHERE workspace_id = ? AND entity_type = ? AND status = ? AND entity_id IN (" + placeholders + ") GROUP BY entity_id"
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("count active signals by entities: %w", err)
@@ -212,13 +207,13 @@ func (r *Repository) CountActiveByEntities(ctx context.Context, workspaceID, ent
 	for rows.Next() {
 		var entityID string
 		var count int
-		if err := rows.Scan(&entityID, &count); err != nil {
-			return nil, fmt.Errorf("scan active signal count: %w", err)
+		if scanErr := rows.Scan(&entityID, &count); scanErr != nil {
+			return nil, fmt.Errorf("scan active signal count: %w", scanErr)
 		}
 		counts[entityID] = count
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate active signal counts: %w", err)
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate active signal counts: %w", rowsErr)
 	}
 	return counts, nil
 }

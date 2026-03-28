@@ -170,13 +170,13 @@ func (h *AccountHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list accounts: %v", err))
 		return
 	}
-	counts := countActiveSignalsByEntity(ctx, h.signalCounter, wsID, "account", collectEntityIDs(items, func(acc *crm.Account) string {
+	counts := countActiveSignalsByEntity(ctx, h.signalCounter, wsID, entityTypeAccount, collectEntityIDs(items, func(acc *crm.Account) string {
 		return acc.ID
 	}))
 	resp := make([]AccountResponse, 0, len(items))
 	for _, item := range items {
 		mapped := accountToResponse(item)
-		if count, ok := counts[item.ID]; ok {
+		if count, found := counts[item.ID]; found {
 			mapped.ActiveSignalCount = &count
 		}
 		resp = append(resp, mapped)
@@ -249,7 +249,7 @@ func (h *AccountHandler) attachActiveSignalCount(ctx context.Context, workspaceI
 	if resp == nil || resp.ID == "" {
 		return
 	}
-	counts := countActiveSignalsByEntity(ctx, h.signalCounter, workspaceID, "account", []string{resp.ID})
+	counts := countActiveSignalsByEntity(ctx, h.signalCounter, workspaceID, entityTypeAccount, []string{resp.ID})
 	if count, ok := counts[resp.ID]; ok {
 		resp.ActiveSignalCount = &count
 	}

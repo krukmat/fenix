@@ -124,7 +124,7 @@ func (h *DealHandler) ListDeals(w http.ResponseWriter, r *http.Request) {
 		return item.ID
 	}))
 	for _, item := range items {
-		if count, ok := counts[item.ID]; ok {
+		if count, found := counts[item.ID]; found {
 			item.ActiveSignalCount = intPtr(count)
 		}
 	}

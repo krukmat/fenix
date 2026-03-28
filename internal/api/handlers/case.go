@@ -159,7 +159,7 @@ func (h *CaseHandler) ListCases(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list cases: %v", svcErr))
 		return
 	}
-	counts := countActiveSignalsByEntity(r.Context(), h.signalCounter, wsID, "case", collectEntityIDs(items, func(item *crm.CaseTicket) string {
+	counts := countActiveSignalsByEntity(r.Context(), h.signalCounter, wsID, entityTypeCase, collectEntityIDs(items, func(item *crm.CaseTicket) string {
 		return item.ID
 	}))
 	for _, item := range items {
@@ -268,7 +268,7 @@ func (h *CaseHandler) attachActiveSignalCount(ctx context.Context, workspaceID s
 	if item == nil || item.ID == "" {
 		return
 	}
-	counts := countActiveSignalsByEntity(ctx, h.signalCounter, workspaceID, "case", []string{item.ID})
+	counts := countActiveSignalsByEntity(ctx, h.signalCounter, workspaceID, entityTypeCase, []string{item.ID})
 	if count, ok := counts[item.ID]; ok {
 		item.ActiveSignalCount = intPtr(count)
 	}
