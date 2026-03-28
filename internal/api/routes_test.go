@@ -67,8 +67,9 @@ func TestNewRouter_ReadyzEndpoint(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Errorf("expected 503 from /readyz, got %d", w.Code)
+	// LLM providers are optional — degraded but DB is up, so 200 not 503.
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 from /readyz when only LLM is down, got %d", w.Code)
 	}
 	if !strings.Contains(w.Body.String(), `"status":"degraded"`) {
 		t.Errorf("expected degraded body, got %q", w.Body.String())
