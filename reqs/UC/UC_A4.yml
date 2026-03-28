@@ -1,0 +1,17 @@
+active: true
+behavior_family: execute_workflow*
+derived: false
+header: ''
+level: 1
+links:
+- FR_230
+- FR_202
+- FR_211
+- FR_070
+normative: true
+ref: docs/agent-spec-overview.md
+reviewed: null
+text: |
+  UC-A4: Workflow Execution
+  Execute active workflows through the runtime with traced steps, tools, and policy control.
+

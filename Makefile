@@ -2,7 +2,7 @@
 # Task 1.1: Project Setup
 # Following implementation plan exactly
 
-.PHONY: all test build run lint fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd bench-critical bench-all check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check _ci-traceability contract-test contract-test-strict trace-report install-hooks
+.PHONY: all test build run lint fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd bench-critical bench-all check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check bdd-trace-check test-bdd-go test-bdd-bff test-bdd-mobile test-bdd _ci-traceability contract-test contract-test-strict trace-report install-hooks
 
 # Variables
 BINARY_NAME=fenix
@@ -277,6 +277,37 @@ doorstop-check:
 trace-check:
 	@echo "Checking FR-to-test traceability..."
 	@go run ./cmd/frtrace -reqs ./reqs -root .
+
+bdd-trace-check:
+	@echo "Checking Doorstop and BDD traceability prerequisites..."
+	@go run ./cmd/frtrace -reqs ./reqs -root .
+
+test-bdd-go:
+	@echo "Running Go BDD entrypoint..."
+	@if [ -d ./tests/bdd/go ]; then \
+		go test ./tests/bdd/go/...; \
+	else \
+		echo "SKIP: tests/bdd/go not present"; \
+	fi
+
+test-bdd-bff:
+	@echo "Running BFF BDD entrypoint..."
+	@if [ -d ./bff/tests/bdd ]; then \
+		cd bff && npm run test:bdd; \
+	else \
+		echo "SKIP: bff/tests/bdd not present"; \
+	fi
+
+test-bdd-mobile:
+	@echo "Running Mobile BDD entrypoint..."
+	@if [ -d ./mobile/e2e/bdd ]; then \
+		cd mobile && npm run test:bdd; \
+	else \
+		echo "SKIP: mobile/e2e/bdd not present"; \
+	fi
+
+test-bdd: bdd-trace-check test-bdd-go test-bdd-bff test-bdd-mobile
+	@echo "BDD entrypoints completed"
 
 contract-test: build
 	@echo "Running API contract tests..."

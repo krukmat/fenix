@@ -35,6 +35,19 @@ func TestLoadDoorstopTSTs(t *testing.T) {
 	}
 }
 
+func TestLoadDoorstopUCs(t *testing.T) {
+	ucs, err := loadDoorstopUCs(filepath.Join("testdata", "reqs", "UC"))
+	if err != nil {
+		t.Fatalf("loadDoorstopUCs: %v", err)
+	}
+	if len(ucs) != len(requiredUCIDs) {
+		t.Fatalf("expected %d UCs, got %d", len(requiredUCIDs), len(ucs))
+	}
+	if !ucs["UC_S1"].Active {
+		t.Error("UC_S1 should be active")
+	}
+}
+
 func TestScanTraces(t *testing.T) {
 	traces, err := scanTraces(filepath.Join("testdata", "src", "good_test.go"))
 	if err != nil {
@@ -47,18 +60,20 @@ func TestScanTraces(t *testing.T) {
 
 func TestValidate_AllCovered(t *testing.T) {
 	frs := map[string]FRItem{"FR_TEST1": {Active: true}}
+	ucs := buildRequiredUCMap("FR_TEST1")
 	tsts := []TSTItem{{ID: "TST_TEST1", Ref: "src/good_test.go", FRLinks: []string{"FR_TEST1"}}}
 	fileTraces := map[string][]string{"src/good_test.go": {"FR-TEST1"}}
-	if violations := validate(frs, tsts, fileTraces, "testdata"); len(violations) != 0 {
+	if violations := validate(frs, ucs, tsts, fileTraces, "testdata"); len(violations) != 0 {
 		t.Fatalf("expected 0 violations, got %v", violations)
 	}
 }
 
 func TestValidate_UncoveredFR(t *testing.T) {
 	frs := map[string]FRItem{"FR_TEST1": {Active: true}, "FR_TEST3": {Active: true}}
+	ucs := buildRequiredUCMap("FR_TEST1")
 	tsts := []TSTItem{{ID: "TST_TEST1", Ref: "src/good_test.go", FRLinks: []string{"FR_TEST1"}}}
 	fileTraces := map[string][]string{"src/good_test.go": {"FR-TEST1"}}
-	violations := validate(frs, tsts, fileTraces, "testdata")
+	violations := validate(frs, ucs, tsts, fileTraces, "testdata")
 	ok := false
 	for _, v := range violations {
 		if v.Code == "UNCOVERED" && v.FRID == "FR_TEST3" {
@@ -72,9 +87,10 @@ func TestValidate_UncoveredFR(t *testing.T) {
 
 func TestValidate_MissingAnnotation(t *testing.T) {
 	frs := map[string]FRItem{"FR_TEST1": {Active: true}}
+	ucs := buildRequiredUCMap("FR_TEST1")
 	tsts := []TSTItem{{ID: "TST_TEST1", Ref: "src/bad_test.go", FRLinks: []string{"FR_TEST1"}}}
 	fileTraces := map[string][]string{"src/bad_test.go": {}}
-	violations := validate(frs, tsts, fileTraces, "testdata")
+	violations := validate(frs, ucs, tsts, fileTraces, "testdata")
 	ok := false
 	for _, v := range violations {
 		if v.Code == "MISSING-ANNOTATION" {
@@ -88,9 +104,10 @@ func TestValidate_MissingAnnotation(t *testing.T) {
 
 func TestValidate_OrphanAnnotation(t *testing.T) {
 	frs := map[string]FRItem{"FR_TEST1": {Active: true}}
+	ucs := buildRequiredUCMap("FR_TEST1")
 	tsts := []TSTItem{{ID: "TST_TEST1", Ref: "src/good_test.go", FRLinks: []string{"FR_TEST1"}}}
 	fileTraces := map[string][]string{"src/good_test.go": {"FR-TEST1", "FR-UNKNOWN"}}
-	violations := validate(frs, tsts, fileTraces, "testdata")
+	violations := validate(frs, ucs, tsts, fileTraces, "testdata")
 	ok := false
 	for _, v := range violations {
 		if v.Code == "ORPHAN" {
@@ -104,15 +121,17 @@ func TestValidate_OrphanAnnotation(t *testing.T) {
 
 func TestValidate_InactiveFRSkipped(t *testing.T) {
 	frs := map[string]FRItem{"FR_TEST2": {Active: false}}
-	if violations := validate(frs, nil, map[string][]string{}, "testdata"); len(violations) != 0 {
+	ucs := buildRequiredUCMap("FR_TEST2")
+	if violations := validate(frs, ucs, nil, map[string][]string{}, "testdata"); len(violations) != 0 {
 		t.Fatalf("expected no violations, got %v", violations)
 	}
 }
 
 func TestValidate_FileNotFound(t *testing.T) {
 	frs := map[string]FRItem{"FR_TEST1": {Active: true}}
+	ucs := buildRequiredUCMap("FR_TEST1")
 	tsts := []TSTItem{{ID: "TST_TEST1", Ref: "src/nonexistent_test.go", FRLinks: []string{"FR_TEST1"}}}
-	violations := validate(frs, tsts, map[string][]string{}, "testdata")
+	violations := validate(frs, ucs, tsts, map[string][]string{}, "testdata")
 	ok := false
 	for _, v := range violations {
 		if v.Code == "FILE-NOT-FOUND" {
@@ -122,6 +141,31 @@ func TestValidate_FileNotFound(t *testing.T) {
 	if !ok {
 		t.Fatal("expected FILE-NOT-FOUND")
 	}
+}
+
+func TestValidate_BadUCLink(t *testing.T) {
+	frs := map[string]FRItem{"FR_TEST1": {Active: true}}
+	ucs := buildRequiredUCMap("FR_TEST1")
+	ucs["UC_S1"] = UCItem{Active: true, FRLinks: []string{"FR_UNKNOWN"}}
+
+	violations := validate(frs, ucs, nil, map[string][]string{}, "testdata")
+	ok := false
+	for _, v := range violations {
+		if v.Code == "UC-BAD-FR-LINK" {
+			ok = true
+		}
+	}
+	if !ok {
+		t.Fatal("expected UC-BAD-FR-LINK")
+	}
+}
+
+func buildRequiredUCMap(frID string) map[string]UCItem {
+	ucs := make(map[string]UCItem, len(requiredUCIDs))
+	for _, id := range requiredUCIDs {
+		ucs[id] = UCItem{Active: true, FRLinks: []string{frID}}
+	}
+	return ucs
 }
 
 func TestMain(m *testing.M) {

@@ -1,0 +1,16 @@
+active: true
+behavior_family: defer_action*
+derived: false
+header: ''
+level: 1
+links:
+- FR_230
+- FR_061
+- FR_070
+normative: true
+ref: docs/agent-spec-overview.md
+reviewed: null
+text: |
+  UC-A6: Deferred Actions
+  Schedule actions for later execution and resume them under runtime control.
+

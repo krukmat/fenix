@@ -1,0 +1,6 @@
+settings:
+  digits: 2
+  itemformat: yaml
+  prefix: UC
+  sep: ''
+

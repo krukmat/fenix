@@ -13,6 +13,7 @@
     "quality:arch": "node ./scripts/quality-check.mjs",
     "quality": "npm run typecheck && npm run lint && npm run quality:arch && npm run test:coverage",
     "test": "jest --config jest.logic.config.ts",
+    "test:bdd": "jest --config e2e/jest.config.ts --runInBand --testPathPattern=e2e/bdd --watchman=false --forceExit",
     "test:coverage": "CI=1 JEST_HASTE_MAP_FORCE_NODE_FS=1 jest --config jest.logic.config.ts --coverage --runInBand --watchman=false --forceExit --testTimeout=30000 --detectOpenHandles",
     "test:ui": "jest --config jest.config.ts --runInBand --watchman=false --forceExit",
     "test:watch": "jest --watch",

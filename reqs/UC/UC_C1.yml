@@ -1,0 +1,18 @@
+active: true
+derived: false
+header: ''
+level: 1
+links:
+- FR_230
+- FR_231
+- FR_232
+- FR_092
+- FR_061
+- FR_070
+normative: true
+ref: docs/requirements.md
+reviewed: null
+text: |
+  UC-C1: Support Agent
+  Respond to a case, update the case, and hand off to a human when required.
+

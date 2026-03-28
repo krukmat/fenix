@@ -1,0 +1,18 @@
+active: true
+derived: false
+header: ''
+level: 1
+links:
+- FR_070
+- FR_071
+- FR_230
+- FR_232
+- FR_060
+- FR_061
+normative: true
+ref: docs/requirements.md
+reviewed: null
+text: |
+  UC-G1: Governance
+  Audit agent runs, support replay and rollback control, and preserve operational accountability.
+

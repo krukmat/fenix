@@ -1,0 +1,17 @@
+active: true
+behavior_family: human_override*
+derived: false
+header: ''
+level: 1
+links:
+- FR_061
+- FR_071
+- FR_232
+- FR_070
+normative: true
+ref: docs/agent-spec-overview.md
+reviewed: null
+text: |
+  UC-A7: Human Override and Approval
+  Require human approval or override before sensitive agent or workflow actions proceed.
+

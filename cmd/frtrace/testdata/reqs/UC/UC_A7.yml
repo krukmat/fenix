@@ -1,0 +1,14 @@
+active: true
+behavior_family: human_override*
+derived: false
+header: ''
+level: 1
+links:
+- FR_TEST1
+normative: true
+ref: docs/agent-spec-overview.md
+reviewed: null
+text: |
+  UC-A7: Test capability
+  Test UC fixture.
+

@@ -1,0 +1,13 @@
+active: true
+derived: false
+header: ''
+level: 1
+links:
+- FR_TEST1
+normative: true
+ref: docs/requirements.md
+reviewed: null
+text: |
+  UC-S2: Test capability
+  Test UC fixture.
+

@@ -1,0 +1,17 @@
+active: true
+derived: false
+header: ''
+level: 1
+links:
+- FR_231
+- FR_202
+- FR_211
+- FR_092
+- FR_240
+normative: true
+ref: docs/requirements.md
+reviewed: null
+text: |
+  UC-S2: Prospecting Agent
+  Research prospects, draft outreach, and create follow-up actions under policy and evidence constraints.
+

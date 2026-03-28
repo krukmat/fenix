@@ -1,0 +1,17 @@
+active: true
+behavior_family: delegate_workflow*
+derived: false
+header: ''
+level: 1
+links:
+- FR_230
+- FR_202
+- FR_211
+- FR_070
+normative: true
+ref: docs/agent-spec-overview.md
+reviewed: null
+text: |
+  UC-A9: Agent Delegation
+  Delegate workflow execution to other agents while preserving runtime traceability and control.
+

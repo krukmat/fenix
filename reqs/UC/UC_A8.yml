@@ -1,0 +1,16 @@
+active: true
+behavior_family: version_workflow*
+derived: false
+header: ''
+level: 1
+links:
+- FR_230
+- FR_240
+- FR_070
+normative: true
+ref: docs/agent-spec-overview.md
+reviewed: null
+text: |
+  UC-A8: Workflow Versioning and Rollback
+  Create new workflow versions, activate them safely, and support rollback when needed.
+

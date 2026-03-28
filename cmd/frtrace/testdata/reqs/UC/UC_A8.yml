@@ -1,0 +1,14 @@
+active: true
+behavior_family: version_workflow*
+derived: false
+header: ''
+level: 1
+links:
+- FR_TEST1
+normative: true
+ref: docs/agent-spec-overview.md
+reviewed: null
+text: |
+  UC-A8: Test capability
+  Test UC fixture.
+

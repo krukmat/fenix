@@ -1,0 +1,15 @@
+active: true
+derived: false
+header: ''
+level: 1
+links:
+- FR_231
+- FR_092
+- FR_240
+normative: true
+ref: docs/requirements.md
+reviewed: null
+text: |
+  UC-K1: KB Agent
+  Convert solutions into knowledge articles and route them through review with evidence attached.
+

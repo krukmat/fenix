@@ -1,0 +1,15 @@
+active: true
+behavior_family: define_workflow*
+derived: false
+header: ''
+level: 1
+links:
+- FR_230
+- FR_240
+normative: true
+ref: docs/agent-spec-overview.md
+reviewed: null
+text: |
+  UC-A2: Workflow Authoring
+  Author workflows as versioned drafts before verification and activation.
+
