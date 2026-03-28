@@ -198,7 +198,8 @@ func (r *Repository) CountActiveByEntities(ctx context.Context, workspaceID, ent
 	for _, entityID := range entityIDs {
 		args = append(args, entityID)
 	}
-	query := "SELECT entity_id, COUNT(*) FROM signal WHERE workspace_id = ? AND entity_type = ? AND status = ? AND entity_id IN (" + placeholders + ") GROUP BY entity_id"
+	// placeholders contains only "?,?,..." — no user data — safe to concat. //nolint:gosec
+	query := "SELECT entity_id, COUNT(*) FROM signal WHERE workspace_id = ? AND entity_type = ? AND status = ? AND entity_id IN (" + placeholders + ") GROUP BY entity_id" //nolint:gosec
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("count active signals by entities: %w", err)
