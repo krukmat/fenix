@@ -66,7 +66,6 @@ function setupAuth(isAuthenticated = true) {
 }
 
 function renderLayout() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   return render(
     <PaperProvider>
       <Layout />
