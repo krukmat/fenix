@@ -154,6 +154,61 @@ func TestRepository_Dismiss_NotFound(t *testing.T) {
 	}
 }
 
+func TestBuildCountActiveQuery(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		n    int
+		want string
+	}{
+		{1, "SELECT entity_id, COUNT(*) FROM signal WHERE workspace_id = ? AND entity_type = ? AND status = ? AND entity_id IN (?) GROUP BY entity_id"},
+		{3, "SELECT entity_id, COUNT(*) FROM signal WHERE workspace_id = ? AND entity_type = ? AND status = ? AND entity_id IN (?,?,?) GROUP BY entity_id"},
+	}
+	for _, tc := range cases {
+		got := buildCountActiveQuery(tc.n)
+		if got != tc.want {
+			t.Errorf("buildCountActiveQuery(%d) = %q, want %q", tc.n, got, tc.want)
+		}
+	}
+}
+
+func TestRepository_CountActiveByEntities(t *testing.T) {
+	t.Parallel()
+	db := setupTestDB(t)
+	repo := NewRepository(db)
+	ctx := context.Background()
+
+	for _, id := range []string{"sig-c1", "sig-c2"} {
+		_, err := repo.Create(ctx, CreateInput{
+			ID: id, WorkspaceID: "ws_c", EntityType: "deal",
+			EntityID: "deal-c1", SignalType: "churn_risk", Confidence: 0.8,
+			EvidenceIDs: []string{"ev-c"}, SourceType: "manual", SourceID: "m",
+			Status: StatusActive,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+	}
+
+	counts, err := repo.CountActiveByEntities(ctx, "ws_c", "deal", []string{"deal-c1", "deal-c2"})
+	if err != nil {
+		t.Fatalf("CountActiveByEntities() error = %v", err)
+	}
+	if counts["deal-c1"] != 2 {
+		t.Errorf("counts[deal-c1] = %d, want 2", counts["deal-c1"])
+	}
+	if counts["deal-c2"] != 0 {
+		t.Errorf("counts[deal-c2] = %d, want 0", counts["deal-c2"])
+	}
+
+	empty, err := repo.CountActiveByEntities(ctx, "ws_c", "deal", nil)
+	if err != nil {
+		t.Fatalf("CountActiveByEntities(nil) error = %v", err)
+	}
+	if len(empty) != 0 {
+		t.Errorf("expected empty map for nil ids, got %v", empty)
+	}
+}
+
 func TestRepository_Create_WithExpiresAt(t *testing.T) {
 	t.Parallel()
 
