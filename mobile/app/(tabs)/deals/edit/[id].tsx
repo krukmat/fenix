@@ -112,7 +112,7 @@ export default function EditDealScreen() {
   const { data, isLoading } = useDeal(id);
   const updateDeal = useUpdateDeal();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const payload = (data?.data ?? data ?? null) as Record<string, unknown> | null;
+  const payload = (data ?? null) as Record<string, unknown> | null;
   const dealObj = ((payload?.deal as Record<string, unknown> | undefined) ?? payload ?? undefined);
   const initial = useMemo(() => initialFormFromPayload(dealObj), [dealObj]);
   const [form, setForm] = useState<DealUpdateForm>(initial);

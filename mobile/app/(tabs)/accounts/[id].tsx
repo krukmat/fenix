@@ -143,7 +143,7 @@ export default function AccountDetailScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data, isLoading, error } = useAccount(id);
-  const payload = (data?.data ?? data ?? null) as Record<string, unknown> | null;
+  const payload = (data ?? null) as Record<string, unknown> | null;
   const accountObj = (payload?.account as Record<string, unknown> | undefined) ?? payload ?? undefined;
   const contactsData = payload?.contacts as { data?: ContactItem[] } | ContactItem[] | undefined;
   const dealsData = payload?.deals as { data?: DealItem[] } | DealItem[] | undefined;

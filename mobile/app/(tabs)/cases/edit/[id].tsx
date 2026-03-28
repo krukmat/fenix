@@ -106,7 +106,7 @@ export default function EditCaseScreen() {
   const { data, isLoading } = useCase(id);
   const updateCase = useUpdateCase();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const payload = (data?.data ?? data ?? null) as Record<string, unknown> | null;
+  const payload = (data ?? null) as Record<string, unknown> | null;
   const caseObj = ((payload?.case as Record<string, unknown> | undefined) ?? payload ?? undefined);
   const initial = useMemo(() => initialFormFromPayload(caseObj), [caseObj]);
   const [form, setForm] = useState<CaseUpdateForm>(initial);
