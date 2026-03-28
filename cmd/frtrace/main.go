@@ -54,6 +54,8 @@ const (
 	defaultReqsDir = "./reqs"
 	extYAML        = ".yml"
 	doorstopYAML   = ".doorstop.yml"
+	errReadFileFmt = "reading %s: %w"
+	errParseFileFmt = "parsing %s: %w"
 )
 
 var requiredUCIDs = []string{
@@ -140,11 +142,11 @@ func loadDoorstopFRs(dir string) (map[string]FRItem, error) {
 		}
 		data, readErr := os.ReadFile(filepath.Join(dir, entry.Name()))
 		if readErr != nil {
-			return nil, fmt.Errorf("reading %s: %w", entry.Name(), readErr)
+			return nil, fmt.Errorf(errReadFileFmt, entry.Name(), readErr)
 		}
 		var fr FRItem
 		if parseErr := yaml.Unmarshal(data, &fr); parseErr != nil {
-			return nil, fmt.Errorf("parsing %s: %w", entry.Name(), parseErr)
+			return nil, fmt.Errorf(errParseFileFmt, entry.Name(), parseErr)
 		}
 		id := strings.TrimSuffix(entry.Name(), extYAML)
 		frs[id] = fr
@@ -164,11 +166,11 @@ func loadDoorstopUCs(dir string) (map[string]UCItem, error) {
 		}
 		data, readErr := os.ReadFile(filepath.Join(dir, entry.Name()))
 		if readErr != nil {
-			return nil, fmt.Errorf("reading %s: %w", entry.Name(), readErr)
+			return nil, fmt.Errorf(errReadFileFmt, entry.Name(), readErr)
 		}
 		var raw ucYAML
 		if parseErr := yaml.Unmarshal(data, &raw); parseErr != nil {
-			return nil, fmt.Errorf("parsing %s: %w", entry.Name(), parseErr)
+			return nil, fmt.Errorf(errParseFileFmt, entry.Name(), parseErr)
 		}
 		id := strings.TrimSuffix(entry.Name(), extYAML)
 		ucs[id] = UCItem{
@@ -191,11 +193,11 @@ func loadDoorstopTSTs(dir string) ([]TSTItem, error) {
 		}
 		data, readErr := os.ReadFile(filepath.Join(dir, entry.Name()))
 		if readErr != nil {
-			return nil, fmt.Errorf("reading %s: %w", entry.Name(), readErr)
+			return nil, fmt.Errorf(errReadFileFmt, entry.Name(), readErr)
 		}
 		var raw tstYAML
 		if parseErr := yaml.Unmarshal(data, &raw); parseErr != nil {
-			return nil, fmt.Errorf("parsing %s: %w", entry.Name(), parseErr)
+			return nil, fmt.Errorf(errParseFileFmt, entry.Name(), parseErr)
 		}
 		id := strings.TrimSuffix(entry.Name(), extYAML)
 		tsts = append(tsts, TSTItem{ID: id, Ref: raw.Ref, FRLinks: extractFRLinks(raw.Links)})
@@ -321,23 +323,34 @@ func checkUCLinks(frs map[string]FRItem, ucs map[string]UCItem) []Violation {
 			continue
 		}
 		if len(uc.FRLinks) == 0 {
-			violations = append(violations, Violation{
-				Code:    "UC-NO-FR-LINKS",
-				Message: fmt.Sprintf("UC %s is active but has no FR links", ucID),
-			})
+			violations = append(violations, newUCNoFRLinksViolation(ucID))
 			continue
 		}
-		for _, frID := range uc.FRLinks {
-			if _, ok := frs[frID]; !ok {
-				violations = append(violations, Violation{
-					Code:    "UC-BAD-FR-LINK",
-					FRID:    frID,
-					Message: fmt.Sprintf("UC %s links to FR %s but %s is not in Doorstop", ucID, frID, frID),
-				})
-			}
-		}
+		violations = append(violations, findInvalidUCLinks(frs, ucID, uc.FRLinks)...)
 	}
 	return violations
+}
+
+func findInvalidUCLinks(frs map[string]FRItem, ucID string, frLinks []string) []Violation {
+	var violations []Violation
+	for _, frID := range frLinks {
+		if _, ok := frs[frID]; ok {
+			continue
+		}
+		violations = append(violations, Violation{
+			Code:    "UC-BAD-FR-LINK",
+			FRID:    frID,
+			Message: fmt.Sprintf("UC %s links to FR %s but %s is not in Doorstop", ucID, frID, frID),
+		})
+	}
+	return violations
+}
+
+func newUCNoFRLinksViolation(ucID string) Violation {
+	return Violation{
+		Code:    "UC-NO-FR-LINKS",
+		Message: fmt.Sprintf("UC %s is active but has no FR links", ucID),
+	}
 }
 
 // checkMissingAnnotations verifies that test files have required // Traces: annotations.

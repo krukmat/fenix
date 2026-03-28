@@ -49,14 +49,18 @@ inactive FR items as valid link targets during integrity validation.
 - kept `cmd/frtrace` compatible with both compact and file-style Doorstop link IDs
 - removed links from UC items to inactive FR items that are not yet valid Doorstop targets
 - marked `UC-A2` and `UC-A3` inactive until their implementing FR items are activated in Doorstop
+- confirmed in GitHub Actions that `Doorstop integrity check` now passes
+- confirmed in GitHub Actions that `FR-to-test traceability check` now passes
+- isolated the remaining pipeline failure to `golangci-lint` in `cmd/frtrace/main.go`
+- reduced `checkUCLinks` complexity and factored repeated error strings for lint compliance
 
 ---
 
 ## Pending Verification
 
 - local Doorstop integrity check
-- local `go test ./cmd/frtrace`: passed
-- push fix and inspect GitHub Actions result
+- local `go test ./cmd/frtrace` after the lint cleanup
+- push lint cleanup and inspect GitHub Actions result
 
 ---
 

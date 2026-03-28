@@ -73,6 +73,7 @@ prepare the project for BDD rollout on top of Doorstop.
 ### Pending
 
 - stabilize the Doorstop pipeline baseline after introducing `reqs/UC`
+- fix `golangci-lint` regressions in `cmd/frtrace` introduced during the UC traceability rollout
 - Wave 3: convert business UCs into executable BDD features
 - Wave 4: convert AGENT_SPEC UCs into executable BDD features
 - Wave 5: harden behavior coverage, TST metadata usage, and CI enforcement
