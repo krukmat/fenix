@@ -61,6 +61,14 @@ async function getOrNull(path: string, params?: Record<string, string | number |
   }
 }
 
+function extractId(obj: Record<string, unknown> | null, camel: string, snake: string): string | undefined {
+  return (obj?.[camel] as string | undefined) ?? (obj?.[snake] as string | undefined);
+}
+
+function extractSignalCount(obj: Record<string, unknown> | null): number {
+  return typeof obj?.active_signal_count === 'number' ? (obj.active_signal_count as number) : 0;
+}
+
 // CRM API - Generic fetch helpers
 export const crmApi = {
   // Lists
@@ -192,28 +200,23 @@ export const crmApi = {
 
   getDealFull: async (id: string) => {
     const deal = await apiClient.get(`/bff/api/v1/deals/${id}`).then((response) => response.data);
-    const accountId = (deal?.accountId as string | undefined) ?? (deal?.account_id as string | undefined);
-    const contactId = (deal?.contactId as string | undefined) ?? (deal?.contact_id as string | undefined);
+    const d = deal as Record<string, unknown> | null;
+    const accountId = extractId(d, 'accountId', 'account_id');
+    const contactId = extractId(d, 'contactId', 'contact_id');
     const [account, contact, activities] = await Promise.all([
       accountId ? getOrNull(`/bff/api/v1/accounts/${accountId}`) : Promise.resolve(null),
       contactId ? getOrNull(`/bff/api/v1/contacts/${contactId}`) : Promise.resolve(null),
       getOrNull('/bff/api/v1/activities', { deal_id: id, limit: 50 }),
     ]);
-    return {
-      deal,
-      account,
-      contact,
-      activities,
-      active_signal_count:
-        typeof deal?.active_signal_count === 'number' ? deal.active_signal_count : 0,
-    };
+    return { deal, account, contact, activities, active_signal_count: extractSignalCount(d) };
   },
 
   getCaseFull: async (id: string) => {
     const caseData = await apiClient.get(`/bff/api/v1/cases/${id}`).then((response) => response.data);
-    const accountId = (caseData?.accountId as string | undefined) ?? (caseData?.account_id as string | undefined);
-    const contactId = (caseData?.contactId as string | undefined) ?? (caseData?.contact_id as string | undefined);
-    const handoffStatus = (caseData?.handoffStatus as string | undefined) ?? (caseData?.handoff_status as string | undefined);
+    const c = caseData as Record<string, unknown> | null;
+    const accountId = extractId(c, 'accountId', 'account_id');
+    const contactId = extractId(c, 'contactId', 'contact_id');
+    const handoffStatus = extractId(c, 'handoffStatus', 'handoff_status');
     const [account, contact, activities] = await Promise.all([
       accountId ? getOrNull(`/bff/api/v1/accounts/${accountId}`) : Promise.resolve(null),
       contactId ? getOrNull(`/bff/api/v1/contacts/${contactId}`) : Promise.resolve(null),
@@ -225,8 +228,7 @@ export const crmApi = {
       contact,
       activities,
       handoff: handoffStatus ? { status: handoffStatus } : null,
-      active_signal_count:
-        typeof caseData?.active_signal_count === 'number' ? caseData.active_signal_count : 0,
+      active_signal_count: extractSignalCount(c),
     };
   },
 

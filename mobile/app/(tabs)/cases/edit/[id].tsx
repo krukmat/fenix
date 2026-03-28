@@ -96,7 +96,6 @@ function CaseEditFormFields({
   );
 }
 
-// eslint-disable-next-line complexity
 export default function EditCaseScreen() {
   const theme = useTheme();
   const colors = theme.colors as ThemeColors;

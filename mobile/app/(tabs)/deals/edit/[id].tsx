@@ -102,7 +102,6 @@ function DealEditFormFields({
   );
 }
 
-// eslint-disable-next-line complexity
 export default function EditDealScreen() {
   const theme = useTheme();
   const colors = theme.colors as ThemeColors;
