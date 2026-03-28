@@ -46,8 +46,10 @@ func NewReadyzHandler(db *sql.DB, chat, embed readinessChecker) http.HandlerFunc
 			resp.Embed = healthStatusError
 		}
 
+		// 503 only when the database is unavailable — the system cannot serve requests.
+		// Chat/embed provider failures degrade capability but the API remains operable.
 		code := http.StatusOK
-		if resp.Status != readyStatusReady {
+		if resp.Database == healthStatusError {
 			code = http.StatusServiceUnavailable
 		}
 		w.WriteHeader(code)

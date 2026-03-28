@@ -80,11 +80,15 @@ func TestReadyzHandler_ChatDown(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler(w, req)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d; want %d", w.Code, http.StatusServiceUnavailable)
+	// Chat is an optional provider — system stays operable, so 200 with degraded status.
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d; want %d", w.Code, http.StatusOK)
 	}
 	if !contains(w.Body.String(), `"chat":"error"`) {
 		t.Fatalf("body missing chat error: %s", w.Body.String())
+	}
+	if !contains(w.Body.String(), `"status":"degraded"`) {
+		t.Fatalf("body missing degraded status: %s", w.Body.String())
 	}
 }
 
@@ -98,10 +102,14 @@ func TestReadyzHandler_EmbedDown(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler(w, req)
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d; want %d", w.Code, http.StatusServiceUnavailable)
+	// Embed is an optional provider — system stays operable, so 200 with degraded status.
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d; want %d", w.Code, http.StatusOK)
 	}
 	if !contains(w.Body.String(), `"embed":"error"`) {
 		t.Fatalf("body missing embed error: %s", w.Body.String())
+	}
+	if !contains(w.Body.String(), `"status":"degraded"`) {
+		t.Fatalf("body missing degraded status: %s", w.Body.String())
 	}
 }
