@@ -320,7 +320,7 @@ contract-test-strict: build
 trace-report:
 	@./.venv/bin/doorstop publish all ./docs/trace-report
 
-ci: fmt-check complexity pattern-refactor-gate _ci-traceability lint test race-stability coverage-gate coverage-tdd build contract-test-strict
+ci: fmt-check complexity pattern-refactor-gate _ci-traceability bdd-trace-check lint test test-bdd-go race-stability coverage-gate coverage-tdd build contract-test-strict
 	@echo "All CI checks passed!"
 
 # Version info

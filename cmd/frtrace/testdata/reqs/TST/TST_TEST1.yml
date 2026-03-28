@@ -5,6 +5,10 @@ level: 2
 links:
 - FR_TEST1: null
 normative: true
+bdd:
+  feature: features/uc-s1-sales-copilot.feature
+  scenario: Launch Sales Copilot from account detail with grounded context
+  stack: mobile
 ref: src/good_test.go
 reviewed: null
 text: |

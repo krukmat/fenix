@@ -6,6 +6,10 @@ links:
 - FR_060: R4y3vBDUYqp4bfIP5VF1xdSbmuYMJ-3oPNud6r4cfas=
 - FR_071: UnyxTSAPW2Nzv4sBcVeJBHoUnvjEZ8jufWMdRAT9n5Q=
 normative: true
+bdd:
+  feature: features/uc-g1-governance.feature
+  scenario: Replay an agent run when replay is allowed
+  stack: go
 ref: internal/domain/policy/evaluator_test.go
 reviewed: Wb-CFmvITLMxjXis2u182iRVzfou79pmo_A1FtohNC4=
 text: |

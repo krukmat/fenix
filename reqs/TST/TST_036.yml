@@ -5,6 +5,10 @@ level: 2
 links:
 - FR_092: 4AlL939onTbDSRm5iIwU1uOE73w4uCUoG-m7bgOWilk=
 normative: true
+bdd:
+  feature: features/uc-s2-prospecting-agent.feature
+  scenario: Research prospect context with grounded evidence
+  stack: go
 ref: internal/domain/knowledge/search_test.go
 reviewed: XivqClb8-hg-flvolG5Uxcw-1_ffb2-uEEzorDU5-UA=
 text: |

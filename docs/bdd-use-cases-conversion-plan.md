@@ -51,7 +51,29 @@ Current TODO status:
 - `P5` Update the requirements workflow documentation: completed
 - `P6` Define the BDD metadata contract for TST items: completed
 - `P7` Add BDD-capable CI and Makefile entry points: completed
-- `Gate Fix` Restore Doorstop pipeline integrity after introducing `reqs/UC`: in progress
+- `Gate Fix` Restore Doorstop pipeline integrity after introducing `reqs/UC`: completed
+- `Wave 3 Pack 1` Create initial business feature files for `UC-S1`, `UC-C1`, and `UC-G1`: in progress
+  Current status: Go baseline executable, Mobile baseline implemented and blocked locally by missing Detox Android SDK env
+- `Wave 3 Pack 2` Expand Go business coverage for `UC-S2`, `UC-S3`, `UC-K1`, and `UC-D1`: completed
+  Current status: Features, TST mappings, and Go baseline runner are in place and passing locally
+- `Wave 3 Pack 3` Add a baseline `UC-A1` Agent Studio scenario: completed
+  Current status: Feature, dedicated `TST_051` mapping, and Go baseline runner are in place
+- `Wave 4 Pack 1` Add the first AGENT_SPEC baseline for `UC-A2`, `UC-A3`, and `UC-A4`: completed
+  Current status: Features, dedicated `TST` mappings, and Go baseline runner are in place and passing locally
+- `Wave 4 Pack 2` Add the AGENT_SPEC baseline for `UC-A5`, `UC-A6`, and `UC-A7`: completed
+  Current status: Features, dedicated `TST` mappings, and Go baseline runner are in place and passing locally
+- `Wave 4 Pack 3` Add the AGENT_SPEC baseline for `UC-A8` and `UC-A9`: completed
+  Current status: Features, dedicated `TST` mappings, and Go baseline runner are in place and passing locally
+
+Wave status:
+
+- `Wave 4` baseline rollout is complete for `UC-A2` to `UC-A9` on the Go stack
+- `Wave 5 Pack 1` Harden BDD traceability with AGENT_SPEC behavior tags and FR-link consistency: completed
+  Current status: `frtrace` now validates `bdd.behavior`, AGENT_SPEC behavior-family tags, and scenario `FR` tags against mapped `TST` links
+- `Wave 5 Pack 2` Enforce the current BDD baseline in CI: completed
+  Current status: CI and `make ci` now include the BDD traceability gate and the Go BDD baseline runner
+- `Wave 5 Pack 3` Harden selected Go workflow scenarios with real domain service assertions: completed
+  Current status: `UC-A2`, `UC-A3`, and `UC-A8` use the real workflow service inside the Go BDD runner
 
 Next execution backlog:
 

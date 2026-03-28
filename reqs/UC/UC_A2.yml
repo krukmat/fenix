@@ -1,9 +1,10 @@
-active: false
+active: true
 behavior_family: define_workflow*
 derived: false
 header: ''
 level: 1
-links: []
+links:
+- FR_240: draftA2Link=
 normative: true
 ref: docs/agent-spec-overview.md
 reviewed: null

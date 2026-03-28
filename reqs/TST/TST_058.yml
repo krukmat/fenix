@@ -1,0 +1,17 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_240: versionTST058=
+- FR_070: auditVersionTST058=
+normative: true
+bdd:
+  feature: features/uc-a8-workflow-versioning-and-rollback.feature
+  scenario: Create a new draft version from an active workflow
+  stack: go
+  behavior: version_workflow
+ref: tests/bdd/go/bdd_test.go
+reviewed: TST058review=
+text: |
+  TST_058: Workflow new-version baseline BDD coverage.

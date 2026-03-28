@@ -1,0 +1,16 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_070: deferredTST056=
+normative: true
+bdd:
+  feature: features/uc-a6-deferred-actions.feature
+  scenario: Schedule and resume a deferred workflow action
+  stack: go
+  behavior: defer_action
+ref: tests/bdd/go/bdd_test.go
+reviewed: TST056review=
+text: |
+  TST_056: Deferred workflow scheduling and resume BDD baseline coverage.

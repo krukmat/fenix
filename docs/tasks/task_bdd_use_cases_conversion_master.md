@@ -78,6 +78,21 @@ prepare the project for BDD rollout on top of Doorstop.
 - Wave 4: convert AGENT_SPEC UCs into executable BDD features
 - Wave 5: harden behavior coverage, TST metadata usage, and CI enforcement
 
+### In Progress
+
+- Wave 3 Pack 1: create the first business feature baseline for `UC-S1`, `UC-C1`, and `UC-G1`
+
+### Completed
+
+- Wave 3 Pack 2: expand executable Go coverage for `UC-S2`, `UC-S3`, `UC-K1`, and `UC-D1`
+- Wave 3 Pack 3: add the business baseline for `UC-A1`
+- Wave 4 Pack 1: add the AGENT_SPEC baseline for `UC-A2`, `UC-A3`, and `UC-A4`
+- Wave 4 Pack 2: add the AGENT_SPEC baseline for `UC-A5`, `UC-A6`, and `UC-A7`
+- Wave 4 Pack 3: add the AGENT_SPEC baseline for `UC-A8` and `UC-A9`
+- Wave 5 Pack 1: harden BDD traceability through behavior and FR-link validation
+- Wave 5 Pack 2: enforce the current BDD baseline in CI
+- Wave 5 Pack 3: harden Go workflow scenarios with real domain service assertions
+
 ---
 
 ## Sources of Truth
@@ -102,6 +117,9 @@ prepare the project for BDD rollout on top of Doorstop.
 - `docs/tasks/task_bdd_p6_tst_bdd_metadata_contract.md`
 - `docs/tasks/task_bdd_p7_ci_and_runner_entrypoints.md`
 - `docs/tasks/task_bdd_pipeline_doorstop_fix.md`
+- `docs/tasks/task_bdd_wave3_business_pack1.md`
+- `docs/tasks/task_bdd_wave3_business_pack2.md`
+- `docs/tasks/task_bdd_wave3_business_pack3.md`
 - `reqs/UC/.doorstop.yml`
 - `reqs/UC/*.yml`
 - `Makefile`

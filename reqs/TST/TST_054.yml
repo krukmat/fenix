@@ -1,0 +1,17 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_202: executeTST054=
+- FR_070: auditExecuteTST054=
+normative: true
+bdd:
+  feature: features/uc-a4-workflow-execution.feature
+  scenario: Execute an active workflow for a matching event
+  stack: go
+  behavior: execute_workflow
+ref: tests/bdd/go/bdd_test.go
+reviewed: TST054review=
+text: |
+  TST_054: Workflow runtime execution BDD baseline coverage.

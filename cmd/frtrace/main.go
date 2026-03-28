@@ -19,26 +19,50 @@ type FRItem struct {
 }
 
 type UCItem struct {
-	Active         bool     `yaml:"active"`
-	BehaviorFamily string   `yaml:"behavior_family"`
+	Active         bool   `yaml:"active"`
+	BehaviorFamily string `yaml:"behavior_family"`
 	FRLinks        []string
 }
 
 type TSTItem struct {
-	ID      string
-	Ref     string
-	FRLinks []string
+	ID          string
+	Ref         string
+	FRLinks     []string
+	BDDFeature  string
+	BDDScenario string
+	BDDStack    string
+	BDDBehavior string
 }
 
 type ucYAML struct {
-	Active bool        `yaml:"active"`
-	Links  interface{} `yaml:"links"`
+	Active         bool        `yaml:"active"`
+	BehaviorFamily string      `yaml:"behavior_family"`
+	Links          interface{} `yaml:"links"`
+}
+
+type bddYAML struct {
+	Feature  string `yaml:"feature"`
+	Scenario string `yaml:"scenario"`
+	Stack    string `yaml:"stack"`
+	Behavior string `yaml:"behavior"`
 }
 
 type tstYAML struct {
 	Active bool        `yaml:"active"`
 	Ref    string      `yaml:"ref"`
 	Links  interface{} `yaml:"links"`
+	BDD    bddYAML     `yaml:"bdd"`
+}
+
+type FeatureScenario struct {
+	Name  string
+	Tags  []string
+	Stack string
+}
+
+type FeatureSpec struct {
+	Path      string
+	Scenarios map[string]FeatureScenario
 }
 
 type Violation struct {
@@ -50,11 +74,11 @@ type Violation struct {
 }
 
 const (
-	flagReqs       = "reqs"
-	defaultReqsDir = "./reqs"
-	extYAML        = ".yml"
-	doorstopYAML   = ".doorstop.yml"
-	errReadFileFmt = "reading %s: %w"
+	flagReqs        = "reqs"
+	defaultReqsDir  = "./reqs"
+	extYAML         = ".yml"
+	doorstopYAML    = ".doorstop.yml"
+	errReadFileFmt  = "reading %s: %w"
 	errParseFileFmt = "parsing %s: %w"
 )
 
@@ -85,10 +109,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ERROR loading TSTs: %v\n", err)
 		os.Exit(1)
 	}
+	features, err := loadFeatureSpecs(filepath.Join(*rootDir, "features"), *rootDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR loading features: %v\n", err)
+		os.Exit(1)
+	}
 
 	fileTraces := buildFileTraces(tsts, *rootDir)
-	violations := validate(frs, ucs, tsts, fileTraces, *rootDir)
-	printReport(frs, ucs, tsts, fileTraces, violations)
+	violations := validate(frs, ucs, tsts, features, fileTraces, *rootDir)
+	printReport(frs, ucs, tsts, features, fileTraces, violations)
 }
 
 func buildFileTraces(tsts []TSTItem, rootDir string) map[string][]string {
@@ -109,11 +138,12 @@ func buildFileTraces(tsts []TSTItem, rootDir string) map[string][]string {
 	return fileTraces
 }
 
-func printReport(frs map[string]FRItem, ucs map[string]UCItem, tsts []TSTItem, fileTraces map[string][]string, violations []Violation) {
+func printReport(frs map[string]FRItem, ucs map[string]UCItem, tsts []TSTItem, features map[string]FeatureSpec, fileTraces map[string][]string, violations []Violation) {
 	fmt.Printf("=== FR Traceability Report ===\n")
 	fmt.Printf("FRs loaded: %d (active: %d)\n", len(frs), countActive(frs))
 	fmt.Printf("UCs loaded: %d (active: %d)\n", len(ucs), countActiveUCs(ucs))
 	fmt.Printf("TST items loaded: %d\n", len(tsts))
+	fmt.Printf("Feature files loaded: %d\n", len(features))
 	fmt.Printf("Test files scanned: %d\n", len(fileTraces))
 	fmt.Printf("Violations: %d\n\n", len(violations))
 	for _, v := range violations {
@@ -174,8 +204,9 @@ func loadDoorstopUCs(dir string) (map[string]UCItem, error) {
 		}
 		id := strings.TrimSuffix(entry.Name(), extYAML)
 		ucs[id] = UCItem{
-			Active:  raw.Active,
-			FRLinks: extractFRLinks(raw.Links),
+			Active:         raw.Active,
+			BehaviorFamily: raw.BehaviorFamily,
+			FRLinks:        extractFRLinks(raw.Links),
 		}
 	}
 	return ucs, nil
@@ -200,9 +231,109 @@ func loadDoorstopTSTs(dir string) ([]TSTItem, error) {
 			return nil, fmt.Errorf(errParseFileFmt, entry.Name(), parseErr)
 		}
 		id := strings.TrimSuffix(entry.Name(), extYAML)
-		tsts = append(tsts, TSTItem{ID: id, Ref: raw.Ref, FRLinks: extractFRLinks(raw.Links)})
+		tsts = append(tsts, TSTItem{
+			ID:          id,
+			Ref:         raw.Ref,
+			FRLinks:     extractFRLinks(raw.Links),
+			BDDFeature:  raw.BDD.Feature,
+			BDDScenario: raw.BDD.Scenario,
+			BDDStack:    raw.BDD.Stack,
+			BDDBehavior: raw.BDD.Behavior,
+		})
 	}
 	return tsts, nil
+}
+
+func loadFeatureSpecs(dir string, rootDir string) (map[string]FeatureSpec, error) {
+	features := make(map[string]FeatureSpec)
+	info, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		return features, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading features directory %s: %w", dir, err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("features path %s is not a directory", dir)
+	}
+	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".feature") {
+			return nil
+		}
+		spec, parseErr := parseFeatureFile(path, rootDir)
+		if parseErr != nil {
+			return parseErr
+		}
+		features[spec.Path] = spec
+		return nil
+	})
+	if walkErr != nil {
+		return nil, fmt.Errorf("walking features directory %s: %w", dir, walkErr)
+	}
+	return features, nil
+}
+
+func parseFeatureFile(path string, rootDir string) (FeatureSpec, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return FeatureSpec{}, fmt.Errorf(errReadFileFmt, path, err)
+	}
+	relPath, err := filepath.Rel(rootDir, path)
+	if err != nil {
+		return FeatureSpec{}, fmt.Errorf("computing feature path for %s: %w", path, err)
+	}
+	spec := FeatureSpec{
+		Path:      filepath.ToSlash(relPath),
+		Scenarios: make(map[string]FeatureScenario),
+	}
+	var featureTags []string
+	var pendingTags []string
+	for _, rawLine := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "@") {
+			pendingTags = append(pendingTags, strings.Fields(line)...)
+			continue
+		}
+		if strings.HasPrefix(line, "Feature:") {
+			featureTags = append([]string(nil), pendingTags...)
+			pendingTags = nil
+			continue
+		}
+		if !strings.HasPrefix(line, "Scenario:") {
+			pendingTags = nil
+			continue
+		}
+		name := strings.TrimSpace(strings.TrimPrefix(line, "Scenario:"))
+		scenarioTags := append(append([]string(nil), featureTags...), pendingTags...)
+		scenario := FeatureScenario{
+			Name:  name,
+			Tags:  scenarioTags,
+			Stack: extractStackTag(scenarioTags),
+		}
+		spec.Scenarios[name] = scenario
+		pendingTags = nil
+	}
+	return spec, nil
+}
+
+func extractStackTag(tags []string) string {
+	for _, tag := range tags {
+		switch tag {
+		case "@stack-go":
+			return "go"
+		case "@stack-bff":
+			return "bff"
+		case "@stack-mobile":
+			return "mobile"
+		}
+	}
+	return ""
 }
 
 func extractFRLinks(links interface{}) []string {
@@ -271,7 +402,7 @@ func extractTraceAnnotation(line string) []string {
 func frAnnotationToID(annotation string) string { return strings.ReplaceAll(annotation, "-", "_") }
 func frIDToAnnotation(id string) string         { return strings.ReplaceAll(id, "_", "-") }
 
-func validate(frs map[string]FRItem, ucs map[string]UCItem, tsts []TSTItem, fileTraces map[string][]string, rootDir string) []Violation {
+func validate(frs map[string]FRItem, ucs map[string]UCItem, tsts []TSTItem, features map[string]FeatureSpec, fileTraces map[string][]string, rootDir string) []Violation {
 	var violations []Violation
 	coveredFRs := make(map[string]bool)
 	for _, tst := range tsts {
@@ -299,8 +430,186 @@ func validate(frs map[string]FRItem, ucs map[string]UCItem, tsts []TSTItem, file
 
 	// Check orphan annotations
 	violations = append(violations, checkOrphanAnnotations(frs, fileTraces)...)
+	violations = append(violations, checkFeatureScenarioTags(frs, ucs, tsts, features)...)
+	violations = append(violations, checkTSTBDDLinks(tsts, features)...)
 
 	return violations
+}
+
+func checkFeatureScenarioTags(frs map[string]FRItem, ucs map[string]UCItem, tsts []TSTItem, features map[string]FeatureSpec) []Violation {
+	var violations []Violation
+	tstIDs := make(map[string]struct{}, len(tsts))
+	for _, tst := range tsts {
+		tstIDs[normalizeTSTToken(tst.ID)] = struct{}{}
+	}
+	for _, feature := range features {
+		for _, scenario := range feature.Scenarios {
+			ucTags := filterTagsByPrefix(scenario.Tags, "@UC-")
+			if len(ucTags) != 1 {
+				violations = append(violations, Violation{
+					Code:    "BDD-UC-TAG-COUNT",
+					File:    feature.Path,
+					Message: fmt.Sprintf("Scenario %q in %s must include exactly one @UC-* tag", scenario.Name, feature.Path),
+				})
+			}
+			for _, ucTag := range ucTags {
+				ucID := tagToDoorstopID(ucTag)
+				uc, ok := ucs[ucID]
+				if !ok {
+					violations = append(violations, Violation{
+						Code:    "BDD-UC-TAG-INVALID",
+						File:    feature.Path,
+						Message: fmt.Sprintf("Scenario %q in %s uses unknown UC tag %s", scenario.Name, feature.Path, ucTag),
+					})
+					continue
+				}
+				if uc.BehaviorFamily != "" {
+					behaviorTags := filterTagsByPrefix(scenario.Tags, "@behavior-")
+					if len(behaviorTags) != 1 {
+						violations = append(violations, Violation{
+							Code:    "BDD-BEHAVIOR-TAG-COUNT",
+							File:    feature.Path,
+							Message: fmt.Sprintf("Scenario %q in %s must include exactly one @behavior-* tag for %s", scenario.Name, feature.Path, ucTag),
+						})
+						continue
+					}
+					if !behaviorMatchesFamily(behaviorTags[0], uc.BehaviorFamily) {
+						violations = append(violations, Violation{
+							Code:    "BDD-BEHAVIOR-TAG-INVALID",
+							File:    feature.Path,
+							Message: fmt.Sprintf("Scenario %q in %s uses behavior tag %s outside family %s", scenario.Name, feature.Path, behaviorTags[0], uc.BehaviorFamily),
+						})
+					}
+				}
+			}
+			for _, frTag := range filterTagsByPrefix(scenario.Tags, "@FR-") {
+				frID := tagToDoorstopID(frTag)
+				if _, ok := frs[frID]; !ok {
+					violations = append(violations, Violation{
+						Code:    "BDD-FR-TAG-INVALID",
+						File:    feature.Path,
+						Message: fmt.Sprintf("Scenario %q in %s uses unknown FR tag %s", scenario.Name, feature.Path, frTag),
+					})
+				}
+			}
+			for _, tstTag := range filterTagsByPrefix(scenario.Tags, "@TST-") {
+				if _, ok := tstIDs[normalizeTSTToken(tstTag)]; !ok {
+					violations = append(violations, Violation{
+						Code:    "BDD-TST-TAG-INVALID",
+						File:    feature.Path,
+						Message: fmt.Sprintf("Scenario %q in %s uses unknown TST tag %s", scenario.Name, feature.Path, tstTag),
+					})
+				}
+			}
+		}
+	}
+	return violations
+}
+
+func checkTSTBDDLinks(tsts []TSTItem, features map[string]FeatureSpec) []Violation {
+	var violations []Violation
+	for _, tst := range tsts {
+		if tst.BDDFeature == "" && tst.BDDScenario == "" && tst.BDDStack == "" && tst.BDDBehavior == "" {
+			continue
+		}
+		if tst.BDDFeature == "" || tst.BDDScenario == "" || tst.BDDStack == "" {
+			violations = append(violations, Violation{
+				Code:    "BDD-INCOMPLETE",
+				TSTID:   tst.ID,
+				Message: fmt.Sprintf("TST %s has incomplete BDD metadata", tst.ID),
+			})
+			continue
+		}
+		feature, ok := features[tst.BDDFeature]
+		if !ok {
+			violations = append(violations, Violation{
+				Code:    "BDD-FEATURE-NOT-FOUND",
+				TSTID:   tst.ID,
+				File:    tst.BDDFeature,
+				Message: fmt.Sprintf("TST %s points to missing feature %s", tst.ID, tst.BDDFeature),
+			})
+			continue
+		}
+		scenario, ok := feature.Scenarios[tst.BDDScenario]
+		if !ok {
+			violations = append(violations, Violation{
+				Code:    "BDD-SCENARIO-NOT-FOUND",
+				TSTID:   tst.ID,
+				File:    tst.BDDFeature,
+				Message: fmt.Sprintf("TST %s points to missing scenario %q in %s", tst.ID, tst.BDDScenario, tst.BDDFeature),
+			})
+			continue
+		}
+		if scenario.Stack != tst.BDDStack {
+			violations = append(violations, Violation{
+				Code:    "BDD-STACK-MISMATCH",
+				TSTID:   tst.ID,
+				File:    tst.BDDFeature,
+				Message: fmt.Sprintf("TST %s declares stack %s but scenario %q uses stack %s", tst.ID, tst.BDDStack, tst.BDDScenario, scenario.Stack),
+			})
+		}
+		if !containsEquivalentTSTTag(scenario.Tags, tst.ID) {
+			violations = append(violations, Violation{
+				Code:    "BDD-TST-TAG-MISMATCH",
+				TSTID:   tst.ID,
+				File:    tst.BDDFeature,
+				Message: fmt.Sprintf("Scenario %q in %s does not include tag matching %s", tst.BDDScenario, tst.BDDFeature, tst.ID),
+			})
+		}
+		if tst.BDDBehavior != "" && !containsString(scenario.Tags, "@behavior-"+tst.BDDBehavior) {
+			violations = append(violations, Violation{
+				Code:    "BDD-BEHAVIOR-TAG-MISMATCH",
+				TSTID:   tst.ID,
+				File:    tst.BDDFeature,
+				Message: fmt.Sprintf("Scenario %q in %s does not include tag @behavior-%s", tst.BDDScenario, tst.BDDFeature, tst.BDDBehavior),
+			})
+		}
+		if tst.BDDBehavior != "" && len(tst.FRLinks) > 0 && !sameStringSet(normalizeFeatureFRTags(scenario.Tags), tst.FRLinks) {
+			violations = append(violations, Violation{
+				Code:    "BDD-FR-LINK-MISMATCH",
+				TSTID:   tst.ID,
+				File:    tst.BDDFeature,
+				Message: fmt.Sprintf("Scenario %q in %s FR tags do not match TST %s FR links", tst.BDDScenario, tst.BDDFeature, tst.ID),
+			})
+		}
+	}
+	return violations
+}
+
+func behaviorMatchesFamily(tag string, family string) bool {
+	behavior := strings.TrimPrefix(tag, "@behavior-")
+	prefix := strings.TrimSuffix(family, "*")
+	return strings.HasPrefix(behavior, prefix)
+}
+
+func normalizeFeatureFRTags(tags []string) []string {
+	var frs []string
+	for _, tag := range filterTagsByPrefix(tags, "@FR-") {
+		frs = append(frs, tagToDoorstopID(tag))
+	}
+	return frs
+}
+
+func sameStringSet(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	counts := make(map[string]int, len(left))
+	for _, item := range left {
+		counts[item]++
+	}
+	for _, item := range right {
+		counts[item]--
+		if counts[item] < 0 {
+			return false
+		}
+	}
+	for _, count := range counts {
+		if count != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func checkRequiredUCsPresent(ucs map[string]UCItem) []Violation {
@@ -357,6 +666,9 @@ func newUCNoFRLinksViolation(ucID string) Violation {
 func checkMissingAnnotations(tsts []TSTItem, fileTraces map[string][]string, rootDir string) []Violation {
 	var violations []Violation
 	for _, tst := range tsts {
+		if tst.BDDFeature != "" && tst.BDDScenario != "" && tst.BDDStack != "" {
+			continue
+		}
 		fullPath := filepath.Join(rootDir, tst.Ref)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			violations = append(violations, Violation{
@@ -412,6 +724,46 @@ func containsTrace(traces []string, expected string) bool {
 		}
 	}
 	return false
+}
+
+func containsString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func containsEquivalentTSTTag(tags []string, tstID string) bool {
+	needle := normalizeTSTToken(tstID)
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "@TST") && normalizeTSTToken(tag) == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func filterTagsByPrefix(tags []string, prefix string) []string {
+	var filtered []string
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, prefix) {
+			filtered = append(filtered, tag)
+		}
+	}
+	return filtered
+}
+
+func tagToDoorstopID(tag string) string {
+	return strings.ReplaceAll(strings.TrimPrefix(tag, "@"), "-", "_")
+}
+
+func normalizeTSTToken(value string) string {
+	value = strings.TrimPrefix(value, "@")
+	value = strings.ReplaceAll(value, "_", "")
+	value = strings.ReplaceAll(value, "-", "")
+	return value
 }
 
 func countActive(frs map[string]FRItem) int {

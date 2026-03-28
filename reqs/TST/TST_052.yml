@@ -1,0 +1,16 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_240: authoringTST052=
+normative: true
+bdd:
+  feature: features/uc-a2-workflow-authoring.feature
+  scenario: Create a workflow draft with DSL source
+  stack: go
+  behavior: define_workflow
+ref: tests/bdd/go/bdd_test.go
+reviewed: TST052review=
+text: |
+  TST_052: Workflow authoring draft creation BDD baseline coverage.
