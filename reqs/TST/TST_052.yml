@@ -3,7 +3,7 @@ derived: false
 header: ''
 level: 2
 links:
-- FR_240: authoringTST052=
+- FR240: authoringTST052=
 normative: true
 bdd:
   feature: features/uc-a2-workflow-authoring.feature

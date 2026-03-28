@@ -3,7 +3,7 @@ derived: false
 header: ''
 level: 2
 links:
-- FR_240: verifyTST053=
+- FR240: verifyTST053=
 - FR_070: auditTST053=
 normative: true
 bdd:
