@@ -1,6 +1,6 @@
 settings:
   digits: 2
   itemformat: yaml
+  parent: FR
   prefix: UC
   sep: '_'
-

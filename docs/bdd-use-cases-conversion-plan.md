@@ -71,6 +71,7 @@ Task documents created so far:
 - `docs/tasks/task_bdd_p5_requirements_workflow_docs.md`
 - `docs/tasks/task_bdd_p6_tst_bdd_metadata_contract.md`
 - `docs/tasks/task_bdd_p7_ci_and_runner_entrypoints.md`
+- `docs/tasks/task_bdd_pipeline_doorstop_fix.md`
 
 ---
 
