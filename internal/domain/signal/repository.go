@@ -192,14 +192,19 @@ func (r *Repository) CountActiveByEntities(ctx context.Context, workspaceID, ent
 	if len(entityIDs) == 0 {
 		return counts, nil
 	}
-	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(entityIDs)), ",")
 	args := make([]any, 0, len(entityIDs)+3)
 	args = append(args, workspaceID, entityType, string(StatusActive))
-	for _, entityID := range entityIDs {
+	var qb strings.Builder
+	qb.WriteString("SELECT entity_id, COUNT(*) FROM signal WHERE workspace_id = ? AND entity_type = ? AND status = ? AND entity_id IN (")
+	for i, entityID := range entityIDs {
+		if i > 0 {
+			qb.WriteString(",")
+		}
+		qb.WriteString("?")
 		args = append(args, entityID)
 	}
-	// placeholders contains only "?,?,..." — no user data — safe to concat. //nolint:gosec
-	query := "SELECT entity_id, COUNT(*) FROM signal WHERE workspace_id = ? AND entity_type = ? AND status = ? AND entity_id IN (" + placeholders + ") GROUP BY entity_id" //nolint:gosec
+	qb.WriteString(") GROUP BY entity_id")
+	query := qb.String()
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("count active signals by entities: %w", err)
