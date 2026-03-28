@@ -491,26 +491,27 @@ func checkFeatureScenarioTags(frs map[string]FRItem, ucs map[string]UCItem, tsts
 func checkTSTBDDLinks(tsts []TSTItem, features map[string]FeatureSpec) []Violation {
 	var violations []Violation
 	for _, tst := range tsts {
-		if !hasBDDMapping(tst) {
-			continue
-		}
-		if violation, ok := incompleteBDDViolation(tst); ok {
-			violations = append(violations, violation)
-			continue
-		}
-		feature, ok := features[tst.BDDFeature]
-		if violation, missing := missingFeatureViolation(tst, ok); missing {
-			violations = append(violations, violation)
-			continue
-		}
-		scenario, ok := feature.Scenarios[tst.BDDScenario]
-		if violation, missing := missingScenarioViolation(tst, ok); missing {
-			violations = append(violations, violation)
-			continue
-		}
-		violations = append(violations, validateScenarioMapping(tst, scenario)...)
+		violations = append(violations, validateTSTBDDLink(tst, features)...)
 	}
 	return violations
+}
+
+func validateTSTBDDLink(tst TSTItem, features map[string]FeatureSpec) []Violation {
+	if !hasBDDMapping(tst) {
+		return nil
+	}
+	if violation, ok := incompleteBDDViolation(tst); ok {
+		return []Violation{violation}
+	}
+	feature, ok := features[tst.BDDFeature]
+	if violation, missing := missingFeatureViolation(tst, ok); missing {
+		return []Violation{violation}
+	}
+	scenario, ok := feature.Scenarios[tst.BDDScenario]
+	if violation, missing := missingScenarioViolation(tst, ok); missing {
+		return []Violation{violation}
+	}
+	return validateScenarioMapping(tst, scenario)
 }
 
 func validateScenarioUCTags(featurePath string, scenario FeatureScenario, ucs map[string]UCItem) []Violation {
