@@ -1,0 +1,64 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='960' height='460' viewBox='0 0 960 460' font-family="'Segoe UI', Arial, sans-serif">
+
+  <!-- Background -->
+  <rect width='960' height='460' fill='#ffffff'/>
+
+  <!-- Title -->
+  <text x='480' y='34' text-anchor='middle' font-size='15' font-weight='700' fill='#1a1a1a'>Support Case: Without Accountability vs. FenixCRM</text>
+
+  <!-- LEFT column header -->
+  <rect x='40' y='52' width='390' height='36' rx='4' fill='#f5f5f5' stroke='#cccccc' stroke-width='1'/>
+  <text x='235' y='75' text-anchor='middle' font-size='13' font-weight='600' fill='#888888'>Without Accountability</text>
+
+  <!-- RIGHT column header -->
+  <rect x='530' y='52' width='390' height='36' rx='4' fill='#1a1a1a' stroke='#1a1a1a' stroke-width='1'/>
+  <text x='725' y='75' text-anchor='middle' font-size='13' font-weight='600' fill='#ffffff'>FenixCRM</text>
+
+  <!-- Divider -->
+  <line x1='480' y1='52' x2='480' y2='440' stroke='#eeeeee' stroke-width='1.5'/>
+
+  <!-- LEFT steps -->
+  <rect x='40' y='108' width='390' height='46' rx='4' fill='#ffffff' stroke='#e0e0e0' stroke-width='1'/>
+  <text x='235' y='127' text-anchor='middle' font-size='11' font-weight='600' fill='#1a1a1a'>Agent retrieves whatever it finds</text>
+  <text x='235' y='144' text-anchor='middle' font-size='10' fill='#888888'>including possibly internal or privileged notes</text>
+
+  <rect x='40' y='166' width='390' height='46' rx='4' fill='#ffffff' stroke='#e0e0e0' stroke-width='1'/>
+  <text x='235' y='185' text-anchor='middle' font-size='11' font-weight='600' fill='#1a1a1a'>Proposes an action</text>
+  <text x='235' y='202' text-anchor='middle' font-size='10' fill='#888888'>maybe sends email, maybe updates case</text>
+
+  <rect x='40' y='224' width='390' height='46' rx='4' fill='#ffffff' stroke='#e0e0e0' stroke-width='1'/>
+  <text x='235' y='243' text-anchor='middle' font-size='11' font-weight='600' fill='#1a1a1a'>Action executes</text>
+  <text x='235' y='260' text-anchor='middle' font-size='10' fill='#888888'>no schema check, no approval gate</text>
+
+  <rect x='40' y='282' width='390' height='46' rx='4' fill='#ffffff' stroke='#e0e0e0' stroke-width='1'/>
+  <text x='235' y='301' text-anchor='middle' font-size='11' font-weight='600' fill='#1a1a1a'>Something goes wrong</text>
+  <text x='235' y='318' text-anchor='middle' font-size='10' fill='#888888'>you have a timestamp and an output</text>
+
+  <rect x='40' y='340' width='390' height='56' rx='4' fill='#f9f0f0' stroke='#e0c0c0' stroke-width='1'/>
+  <text x='235' y='362' text-anchor='middle' font-size='11' font-weight='600' fill='#cc4444'>No trail. No context. No explanation.</text>
+  <text x='235' y='381' text-anchor='middle' font-size='10' fill='#888888'>you cannot answer: why did it do that?</text>
+  <text x='235' y='396' text-anchor='middle' font-size='10' fill='#888888'>how much did it cost? who approved it?</text>
+
+  <!-- RIGHT steps -->
+  <rect x='530' y='108' width='390' height='46' rx='4' fill='#ffffff' stroke='#cccccc' stroke-width='1'/>
+  <text x='725' y='127' text-anchor='middle' font-size='11' font-weight='600' fill='#1a1a1a'>Retrieval filter runs first</text>
+  <text x='725' y='144' text-anchor='middle' font-size='10' fill='#888888'>RBAC-filtered · PII redacted if no-cloud active</text>
+
+  <rect x='530' y='166' width='390' height='46' rx='4' fill='#ffffff' stroke='#cccccc' stroke-width='1'/>
+  <text x='725' y='185' text-anchor='middle' font-size='11' font-weight='600' fill='#1a1a1a'>Tool call proposed: send_email</text>
+  <text x='725' y='202' text-anchor='middle' font-size='10' fill='#888888'>schema validated · permission checked</text>
+
+  <rect x='530' y='224' width='390' height='46' rx='4' fill='#ffffff' stroke='#cccccc' stroke-width='1'/>
+  <text x='725' y='243' text-anchor='middle' font-size='11' font-weight='600' fill='#1a1a1a'>Approval gate</text>
+  <text x='725' y='260' text-anchor='middle' font-size='10' fill='#888888'>external recipient → manager approves with full context</text>
+
+  <rect x='530' y='282' width='390' height='46' rx='4' fill='#ffffff' stroke='#cccccc' stroke-width='1'/>
+  <text x='725' y='301' text-anchor='middle' font-size='11' font-weight='600' fill='#1a1a1a'>Action executes · AuditEvent recorded</text>
+  <text x='725' y='318' text-anchor='middle' font-size='10' fill='#888888'>who · what · cost in euros · decision trail</text>
+
+  <rect x='530' y='340' width='390' height='56' rx='4' fill='#1a1a1a' stroke='#1a1a1a' stroke-width='1'/>
+  <text x='725' y='362' text-anchor='middle' font-size='11' font-weight='600' fill='#ffffff'>Complete AgentRun record.</text>
+  <text x='725' y='381' text-anchor='middle' font-size='10' fill='#aaaaaa'>why · evidence · reasoning · cost · who approved</text>
+  <text x='725' y='396' text-anchor='middle' font-size='10' fill='#aaaaaa'>queryable at any time</text>
+
+</svg>

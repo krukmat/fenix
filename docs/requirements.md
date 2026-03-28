@@ -58,7 +58,7 @@ Un **CRM AI-native** que combine:
 1. CRM core extensible
 2. Capa de conocimiento (RAG) **con evidencia y citación obligatoria**
 3. Runtime agentic (acciones, tools, triggers) con **políticas**
-4. "Agent Studio" (skills/tools/policies/evals/versioning/rollback)
+4. "Agent Studio" con contratos de comportamiento (skills/tools/policies/evals/versioning/rollback/Carta)
 5. Auditoría y observabilidad end-to-end
 6. Data sovereignty (self-host/BYO-model, "no-cloud" por policy)
 7. Control de costos (presupuestos/quotas por rol/agente/tenant)
@@ -144,7 +144,7 @@ Un **CRM AI-native** que combine:
 2. **Knowledge & Retrieval Layer (RAG)**
 3. **Copilot UI (in-flow)**
 4. **Agent Runtime (triggers + orchestration + tools)**
-5. **Agent Studio (builder + policy + eval + deploy)**
+5. **Agent Studio & Behavior Contracts (builder + policy + eval + deploy)**
 6. **Governance & Security (RBAC/ABAC + audit + approvals)**
 7. **Integrations (connectors + API/webhooks)**
 8. **Observability & Analytics (usage, quality, cost, outcomes)**
@@ -164,7 +164,7 @@ Un **CRM AI-native** que combine:
 | **UC-K1** | KB Agent | Convertir soluciones en artículos + revisión | P1 |
 | **UC-D1** | Data Insights Agent | Responder preguntas analíticas con evidencia | P1 |
 | **UC-G1** | Governance | Auditar Agent Runs + replay + rollback | P0 |
-| **UC-A1** | Agent Studio | Crear skill + policy + eval + promover a producción | P1 |
+| **UC-A1** | Agent Studio | Crear skill + policy + eval + contrato de comportamiento y promover a producción | P1 |
 
 ### Diagrama — Nivel 0 (Contexto)
 
@@ -374,6 +374,8 @@ flowchart TD
 
 ### 7.4 Contratos de comportamiento IA (enforcement)
 
+> **Nota canónica**: `spec_source` soporta dos modos: texto libre legacy y contrato machine-readable tipo **Carta**. Carta complementa al DSL; no lo reemplaza. Detalle técnico: `docs/carta-spec.md` y `docs/carta-implementation-plan.md`.
+
 **FR-210 — Abstención obligatoria (P0)**
 **Descripción:** el sistema debe abstenerse si evidencia insuficiente/contradictoria o viola policy.
 **AC:**
@@ -387,6 +389,17 @@ flowchart TD
 - Validación de parámetros y scopes antes de ejecutar.
 - Denegar si parámetros peligrosos/no permitidos.
 **Dep:** FR-202, FR-060, FR-071.
+
+**FR-212 — Behavior Contracts / Carta (P1)**
+**Descripción:** `spec_source` debe poder declararse en formato machine-readable tipo Carta para expresar requisitos de evidencia, permisos, delegación, invariantes y límites operativos sobre un workflow/agent skill, manteniendo retrocompatibilidad con el formato libre actual.
+**AC:**
+- Judge valida consistencia estática entre DSL y Carta antes de activar o promover el workflow.
+- `GROUNDS` puede forzar abstención previa al DSL si la evidencia no cumple requisitos mínimos.
+- `DELEGATE TO HUMAN` puede activar escalado proactivo antes de retrieval/DSL.
+- `BUDGET` sincroniza límites operativos al runtime del agente.
+- `INVARIANT` se compila a reglas de policy enforcement en activación.
+- Si `spec_source` no está en formato Carta, el sistema mantiene la ruta legacy de parsing sin romper compatibilidad.
+**Dep:** FR-210, FR-211, FR-232, FR-233, FR-240.
 
 ---
 
@@ -430,6 +443,8 @@ flowchart TD
 ---
 
 ### 7.6 Agent Studio (builder + policy + eval + deploy)
+
+> **Nota**: Agent Studio incluye edición/versionado de contratos de comportamiento tipo Carta como capa declarativa complementaria al DSL. Ver `docs/carta-spec.md`.
 
 **FR-240 — Prompt/Policy versioning (P0)**
 **Descripción:** repositorio versionado de prompts/policies por agente/rol/tenant; rollback y entornos dev/test/prod.
@@ -569,13 +584,13 @@ flowchart TD
 | CRM Core | FR-001, FR-002, FR-003 | FR-003, FR-004, FR-005 | — | 5 |
 | Knowledge & RAG | FR-090, FR-091, FR-092 | FR-091, FR-093, FR-094 | — | 5 |
 | Copilot | FR-200, FR-201, FR-202 | FR-203 | — | 4 |
-| Comportamiento IA | FR-210, FR-211 | — | — | 2 |
+| Comportamiento IA | FR-210, FR-211 | FR-212 | — | 3 |
 | Agent Runtime | FR-230, FR-231, FR-232 | FR-233, FR-234 | — | 5 |
 | Agent Studio | FR-240, FR-242 | FR-241, FR-242, FR-243 | — | 4 |
 | Integraciones | FR-050, FR-051 | FR-050 | FR-052 | 3 |
 | Seguridad & Audit | FR-060, FR-061, FR-070, FR-071 | FR-071 | — | 4 |
 | Mobile & BFF | FR-300, FR-301 | FR-302, FR-303 | — | 4 |
-| **Total** | **19** | **~14** | **1** | **30** |
+| **Total** | **19** | **~15** | **1** | **31** |
 
 ---
 
@@ -600,6 +615,7 @@ flowchart TD
 ### Observability & Governance
 - **NFR-030 (P0)** Métricas por agente: éxito, abstención, escalado, latencia, costo.
 - **NFR-031 (P0)** Tracing por request: retrieval → ranking → prompt → tools → output.
+- **NFR-033 (P0)** Readiness operativa del backend: exponer `/readyz` que valide base de datos y dependencias críticas de IA antes de recibir tráfico.
 - **NFR-032 (P1)** Alertas por regresión de calidad/costos.
 
 ### Cost Control

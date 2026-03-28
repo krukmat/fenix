@@ -126,13 +126,13 @@ The old CRM was built to remember.
 
 The next CRM will be built to participate.
 
-To me, that is a much stronger foundation for what CRM is becoming.
+But participation without accountability is just a faster way to lose control. That is what the next article is about.
 
 ## What's built today
 
 ![FenixCRM core architecture](article-assets/diagram-4-fenixcrm-core.png)
 
-FenixCRM is not a slide deck. It is a working codebase.
+FenixCRM is not a slide deck. It is a working codebase. The governance layer, eval-gating, cost control, and audit trail described in this series are implemented — not planned.
 
 The backend is written in **Go 1.22+** with go-chi, using **SQLite** in WAL mode as the single data store — with FTS5 for full-text search and sqlite-vec for vector similarity. An **Express.js BFF** (Backend-for-Frontend) sits between the mobile client and the Go API, handling auth relay, request aggregation, and SSE streaming proxy. The mobile app uses **React Native + Expo** with React Native Paper (Material Design 3).
 
@@ -153,6 +153,18 @@ What is implemented and tested today:
 Deployment is a single `docker-compose up` — Go backend + BFF + Ollama. No vendor dependencies.
 
 The project is open source: [REPO_URL]
+
+---
+
+## What comes next
+
+Redesigning the record layer is the first step. But a system that can participate in work raises an immediate question: what stops it from acting on bad data, leaking sensitive information, or running up costs no one approved?
+
+That is what the next article is about.
+
+Not more architecture. The specific mechanisms — governance enforcement, cost control, eval-gating, and audit trails — that turn a capable agent into a trustworthy one. The layer most AI CRM demos quietly skip.
+
+*Part 2: [The Missing Layer in Every AI CRM Demo — coming soon]*
 
 ---
 

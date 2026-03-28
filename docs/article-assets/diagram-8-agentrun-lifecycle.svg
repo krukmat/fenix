@@ -1,0 +1,62 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='680' height='680' viewBox='0 0 680 680' font-family="'Segoe UI', Arial, sans-serif">
+
+  <!-- Background -->
+  <rect width='680' height='680' fill='#ffffff'/>
+
+  <!-- Title -->
+  <text x='340' y='36' text-anchor='middle' font-size='15' font-weight='700' fill='#1a1a1a'>AgentRun: Every Execution Is a Complete Record</text>
+
+  <!-- Box 1: Trigger -->
+  <rect x='170' y='56' width='340' height='56' rx='6' fill='#ffffff' stroke='#cccccc' stroke-width='1.5'/>
+  <text x='340' y='80' text-anchor='middle' font-size='13' font-weight='600' fill='#1a1a1a'>Trigger</text>
+  <text x='340' y='99' text-anchor='middle' font-size='10' fill='#888888'>event · schedule · manual</text>
+
+  <!-- Arrow -->
+  <line x1='340' y1='112' x2='340' y2='132' stroke='#aaaaaa' stroke-width='1.5'/>
+  <polygon points='335,132 340,142 345,132' fill='#aaaaaa'/>
+
+  <!-- Box 2: Evidence -->
+  <rect x='170' y='142' width='340' height='56' rx='6' fill='#ffffff' stroke='#cccccc' stroke-width='1.5'/>
+  <text x='340' y='166' text-anchor='middle' font-size='13' font-weight='600' fill='#1a1a1a'>Evidence</text>
+  <text x='340' y='185' text-anchor='middle' font-size='10' fill='#888888'>retrieval queries · scored · permission-filtered</text>
+
+  <!-- Arrow -->
+  <line x1='340' y1='198' x2='340' y2='218' stroke='#aaaaaa' stroke-width='1.5'/>
+  <polygon points='335,218 340,228 345,218' fill='#aaaaaa'/>
+
+  <!-- Box 3: Reasoning -->
+  <rect x='170' y='228' width='340' height='56' rx='6' fill='#ffffff' stroke='#cccccc' stroke-width='1.5'/>
+  <text x='340' y='252' text-anchor='middle' font-size='13' font-weight='600' fill='#1a1a1a'>Reasoning</text>
+  <text x='340' y='271' text-anchor='middle' font-size='10' fill='#888888'>trace stored · tool calls proposed</text>
+
+  <!-- Arrow -->
+  <line x1='340' y1='284' x2='340' y2='304' stroke='#aaaaaa' stroke-width='1.5'/>
+  <polygon points='335,304 340,314 345,304' fill='#aaaaaa'/>
+
+  <!-- Box 4: Approval -->
+  <rect x='170' y='314' width='340' height='56' rx='6' fill='#ffffff' stroke='#cccccc' stroke-width='1.5'/>
+  <text x='340' y='338' text-anchor='middle' font-size='13' font-weight='600' fill='#1a1a1a'>Approval</text>
+  <text x='340' y='357' text-anchor='middle' font-size='10' fill='#888888'>if required · hard stop · human decides</text>
+
+  <!-- Arrow -->
+  <line x1='340' y1='370' x2='340' y2='390' stroke='#aaaaaa' stroke-width='1.5'/>
+  <polygon points='335,390 340,400 345,390' fill='#aaaaaa'/>
+
+  <!-- Box 5: Execution -->
+  <rect x='170' y='400' width='340' height='56' rx='6' fill='#ffffff' stroke='#cccccc' stroke-width='1.5'/>
+  <text x='340' y='424' text-anchor='middle' font-size='13' font-weight='600' fill='#1a1a1a'>Execution</text>
+  <text x='340' y='443' text-anchor='middle' font-size='10' fill='#888888'>tool runs · idempotent · logged</text>
+
+  <!-- Arrow -->
+  <line x1='340' y1='456' x2='340' y2='476' stroke='#aaaaaa' stroke-width='1.5'/>
+  <polygon points='335,476 340,486 345,476' fill='#aaaaaa'/>
+
+  <!-- Box 6: Audit (dark) -->
+  <rect x='170' y='486' width='340' height='56' rx='6' fill='#1a1a1a' stroke='#1a1a1a' stroke-width='1.5'/>
+  <text x='340' y='510' text-anchor='middle' font-size='13' font-weight='600' fill='#ffffff'>Audit</text>
+  <text x='340' y='529' text-anchor='middle' font-size='10' fill='#aaaaaa'>who · what · cost_euros · full trace · queryable</text>
+
+  <!-- Bottom label -->
+  <text x='340' y='590' text-anchor='middle' font-size='11' fill='#888888'>Complete record at every step — inputs, evidence, reasoning, tool calls, cost, and audit trail.</text>
+
+</svg>

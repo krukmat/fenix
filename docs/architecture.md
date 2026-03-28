@@ -42,7 +42,7 @@
 | **Job Queue** | Goroutine pool + SQLite-backed persistence | Jobs in SQLite table. Retries + backoff + DLQ built in. |
 | **Cache** | In-process LRU (ristretto) | No Redis for MVP. Sessions, rate limits, idempotency keys in-memory. |
 | **Auth** | Built-in JWT (MVP) + OIDC hook (future) | Keycloak optional. MVP starts with bcrypt + JWT. BFF relays tokens. |
-| **LLM** | Custom Go interface (OpenAI-compatible) | Ollama/vLLM (local) + OpenAI/Anthropic (cloud). |
+| **LLM** | Custom Go interface with split chat/embed providers | `openai-compat` for chat/completions, `ollama` for embeddings in the current POC wiring. |
 | **Streaming** | Server-Sent Events (SSE) | Unidirectional LLM streaming. Go → BFF proxy → Mobile client. |
 | **Observability** | Structured JSON logs + OpenTelemetry (optional) + Sentry (mobile) | Logs to stdout. OTel + Grafana as optional upgrade. Sentry for mobile crash reporting. |
 | **Deployment** | Go single binary + SQLite file + BFF Node process | `./fenixcrm serve` + `node bff/dist/index.js`. Docker Compose for convenience. |
@@ -559,9 +559,9 @@ flowchart TB
     subgraph Application["Application Layer — Go Modules"]
         CRM_SVC["domain/crm/<br/>CRUD + Pipelines + Timeline"]
         COPILOT_SVC["domain/copilot/<br/>Chat + Summaries + Actions"]
-        AGENT_SVC["domain/agent/<br/>Orchestrator + State Machine"]
+        AGENT_SVC["domain/agent/<br/>Orchestrator + State Machine + Carta"]
         KNOWLEDGE_SVC["domain/knowledge/<br/>Ingestion + Indexing + Retrieval"]
-        POLICY_SVC["domain/policy/<br/>RBAC/ABAC + PII + Approvals"]
+        POLICY_SVC["domain/policy/<br/>RBAC/ABAC + PII + Approvals + Carta Bridge"]
         TOOL_SVC["domain/tool/<br/>Registry + Execution + Idempotency"]
         AUDIT_SVC["domain/audit/<br/>Immutable Logging"]
         EVAL_SVC["domain/eval/<br/>Datasets + Scoring + Gating"]
@@ -658,12 +658,12 @@ The Express.js BFF is a **thin, stateless proxy** between mobile clients and the
 | Responsibility | Description | Example |
 |---------------|-------------|---------|
 | **Auth Relay** | Forward JWT tokens from mobile to Go API. Handle token refresh logic (detect 401, re-auth, retry). | Mobile sends `Authorization: Bearer <token>` → BFF forwards to Go. |
-| **Request Aggregation** | Combine multiple Go API calls into a single mobile-optimized response. Reduces mobile round-trips. | Account detail screen: GET account + GET contacts + GET deals + GET timeline = 1 BFF call. |
-| **Response Shaping** | Transform Go API responses for mobile consumption. Strip unnecessary fields, add mobile-specific metadata. | Pagination meta adapted to infinite scroll. |
+| **API Relay** | Forward the mobile app's standard data access through `/bff/api/v1/*` without introducing a second domain contract. | Mobile calls `/bff/api/v1/accounts`; BFF relays to Go `/api/v1/accounts`. |
+| **Minimal Surface** | Keep custom BFF behavior limited to auth, copilot SSE, health, and transport concerns. Domain aggregation stays in Go or mobile composition. | CRM detail screens compose canonical Go endpoints in mobile instead of calling custom BFF `/:id/full` routes. |
 | **SSE Proxy** | Relay Server-Sent Events from Go Copilot endpoint to mobile client. Handle connection management. | Mobile opens SSE to BFF `/bff/copilot/chat`. BFF opens SSE to Go `/api/v1/copilot/chat`. Chunks relayed. |
 | **Mobile Headers** | Add mobile-specific headers to Go API requests: device info, app version, push token. | `X-Device-Id`, `X-App-Version`, `X-Push-Token` headers injected by BFF. |
 | **Push Dispatch (P1)** | Listen for Go backend events and dispatch push notifications via FCM. | Agent run completed → BFF sends FCM push to user device. |
-| **Health Check** | Independent health endpoint for BFF process monitoring. | `GET /bff/health` returns BFF status + Go backend reachability. |
+| **Health Check** | Independent BFF health plus backend readiness. | `GET /bff/health` returns BFF status + Go readiness via `/readyz`; Go backend also exposes `/health` for liveness. |
 
 #### BFF Architecture Constraints
 
@@ -679,12 +679,16 @@ The Express.js BFF is a **thin, stateless proxy** between mobile clients and the
 |-------|--------|--------|------|
 | `/bff/auth/login` | POST | Go `/auth/login` | Relay |
 | `/bff/auth/register` | POST | Go `/auth/register` | Relay |
-| `/bff/accounts/:id/full` | GET | Go accounts + contacts + deals + timeline | Aggregated |
-| `/bff/deals/:id/full` | GET | Go deals + account + contact + activities | Aggregated |
-| `/bff/cases/:id/full` | GET | Go cases + account + contact + activities + handoff | Aggregated |
 | `/bff/copilot/chat` | POST | Go `/api/v1/copilot/chat` | SSE Proxy |
 | `/bff/api/v1/*` | * | Go `/api/v1/*` | Pass-through |
-| `/bff/health` | GET | BFF status + Go ping | BFF-only |
+| `/bff/health` | GET | BFF status + Go `/readyz` | BFF-only |
+
+Backend operational endpoints:
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/health` | GET | Liveness/basic backend status |
+| `/readyz` | GET | Readiness: validates DB + chat provider + embed provider |
 
 ---
 
@@ -1102,6 +1106,41 @@ flowchart TD
     end
 ```
 
+### Carta Behavior Contracts (`spec_source`)
+
+Carta es la forma machine-readable de `spec_source` para describir restricciones declarativas de comportamiento. No reemplaza el DSL imperativo (`dsl_source`); lo complementa.
+
+Canonical detail:
+
+- Spec: `docs/carta-spec.md`
+- Implementation plan: `docs/carta-implementation-plan.md`
+
+Runtime and validation flow:
+
+```mermaid
+flowchart LR
+    SPEC["Workflow.spec_source"] --> DETECT{"Starts with CARTA?"}
+    DETECT -- "No" --> LEGACY["SpecParser legacy<br/>(free-form blocks)"]
+    DETECT -- "Yes" --> LEX["CartaLexer"]
+    LEX --> PARSE["CartaParser<br/>CartaSummary"]
+    PARSE --> JUDGE["judge_carta<br/>Checks 10/11/12"]
+    JUDGE --> ACTIVATE["WorkflowService.Activate"]
+    ACTIVATE --> BRIDGE["carta_policy_bridge<br/>BUDGET -> Limits<br/>INVARIANT -> policy rules"]
+    BRIDGE --> PREFLIGHT["DSLRunner preflight"]
+    PREFLIGHT --> DELEGATE["DelegateEvaluator"]
+    DELEGATE --> GROUNDS["GroundsValidator"]
+    GROUNDS --> DSL["DSLRuntime.ExecuteProgram"]
+```
+
+Behavioral rules:
+
+- `spec_source` legacy remains valid; Carta is an additive capability.
+- Judge performs static validation before activation/promotion when `spec_source` is Carta.
+- Runtime preflight order is `DelegateEvaluator -> GroundsValidator -> DSLRuntime.ExecuteProgram`.
+- `DELEGATE TO HUMAN` can stop execution before retrieval/DSL.
+- `GROUNDS` can force abstention before DSL execution.
+- `BUDGET` and `INVARIANT` are compiled into runtime/policy state during activation.
+
 ---
 
 ## 6 — Module Decomposition
@@ -1113,8 +1152,8 @@ flowchart TD
 | `domain/crm/` | CRUD entities, pipelines, timeline | account, contact, lead, deal, case_ticket, activity, note, attachment, pipeline, pipeline_stage, timeline_event | record.created/updated/deleted, stage.changed | — |
 | `domain/knowledge/` | Ingestion, normalization, chunking, embedding, hybrid search | knowledge_item, embedding_document | knowledge.indexed/updated | record.created/updated |
 | `domain/copilot/` | Chat Q&A, summaries, suggested actions, sessions | (copilot sessions in cache + SQLite) | copilot.interaction | — |
-| `domain/agent/` | Agent orchestration, state machine, handoff, dry-run | agent_definition, skill_definition, agent_run | agent.started/completed/escalated/failed | record.*, approval.decided |
-| `domain/policy/` | RBAC/ABAC, PII detection/masking, no-cloud, approvals | policy_set, policy_version, approval_request | approval.requested/decided, policy.violated | agent.started, tool.proposed |
+| `domain/agent/` | Agent orchestration, state machine, handoff, dry-run, Carta parsing/judge hooks, delegate/grounds preflight | agent_definition, skill_definition, agent_run | agent.started/completed/escalated/failed | record.*, approval.decided |
+| `domain/policy/` | RBAC/ABAC, PII detection/masking, no-cloud, approvals, Carta invariant/budget bridge | policy_set, policy_version, approval_request | approval.requested/decided, policy.violated | agent.started, tool.proposed |
 | `domain/tool/` | Tool registry, schema validation, idempotent execution, rate limiting | tool_definition | tool.executed/failed | — |
 | `domain/audit/` | Immutable append-only logging, queries, export | audit_event | — | ALL events (subscriber *) |
 | `domain/eval/` | Evaluation suites, scoring, release gating | eval_suite, eval_run | eval.completed/passed/failed | prompt.promoted |
@@ -1288,7 +1327,7 @@ flowchart LR
 
     subgraph P2["Phase 2: Knowledge"]
         P2A["Knowledge tables +<br/>FTS5 + sqlite-vec"]
-        P2B["LLM Adapter<br/>(Ollama + OpenAI)"]
+        P2B["LLM Adapter<br/>(Ollama + openai-compat)"]
         P2C["Ingestion Pipeline"]
         P2D["Hybrid Search +<br/>Evidence Pack Builder"]
         P2A --> P2C
@@ -1356,7 +1395,7 @@ flowchart TB
 
     subgraph Future["Future: Kubernetes (P1/P2)"]
         direction TB
-        NOTE["Migrate SQLite → PostgreSQL<br/>Add Redis for distributed cache<br/>Add NATS for multi-instance events<br/>Helm charts: Go + BFF + Ollama"]
+        NOTE["Migrate SQLite → PostgreSQL<br/>Add Redis for distributed cache<br/>Add NATS for multi-instance events<br/>Helm charts: Go + BFF + split LLM providers"]
     end
 ```
 
@@ -1379,6 +1418,10 @@ services:
     build: .
     ports: ["8080:8080"]
     volumes: ["./data:/data"]
+    environment:
+      CHAT_PROVIDER: openai-compat
+      EMBED_PROVIDER: ollama
+      OPENAI_COMPAT_BASE_URL: https://inference.do-ai.run
   bff:
     build: ./bff
     ports: ["3000:3000"]
@@ -1389,6 +1432,13 @@ services:
     image: ollama/ollama
     ports: ["11434:11434"]
 ```
+
+**Current repo deployment artifacts**:
+
+- Dev compose lives at `/docker-compose.yml`
+- Prod compose lives at `/docker-compose.prod.yml`
+- Reverse proxy config lives at `/deploy/Caddyfile`
+- Backend compose healthchecks should target `/readyz`
 
 ---
 
@@ -1440,7 +1490,6 @@ fenixcrm/                          # Monorepo root
 │   │   ├── routes/
 │   │   │   ├── auth.ts           # /bff/auth/* → Go /auth/*
 │   │   │   ├── proxy.ts          # /bff/api/v1/* → Go /api/v1/* (pass-through)
-│   │   │   ├── aggregated.ts     # /bff/accounts/:id/full (multi-call aggregation)
 │   │   │   └── copilot.ts        # /bff/copilot/chat (SSE proxy)
 │   │   ├── services/
 │   │   │   ├── goClient.ts       # HTTP client to Go backend
@@ -1466,12 +1515,13 @@ fenixcrm/                          # Monorepo root
 │   ├── domain/
 │   │   ├── crm/
 │   │   ├── copilot/
-│   │   ├── agent/
+│   │   ├── agent/                  # runtime, DSL, Carta parsing/judge, preflight
 │   │   ├── knowledge/
-│   │   ├── policy/
+│   │   ├── policy/                 # enforcement, approvals, Carta invariant bridge
 │   │   ├── tool/
 │   │   ├── audit/
-│   │   └── eval/
+│   │   ├── eval/
+│   │   └── workflow/               # workflow activation/execution metadata
 │   └── infra/
 │       ├── sqlite/
 │       ├── cache/
@@ -1482,7 +1532,9 @@ fenixcrm/                          # Monorepo root
 ├── deploy/
 │   ├── Dockerfile                # Go backend Docker
 │   ├── Dockerfile.bff            # BFF Docker
-│   └── docker-compose.yml        # Go + BFF + Ollama
+│   └── Caddyfile                 # Reverse proxy / TLS config for prod
+├── docker-compose.yml            # Dev: Go + BFF + local providers
+├── docker-compose.prod.yml       # Prod POC: Go + BFF + Caddy
 ├── tests/
 │   ├── integration/              # Go integration tests
 │   ├── e2e/                      # Detox E2E tests (mobile)
