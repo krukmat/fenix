@@ -51,6 +51,7 @@ Current TODO status:
 - `P5` Update the requirements workflow documentation: completed
 - `P6` Define the BDD metadata contract for TST items: completed
 - `P7` Add BDD-capable CI and Makefile entry points: completed
+- `Gate Fix` Restore Doorstop pipeline integrity after introducing `reqs/UC`: in progress
 
 Next execution backlog:
 

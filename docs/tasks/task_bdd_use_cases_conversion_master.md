@@ -72,6 +72,7 @@ prepare the project for BDD rollout on top of Doorstop.
 
 ### Pending
 
+- stabilize the Doorstop pipeline baseline after introducing `reqs/UC`
 - Wave 3: convert business UCs into executable BDD features
 - Wave 4: convert AGENT_SPEC UCs into executable BDD features
 - Wave 5: harden behavior coverage, TST metadata usage, and CI enforcement
@@ -99,6 +100,7 @@ prepare the project for BDD rollout on top of Doorstop.
 - `docs/tasks/task_bdd_p5_requirements_workflow_docs.md`
 - `docs/tasks/task_bdd_p6_tst_bdd_metadata_contract.md`
 - `docs/tasks/task_bdd_p7_ci_and_runner_entrypoints.md`
+- `docs/tasks/task_bdd_pipeline_doorstop_fix.md`
 - `reqs/UC/.doorstop.yml`
 - `reqs/UC/*.yml`
 - `Makefile`

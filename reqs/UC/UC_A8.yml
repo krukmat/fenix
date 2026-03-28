@@ -4,9 +4,9 @@ derived: false
 header: ''
 level: 1
 links:
-- FR230
-- FR240
-- FR070
+- FR_230: null
+- FR_240: null
+- FR_070: 0EI2DzGEbbuJwCbFNpiyooEbIct4y4-ntxVudS_uW5o=
 normative: true
 ref: docs/agent-spec-overview.md
 reviewed: null

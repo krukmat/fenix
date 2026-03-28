@@ -40,15 +40,16 @@ That caused Doorstop integrity validation to fail in CI with:
 
 - set `parent: FR` in `reqs/UC/.doorstop.yml`
 - aligned `cmd/frtrace` UC testdata with the same Doorstop hierarchy
-- normalized `UC -> FR` links to Doorstop UID format such as `FR001`
-- updated `cmd/frtrace` to normalize compact Doorstop link IDs back to repo file IDs
+- replaced compact `UC -> FR` links with Doorstop-style reviewed mappings such as `FR_202: <hash>`
+- aligned the UC link format with the existing `TST -> FR` pattern already accepted by the repository
+- kept `cmd/frtrace` compatible with both compact and file-style Doorstop link IDs
 
 ---
 
 ## Pending Verification
 
 - local Doorstop integrity check
-- local `go test ./cmd/frtrace`
+- local `go test ./cmd/frtrace`: passed
 - push fix and inspect GitHub Actions result
 
 ---
