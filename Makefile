@@ -121,14 +121,15 @@ race-stability:
 # Coverage over application code (excluding generated/sqlc and bootstrap wiring)
 COVERAGE_APP_MIN?=83
 coverage-app:
-	@echo "Generating app-only coverage profile (excluding generated/bootstrap code)..."
+	@echo "Generating app-only coverage profile (excluding generated/bootstrap and BDD harness code)..."
 	@awk 'NR==1{print; next} \
 		$$0 !~ /internal\/infra\/sqlite\/sqlcgen\// && \
 		$$0 !~ /internal\/server\// && \
 		$$0 !~ /cmd\/fenix\/main.go/ && \
 		$$0 !~ /cmd\/frtrace\/main.go/ && \
 		$$0 !~ /internal\/version\// && \
-		$$0 !~ /ruleguard\// {print}' coverage.out > coverage_app.out
+		$$0 !~ /ruleguard\// && \
+		$$0 !~ /tests\/bdd\/go\// {print}' coverage.out > coverage_app.out
 	@go tool cover -func=coverage_app.out | tail -n 1
 
 COVERAGE_MIN?=83
