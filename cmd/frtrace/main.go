@@ -503,6 +503,10 @@ func validateTSTBDDLink(tst TSTItem, features map[string]FeatureSpec) []Violatio
 	if violation, ok := incompleteBDDViolation(tst); ok {
 		return []Violation{violation}
 	}
+	return validateTSTBDDLinkDeep(tst, features)
+}
+
+func validateTSTBDDLinkDeep(tst TSTItem, features map[string]FeatureSpec) []Violation {
 	feature, ok := features[tst.BDDFeature]
 	if violation, missing := missingFeatureViolation(tst, ok); missing {
 		return []Violation{violation}
