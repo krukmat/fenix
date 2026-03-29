@@ -1,0 +1,12 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-210: Mandatory Abstention
+  The model must abstain when grounded evidence is insufficient, return the
+  abstention reason, and propose safe next steps or human escalation.
