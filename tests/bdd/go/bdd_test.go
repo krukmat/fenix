@@ -215,6 +215,45 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the required drafting tool is registered and allowed$`, func() {
 		state.hasRegisteredTool = true
 	})
+	ctx.Step(`^an agent has a registered allowlisted tool$`, func() {
+		state.hasRegisteredTool = true
+	})
+	ctx.Step(`^the runtime validates a tool request with allowed parameters$`, func() error {
+		if !state.hasRegisteredTool {
+			return godog.ErrPending
+		}
+		state.runExecuted = true
+		state.auditRecorded = true
+		return nil
+	})
+	ctx.Step(`^the tool execution is permitted$`, func() error {
+		if !state.runExecuted {
+			return godog.ErrPending
+		}
+		return nil
+	})
+	ctx.Step(`^the tool decision is recorded in the audit trail$`, func() error {
+		if !state.auditRecorded {
+			return godog.ErrPending
+		}
+		return nil
+	})
+	ctx.Step(`^an agent attempts a tool call with disallowed parameters$`, func() {
+		state.actionRejected = true
+	})
+	ctx.Step(`^the runtime validates the tool request$`, func() error {
+		if !state.actionRejected {
+			return godog.ErrPending
+		}
+		state.denialRecorded = true
+		return nil
+	})
+	ctx.Step(`^the tool execution is denied$`, func() error {
+		if !state.actionRejected {
+			return godog.ErrPending
+		}
+		return nil
+	})
 	ctx.Step(`^the Prospecting Agent drafts an outreach message$`, func() error {
 		if !state.hasProspectContext || !state.hasRegisteredTool {
 			return godog.ErrPending

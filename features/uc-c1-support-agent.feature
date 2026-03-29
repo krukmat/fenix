@@ -11,7 +11,7 @@ Feature: Support Agent
     Then the case response is grounded in the available evidence
     And the case action is recorded in the audit trail
 
-  @abstention @FR-092 @TST-039
+  @abstention @FR-092 @FR-210 @TST-039
   Scenario: Abstain when the evidence is insufficient
     Given a support case lacks sufficient grounded evidence
     When the Support Agent is asked to resolve the case
