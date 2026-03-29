@@ -660,18 +660,12 @@ func TestWorkflowActivateBudgetSync(t *testing.T) {
 
 	db := setupTestDB(t)
 	repo := NewRepository(db)
-	svc := NewServiceWithRepository(repo)
-
-	oldResolver := cartaBudgetLimitsResolver
-	cartaBudgetLimitsResolver = func(source string) (map[string]any, error) {
+	svc := NewServiceWithResolvers(repo, func(source string) (map[string]any, error) {
 		if !isCartaSource(source) {
 			return nil, nil
 		}
 		return map[string]any{"daily_tokens": 50000}, nil
-	}
-	t.Cleanup(func() {
-		cartaBudgetLimitsResolver = oldResolver
-	})
+	}, nil)
 
 	if _, err := db.Exec(`
 		INSERT INTO agent_definition (id, workspace_id, name, agent_type, limits, status, created_at, updated_at)
@@ -709,18 +703,12 @@ func TestWorkflowActivateBudgetSyncNoBudgetLeavesLimitsUnchanged(t *testing.T) {
 
 	db := setupTestDB(t)
 	repo := NewRepository(db)
-	svc := NewServiceWithRepository(repo)
-
-	oldResolver := cartaBudgetLimitsResolver
-	cartaBudgetLimitsResolver = func(source string) (map[string]any, error) {
+	svc := NewServiceWithResolvers(repo, func(source string) (map[string]any, error) {
 		if !isCartaSource(source) {
 			return nil, nil
 		}
 		return nil, nil
-	}
-	t.Cleanup(func() {
-		cartaBudgetLimitsResolver = oldResolver
-	})
+	}, nil)
 
 	if _, err := db.Exec(`
 		INSERT INTO agent_definition (id, workspace_id, name, agent_type, limits, status, created_at, updated_at)
@@ -755,19 +743,13 @@ func TestWorkflowActivateInvariantSync(t *testing.T) {
 
 	db := setupTestDB(t)
 	repo := NewRepository(db)
-	svc := NewServiceWithRepository(repo)
-
-	oldResolver := cartaInvariantRulesResolver
-	cartaInvariantRulesResolver = func(source string) ([]map[string]any, error) {
+	svc := NewServiceWithResolvers(repo, nil, func(source string) ([]map[string]any, error) {
 		if !isCartaSource(source) {
 			return nil, nil
 		}
 		return []map[string]any{
 			{"id": "carta_invariant_1", "resource": "tools", "action": "send_pii", "effect": "deny", "priority": 1000},
 		}, nil
-	}
-	t.Cleanup(func() {
-		cartaInvariantRulesResolver = oldResolver
 	})
 
 	if _, err := db.Exec(`
@@ -818,19 +800,13 @@ func TestWorkflowActivateInvariantSyncDoesNotDuplicateAction(t *testing.T) {
 
 	db := setupTestDB(t)
 	repo := NewRepository(db)
-	svc := NewServiceWithRepository(repo)
-
-	oldResolver := cartaInvariantRulesResolver
-	cartaInvariantRulesResolver = func(source string) ([]map[string]any, error) {
+	svc := NewServiceWithResolvers(repo, nil, func(source string) ([]map[string]any, error) {
 		if !isCartaSource(source) {
 			return nil, nil
 		}
 		return []map[string]any{
 			{"id": "carta_invariant_1", "resource": "tools", "action": "send_pii", "effect": "deny", "priority": 1000},
 		}, nil
-	}
-	t.Cleanup(func() {
-		cartaInvariantRulesResolver = oldResolver
 	})
 
 	if _, err := db.Exec(`

@@ -49,55 +49,64 @@ type ListWorkflowsInput struct {
 }
 
 type Service struct {
-	repo      *Repository
-	scheduler workflowScheduler
+	repo                      *Repository
+	scheduler                 workflowScheduler
+	cartaBudgetLimitsResolver func(string) (map[string]any, error)
+	cartaInvariantRulesResolver func(string) ([]map[string]any, error)
 }
 
 type workflowScheduler interface {
 	CancelBySource(ctx context.Context, workspaceID, sourceID string) (int64, error)
 }
 
-var cartaBudgetLimitsResolver = func(string) (map[string]any, error) {
-	return nil, nil
-}
-
-var cartaInvariantRulesResolver = func(string) ([]map[string]any, error) {
-	return nil, nil
-}
+func defaultBudgetLimitsResolver(string) (map[string]any, error)   { return nil, nil }
+func defaultInvariantRulesResolver(string) ([]map[string]any, error) { return nil, nil }
 
 func RegisterCartaBudgetLimitsResolver(resolver func(string) (map[string]any, error)) {
-	if resolver == nil {
-		cartaBudgetLimitsResolver = func(string) (map[string]any, error) {
-			return nil, nil
-		}
-		return
-	}
-	cartaBudgetLimitsResolver = resolver
-}
-
-func NewService(db *sql.DB) *Service {
-	return &Service{repo: NewRepository(db)}
-}
-
-func NewServiceWithRepository(repo *Repository) *Service {
-	return &Service{repo: repo}
-}
-
-func NewServiceWithDependencies(repo *Repository, scheduler workflowScheduler) *Service {
-	return &Service{
-		repo:      repo,
-		scheduler: scheduler,
-	}
+	globalCartaBudgetLimitsResolver = resolver
 }
 
 func RegisterCartaInvariantRulesResolver(resolver func(string) ([]map[string]any, error)) {
-	if resolver == nil {
-		cartaInvariantRulesResolver = func(string) ([]map[string]any, error) {
-			return nil, nil
-		}
-		return
+	globalCartaInvariantRulesResolver = resolver
+}
+
+// globalCartaBudgetLimitsResolver and globalCartaInvariantRulesResolver are used by
+// NewService/NewServiceWithRepository to set per-instance resolvers at startup.
+// Tests should use NewServiceWithResolvers to avoid shared state between parallel tests.
+var globalCartaBudgetLimitsResolver func(string) (map[string]any, error)
+var globalCartaInvariantRulesResolver func(string) ([]map[string]any, error)
+
+func newService(repo *Repository, scheduler workflowScheduler, budgetResolver func(string) (map[string]any, error), invariantResolver func(string) ([]map[string]any, error)) *Service {
+	if budgetResolver == nil {
+		budgetResolver = defaultBudgetLimitsResolver
 	}
-	cartaInvariantRulesResolver = resolver
+	if invariantResolver == nil {
+		invariantResolver = defaultInvariantRulesResolver
+	}
+	return &Service{
+		repo:                        repo,
+		scheduler:                   scheduler,
+		cartaBudgetLimitsResolver:   budgetResolver,
+		cartaInvariantRulesResolver: invariantResolver,
+	}
+}
+
+func NewService(db *sql.DB) *Service {
+	return newService(NewRepository(db), nil, globalCartaBudgetLimitsResolver, globalCartaInvariantRulesResolver)
+}
+
+func NewServiceWithRepository(repo *Repository) *Service {
+	return newService(repo, nil, globalCartaBudgetLimitsResolver, globalCartaInvariantRulesResolver)
+}
+
+func NewServiceWithDependencies(repo *Repository, scheduler workflowScheduler) *Service {
+	return newService(repo, scheduler, globalCartaBudgetLimitsResolver, globalCartaInvariantRulesResolver)
+}
+
+// NewServiceWithResolvers creates a Service with explicit resolvers — use in tests to avoid
+// shared global state between parallel tests.
+func NewServiceWithResolvers(repo *Repository, budgetResolver func(string) (map[string]any, error), invariantResolver func(string) ([]map[string]any, error)) *Service {
+	return newService(repo, nil, budgetResolver, invariantResolver)
 }
 
 func (s *Service) Create(ctx context.Context, input CreateWorkflowInput) (*Workflow, error) {
@@ -314,7 +323,7 @@ func (s *Service) syncCartaBudgetLimits(ctx context.Context, workflow *Workflow)
 }
 
 func (s *Service) resolveMergedBudgetLimits(ctx context.Context, workspaceID, agentDefinitionID, specSource string) (map[string]any, error) {
-	limits, err := cartaBudgetLimitsResolver(specSource)
+	limits, err := s.cartaBudgetLimitsResolver(specSource)
 	if err != nil {
 		return nil, fmt.Errorf("resolve carta budget limits: %w", err)
 	}
@@ -342,7 +351,7 @@ func (s *Service) syncCartaInvariantRules(ctx context.Context, workflow *Workflo
 }
 
 func (s *Service) loadAndMergeInvariantRules(ctx context.Context, workspaceID, policySetID, specSource string) error {
-	rules, err := cartaInvariantRulesResolver(specSource)
+	rules, err := s.cartaInvariantRulesResolver(specSource)
 	if err != nil {
 		return fmt.Errorf("resolve carta invariant rules: %w", err)
 	}
