@@ -76,6 +76,8 @@ Wave status:
   Current status: `UC-A2`, `UC-A3`, and `UC-A8` use the real workflow service inside the Go BDD runner
 - `Wave 5 Pack 4` Harden `UC-A4` and `UC-A6` with real runtime-backed BDD assertions: completed
   Current status: `UC-A4` now covers success, skipped condition, tool failure, and approval-pending paths; `UC-A6` now covers schedule/resume success, archived resume rejection, and resume failure through the real scheduler and resume handler
+- `Wave 5 Pack 5` Exclude Go BDD harness helpers from static lint QA: completed
+  Current status: `tests/bdd/go` is now excluded from `golangci-lint` path-based static analysis and remains enforced by `test-bdd-go` plus BDD traceability gates
 
 Next execution backlog:
 

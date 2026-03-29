@@ -14,11 +14,18 @@ import (
 	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 	tooldomain "github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	isqlite "github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
+	// Register the pure-Go SQLite driver for in-memory BDD runtime tests.
 	_ "modernc.org/sqlite"
 )
 
 const (
-	bddUserID = "user_bdd"
+	bddUserID                  = "user_bdd"
+	bddAgentTypeDSL            = "dsl"
+	bddEventPayloadCase        = `{"case":{"id":"case-1"}}`
+	bddOneDSLStepErrFmt        = "len(dslSteps) = %d, want 1"
+	bddStepStatusErrFmt        = "step status = %s, want %s"
+	bddAgentA6Failure          = "agent_a6_failure"
+	bddErrExpectedArchivedFlow = "expected ErrDSLWorkflowNotActive, got %w"
 )
 
 type workflowRuntimeState struct {
@@ -76,13 +83,19 @@ func (s *workflowRuntimeState) close() error {
 }
 
 func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioState) {
+	registerA4WorkflowExecutionSteps(ctx, state)
+	registerA6DeferredActionSteps(ctx, state)
+}
+
+func registerA4WorkflowExecutionSteps(ctx *godog.ScenarioContext, state *scenarioState) {
 	ctx.Step(`^an active workflow matches an incoming event$`, func() error {
 		runtimeState, err := setupWorkflowRuntimeBDD("")
 		if err != nil {
 			return err
 		}
-		if err := runtimeState.seedActiveWorkflow("agent_a4_exec", "wf_a4_exec", "resolve_support_case", "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"\nNOTIFY contact WITH \"done\""); err != nil {
-			return err
+		seedErr := runtimeState.seedActiveWorkflow("agent_a4_exec", "wf_a4_exec", "resolve_support_case", "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"\nNOTIFY contact WITH \"done\"")
+		if seedErr != nil {
+			return seedErr
 		}
 		state.workflowRuntime = runtimeState
 		return nil
@@ -97,7 +110,7 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 		if state.workflowRuntime == nil || state.workflowRuntime.activeAgentID == "" {
 			return godog.ErrPending
 		}
-		return state.workflowRuntime.runWorkflow(state.workflowRuntime.activeAgentID, agentdomain.TriggerTypeEvent, json.RawMessage(`{"case":{"id":"case-1"}}`))
+		return state.workflowRuntime.runWorkflow(state.workflowRuntime.activeAgentID, agentdomain.TriggerTypeEvent, json.RawMessage(bddEventPayloadCase))
 	})
 	ctx.Step(`^the workflow run completes successfully$`, func() error {
 		if state.workflowRuntime == nil || state.workflowRuntime.lastRun == nil {
@@ -124,8 +137,9 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 		if err != nil {
 			return err
 		}
-		if err := runtimeState.seedActiveWorkflow("agent_a4_conditional", "wf_a4_conditional", "conditional_case", "WORKFLOW conditional_case\nON case.created\nIF case.priority == \"high\":\n  NOTIFY contact WITH \"done\""); err != nil {
-			return err
+		seedErr := runtimeState.seedActiveWorkflow("agent_a4_conditional", "wf_a4_conditional", "conditional_case", "WORKFLOW conditional_case\nON case.created\nIF case.priority == \"high\":\n  NOTIFY contact WITH \"done\"")
+		if seedErr != nil {
+			return seedErr
 		}
 		state.workflowRuntime = runtimeState
 		return nil
@@ -142,10 +156,10 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 		}
 		dslSteps := filterBDDRunStepsByType(state.workflowRuntime.lastSteps, agentdomain.StepTypeDSLStatement)
 		if len(dslSteps) != 1 {
-			return fmt.Errorf("len(dslSteps) = %d, want 1", len(dslSteps))
+			return fmt.Errorf(bddOneDSLStepErrFmt, len(dslSteps))
 		}
 		if dslSteps[0].Status != agentdomain.StepStatusSkipped {
-			return fmt.Errorf("step status = %s, want %s", dslSteps[0].Status, agentdomain.StepStatusSkipped)
+			return fmt.Errorf(bddStepStatusErrFmt, dslSteps[0].Status, agentdomain.StepStatusSkipped)
 		}
 		return nil
 	})
@@ -158,8 +172,9 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 		if err != nil {
 			return err
 		}
-		if err := runtimeState.seedActiveWorkflow("agent_a4_failure", "wf_a4_failure", "fail_case", "WORKFLOW fail_case\nON case.created\nSET case.status = \"resolved\""); err != nil {
-			return err
+		seedErr := runtimeState.seedActiveWorkflow("agent_a4_failure", "wf_a4_failure", "fail_case", "WORKFLOW fail_case\nON case.created\nSET case.status = \"resolved\"")
+		if seedErr != nil {
+			return seedErr
 		}
 		state.workflowRuntime = runtimeState
 		return nil
@@ -187,14 +202,17 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 		if err != nil {
 			return err
 		}
-		if err := runtimeState.seedAgentDefinition("nested_pending_target", "pending_agent", "nested_pending"); err != nil {
-			return err
+		seedAgentErr := runtimeState.seedAgentDefinition("nested_pending_target", "pending_agent", "nested_pending")
+		if seedAgentErr != nil {
+			return seedAgentErr
 		}
-		if err := runtimeState.seedActiveWorkflow("agent_a4_approval", "wf_a4_approval", "approve_case", "WORKFLOW approve_case\nON case.created\nAGENT pending_agent WITH {\"case_id\":\"case-1\"}"); err != nil {
-			return err
+		seedWorkflowErr := runtimeState.seedActiveWorkflow("agent_a4_approval", "wf_a4_approval", "approve_case", "WORKFLOW approve_case\nON case.created\nAGENT pending_agent WITH {\"case_id\":\"case-1\"}")
+		if seedWorkflowErr != nil {
+			return seedWorkflowErr
 		}
-		if err := runtimeState.registerNestedPendingRunner(); err != nil {
-			return err
+		registerErr := runtimeState.registerNestedPendingRunner()
+		if registerErr != nil {
+			return registerErr
 		}
 		state.workflowRuntime = runtimeState
 		return nil
@@ -208,10 +226,10 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 		}
 		dslSteps := filterBDDRunStepsByType(state.workflowRuntime.lastSteps, agentdomain.StepTypeDSLStatement)
 		if len(dslSteps) != 1 {
-			return fmt.Errorf("len(dslSteps) = %d, want 1", len(dslSteps))
+			return fmt.Errorf(bddOneDSLStepErrFmt, len(dslSteps))
 		}
 		if dslSteps[0].Status != agentdomain.StepStatusRunning {
-			return fmt.Errorf("step status = %s, want %s", dslSteps[0].Status, agentdomain.StepStatusRunning)
+			return fmt.Errorf(bddStepStatusErrFmt, dslSteps[0].Status, agentdomain.StepStatusRunning)
 		}
 		var traceOutput map[string]any
 		if err := json.Unmarshal(dslSteps[0].Output, &traceOutput); err != nil {
@@ -223,14 +241,17 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 		}
 		return nil
 	})
+}
 
+func registerA6DeferredActionSteps(ctx *godog.ScenarioContext, state *scenarioState) {
 	ctx.Step(`^a workflow run reaches a wait step that must resume later$`, func() error {
 		runtimeState, err := setupWorkflowRuntimeBDD("")
 		if err != nil {
 			return err
 		}
-		if err := runtimeState.seedActiveWorkflow("agent_a6_wait", "wf_a6_wait", "wait_case", "WORKFLOW wait_case\nON case.created\nWAIT 0\nNOTIFY contact WITH \"done\""); err != nil {
-			return err
+		seedErr := runtimeState.seedActiveWorkflow("agent_a6_wait", "wf_a6_wait", "wait_case", "WORKFLOW wait_case\nON case.created\nWAIT 0\nNOTIFY contact WITH \"done\"")
+		if seedErr != nil {
+			return seedErr
 		}
 		state.workflowRuntime = runtimeState
 		return nil
@@ -239,7 +260,7 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 		if state.workflowRuntime == nil {
 			return godog.ErrPending
 		}
-		if err := state.workflowRuntime.runWorkflow("agent_a6_wait", agentdomain.TriggerTypeEvent, json.RawMessage(`{"case":{"id":"case-1"}}`)); err != nil {
+		if err := state.workflowRuntime.runWorkflow("agent_a6_wait", agentdomain.TriggerTypeEvent, json.RawMessage(bddEventPayloadCase)); err != nil {
 			return err
 		}
 		jobs, err := state.workflowRuntime.schedulerRepo.ListDue(context.Background(), time.Now().UTC().Add(time.Second), 10)
@@ -284,14 +305,17 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 		if err != nil {
 			return err
 		}
-		if err := runtimeState.seedAgentDefinition("agent_a6_archived", "archived_case", "dsl"); err != nil {
-			return err
+		seedAgentErr := runtimeState.seedAgentDefinition("agent_a6_archived", "archived_case", bddAgentTypeDSL)
+		if seedAgentErr != nil {
+			return seedAgentErr
 		}
-		if err := runtimeState.seedWorkflowRecord("wf_a6_archived", "agent_a6_archived", "archived_case", "WORKFLOW archived_case\nON case.created\nNOTIFY contact WITH \"done\"", "archived"); err != nil {
-			return err
+		seedWorkflowErr := runtimeState.seedWorkflowRecord("wf_a6_archived", "agent_a6_archived", "archived_case", "WORKFLOW archived_case\nON case.created\nNOTIFY contact WITH \"done\"", "archived")
+		if seedWorkflowErr != nil {
+			return seedWorkflowErr
 		}
-		if err := runtimeState.seedAcceptedRun("agent_a6_archived", "wf_a6_archived", 0); err != nil {
-			return err
+		seedRunErr := runtimeState.seedAcceptedRun("agent_a6_archived", "wf_a6_archived", 0)
+		if seedRunErr != nil {
+			return seedRunErr
 		}
 		state.workflowRuntime = runtimeState
 		return nil
@@ -309,7 +333,7 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 			return godog.ErrPending
 		}
 		if !errors.Is(state.workflowRuntime.lastErr, agentdomain.ErrDSLWorkflowNotActive) {
-			return fmt.Errorf("expected ErrDSLWorkflowNotActive, got %v", state.workflowRuntime.lastErr)
+			return fmt.Errorf(bddErrExpectedArchivedFlow, state.workflowRuntime.lastErr)
 		}
 		return nil
 	})
@@ -332,14 +356,17 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 		if err != nil {
 			return err
 		}
-		if err := runtimeState.seedAgentDefinition("agent_a6_failure", "resume_failure_case", "dsl"); err != nil {
-			return err
+		seedAgentErr := runtimeState.seedAgentDefinition(bddAgentA6Failure, "resume_failure_case", bddAgentTypeDSL)
+		if seedAgentErr != nil {
+			return seedAgentErr
 		}
-		if err := runtimeState.seedWorkflowRecord("wf_a6_failure", "agent_a6_failure", "resume_failure_case", "WORKFLOW resume_failure_case\nON case.created\nSET case.status = \"resolved\"", "active"); err != nil {
-			return err
+		seedWorkflowErr := runtimeState.seedWorkflowRecord("wf_a6_failure", bddAgentA6Failure, "resume_failure_case", "WORKFLOW resume_failure_case\nON case.created\nSET case.status = \"resolved\"", "active")
+		if seedWorkflowErr != nil {
+			return seedWorkflowErr
 		}
-		if err := runtimeState.seedAcceptedRun("agent_a6_failure", "wf_a6_failure", 0); err != nil {
-			return err
+		seedRunErr := runtimeState.seedAcceptedRun(bddAgentA6Failure, "wf_a6_failure", 0)
+		if seedRunErr != nil {
+			return seedRunErr
 		}
 		state.workflowRuntime = runtimeState
 		return nil
@@ -361,10 +388,10 @@ func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioSta
 		}
 		dslSteps := filterBDDRunStepsByType(state.workflowRuntime.lastSteps, agentdomain.StepTypeDSLStatement)
 		if len(dslSteps) != 1 {
-			return fmt.Errorf("len(dslSteps) = %d, want 1", len(dslSteps))
+			return fmt.Errorf(bddOneDSLStepErrFmt, len(dslSteps))
 		}
 		if dslSteps[0].Status != agentdomain.StepStatusFailed {
-			return fmt.Errorf("step status = %s, want %s", dslSteps[0].Status, agentdomain.StepStatusFailed)
+			return fmt.Errorf(bddStepStatusErrFmt, dslSteps[0].Status, agentdomain.StepStatusFailed)
 		}
 		return nil
 	})
@@ -466,7 +493,7 @@ func setupBDDToolRegistry(db *sql.DB, failingTool string) (*tooldomain.ToolRegis
 }
 
 func (s *workflowRuntimeState) seedActiveWorkflow(agentID string, workflowID string, name string, dsl string) error {
-	if err := s.seedAgentDefinition(agentID, name, "dsl"); err != nil {
+	if err := s.seedAgentDefinition(agentID, name, bddAgentTypeDSL); err != nil {
 		return err
 	}
 	if err := s.seedWorkflowRecord(workflowID, agentID, name, dsl, "active"); err != nil {
@@ -530,7 +557,7 @@ func (s *workflowRuntimeState) seedAcceptedRun(agentID string, workflowID string
 		AgentID:        agentID,
 		WorkspaceID:    bddWorkspaceID,
 		TriggerType:    agentdomain.TriggerTypeEvent,
-		TriggerContext: json.RawMessage(`{"case":{"id":"case-1"}}`),
+		TriggerContext: json.RawMessage(bddEventPayloadCase),
 	})
 	if err != nil {
 		return err

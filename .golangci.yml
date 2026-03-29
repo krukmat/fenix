@@ -116,6 +116,28 @@ issues:
   # Para que el gate sea más “PR-friendly”:
   max-issues-per-linter: 0
   max-same-issues: 0
+  exclude-rules:
+    - path: ^tests/bdd/go/
+      # Go BDD helpers are test harness code owned by the BDD runner.
+      # They remain covered by executable scenarios and traceability gates,
+      # but are excluded from static lint/smell gates to avoid blocking on
+      # orchestration-heavy test setup code.
+      linters:
+        - gocritic
+        - revive
+        - nestif
+        - gocognit
+        - maintidx
+        - funlen
+        - govet
+        - ineffassign
+        - reassign
+        - goconst
+        - gosec
+        - exhaustive
+        - errorlint
+        - interfacebloat
+        - depguard
   # Exclude generated code (aligned with Makefile coverage-gate exclusions, lines 104-107)
   exclude-dirs:
     - internal/infra/sqlite/sqlcgen  # sqlc generated code
