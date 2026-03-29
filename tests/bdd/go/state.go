@@ -30,12 +30,9 @@ type scenarioState struct {
 	agentAbstained          bool
 	validationPassed        bool
 	workflowInTesting       bool
-	workflowRunCompleted    bool
 	workflowVersionCreated  bool
 	delegatedRunAccepted    bool
 	signalDetected          bool
-	deferredScheduled       bool
-	deferredResumed         bool
 	returnedDraft           bool
 	returnedInsight         bool
 	returnedKnowledgeDraft  bool
