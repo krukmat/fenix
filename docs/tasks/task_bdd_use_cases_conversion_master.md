@@ -92,6 +92,7 @@ prepare the project for BDD rollout on top of Doorstop.
 - Wave 5 Pack 1: harden BDD traceability through behavior and FR-link validation
 - Wave 5 Pack 2: enforce the current BDD baseline in CI
 - Wave 5 Pack 3: harden Go workflow scenarios with real domain service assertions
+- Wave 5 Pack 4: harden `UC-A4` and `UC-A6` with real runtime and resume flow assertions
 
 ---
 

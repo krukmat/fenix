@@ -18,6 +18,7 @@ type scenarioState struct {
 	workflowDB              *sql.DB
 	workflowService         *workflowdomain.Service
 	workflowRecord          *workflowdomain.Workflow
+	workflowRuntime         *workflowRuntimeState
 	hasEvidence             bool
 	hasProspectContext      bool
 	hasAnalyticalData       bool
@@ -51,6 +52,9 @@ type scenarioState struct {
 }
 
 func (s *scenarioState) reset() {
+	if s.workflowRuntime != nil {
+		_ = s.workflowRuntime.close()
+	}
 	if s.workflowDB != nil {
 		_ = s.workflowDB.Close()
 	}
@@ -486,32 +490,7 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 		return nil
 	})
 
-	ctx.Step(`^an active workflow matches an incoming event$`, func() {
-		state.runExecuted = true
-	})
-	ctx.Step(`^the workflow runtime has registered tools available$`, func() {
-		state.hasRegisteredTool = true
-	})
-	ctx.Step(`^the workflow runtime executes the matching workflow$`, func() error {
-		if !state.runExecuted || !state.hasRegisteredTool {
-			return godog.ErrPending
-		}
-		state.workflowRunCompleted = true
-		state.auditRecorded = true
-		return nil
-	})
-	ctx.Step(`^the workflow run completes successfully$`, func() error {
-		if !state.workflowRunCompleted {
-			return godog.ErrPending
-		}
-		return nil
-	})
-	ctx.Step(`^the workflow steps are recorded in the audit trail$`, func() error {
-		if !state.workflowRunCompleted || !state.auditRecorded {
-			return godog.ErrPending
-		}
-		return nil
-	})
+	initWorkflowRuntimeScenarios(ctx, state)
 
 	ctx.Step(`^a workflow evaluation produces grounded signal evidence$`, func() {
 		state.hasEvidence = true
@@ -531,31 +510,6 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	})
 	ctx.Step(`^the signal remains linked to its evidence sources$`, func() error {
 		if !state.signalDetected || !state.hasEvidence {
-			return godog.ErrPending
-		}
-		return nil
-	})
-
-	ctx.Step(`^a workflow run reaches a wait step that must resume later$`, func() {
-		state.runExecuted = true
-	})
-	ctx.Step(`^the runtime schedules the deferred action$`, func() error {
-		if !state.runExecuted {
-			return godog.ErrPending
-		}
-		state.deferredScheduled = true
-		state.auditRecorded = true
-		state.deferredResumed = true
-		return nil
-	})
-	ctx.Step(`^the deferred job is stored under scheduler control$`, func() error {
-		if !state.deferredScheduled {
-			return godog.ErrPending
-		}
-		return nil
-	})
-	ctx.Step(`^the workflow can resume from the deferred action state$`, func() error {
-		if !state.deferredResumed {
 			return godog.ErrPending
 		}
 		return nil

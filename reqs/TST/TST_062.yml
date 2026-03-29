@@ -1,0 +1,17 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_202: approvalPendingTST062=
+- FR_070: traceApprovalPendingTST062=
+normative: true
+bdd:
+  feature: features/uc-a4-workflow-execution.feature
+  scenario: Leave the workflow pending when a nested action requires approval
+  stack: go
+  behavior: execute_workflow_approval_required
+ref: tests/bdd/go/bdd_test.go
+reviewed: TST062review=
+text: |
+  TST_062: Workflow execution BDD coverage for the approval-required pending path.

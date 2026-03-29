@@ -1,0 +1,16 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_070: archivedResumeTST063=
+normative: true
+bdd:
+  feature: features/uc-a6-deferred-actions.feature
+  scenario: Reject a deferred resume when the workflow is no longer active
+  stack: go
+  behavior: defer_action_workflow_archived
+ref: tests/bdd/go/bdd_test.go
+reviewed: TST063review=
+text: |
+  TST_063: Deferred action BDD coverage for archived workflow resume rejection.

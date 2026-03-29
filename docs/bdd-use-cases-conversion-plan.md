@@ -74,6 +74,8 @@ Wave status:
   Current status: CI and `make ci` now include the BDD traceability gate and the Go BDD baseline runner
 - `Wave 5 Pack 3` Harden selected Go workflow scenarios with real domain service assertions: completed
   Current status: `UC-A2`, `UC-A3`, and `UC-A8` use the real workflow service inside the Go BDD runner
+- `Wave 5 Pack 4` Harden `UC-A4` and `UC-A6` with real runtime-backed BDD assertions: completed
+  Current status: `UC-A4` now covers success, skipped condition, tool failure, and approval-pending paths; `UC-A6` now covers schedule/resume success, archived resume rejection, and resume failure through the real scheduler and resume handler
 
 Next execution backlog:
 
