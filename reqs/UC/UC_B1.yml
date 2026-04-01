@@ -1,0 +1,13 @@
+active: true
+derived: false
+header: ''
+level: 1
+links:
+- FR_211: null
+normative: true
+ref: docs/requirements.md
+reviewed: null
+text: |
+  UC-B1: Safe Tool Routing
+  Restrict agent tool calls to allowlisted tools with validated parameters,
+  ensuring only safe and auditable actions are executed.
