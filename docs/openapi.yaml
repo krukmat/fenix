@@ -1427,7 +1427,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AnyResponse'
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    avgDays:
+                      type: number
+                  required:
+                  - name
+                  - avgDays
         default:
           description: Unexpected response
       security:
@@ -1459,7 +1469,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AnyResponse'
+                type: array
+                items:
+                  type: object
+                  properties:
+                    priority:
+                      type: string
+                    status:
+                      type: string
+                    count:
+                      type: integer
+                  required:
+                  - priority
+                  - status
+                  - count
         default:
           description: Unexpected response
       security:
