@@ -1,0 +1,13 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-241: Skills Builder
+  Visual or declarative builder for multi-step agent skills. Compose tools
+  into reusable skill definitions with input/output contracts. Depends on
+  FR-051 and Wave 3 closure.

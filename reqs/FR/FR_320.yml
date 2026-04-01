@@ -1,0 +1,14 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-320: External Provider and PII Control Gate
+  Provides the external provider usage controls, cloud-routing policies, and
+  PII classification infrastructure that connector enablement (FR-050) and
+  broader data classification depend on. Gate requirement: must be clarified
+  or implemented before Wave 6 can start.

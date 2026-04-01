@@ -1,0 +1,13 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-242: Eval Service and Release Gating
+  Domain-specific eval datasets and scoring (groundedness, exactitude,
+  abstention, policy adherence). Run eval before promoting to production.
+  Configurable thresholds. Depends on FR-092, FR-310.

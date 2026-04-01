@@ -1,4 +1,4 @@
-@UC-C1 @stack-go
+@UC-B1 @stack-go
 Feature: Safe Tool Routing
   As a platform operator
   I want tool calls to be restricted to allowlisted tools with validated parameters

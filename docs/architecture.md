@@ -280,8 +280,8 @@ erDiagram
     knowledge_item {
         text id PK "UUID v7"
         text workspace_id FK
-        text source_type "email|doc|call_transcript|chat|kb_article|crm_record"
-        text source_id "external system ID"
+        text source_type "email|document|kb_article|api|note|call|case|ticket|other"
+        text source_id "planned — stored in metadata JSON"
         text title
         text raw_content
         text normalized_content
@@ -472,7 +472,7 @@ erDiagram
         text workspace_id FK
         text eval_suite_id FK
         text prompt_version_id FK "nullable"
-        text policy_version_id FK "nullable"
+        text policy_version_id FK "nullable — planned, not yet in migration 020"
         text status "running|passed|failed"
         text scores "JSON: groundedness, exactitude, abstention, policy_adherence"
         text details "JSON: per-test-case results"

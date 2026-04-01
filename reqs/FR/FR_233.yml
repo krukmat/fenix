@@ -1,0 +1,13 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-233: Operational Quotas
+  Per-agent, per-role, and per-tenant limits on tokens, cost, and
+  executions per day. Circuit breaker on repeated errors. Threshold
+  notifications. Depends on FR-310.

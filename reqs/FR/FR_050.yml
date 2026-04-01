@@ -1,0 +1,13 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-050: Connector Framework
+  Connectors for email, calendar, docs, telephony, and messaging with
+  OAuth scopes, secret management, and per-connector audit logging.
+  Depends on FR-320.

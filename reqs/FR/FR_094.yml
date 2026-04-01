@@ -1,0 +1,12 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-094: Evidence Deduplication and Consolidation
+  Reduce duplication in evidence packs and consolidate repeated responses.
+  Observable duplication-rate metric. Depends on FR-310.

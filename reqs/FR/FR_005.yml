@@ -1,0 +1,13 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-005: Non-LLM Workflows
+  Rule engine for notifications, assignment, and SLA enforcement without
+  using LLM. Triggers and standard actions (create task, assign owner,
+  webhook). Depends on FR-051 and FR-120.

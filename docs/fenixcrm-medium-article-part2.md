@@ -1,122 +1,111 @@
-# The Accountability Layer
+# FenixCRM: The Accountability Layer
 
-*Before this article, there is a [Part 1](https://iotforce.medium.com/crm-is-becoming-an-operating-system-not-a-database-bcf673429ffd). It covers why CRM needs to move from a system that records work to one that participates in it — signals, evidence, governed actions. This article goes one level deeper: how FenixCRM makes that participation auditable.*
-
----
-
-Deploying an AI agent in a production system surfaces a problem that does not exist with traditional software: the system can be wrong in ways that are hard to detect, hard to reproduce, and hard to explain after the fact.
-
-Hallucinations are the obvious case. But the harder problem is subtler — as agent implementations grow in complexity, the number of steps between a trigger and an action multiplies. Retrieval, reasoning, tool selection, approval, execution. Each step introduces a decision point. And as those chains grow longer, keeping a human meaningfully in the loop gets harder, not easier.
-
-The instinct is to add more monitoring. The real fix is to design for auditability from the start — so that every step in the chain is recorded, every decision is traceable, and the human reviewing it has enough context to actually understand what happened.
-
-That is what this article is about. Four mechanisms in FenixCRM that make agentic execution auditable by design: AgentRun tracing, policy enforcement, cost control, and eval-gating.
+*This follows [an earlier piece](https://iotforce.medium.com/crm-is-becoming-an-operating-system-not-a-database-bcf673429ffd) on making CRM an agent. But agents that act without accountability are just a faster way to lose control. This article is about how I built that accountability.*
 
 ---
 
-## AgentRun: the complete record of a decision
+The first article ended with a question: what stops a CRM agent from acting on bad data, leaking sensitive information, or running up costs no one approved?
+
+That question is not hypothetical. It is the first real problem you hit when you start building agents that do actual work.
+
+The answer is not better prompts. It is not a smarter model. It is a layer of accountability built into the system itself — so that every agent action is traceable, every sensitive decision requires human approval, every cost is visible, and every change to agent behavior is tested before it reaches production.
+
+That is what this article is about.
+
+---
+
+## When the agent gets it wrong
+
+Imagine a support agent in your CRM handles an incoming customer complaint. It retrieves the account history, reads recent interactions, drafts a response, and proposes to update the case status. Sounds useful.
+
+Now imagine it gets it wrong. It cited a note from the wrong account. Or it proposed closing a case that should have been escalated. Or it sent a response before anyone approved it.
+
+What happened? Where in that sequence did it break?
+
+Without a complete record of what the agent did — what data it looked at, what it decided, what it tried to do — you have no way to answer that. You're reading scattered logs and guessing.
+
+That is the problem FenixCRM is designed to avoid.
+
+---
+
+## Every action leaves a complete record
 
 ![AgentRun lifecycle: from trigger to audit](article-assets/diagram-8-agentrun-lifecycle.png)
 
-Every agent execution in FenixCRM produces a single record called an `AgentRun`. Not a log entry. Not a status flag. The full history of what happened at every step.
+Every time an agent runs in FenixCRM, the system produces a single record that captures the full sequence: what triggered it, what data it retrieved, what it reasoned, what actions it proposed, whether those actions were approved, what the output was, and what it cost.
 
-```
-AgentRun {
-  id, agent_id, triggered_by, trigger_type,
-  inputs,
-  retrieval_queries, retrieved_evidence,
-  reasoning_trace,
-  tool_calls,
-  output, status,
-  cost_tokens, cost_euros, latency_ms,
-  audit_events: [who executed, perms checked, approvals],
-  created_at, updated_at
-}
-```
+Not a log file. Not a status update. A complete, queryable record of a decision.
 
-When an agent runs, the record captures: what triggered it, what it searched for, what evidence it retrieved, what it reasoned, which tools it called with what parameters, whether any approvals were required, the final output, the cost in tokens and euros, and the full audit trail.
-
-This matters specifically for the hallucination and complexity problem. When an agent produces a wrong output — whether from a retrieval failure, a reasoning error, or a tool call with bad parameters — the AgentRun tells you exactly where in the chain the failure occurred. Not "the agent got it wrong" but which retrieval query returned stale data, or which reasoning step led to the wrong tool call, or which approval was bypassed.
-
-Without this, debugging an agent failure means reconstructing a chain of events from incomplete logs. With it, the full execution is queryable after the fact.
+That record is what makes auditability possible. When something goes wrong, I'm not guessing. I can look at what actually happened, step by step, and find exactly where it broke.
 
 ---
 
-## Policy enforcement at four points
+## Humans stay in the loop — by design
 
 ![Policy enforcement: 4 points in the execution path](article-assets/diagram-7-policy-enforcement.png)
 
-Keeping humans in the loop requires knowing where in the execution path a human needs to intervene — and making that intervention reliable, not optional.
+Most AI CRM systems have an approval dashboard somewhere. You can review what the agent did after the fact. That is not human oversight. That is a notification.
 
-In FenixCRM, every agent action passes through four enforcement points before anything executes.
+Real oversight means the agent cannot take a sensitive action without a human decision first. Not a log you check later. A stop in the process.
 
-**1. Retrieval** — Before any evidence reaches the prompt, the system checks what the requesting user is allowed to see. RBAC/ABAC filters apply here. If a no-cloud policy is active, PII fields are redacted before leaving the retrieval layer — regardless of which LLM is configured downstream. A hallucination that cites a document the user was never supposed to see is a governance failure, not just a model failure.
+In FenixCRM, every agent action passes through four points of control before anything happens:
 
-**2. Prompt building** — Sensitivity labels travel with evidence through the pipeline. What gets included in the prompt, what gets redacted, and what gets withheld are decisions made by policy, not by the model. The model cannot override what the policy layer removes.
+1. **What data the agent can see** — filtered by permissions before it ever reaches the AI. The agent cannot hallucinate about data it was never allowed to access.
 
-**3. Tool execution** — The model proposes tool calls. It cannot execute them directly. Each tool has a registered schema, a permission set, and a rate limit. Invalid parameters, missing permissions, or exceeded rate limits result in a denied call — logged, not silently dropped. If the action requires human approval, it pauses here until a decision is made.
+2. **What goes into the AI's context** — sensitive fields are redacted by policy, not by the model. The model cannot override this.
 
-**4. Output formatting** — Before a response reaches the user, the output layer applies visibility rules. The same agent, the same question, a manager and a sales rep — they may see different outputs. By design.
+3. **What actions the agent can take** — the agent proposes actions, but cannot execute them. If an action requires approval, the process stops until a human says yes. This is a hard stop, not a suggestion.
 
-The approval gate at point 3 is where the human-in-the-loop mechanism lives. It is not a dashboard you check after the fact. It is a hard stop in the execution path — the agent cannot proceed until a human with the right permissions decides.
+4. **What the user sees in the output** — visibility rules apply before the response reaches anyone. A sales rep and a manager see different things from the same agent, by design.
 
----
-
-## Cost control as a legibility problem
-
-As agent chains grow more complex, their cost becomes harder to attribute. A single agent interaction may involve multiple retrieval passes, several LLM calls, and one or more tool executions. Multiply that across users and tenants, and the spend becomes invisible until it is a problem.
-
-Every agent and role in FenixCRM has configurable quotas: tokens per day, cost per day in euros, executions per day. When a quota is reached, the system responds in a structured way:
-
-- **Circuit breaker**: new executions pause until the window resets
-- **Graceful degradation**: switch to a cheaper model, reduce context, raise the abstention threshold
-- **Alert**: notify the agent owner and the workspace admin
-
-And because every `AgentRun` records `cost_euros`, the spend is attributable at the execution level — not just as a monthly total. You can answer: what did this specific agent action cost? What is the average cost per resolved ticket? Where is the spend going?
-
-That turns AI cost from an opaque bill into an operational metric you can actually manage.
+The important point is that this is not a feature you turn on when you want oversight. It is the default. The agent cannot bypass it.
 
 ---
 
-## Eval-gating: making prompt changes safe
+## The cost problem
 
-Prompt changes are not configuration changes. They change system behavior in ways that are often non-obvious and can interact badly with the retrieval and tool layers in unexpected ways.
+AI agents are not cheap to run. A single interaction can involve multiple data retrievals, several calls to a language model, and one or more actions executed. Multiply that across a team, and the cost becomes invisible quickly.
 
-In FenixCRM, a prompt or policy update cannot reach production until it passes a set of quality gates:
+Most AI systems show you a monthly total. That is not enough. If something is expensive, I need to know which agent is driving the cost. What kind of interactions. What the average cost per resolved case is.
 
-| Gate | What it measures | Threshold |
-|------|-----------------|-----------|
-| Groundedness | % outputs with sufficient evidence | >95% |
-| Accuracy | % correct vs. CRM ground truth | configurable |
-| Abstention correctness | % false positives in self-denial | >98% |
-| Policy adherence | policy violations | 0 |
-
-If any gate fails, the update does not ship. Every prompt version is stored. Rollback to any previous version is a single operation. The system knows which version is active per agent per environment.
-
-This is directly related to the auditability problem. If a prompt change degrades groundedness — meaning the agent starts producing outputs less anchored to retrieved evidence — that is a hallucination risk increase. The eval gate catches it before it reaches production. If it reaches production and degrades after the fact, the rollback path is clear.
+FenixCRM records the cost of every single agent execution. That means I can see exactly where the money is going and set limits per agent, per role, or per team. When a limit is hit, the system doesn't just send an alert — it slows down or stops until the window resets, or degrades gracefully to a cheaper alternative.
 
 ---
 
-## Self-hosted and model-agnostic
+## Changing agent behavior safely
 
-The tracing and governance described above only work if you control the infrastructure they run on. An audit trail stored in a vendor's system is an audit trail you cannot fully trust or fully own.
+A prompt is not configuration. When you change how you instruct the agent, you change how it behaves — and the consequences can be subtle and take weeks to surface.
 
-FenixCRM runs entirely in your own infrastructure: Go backend, SQLite, BFF, and LLM inference. A single `docker-compose up`. No mandatory external dependency.
+Before any change to agent instructions or policies reaches production in FenixCRM, it has to pass a set of quality checks: Does the agent still ground its answers in actual evidence? Is it still abstaining correctly when it doesn't know something? Is it still respecting all policies?
 
-The LLM adapter is model-agnostic. The same agent runs against a local Ollama instance, a self-hosted vLLM deployment, or a cloud API. Switching providers does not touch the agent logic or the governance layer.
+If any check fails, the change doesn't ship. Every version is stored. Rolling back is one operation.
 
-The no-cloud policy enforces this at the system level. When active, PII is redacted before any data leaves the retrieval layer — regardless of which model is configured. The policy is in the code path, not in a documentation page.
-
----
-
-## What this adds up to
-
-The four mechanisms above — AgentRun tracing, policy enforcement at four points, cost quotas, and eval-gating — are not independent features. They are the answer to the same problem: as agent implementations grow in complexity, how do you keep a human meaningfully in the loop?
-
-The answer is not more dashboards. It is a system where every execution step is recorded, every sensitive action requires explicit approval, every prompt change is gated on quality, and the full audit trail is yours to query.
-
-FenixCRM is not a proposal. All of this is implemented and tested. Single `docker-compose up`. Open source: [REPO_URL]
+This is not about being cautious for the sake of it. It is about not finding out that something broke three weeks after it happened.
 
 ---
 
-*Part 1: [CRM Is Becoming an Operating System, Not a Database](https://iotforce.medium.com/crm-is-becoming-an-operating-system-not-a-database-bcf673429ffd)*
+## Owning the infrastructure
+
+None of this accountability is worth much if the audit trail lives in someone else's system. A vendor can change their terms, limit your access, or simply go down.
+
+FenixCRM runs entirely on my own infrastructure. One command to start. No mandatory cloud service. The AI model can be local or cloud — swapping it out does not touch the governance layer.
+
+The data sovereignty policy is enforced in code: when active, sensitive data is redacted before it leaves the system, regardless of which model is configured. This is not a setting. It is a guarantee.
+
+---
+
+## What this is, and what it isn't
+
+FenixCRM is a working POC, not a production system. But I built these mechanisms in from the start — not as an afterthought.
+
+The reason is simple: if I want to put agents in production at some point, I need to know I can trust them. That trust doesn't come from the model. It comes from the system around the model — the audit trail, the approval gates, the cost controls, the quality checks.
+
+Most AI CRM demos show you what the agent can do. They skip the part about what happens when it does something wrong.
+
+That gap is what I'm trying to close.
+
+The code is open source: [REPO_URL]
+
+---
+
+*[earlier piece](https://iotforce.medium.com/crm-is-becoming-an-operating-system-not-a-database-bcf673429ffd)*

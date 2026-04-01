@@ -536,13 +536,77 @@ OLLAMA_MODEL=nomic-embed-text
 
 ### Fase 0 -- Preparacion del repo
 
-Antes de desplegar:
+Antes de desplegar, el repo debe cumplir todos los puntos siguientes. Cada punto tiene un criterio de aceptacion verificable.
 
-1. verificar `openai-compat` para chat serverless en Gradient
-2. separar `chat` y `embed` provider
-3. mantener `nomic-embed-text` local para embeddings
-4. verificar `/readyz`
-5. mejorar logging y metricas
+#### 0.1 -- Separacion de providers (bloqueante)
+
+El repo actualmente asume un unico provider que resuelve chat y embeddings. La opcion low-cost requiere separarlos.
+
+Trabajo minimo:
+
+1. introducir `CHAT_PROVIDER` y `EMBED_PROVIDER` como variables de configuracion independientes
+2. implementar provider `openai-compat` para chat (compatible con la API de Gradient)
+3. mantener `OllamaProvider` solo para embeddings en la primera salida
+4. el backend arranca con error explicito si `CHAT_PROVIDER` o `EMBED_PROVIDER` no estan configurados
+
+Criterio de aceptacion: el backend levanta con `CHAT_PROVIDER=openai-compat` y `EMBED_PROVIDER=ollama` configurados, y falla con mensaje claro si falta alguno.
+
+#### 0.2 -- Endpoint `/readyz` (bloqueante)
+
+Hoy existen `/health` y `/metrics`. Falta `/readyz`, que es el endpoint que valida que el sistema esta listo para recibir trafico real.
+
+`/readyz` ya esta implementado en `internal/api/handlers/readyz.go` y valida:
+
+- conexion a SQLite activa (`database`)
+- chat provider responde (`chat`)
+- embed provider responde (`embed`)
+
+Comportamiento real del endpoint:
+
+- Si SQLite falla → devuelve `503` con `"status": "degraded"` y `"database": "error"`. El sistema no puede servir requests.
+- Si chat o embed fallan → devuelve `200` con `"status": "degraded"` y el campo correspondiente en `"error"`. La API sigue operativa pero sin capacidad de IA.
+- Si todo pasa → devuelve `200` con `"status": "ready"`.
+
+Esto es comportamiento correcto: un fallo de provider LLM no debe impedir que el CRM base funcione.
+
+Criterio de aceptacion: `curl /readyz` devuelve `200` con todos los campos en `"ok"` cuando backend + Ollama + Gradient estan accesibles. Devuelve `503` solo si la DB no responde.
+
+Este punto esta recogido en **NFR-033** de `docs/requirements.md`.
+
+#### 0.3 -- Suite BDD pasa en local antes de desplegar (bloqueante)
+
+La suite `@stack-go` debe pasar limpia en local antes de hacer el primer despliegue.
+
+```bash
+go test ./tests/bdd/... -v
+```
+
+Todos los scenarios `@stack-go` deben completar sin `ErrPending` ni fallos.
+
+Criterio de aceptacion: salida del runner muestra todos los scenarios en verde o skipped por tag, sin ninguno en rojo.
+
+#### 0.4 -- Logging estructurado (recomendado, no bloqueante)
+
+Hoy los logs no son estructurados de forma consistente. Para la POC es suficiente con:
+
+- todos los errores HTTP 5xx loguean `method`, `path`, `status`, `error`, `latency_ms`
+- arranque del backend loguea provider configurado (`chat_provider`, `embed_provider`, `db_path`)
+
+Sin esto los errores en produccion son dificiles de diagnosticar.
+
+#### 0.5 -- Variables de entorno documentadas
+
+El fichero `.env.example` en la raiz debe reflejar la nueva separacion de providers antes de desplegar:
+
+```env
+CHAT_PROVIDER=openai-compat
+EMBED_PROVIDER=ollama
+OPENAI_COMPAT_BASE_URL=https://inference.do-ai.run
+OPENAI_COMPAT_API_KEY=
+OPENAI_COMPAT_MODEL=llama3-8b-instruct
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=nomic-embed-text
+```
 
 ### Fase 1 -- Provisioning
 
@@ -602,19 +666,65 @@ OLLAMA_MODEL=nomic-embed-text
 
 ### Fase 4 -- Validacion funcional
 
-Smoke checks minimos:
+La validacion se divide en dos niveles: checks de infraestructura y checks funcionales. Ambos deben pasar antes de considerar la POC lista.
 
-- `GET /health`
-- `GET /readyz`
-- `GET /bff/health`
-- login y registro
-- CRUD base
-- `knowledge/ingest`
-- `knowledge/search`
-- `copilot/chat`
-- `copilot/suggest-actions`
-- `copilot/summarize`
-- `agents/prospecting/trigger`
+#### Nivel 1 -- Infraestructura y conectividad
+
+Estos checks no requieren datos ni LLM. Verifican que la topologia esta bien:
+
+| Check | Comando | Resultado esperado |
+|---|---|---|
+| Backend vivo | `curl https://tudominio.com/health` | `200 OK` |
+| Backend listo | `curl https://tudominio.com/readyz` | `200 OK` con `"status":"ready"` y los tres campos en `"ok"` |
+| BFF vivo | `curl https://tudominio.com/bff/health` | `200 OK` |
+| TLS activo | `curl -I https://tudominio.com` | certificado valido, sin warnings |
+| Backend no expuesto | `curl http://IP_DROPLET:8080/health` | timeout o connection refused |
+
+Si `/readyz` devuelve `503`, revisar el detalle del cuerpo antes de continuar.
+
+#### Nivel 2 -- Funcional basico (smoke)
+
+Estos checks requieren un usuario de prueba creado previamente. Ejecutar en orden.
+
+**Autenticacion:**
+
+- login con usuario de prueba devuelve JWT valido
+- registro de nuevo usuario funciona
+
+**CRM base (FR-001):**
+
+- crear un Account
+- crear un Contact ligado al Account
+- crear un Deal
+- crear un Case
+
+**Knowledge (FR-090, FR-091):**
+
+- `POST /knowledge/ingest` con un documento de prueba devuelve `201`
+- `POST /knowledge/search` con query simple devuelve resultados con `score`
+
+**Copilot (FR-200, FR-202):**
+
+- `POST /copilot/chat` devuelve respuesta con `sources` en el body (evidence pack)
+- `POST /copilot/suggest-actions` devuelve lista de acciones con tool names
+- `POST /copilot/summarize` devuelve resumen con evidencias citadas
+
+**Agentes (FR-231):**
+
+- `POST /agents/prospecting/trigger` acepta el request y devuelve `run_id`
+- consultar el `run_id` devuelve estado `completed` o `running`
+
+#### Nivel 3 -- BDD post-deploy (recomendado)
+
+Si el entorno de produccion es accesible desde el runner de CI, ejecutar la suite BDD contra el host real:
+
+```bash
+FENIX_BASE_URL=https://tudominio.com go test ./tests/bdd/... -v -run TestFeatures
+```
+
+Los scenarios `@stack-go` que solo validan logica interna (workflow authoring, versioning, etc.) seguiran pasando porque usan SQLite en memoria. Los scenarios que dependan de LLM real quedaran como indicadores de calidad, no como gate de despliegue.
+
+Los scenarios `@stack-mobile` no tienen runner activo en esta fase. Quedan pendientes para cuando el runner movil (Detox o Maestro) este configurado.
 
 ### Fase 5 -- Operacion
 
@@ -680,23 +790,475 @@ No recomiendo meter Loki/Grafana/Prometheus como requisito previo del low-cost. 
 
 ## 10 -- Checklist de aceptacion de la POC low-cost
 
-- [ ] `app-droplet` desplegado con TLS
-- [ ] backend no expuesto publicamente
-- [ ] `GET /health` responde
-- [ ] `GET /readyz` valida DB + provider de chat + embeddings
-- [ ] `GET /bff/health` responde
+### Pre-despliegue (Fase 0)
+
+- [ ] `CHAT_PROVIDER` y `EMBED_PROVIDER` separados en el codigo
+- [ ] provider `openai-compat` implementado y verificado contra Gradient
+- [ ] `/readyz` implementado: valida DB + chat provider + embed provider
+- [ ] suite BDD `@stack-go` pasa en local sin errores
+- [ ] `.env.example` actualizado con nueva separacion de providers
+- [ ] logs de arranque incluyen provider configurado y db path
+
+### Infraestructura (Fases 1-3)
+
+- [ ] `app-droplet` desplegado con TLS activo
+- [ ] backend no expuesto publicamente (solo accesible via BFF o proxy)
+- [ ] volumen montado en `/srv/fenix/data/`
+- [ ] Ollama local corriendo con `nomic-embed-text`
+- [ ] variables de entorno de produccion configuradas (sin secrets en disco plano)
+
+### Validacion funcional (Fase 4 -- Nivel 1)
+
+- [ ] `GET /health` responde `200`
+- [ ] `GET /readyz` responde `200` con `"status":"ready"` y los tres campos en `"ok"`; devuelve `503` si SQLite falla, `200` degradado si solo falla un provider LLM
+- [ ] `GET /bff/health` responde `200`
+- [ ] backend no responde en puerto directo desde exterior
+
+### Validacion funcional (Fase 4 -- Nivel 2)
+
 - [ ] login y registro funcionan
-- [ ] CRUD base funciona
-- [ ] `knowledge/ingest` y `knowledge/search` funcionan
-- [ ] `copilot/chat` funciona via Gradient
-- [ ] `copilot/suggest-actions` funciona via Gradient
-- [ ] `prospecting` genera draft
-- [ ] snapshots configurados
+- [ ] CRUD de Account, Contact, Deal, Case funciona
+- [ ] `knowledge/ingest` acepta documento y devuelve `201`
+- [ ] `knowledge/search` devuelve resultados con score
+- [ ] `copilot/chat` devuelve respuesta con `sources` (evidence pack) via Gradient
+- [ ] `copilot/suggest-actions` devuelve tool actions via Gradient
+- [ ] `copilot/summarize` devuelve resumen con evidencias citadas
+- [ ] `agents/prospecting/trigger` acepta request y devuelve `run_id`
+
+### Operacion (Fase 5)
+
+- [ ] snapshots de volumen configurados
 - [ ] uptime alerts por email configuradas
+- [ ] logs del host accesibles via SSH
+
+### Deuda tecnica de testing identificada
+
+Estado real de la cobertura por FR — para saber que falta antes y despues de la POC.
+
+| FR | Que existe | Que falta | Tipo de deuda |
+|---|---|---|---|
+| FR-001 (CRM CRUD) | Unit + integration + API handler tests | Nada | Sin deuda |
+| FR-002 (Pipelines/etapas) | Handler tests en `internal/api/handlers/` | Sin BDD feature | Aceptado por diseno (enabler, no UC) |
+| FR-060 (Auth/RBAC base) | Unit + integration + E2E Detox (`auth.e2e.ts`) | Nada | Sin deuda |
+| FR-070 (Audit trail) | Integration + API tests | Sin test de export | Menor |
+| FR-090/091/092 (Knowledge) | Unit + integration parcial | Pipeline completo sin test; CDC/reindex pendiente | Partial coverage |
+| FR-200 (Copilot chat SSE) | Detox spec en `copilot.e2e.ts`; no conectado a Gherkin | Feature `@stack-mobile` + runner activo | Detox-Gherkin separados |
+| FR-201 (Resumenes copilot) | Solo verificacion manual (Paso 4) | Sin BDD feature ni smoke check | Feature pendiente |
+| FR-210 (Abstencion) | UC-C1 tiene scenario `@abstention` en feature file | Tag `@FR-210` faltante | Tag missing |
+| FR-211 (Safe tool routing) | Cubierto implicitamente en agent runs | Sin feature BDD dedicada; crear `uc-b1-safe-tool-routing.feature` (`@stack-go`) | Feature pendiente |
+| FR-230/231/232 (Agentes) | Support + Prospecting + KB agents implementados; Detox `agent-runs.e2e.ts` | Insights agent no implementado; Detox no conectado a Gherkin | Parcial |
+| FR-242 (Evals) | `/admin/eval` implementado y CRUD funcional | Sin smoke check en Fase 4 ni BDD feature | Smoke + feature pendiente |
+| FR-300/301 (Mobile+BFF) | 8 suites Detox en `mobile/e2e/` + BFF Supertest 80% cobertura | Gherkin runner `@stack-mobile` no activo; Detox no conecta con `features/` | Activar runner CI |
+| NFR-070 (Frame rate mobile) | Nada | Tests de performance automatizados | Post-POC |
+| NFR-071 (Latencia de carga) | Nada | Benchmarks de latencia en navegacion | Post-POC |
+| NFR-072 (Primer token SSE ≤500ms) | Verificacion manual en Paso 0 | Sin check automatizado | Post-POC |
+
+### Pendientes aceptados para post-POC
+
+- [ ] Detox esta completamente configurado: `mobile/.detoxrc.js` (Android emulator Pixel 7 API 33), `mobile/e2e/jest.config.ts`, 8 suites escritas (`auth.e2e.ts`, `accounts.e2e.ts`, `deals.e2e.ts`, `cases.e2e.ts`, `copilot.e2e.ts`, `agent-runs.e2e.ts`, `workflows.e2e.ts`) + directorio `bdd/`. Lo que no existe es la integracion con el runner Gherkin `features/` — los dos sistemas viven separados
+- [ ] Para activar el runner `@stack-mobile`: conectar cucumber-js con los feature files de `features/` apuntando a las Detox specs existentes (direccion acordada)
+- [ ] Deuda de naming: `copilot-uc-s1.e2e.ts` y `uc_s1.helper.ts` usan nombres internos de UC — renombrar a `copilot-sales.e2e.ts` y `copilot_sales.helper.ts` en la siguiente iteracion de mobile
+- [ ] Features BDD Gherkin pendientes de crear para flujos que ya tienen Detox tests: crear Account desde mobile, crear Deal desde mobile, ver Case + Copilot en contexto, trigger agent desde mobile y ver run en Activity Log
+- [ ] FR-210: anadir tag `@FR-210` al scenario `@abstention` en `uc-c1-support-agent.feature`
+- [ ] FR-211 (safe tool routing): sin feature BDD — crear `uc-b1-safe-tool-routing.feature` (`@stack-go`)
+- [ ] FR-242 (evals): endpoint `/admin/eval` existe pero sin smoke check en Fase 4 ni BDD
+- [ ] observabilidad completa (Loki/Grafana/Prometheus) fuera de scope de la POC
 
 ---
 
-## 11 -- Decision final recomendada
+## 11 -- Guia de prueba funcional post go-live
+
+> **Proposito**: recorrido ejecutable que simula el ciclo de vida real de un CRM. Cubre desde el primer registro hasta el agente resolviendo un caso con evidencia. Cada paso es una llamada HTTP real con payload exacto.
+>
+> **Prerequisito**: el checklist de Fase 4 Nivel 1 paso completamente.
+
+### Convenciones
+
+- `$BASE` = URL base del BFF (ej. `https://app.tudominio.com`) o del backend directo en local (`http://localhost:8080`)
+- Los IDs devueltos en cada paso se reusan en pasos siguientes — guardar en variables de entorno o en un fichero temporal
+- Todos los endpoints protegidos requieren `Authorization: Bearer $TOKEN`
+
+---
+
+### Paso 0 -- Verificar que la app mobile conecta con el backend
+
+Este es el paso del end-user real. Antes de cualquier curl, verificar que la app Android arranca y conecta.
+
+**Configurar la URL del BFF en la app:**
+
+En `mobile/.env` o via `eas.json` en el build de desarrollo:
+
+```env
+EXPO_PUBLIC_BFF_URL=https://app.tudominio.com
+```
+
+**Verificacion en dispositivo o emulador Android (6 pasos):**
+
+1. Abrir la app — debe mostrar la pantalla de login
+2. Login con las credenciales creadas en el Paso 1
+3. La pantalla Home carga correctamente (puede estar vacia en una POC nueva)
+4. Navegar a **CRM → Accounts** — debe aparecer la lista con los accounts del Paso 2
+5. Abrir un Account → pulsar el boton Copilot — debe arrancar el streaming SSE y mostrar respuesta con evidencia citada
+   - NFR-072: el primer token debe aparecer en ≤500ms desde que se envia la query (excluye latencia LLM)
+6. Navegar a un **Case** → el panel Copilot debe mostrar acciones sugeridas (suggest-actions)
+
+**Si la app no conecta:**
+
+- Verificar que `EXPO_PUBLIC_BFF_URL` apunta al dominio correcto
+- Verificar CORS en el BFF: `BFF_ORIGIN` debe incluir el origen de la app o estar en modo desarrollo
+- Las rutas que usa la app: `/bff/auth/login`, `/bff/api/v1/*`, `/bff/copilot/chat`
+
+**Estado real del runner mobile:**
+
+La app mobile esta mas avanzada de lo que sugiere el checklist. Lo que existe hoy:
+
+- `mobile/` — 47 screens React Native + Expo (auth, CRM, copilot, workflows, agents, signals, approvals)
+- `bff/` — Express.js proxy funcional con SSE relay, Supertest al 80% de cobertura
+- `mobile/e2e/` — 8 suites Detox completamente configuradas (`auth.e2e.ts`, `accounts.e2e.ts`, `deals.e2e.ts`, `cases.e2e.ts`, `copilot.e2e.ts`, `agent-runs.e2e.ts`, `workflows.e2e.ts`) + directorio `bdd/`
+- Los dos sistemas (Gherkin `features/` y Detox specs) viven separados — no hay runner que los conecte
+
+Lo que falta para cerrar el loop BDD mobile automatizado:
+
+1. Conectar los feature files Gherkin (`features/@stack-mobile`) con las Detox specs existentes via cucumber-js (direccion acordada)
+2. Crear feature files Gherkin para los flujos mobile que ya tienen Detox tests pero no tienen escenario en `features/`:
+   - crear Account desde mobile
+   - crear Deal desde mobile
+   - ver Case + Copilot en contexto
+   - trigger agent desde mobile y ver run en Activity Log
+3. Resolver deuda de naming: `copilot-uc-s1.e2e.ts` → `copilot-sales.e2e.ts` y `uc_s1.helper.ts` → `copilot_sales.helper.ts`
+
+Para la POC: el flujo mobile se verifica manualmente con este Paso 0.
+La automatizacion queda como deuda tecnica aceptada post-POC.
+
+---
+
+### Paso 1 — Registro y login (auth)
+
+Esto simula el primer usuario de la POC creando su workspace.
+
+```bash
+# 1a. Registrar workspace + usuario
+curl -s -X POST $BASE/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@fenixpoc.com",
+    "password": "SuperSecure12345!",
+    "displayName": "Admin POC",
+    "workspaceName": "Fenix POC"
+  }'
+# Esperar: 201 con { token, userId, workspaceId }
+# Guardar: TOKEN, USER_ID, WORKSPACE_ID
+
+# 1b. Login (verificar que funciona por separado)
+curl -s -X POST $BASE/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@fenixpoc.com",
+    "password": "SuperSecure12345!"
+  }'
+# Esperar: 200 con { token, userId, workspaceId }
+```
+
+**Que estamos probando**: FR-060 (RBAC base), FR-051 (API publica), auth service completo.
+
+**Si falla**: revisar logs de arranque, verificar que JWT_SECRET esta configurado.
+
+---
+
+### Paso 2 — CRM core: crear el grafo de datos basico
+
+Esto es el ciclo clasico de un CRM: empresa → contacto → deal → caso.
+
+```bash
+# 2a. Crear Account (empresa)
+curl -s -X POST $BASE/api/v1/accounts \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Acme Corp",
+    "domain": "acme.com",
+    "industry": "Technology",
+    "sizeSegment": "mid",
+    "ownerId": "'$USER_ID'"
+  }'
+# Esperar: 201 con { id, name, ... }
+# Guardar: ACCOUNT_ID
+
+# 2b. Crear Contact (persona en la empresa)
+curl -s -X POST $BASE/api/v1/contacts \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "firstName": "Maria",
+    "lastName": "Garcia",
+    "email": "maria@acme.com",
+    "accountId": "'$ACCOUNT_ID'",
+    "ownerId": "'$USER_ID'"
+  }'
+# Esperar: 201
+# Guardar: CONTACT_ID
+
+# 2c. Crear Deal (oportunidad comercial)
+curl -s -X POST $BASE/api/v1/deals \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Licencia Enterprise Acme",
+    "accountId": "'$ACCOUNT_ID'",
+    "contactId": "'$CONTACT_ID'",
+    "stage": "qualification",
+    "amount": 25000,
+    "currency": "EUR",
+    "ownerId": "'$USER_ID'"
+  }'
+# Esperar: 201
+# Guardar: DEAL_ID
+
+# 2d. Crear Case (ticket de soporte)
+curl -s -X POST $BASE/api/v1/cases \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": "Error en integracion API",
+    "description": "El cliente reporta error 500 al llamar a /webhooks. Adjunta logs del 25 de marzo.",
+    "priority": "high",
+    "accountId": "'$ACCOUNT_ID'",
+    "contactId": "'$CONTACT_ID'",
+    "ownerId": "'$USER_ID'"
+  }'
+# Esperar: 201
+# Guardar: CASE_ID
+```
+
+**Que estamos probando**: FR-001 (CRUD CRM completo), relaciones entre entidades, workspace isolation.
+
+**Si falla**: revisar migraciones SQLite, verificar que el workspace_id del JWT coincide.
+
+---
+
+### Paso 3 — Knowledge: ingestar informacion y buscar
+
+Esto alimenta la capa RAG para que el Copilot y los agentes tengan evidencia real.
+
+```bash
+# 3a. Ingestar un documento tecnico ligado al account
+curl -s -X POST $BASE/api/v1/knowledge/ingest \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceType": "document",
+    "title": "Acme API Integration Guide v2",
+    "rawContent": "Acme Corp utiliza webhooks para sincronizar pedidos. El endpoint /webhooks acepta POST con firma HMAC-SHA256. Errores comunes: 500 si el payload excede 1MB, 403 si la firma no coincide. Solucion: verificar header X-Acme-Signature y limitar payload a 512KB.",
+    "entityType": "account",
+    "entityId": "'$ACCOUNT_ID'"
+  }'
+# Esperar: 201 con { id, sourceType, title, createdAt }
+
+# 3b. Ingestar un email relevante del contacto
+curl -s -X POST $BASE/api/v1/knowledge/ingest \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceType": "email",
+    "title": "Re: Error 500 en webhooks",
+    "rawContent": "Hola equipo, seguimos viendo el error 500 en /webhooks desde el 25 de marzo. Adjunto los logs del servidor. El payload que enviamos pesa 1.2MB. Maria.",
+    "entityType": "case",
+    "entityId": "'$CASE_ID'"
+  }'
+# Esperar: 201
+
+# 3c. Buscar en knowledge (keyword + vector hibrido)
+curl -s -X POST $BASE/api/v1/knowledge/search \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "error 500 webhooks acme",
+    "limit": 5
+  }'
+# Esperar: 200 con array de resultados, cada uno con:
+#   - id, title, snippet, score
+# Verificar: que devuelve los dos items ingestados con score > 0
+```
+
+**Que estamos probando**: FR-090 (indexacion hibrida), FR-091 (ingesta), FR-092 (evidence pack base).
+
+**Si falla**: verificar que Ollama esta corriendo con `nomic-embed-text` y que `EMBED_PROVIDER=ollama` esta configurado.
+
+---
+
+### Paso 4 — Copilot: chat con evidencia grounded
+
+Esto es el test mas critico del producto — el copilot respondiendo con citas reales.
+
+```bash
+# 4a. Chat sobre el case (con contexto)
+curl -s -X POST $BASE/api/v1/copilot/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Cual es la causa probable del error 500 en webhooks de Acme y como lo resolvemos?",
+    "entityType": "case",
+    "entityId": "'$CASE_ID'"
+  }'
+# Esperar: SSE stream con chunks, el ultimo debe incluir:
+#   - sources: array con al menos 1 item (evidence pack)
+#   - cada source debe tener: id, snippet, score
+# Si las sources estan vacias o el copilot inventa: hay un problema de retrieval
+
+# 4b. Suggest actions
+curl -s -X POST $BASE/api/v1/copilot/suggest-actions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entityType": "case",
+    "entityId": "'$CASE_ID'"
+  }'
+# Esperar: 200 con array de acciones sugeridas con tool names
+
+# 4c. Summarize
+curl -s -X POST $BASE/api/v1/copilot/summarize \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entityType": "case",
+    "entityId": "'$CASE_ID'"
+  }'
+# Esperar: 200 con resumen que cite evidencia
+```
+
+**Que estamos probando**: FR-200 (copilot), FR-202 (actions), FR-092 (evidence pack obligatorio), NFR-001 (latencia).
+
+**Si falla**:
+- Si no devuelve sources → problema en SearchService o EvidencePackService
+- Si devuelve error 500 → verificar `CHAT_PROVIDER=openai-compat` y conectividad con Gradient
+- Si la respuesta es lenta (>10s) → revisar modelo seleccionado y latencia de red a Gradient
+
+---
+
+### Paso 5 — Agente de soporte: resolver el case
+
+Esto simula lo que describe UC-C1: el agente resuelve un caso usando evidencia y herramientas.
+
+```bash
+# 5a. Trigger support agent sobre el case
+curl -s -X POST $BASE/api/v1/agents/support/trigger \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "caseId": "'$CASE_ID'"
+  }'
+# Esperar: 200/202 con { runId, status }
+# Guardar: RUN_ID
+
+# 5b. Consultar el estado del agent run
+curl -s -X GET $BASE/api/v1/agents/runs/$RUN_ID \
+  -H "Authorization: Bearer $TOKEN"
+# Esperar: 200 con estado completed, partial, abstained o failed
+# Verificar:
+#   - si completed: hay tool_calls en el resultado (FR-202)
+#   - si abstained: hay abstain_reason (FR-210) — correcto si la evidencia es insuficiente
+#   - si failed: revisar error en el body
+```
+
+**Que estamos probando**: FR-230 (runtime), FR-231 (catalogo), FR-211 (safe tool routing), FR-092 (evidence pack).
+
+---
+
+### Paso 6 — Audit trail: verificar que todo quedo registrado
+
+```bash
+# 6a. Consultar eventos de auditoria
+curl -s -X GET "$BASE/api/v1/audit/events?limit=20" \
+  -H "Authorization: Bearer $TOKEN"
+# Esperar: 200 con array de eventos
+# Verificar que aparecen:
+#   - registro del usuario (auth.register)
+#   - creacion de account, contact, deal, case
+#   - ingesta de knowledge items
+#   - copilot chat / suggest-actions / summarize
+#   - agent run del support agent
+# Cada evento debe tener: actor, action, resource, timestamp
+```
+
+**Que estamos probando**: FR-070 (audit trail), FR-060 (RBAC — solo vemos eventos de nuestro workspace).
+
+---
+
+### Paso 7 — Prospecting agent (ciclo de ventas)
+
+```bash
+# 7a. Trigger prospecting sobre un lead o account
+curl -s -X POST $BASE/api/v1/agents/prospecting/trigger \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accountId": "'$ACCOUNT_ID'"
+  }'
+# Esperar: 200/202 con { runId }
+# Guardar: PROSPECTING_RUN_ID
+
+# 7b. Consultar resultado
+curl -s -X GET $BASE/api/v1/agents/runs/$PROSPECTING_RUN_ID \
+  -H "Authorization: Bearer $TOKEN"
+# Esperar: status completed con insights o draft
+```
+
+**Que estamos probando**: FR-231 (prospecting agent), UC-S2.
+
+---
+
+### Paso 8 — Reports (validar datos acumulados)
+
+```bash
+# 8a. Embudo de ventas
+curl -s -X GET $BASE/api/v1/reports/sales/funnel \
+  -H "Authorization: Bearer $TOKEN"
+# Esperar: 200 con datos del pipeline (debe incluir el deal creado en paso 2)
+
+# 8b. Backlog de soporte
+curl -s -X GET $BASE/api/v1/reports/support/backlog \
+  -H "Authorization: Bearer $TOKEN"
+# Esperar: 200 con el case del paso 2 en el backlog
+```
+
+**Que estamos probando**: FR-003 (reporting base).
+
+---
+
+### Resumen: que FRs cubre cada paso
+
+| Paso | FRs cubiertos | UC |
+|---|---|---|
+| 1. Auth | FR-060, FR-051 | — |
+| 2. CRM core | FR-001 | — |
+| 3. Knowledge | FR-090, FR-091, FR-092 | — |
+| 4. Copilot | FR-200, FR-202 | UC-S1 |
+| 5. Support agent | FR-230, FR-231, FR-210, FR-211 | UC-C1 |
+| 6. Audit | FR-070 | UC-G1 |
+| 7. Prospecting | FR-231 | UC-S2 |
+| 8. Reports | FR-003 | — |
+
+### Que NO cubre esta guia (y por que)
+
+| Area | Razon | Cuando cubrirlo |
+|---|---|---|
+| Paso 0 (mobile) como test automatizado | Detox configurado pero no conectado a Gherkin runner; gap es cucumber-js ↔ `features/` | Post-POC |
+| Workflows DSL (UC-A2 a A9) | Requiere configuracion previa de workflow definitions | Siguiente iteracion post-POC |
+| Approval flows (FR-071) | Requiere segundo usuario con rol distinto | Test con 2 usuarios |
+| FR-002 (Pipelines y etapas) | Sin BDD; cubierto por handler tests en Go | Aceptado por diseno |
+| FR-201 (Resumenes copilot) | Paso 4 cubre `copilot/summarize` manualmente; sin BDD | Post-POC |
+| FR-210 (Abstencion explicita) | UC-C1 tiene el scenario pero sin tag `@FR-210` | Correccion de tag pendiente |
+| FR-211 (Safe tool routing) | Sin feature BDD propia; cubierto implicitamente en agent runs | Feature `@stack-go` pendiente |
+| FR-242 (Evals y gating) | Endpoint `/admin/eval` existe; sin smoke check ni BDD | Post-POC |
+| PII / no-cloud (FR-061) | Requiere policies configuradas | Test de governance dedicado |
+| NFR-070 (Frame rate mobile) | Sin tests automatizados de performance | Post-POC |
+| NFR-071 (Latencia de carga mobile) | Sin benchmarks de latencia en navegacion | Post-POC |
+| NFR-072 (Primer token SSE ≤500ms) | Solo verificacion manual en Paso 0 | Post-POC |
+| Quotas / degradation (FR-233) | P1 | Post-POC |
+
+---
+
+## 12 -- Decision final recomendada
 
 ### Lo que recomiendo hacer ahora
 
@@ -726,7 +1288,7 @@ Orden de magnitud realista:
 
 ---
 
-## 12 -- Fuentes externas usadas
+## 13 -- Fuentes externas usadas
 
 DigitalOcean:
 

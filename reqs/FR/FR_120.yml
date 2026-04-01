@@ -1,0 +1,14 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-120: Event and Trigger Foundation
+  Provides the eventing substrate (entity lifecycle events, triggers, and
+  schedule hooks) that non-LLM automation (FR-005) and scheduled workflows
+  (FR-234) depend on. Gate requirement: must be clarified or implemented
+  before Wave 7 and dependent expansion lanes can start.

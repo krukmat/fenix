@@ -1,0 +1,13 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-212: Carta Behavior Contracts
+  Declarative agent behavior specifications using the Carta DSL. Parser,
+  AST, judge/verification flow, delegate and GROUNDS preflight, activation
+  bridges. Depends on FR-210, FR-211, FR-232, FR-233, FR-240.

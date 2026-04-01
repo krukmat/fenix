@@ -1,0 +1,13 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-234: Scheduling and Triggers
+  Event-driven triggers (record created/updated), schedule-based triggers,
+  and manual triggers. UI for trigger configuration. Audit of trigger
+  configuration changes. Depends on FR-120, FR-070.

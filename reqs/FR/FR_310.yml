@@ -1,0 +1,14 @@
+active: false
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-310: Quality and Release Control Infrastructure
+  Provides the cost-tracking, quota enforcement, and release-gating
+  infrastructure that dedupe maturity (FR-094), operational quotas (FR-233),
+  and standalone eval gating (FR-242) depend on. Gate requirement: must be
+  clarified or implemented before Wave 8 can start.
