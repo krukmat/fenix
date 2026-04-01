@@ -711,11 +711,12 @@ func NewInsightsAgentHandlerWithShadow(
 	shadowRunner *agent.DSLRunner,
 	orchestrator *agent.Orchestrator,
 	toolRegistry *tooldomain.ToolRegistry,
+	groundsValidator *agent.GroundsValidator,
 	db *sql.DB,
 ) *InsightsAgentHandler {
 	return &InsightsAgentHandler{
 		insightsAgent: insightsAgent,
-		shadow:        newInsightsShadowExecutor(shadowRunner, orchestrator, toolRegistry, db),
+		shadow:        newInsightsShadowExecutor(shadowRunner, orchestrator, toolRegistry, groundsValidator, db),
 		db:            db,
 	}
 }

@@ -184,7 +184,7 @@ func BenchmarkHandler_Critical_WorkflowExecute(b *testing.B) {
 
 	toolRegistry := setupWorkflowToolRegistry(b, db, wsID)
 	orch := agent.NewOrchestratorWithRegistry(db, agent.NewRunnerRegistry())
-	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, orch, toolRegistry, nil, nil, nil)
+	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, orch, toolRegistry, nil, nil, nil, nil)
 	router := chi.NewRouter()
 	router.Post("/workflows/{id}/execute", handler.Execute)
 	body := []byte(`{"trigger_context":{"case":{"id":"case-1"}}}`)

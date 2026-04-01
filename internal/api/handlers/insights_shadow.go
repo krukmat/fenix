@@ -17,11 +17,12 @@ const defaultInsightsShadowAgentID = "insights-shadow-agent"
 var ErrInsightsShadowNotConfigured = errors.New("insights shadow mode is not configured")
 
 type insightsShadowExecutor struct {
-	runner         *agent.DSLRunner
-	orchestrator   *agent.Orchestrator
-	toolRegistry   *tooldomain.ToolRegistry
-	db             *sql.DB
-	defaultAgentID string
+	runner           *agent.DSLRunner
+	orchestrator     *agent.Orchestrator
+	toolRegistry     *tooldomain.ToolRegistry
+	groundsValidator *agent.GroundsValidator
+	db               *sql.DB
+	defaultAgentID   string
 }
 
 type insightsShadowExecution struct {
@@ -33,17 +34,19 @@ func newInsightsShadowExecutor(
 	runner *agent.DSLRunner,
 	orchestrator *agent.Orchestrator,
 	toolRegistry *tooldomain.ToolRegistry,
+	groundsValidator *agent.GroundsValidator,
 	db *sql.DB,
 ) *insightsShadowExecutor {
 	if runner == nil || orchestrator == nil {
 		return nil
 	}
 	return &insightsShadowExecutor{
-		runner:         runner,
-		orchestrator:   orchestrator,
-		toolRegistry:   toolRegistry,
-		db:             db,
-		defaultAgentID: defaultInsightsShadowAgentID,
+		runner:           runner,
+		orchestrator:     orchestrator,
+		toolRegistry:     toolRegistry,
+		groundsValidator: groundsValidator,
+		db:               db,
+		defaultAgentID:   defaultInsightsShadowAgentID,
 	}
 }
 
@@ -182,9 +185,10 @@ func (e *insightsShadowExecutor) executeWorkflow(
 		return nil, err
 	}
 	rc := &agent.RunContext{
-		Orchestrator: e.orchestrator,
-		ToolRegistry: e.toolRegistry,
-		DB:           e.db,
+		Orchestrator:     e.orchestrator,
+		ToolRegistry:     e.toolRegistry,
+		GroundsValidator: e.groundsValidator,
+		DB:               e.db,
 	}
 	wrapperRun, err := e.runner.Run(ctx, rc, agent.TriggerAgentInput{
 		AgentID:        agentID,

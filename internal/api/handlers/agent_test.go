@@ -219,7 +219,7 @@ AGENT insights_agent WITH {"workspace_id": workspace_id, "query": query, "langua
 	if err := agents.RegisterDSLRunner(runnerRegistry, dslRunner); err != nil {
 		t.Fatalf("register dsl runner: %v", err)
 	}
-	return NewInsightsAgentHandlerWithShadow(insightsAgent, dslRunner, orch, reg, db)
+	return NewInsightsAgentHandlerWithShadow(insightsAgent, dslRunner, orch, reg, nil, db)
 }
 
 func testStringPtr(v string) *string { return &v }

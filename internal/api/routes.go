@@ -138,7 +138,10 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		schedulerSvc := schedulerdomain.NewService(schedulerRepo)
 		workflowRepo := workflowdomain.NewRepository(db)
 		workflowService := workflowdomain.NewServiceWithDependencies(workflowRepo, schedulerSvc)
-		workflowHandler := handlers.NewWorkflowHandlerWithRuntime(workflowService, policyEngine, db, agentOrchestrator, toolRegistry, policyEngine, approvalService, dslRunner)
+		searchSvc := knowledge.NewSearchService(db, embedProvider)
+		evidenceSvc := knowledge.NewEvidencePackService(db, searchSvc, knowledge.DefaultEvidenceConfig())
+		groundsValidator := agent.NewGroundsValidator(evidenceSvc)
+		workflowHandler := handlers.NewWorkflowHandlerWithRuntime(workflowService, policyEngine, db, agentOrchestrator, toolRegistry, policyEngine, approvalService, groundsValidator, dslRunner)
 		signalSvc := signaldomain.NewServiceWithBus(db, signaldomain.NewRepository(db), knowledgeBus)
 		signalHandler := handlers.NewSignalHandlerWithAuthorizer(signalSvc, policyEngine)
 		accountHandler := handlers.NewAccountHandlerWithSignalCounter(accountService, signalSvc)
@@ -261,11 +264,6 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 			r.Post("/export", auditHandler.Export)
 		})
 
-		// Task 2.5: SearchService — hybrid BM25 + vector search with RRF ranking
-		searchSvc := knowledge.NewSearchService(db, embedProvider)
-		// Task 2.6: EvidencePackService — curated evidence packs for AI layer
-		evidenceSvc := knowledge.NewEvidencePackService(db, searchSvc, knowledge.DefaultEvidenceConfig())
-
 		knowledgeIngestHandler := handlers.NewKnowledgeIngestHandler(ingestSvc)
 		knowledgeSearchHandler := handlers.NewKnowledgeSearchHandler(searchSvc)
 		knowledgeEvidenceHandler := handlers.NewKnowledgeEvidenceHandler(evidenceSvc)
@@ -378,6 +376,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 			dslRunner,
 			agentOrchestrator,
 			toolRegistry,
+			groundsValidator,
 			db,
 		)
 
@@ -393,15 +392,16 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 
 		a2aHandler := agent.NewA2AProtocolHandler()
 		resumeRC := &agent.RunContext{
-			Orchestrator:    agentOrchestrator,
-			ToolRegistry:    toolRegistry,
-			PolicyEngine:    policyEngine,
-			ApprovalService: approvalService,
-			Scheduler:       schedulerSvc,
-			SignalService:   signalSvc,
-			AuditService:    auditService,
-			ProtocolHandler: a2aHandler,
-			DB:              db,
+			Orchestrator:     agentOrchestrator,
+			ToolRegistry:     toolRegistry,
+			PolicyEngine:     policyEngine,
+			ApprovalService:  approvalService,
+			Scheduler:        schedulerSvc,
+			SignalService:    signalSvc,
+			AuditService:     auditService,
+			ProtocolHandler:  a2aHandler,
+			GroundsValidator: groundsValidator,
+			DB:               db,
 		}
 		resumeHandler := agent.NewWorkflowResumeHandler(dslRunner, resumeRC)
 		schedulerWorker := schedulerdomain.NewWorker(schedulerRepo, resumeHandler.Handle)

@@ -60,6 +60,7 @@ type workflowRuntime struct {
 	toolRegistry     *tooldomain.ToolRegistry
 	policyEngine     *policy.PolicyEngine
 	approvalService  *policy.ApprovalService
+	groundsValidator *agent.GroundsValidator
 	cacheInvalidator workflowCacheInvalidator
 }
 
@@ -110,7 +111,7 @@ func NewWorkflowHandlerWithAuthorizer(service WorkflowService, authz ActionAutho
 	return &WorkflowHandler{reader: service, writer: service, lifecycle: service, authz: authz}
 }
 
-func NewWorkflowHandlerWithRuntime(service WorkflowService, authz ActionAuthorizer, db *sql.DB, orchestrator *agent.Orchestrator, toolRegistry *tooldomain.ToolRegistry, policyEngine *policy.PolicyEngine, approvalService *policy.ApprovalService, cacheInvalidator workflowCacheInvalidator) *WorkflowHandler {
+func NewWorkflowHandlerWithRuntime(service WorkflowService, authz ActionAuthorizer, db *sql.DB, orchestrator *agent.Orchestrator, toolRegistry *tooldomain.ToolRegistry, policyEngine *policy.PolicyEngine, approvalService *policy.ApprovalService, groundsValidator *agent.GroundsValidator, cacheInvalidator workflowCacheInvalidator) *WorkflowHandler {
 	return &WorkflowHandler{
 		reader:    service,
 		writer:    service,
@@ -122,6 +123,7 @@ func NewWorkflowHandlerWithRuntime(service WorkflowService, authz ActionAuthoriz
 			toolRegistry:     toolRegistry,
 			policyEngine:     policyEngine,
 			approvalService:  approvalService,
+			groundsValidator: groundsValidator,
 			cacheInvalidator: cacheInvalidator,
 		},
 	}
@@ -526,11 +528,12 @@ func (h *WorkflowHandler) executeDSLWorkflow(r *http.Request, workspaceID string
 		triggeredBy = &userID
 	}
 	return runner.Run(r.Context(), &agent.RunContext{
-		Orchestrator:    h.runtime.orchestrator,
-		ToolRegistry:    h.runtime.toolRegistry,
-		PolicyEngine:    h.runtime.policyEngine,
-		ApprovalService: h.runtime.approvalService,
-		DB:              h.db,
+		Orchestrator:     h.runtime.orchestrator,
+		ToolRegistry:     h.runtime.toolRegistry,
+		PolicyEngine:     h.runtime.policyEngine,
+		ApprovalService:  h.runtime.approvalService,
+		GroundsValidator: h.runtime.groundsValidator,
+		DB:               h.db,
 	}, agent.TriggerAgentInput{
 		AgentID:        *item.AgentDefinitionID,
 		WorkspaceID:    workspaceID,

@@ -449,7 +449,7 @@ func TestWorkflowHandler_Rollback_Returns200(t *testing.T) {
 		UpdatedAt:   now,
 	}
 	invalidator := &workflowCacheInvalidatorStub{}
-	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, invalidator)
+	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, nil, invalidator)
 
 	r := chi.NewRouter()
 	r.Put("/workflows/{id}/rollback", handler.Rollback)
@@ -476,7 +476,7 @@ func TestWorkflowHandler_Execute_Returns200(t *testing.T) {
 
 	toolRegistry := setupWorkflowToolRegistry(t, db, wsID)
 	orch := agent.NewOrchestratorWithRegistry(db, agent.NewRunnerRegistry())
-	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, orch, toolRegistry, nil, nil, nil)
+	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, orch, toolRegistry, nil, nil, nil, nil)
 
 	r := chi.NewRouter()
 	r.Post("/workflows/{id}/execute", handler.Execute)
@@ -664,7 +664,7 @@ func TestWorkflowHandler_Activate_Returns200AndPromotesTestingWorkflow(t *testin
 		UpdatedAt:   now,
 	}
 	invalidator := &workflowCacheInvalidatorStub{}
-	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, invalidator)
+	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, nil, invalidator)
 
 	r := chi.NewRouter()
 	r.Put("/workflows/{id}/activate", handler.Activate)
@@ -700,7 +700,7 @@ func TestWorkflowHandler_Activate_ReverifyBlocksInvalidWorkflow(t *testing.T) {
 		UpdatedAt:   now,
 	}
 	invalidator := &workflowCacheInvalidatorStub{}
-	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, invalidator)
+	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, nil, invalidator)
 
 	r := chi.NewRouter()
 	r.Put("/workflows/{id}/activate", handler.Activate)
@@ -775,7 +775,7 @@ func TestWorkflowHandler_Execute_RejectsWorkflowWithoutAgentDefinition(t *testin
 		t.Fatalf("insert workflow: %v", err)
 	}
 
-	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, agent.NewOrchestratorWithRegistry(db, agent.NewRunnerRegistry()), nil, nil, nil, nil)
+	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, agent.NewOrchestratorWithRegistry(db, agent.NewRunnerRegistry()), nil, nil, nil, nil, nil)
 	r := chi.NewRouter()
 	r.Post("/workflows/{id}/execute", handler.Execute)
 
@@ -802,7 +802,7 @@ func TestWorkflowHandler_Execute_RejectsNonActiveWorkflow(t *testing.T) {
 		t.Fatalf("insert workflow: %v", err)
 	}
 
-	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, agent.NewOrchestratorWithRegistry(db, agent.NewRunnerRegistry()), nil, nil, nil, nil)
+	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, agent.NewOrchestratorWithRegistry(db, agent.NewRunnerRegistry()), nil, nil, nil, nil, nil)
 	r := chi.NewRouter()
 	r.Post("/workflows/{id}/execute", handler.Execute)
 
@@ -830,7 +830,7 @@ func TestWorkflowHandler_Update_InvalidatesDSLRunnerCache(t *testing.T) {
 	}
 
 	invalidator := &workflowCacheInvalidatorStub{}
-	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, nil, nil, nil, nil, invalidator)
+	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, nil, nil, nil, nil, nil, invalidator)
 	r := chi.NewRouter()
 	r.Put("/workflows/{id}", handler.Update)
 
@@ -1158,7 +1158,7 @@ func TestWorkflowHandlerActivationAndResponseHelpers(t *testing.T) {
 		UpdatedAt:   now,
 	}
 	invalidator := &workflowCacheInvalidatorStub{}
-	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, invalidator)
+	handler := NewWorkflowHandlerWithRuntime(workflowServiceAdapter{mock}, nil, nil, nil, nil, nil, nil, nil, invalidator)
 
 	if !validateWorkflowForActivation(httptest.NewRecorder(), mock.items["wf_activate_helper"]) {
 		t.Fatal("validateWorkflowForActivation(testing) expected true")
@@ -1212,7 +1212,7 @@ func TestWorkflowHandlerRuntimeChecksAndExecuteHelpers(t *testing.T) {
 	registry := agent.NewRunnerRegistry()
 	orch := agent.NewOrchestratorWithRegistry(db, registry)
 	toolRegistry := setupWorkflowToolRegistry(t, db, wsID)
-	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, orch, toolRegistry, nil, nil, nil)
+	handler := NewWorkflowHandlerWithRuntime(workflowdomain.NewService(db), nil, db, orch, toolRegistry, nil, nil, nil, nil)
 
 	if !handler.isRuntimeConfigured() {
 		t.Fatal("isRuntimeConfigured() expected true")
