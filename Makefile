@@ -10,6 +10,8 @@ MODULE=github.com/matiasleandrokruk/fenix
 BUILD_DIR=.
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS=-ldflags "-X $(MODULE)/internal/version.Version=$(VERSION) -X $(MODULE)/internal/version.BuildTime=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)"
+TEST_COVERAGE_PACKAGES=$(shell go list ./... | grep -vE '^$(MODULE)/(ruleguard|scripts|internal/infra/sqlite/sqlcgen)$$')
+NON_COVERAGE_TEST_PACKAGES=$(shell go list ./... | grep -E '^$(MODULE)/(ruleguard|scripts|internal/infra/sqlite/sqlcgen)$$')
 
 # Default target
 all: test build
@@ -17,7 +19,10 @@ all: test build
 # Run all tests (unit + integration)
 test:
 	@echo "Running tests..."
-	go test -v -race -coverprofile=coverage.out ./...
+	@echo "Coverage pass (application packages)..."
+	go test -v -race -coverprofile=coverage.out $(TEST_COVERAGE_PACKAGES)
+	@echo "Auxiliary pass (packages excluded from coverage profile due Go covdata issue)..."
+	go test -v -race $(NON_COVERAGE_TEST_PACKAGES)
 	go tool cover -func=coverage.out
 
 # Run only unit tests

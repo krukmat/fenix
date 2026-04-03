@@ -13,7 +13,9 @@ import type { RequestHandler } from 'http-proxy-middleware';
  *     createProxyMiddleware: jest.fn(() => proxyStub),
  *   }));
  */
-export function makeProxyStub(): RequestHandler {
-  const fn = jest.fn((_req: Request, _res: Response, next: NextFunction) => next());
+export function makeProxyStub(
+  impl: (req: Request, res: Response, next: NextFunction) => void = (_req, _res, next) => next(),
+): RequestHandler {
+  const fn = jest.fn(impl);
   return Object.assign(fn, { upgrade: () => {} }) as unknown as RequestHandler;
 }

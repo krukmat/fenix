@@ -14,7 +14,7 @@ const proxyHandlerFn = jest.fn((req, res, _next) => {
   }
   res.status(200).json([{ id: 'acc-1', name: 'Acme Corp' }]);
 });
-const proxyHandler = makeProxyStub();
+const proxyHandler = makeProxyStub(proxyHandlerFn);
 
 jest.mock('http-proxy-middleware', () => ({
   // createProxyMiddleware is called at module import time in routes/proxy.ts

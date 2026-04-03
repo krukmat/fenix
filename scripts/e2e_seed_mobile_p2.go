@@ -285,11 +285,32 @@ func seedRejectedRun(ctx context.Context, db *sql.DB, auth authResponse, account
 }
 
 func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
+	pipelineSvc := crm.NewPipelineService(db)
+	pipeline, err := pipelineSvc.Create(ctx, crm.CreatePipelineInput{
+		WorkspaceID: auth.WorkspaceID,
+		Name:        "E2E P2 Sales " + suffix,
+		EntityType:  "deal",
+	})
+	if err != nil {
+		return "", err
+	}
+
+	stage, err := pipelineSvc.CreateStage(ctx, crm.CreatePipelineStageInput{
+		PipelineID: pipeline.ID,
+		Name:       "Discovery",
+		Position:   1,
+	})
+	if err != nil {
+		return "", err
+	}
+
 	svc := crm.NewDealService(db)
 	title := "E2E P2 Deal " + suffix
 	deal, err := svc.Create(ctx, crm.CreateDealInput{
 		WorkspaceID: auth.WorkspaceID,
 		AccountID:   accountID,
+		PipelineID:  pipeline.ID,
+		StageID:     stage.ID,
 		OwnerID:     auth.UserID,
 		Title:       title,
 		Status:      "open",
