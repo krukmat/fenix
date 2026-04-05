@@ -110,6 +110,15 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		return nil, err
 	}
 
+	return seedDependentFixtures(ctx, db, auth, suffix, accountID)
+}
+
+func seedDependentFixtures(
+	ctx context.Context,
+	db *sql.DB,
+	auth authResponse,
+	suffix, accountID string,
+) (*seedOutput, error) {
 	contactID, contactEmail, err := seedContact(ctx, db, auth, accountID, suffix)
 	if err != nil {
 		return nil, err
@@ -150,19 +159,49 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		return nil, err
 	}
 
+	return buildSeedOutput(seedOutputParams{
+		accountID:          accountID,
+		contactID:          contactID,
+		contactEmail:       contactEmail,
+		dealID:             dealID,
+		caseID:             caseID,
+		caseSubject:        caseSubject,
+		activeWorkflowID:   activeWorkflowID,
+		archivedWorkflowID: archivedWorkflowID,
+		rejectedRunID:      rejectedRunID,
+		dealRejectedRunID:  dealRejectedRunID,
+		caseRejectedRunID:  caseRejectedRunID,
+	}), nil
+}
+
+type seedOutputParams struct {
+	accountID          string
+	contactID          string
+	contactEmail       string
+	dealID             string
+	caseID             string
+	caseSubject        string
+	activeWorkflowID   string
+	archivedWorkflowID string
+	rejectedRunID      string
+	dealRejectedRunID  string
+	caseRejectedRunID  string
+}
+
+func buildSeedOutput(params seedOutputParams) *seedOutput {
 	out := &seedOutput{}
-	out.Account.ID = accountID
-	out.Contact.ID = contactID
-	out.Contact.Email = contactEmail
-	out.Deal.ID = dealID
-	out.Case.ID = caseID
-	out.Case.Subject = caseSubject
-	out.Workflows.ActiveID = activeWorkflowID
-	out.Workflows.ArchivedID = archivedWorkflowID
-	out.AgentRuns.RejectedID = rejectedRunID
-	out.AgentRuns.DealRejectedID = dealRejectedRunID
-	out.AgentRuns.CaseRejectedID = caseRejectedRunID
-	return out, nil
+	out.Account.ID = params.accountID
+	out.Contact.ID = params.contactID
+	out.Contact.Email = params.contactEmail
+	out.Deal.ID = params.dealID
+	out.Case.ID = params.caseID
+	out.Case.Subject = params.caseSubject
+	out.Workflows.ActiveID = params.activeWorkflowID
+	out.Workflows.ArchivedID = params.archivedWorkflowID
+	out.AgentRuns.RejectedID = params.rejectedRunID
+	out.AgentRuns.DealRejectedID = params.dealRejectedRunID
+	out.AgentRuns.CaseRejectedID = params.caseRejectedRunID
+	return out
 }
 
 func seedAccount(ctx context.Context, db *sql.DB, auth authResponse, suffix string) (string, error) {
