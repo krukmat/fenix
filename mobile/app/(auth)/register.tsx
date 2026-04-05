@@ -125,7 +125,7 @@ export default function RegisterScreen() {
       });
 
       // Navigate to main app
-      router.replace('/(tabs)/accounts');
+      router.replace('/accounts');
     } catch (err) {
       console.error('Register error:', err);
       if (isAxiosError(err) && err.response?.status === 409) {
@@ -152,7 +152,7 @@ export default function RegisterScreen() {
         onWorkspaceChange={setWorkspaceName}
         onPasswordChange={setPassword}
         onSubmit={handleRegister}
-        onGoToLogin={() => router.push('/(auth)/login')}
+        onGoToLogin={() => router.push('/login')}
       />
     </AuthFormLayout>
   );

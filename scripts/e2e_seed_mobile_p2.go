@@ -42,11 +42,16 @@ type seedOutput struct {
 	Account struct {
 		ID string `json:"id"`
 	} `json:"account"`
+	Contact struct {
+		ID    string `json:"id"`
+		Email string `json:"email"`
+	} `json:"contact"`
 	Deal struct {
 		ID string `json:"id"`
 	} `json:"deal"`
 	Case struct {
-		ID string `json:"id"`
+		ID      string `json:"id"`
+		Subject string `json:"subject"`
 	} `json:"case"`
 	Workflows struct {
 		ActiveID   string `json:"activeId"`
@@ -105,12 +110,17 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		return nil, err
 	}
 
+	contactID, contactEmail, err := seedContact(ctx, db, auth, accountID, suffix)
+	if err != nil {
+		return nil, err
+	}
+
 	dealID, err := seedDeal(ctx, db, auth, accountID, suffix)
 	if err != nil {
 		return nil, err
 	}
 
-	caseID, err := seedCase(ctx, db, auth, accountID, suffix)
+	caseID, caseSubject, err := seedCase(ctx, db, auth, accountID, suffix)
 	if err != nil {
 		return nil, err
 	}
@@ -142,8 +152,11 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 
 	out := &seedOutput{}
 	out.Account.ID = accountID
+	out.Contact.ID = contactID
+	out.Contact.Email = contactEmail
 	out.Deal.ID = dealID
 	out.Case.ID = caseID
+	out.Case.Subject = caseSubject
 	out.Workflows.ActiveID = activeWorkflowID
 	out.Workflows.ArchivedID = archivedWorkflowID
 	out.AgentRuns.RejectedID = rejectedRunID
@@ -164,6 +177,23 @@ func seedAccount(ctx context.Context, db *sql.DB, auth authResponse, suffix stri
 		return "", err
 	}
 	return account.ID, nil
+}
+
+func seedContact(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, string, error) {
+	contactSvc := crm.NewContactService(db)
+	email := "e2e.p2.contact." + suffix + "@fenixcrm.test"
+	contact, err := contactSvc.Create(ctx, crm.CreateContactInput{
+		WorkspaceID: auth.WorkspaceID,
+		AccountID:   accountID,
+		FirstName:   "Audit",
+		LastName:    "Contact " + suffix,
+		Email:       email,
+		OwnerID:     auth.UserID,
+	})
+	if err != nil {
+		return "", "", err
+	}
+	return contact.ID, email, nil
 }
 
 func seedActiveWorkflow(ctx context.Context, db *sql.DB, auth authResponse, suffix string) (string, error) {
@@ -321,7 +351,7 @@ func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 	return deal.ID, nil
 }
 
-func seedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
+func seedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, string, error) {
 	svc := crm.NewCaseService(db)
 	subject := "E2E P2 Case " + suffix
 	ct, err := svc.Create(ctx, crm.CreateCaseInput{
@@ -333,9 +363,9 @@ func seedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 		Status:      "open",
 	})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return ct.ID, nil
+	return ct.ID, subject, nil
 }
 
 func seedEntityRejectedRun(ctx context.Context, db *sql.DB, auth authResponse, entityType, entityID, suffix string) (string, error) {

@@ -12,11 +12,16 @@ type MobileP2Seed = {
   account: {
     id: string;
   };
+  contact: {
+    id: string;
+    email: string;
+  };
   deal: {
     id: string;
   };
   case: {
     id: string;
+    subject: string;
   };
   workflows: {
     activeId: string;

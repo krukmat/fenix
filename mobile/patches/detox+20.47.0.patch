@@ -1,0 +1,16 @@
+diff --git a/node_modules/detox/android/detox/src/full/java/com/wix/detox/ActivityLaunchHelper.kt b/node_modules/detox/android/detox/src/full/java/com/wix/detox/ActivityLaunchHelper.kt
+index 7ccc113..8f49720 100644
+--- a/node_modules/detox/android/detox/src/full/java/com/wix/detox/ActivityLaunchHelper.kt
++++ b/node_modules/detox/android/detox/src/full/java/com/wix/detox/ActivityLaunchHelper.kt
+@@ -14,8 +14,10 @@ class ActivityLaunchHelper
+         private val notificationDataParserGen: (String) -> NotificationDataParser = { path -> NotificationDataParser(path) }
+ ) {
+     fun launchActivityUnderTest() {
++        // Patched: avoid ActivityTestRule.launchActivity(), which funnels into
++        // MonitoringInstrumentation.startActivitySync() and its hardcoded 45s timeout.
+         val intent = extractInitialIntent()
+-        activityTestRule.launchActivity(intent)
++        launchActivitySync(intent)
+     }
+ 
+     fun launchMainActivity() {

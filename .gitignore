@@ -34,3 +34,9 @@ docs/audit.md
 .gitignore
 agent.test.exe
 .claude/settings.json
+docs/plans/*
+
+# Obsidian — vault config es local, no se commitea
+docs/.obsidian/
+docs/templates/*
+docs/decisions/*

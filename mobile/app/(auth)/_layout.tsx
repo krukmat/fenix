@@ -9,7 +9,7 @@ export default function AuthLayout() {
 
   // Redirect to tabs if already authenticated
   if (isAuthenticated) {
-    return <Redirect href="/(tabs)/accounts" />;
+    return <Redirect href="/accounts" />;
   }
 
   return (

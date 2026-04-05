@@ -56,9 +56,9 @@ function DrawerSubItem({
 // ─── CRM Section (colapsable) ─────────────────────────────────────────────────
 
 function CRMSection({
-  navigation,
+  router,
 }: {
-  navigation: DrawerContentComponentProps['navigation'];
+  router: ReturnType<typeof useRouter>;
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -78,22 +78,22 @@ function CRMSection({
           <DrawerSubItem
             label="Accounts"
             testID="drawer-crm-accounts"
-            onPress={() => navigation.navigate('crm/accounts/index')}
+            onPress={() => router.push('/crm/accounts')}
           />
           <DrawerSubItem
             label="Contacts"
             testID="drawer-crm-contacts"
-            onPress={() => navigation.navigate('crm/contacts/index')}
+            onPress={() => router.push('/crm/contacts')}
           />
           <DrawerSubItem
             label="Deals"
             testID="drawer-crm-deals"
-            onPress={() => navigation.navigate('crm/deals/index')}
+            onPress={() => router.push('/crm/deals')}
           />
           <DrawerSubItem
             label="Cases"
             testID="drawer-crm-cases"
-            onPress={() => navigation.navigate('crm/cases/index')}
+            onPress={() => router.push('/crm/cases')}
           />
         </View>
       )}
@@ -112,7 +112,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
 
   const handleLogout = async () => {
     await logout();
-    router.replace('/(auth)/login');
+    router.replace('/login');
   };
 
   return (
@@ -127,31 +127,31 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         label="Home"
         testID="drawer-home-tab"
         badge={pendingCount}
-        onPress={() => props.navigation.navigate('home/index')}
+        onPress={() => router.push('/home')}
       />
 
       {/* 2 — CRM (collapsible submenu) */}
-      <CRMSection navigation={props.navigation} />
+      <CRMSection router={router} />
 
       {/* 3 — Copilot */}
       <DrawerNavItem
         label="Copilot"
         testID="drawer-copilot-tab"
-        onPress={() => props.navigation.navigate('copilot/index')}
+        onPress={() => router.push('/copilot')}
       />
 
       {/* 4 — Workflows */}
       <DrawerNavItem
         label="Workflows"
         testID="drawer-workflows-tab"
-        onPress={() => props.navigation.navigate('workflows/index')}
+        onPress={() => router.push('/workflows')}
       />
 
       {/* 5 — Activity Log (renamed from Agent Runs) */}
       <DrawerNavItem
         label="Activity Log"
         testID="drawer-activity-tab"
-        onPress={() => props.navigation.navigate('activity')}
+        onPress={() => router.push('/activity')}
       />
 
       <View style={styles.footer}>
@@ -169,7 +169,7 @@ export default function TabsLayout() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   if (!isAuthenticated) {
-    return <Redirect href="/(auth)/login" />;
+    return <Redirect href="/login" />;
   }
 
   return (

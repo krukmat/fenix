@@ -36,7 +36,7 @@ export default function LoginScreen() {
         userId: response.userId,
         workspaceId: response.workspaceId,
       });
-      router.replace('/(tabs)/accounts');
+      router.replace('/accounts');
     } catch (err) {
       console.error('Login error:', err);
       if (isAxiosError(err) && err.response?.status === 401) {
@@ -90,7 +90,7 @@ export default function LoginScreen() {
         Sign In
       </Button>
 
-      <Button testID="go-to-register-link" mode="text" onPress={() => router.push('/(auth)/register')} style={styles.linkButton}>
+      <Button testID="go-to-register-link" mode="text" onPress={() => router.push('/register')} style={styles.linkButton}>
         Do not have an account? Sign up
       </Button>
     </AuthFormLayout>

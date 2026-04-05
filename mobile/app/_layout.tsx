@@ -14,19 +14,20 @@ import * as Sentry from '@sentry/react-native';
 import { fenixTheme } from '../src/theme';
 import { useAuthStore } from '../src/stores/authStore';
 
+const isE2E = process.env.EXPO_PUBLIC_E2E_MODE === '1';
+
 // Task 4.9 — NFR-030: Sentry crash reporting
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? '',
-  enabled: !!process.env.EXPO_PUBLIC_SENTRY_DSN,
+  enabled: !isE2E && !!process.env.EXPO_PUBLIC_SENTRY_DSN,
   tracesSampleRate: 0.2,
   debug: false,
 });
 
-// Keep splash screen visible while loading
-SplashScreen.preventAutoHideAsync();
-
 // Task 4.8 — E2E mode: disable automatic queries so Detox/Espresso sees the app as "idle"
-const isE2E = process.env.EXPO_PUBLIC_E2E_MODE === '1';
+if (!isE2E) {
+  SplashScreen.preventAutoHideAsync();
+}
 
 // Create QueryClient
 const queryClient = new QueryClient({
@@ -44,9 +45,13 @@ const queryClient = new QueryClient({
 
 function RootLayout() {
   const { isLoading, loadStoredToken } = useAuthStore();
-  const [isReady, setIsReady] = useState(false);
+  const [isReady, setIsReady] = useState(isE2E);
 
   useEffect(() => {
+    if (isE2E) {
+      return;
+    }
+
     async function prepare() {
       try {
         // Load stored token from SecureStore
