@@ -1,4 +1,3 @@
-/* eslint-disable max-lines, max-lines-per-function */
 import { by, device, element, waitFor } from 'detox';
 import { loginAsTestUser } from './helpers/auth.helper';
 import { ensureMobileP2Seed } from './helpers/seed.helper';

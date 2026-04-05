@@ -6,12 +6,12 @@
 // and the relaunch takes < 5s (ART odex cache is hot).
 
 import { execFileSync } from 'node:child_process';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const detoxGlobalSetup: () => Promise<void> = require('detox/runners/jest/globalSetup');
 
 const ADB = process.env.ANDROID_HOME
   ? `${process.env.ANDROID_HOME}/platform-tools/adb`
   : 'adb';
+
+type DetoxGlobalSetup = () => Promise<void>;
 
 function adb(...args: string[]): string {
   try {
@@ -40,9 +40,14 @@ async function waitForAppReady(timeoutMs = 180000): Promise<void> {
   throw new Error('App did not reach ready state within timeout');
 }
 
+async function runDetoxGlobalSetup(): Promise<void> {
+  const { default: detoxGlobalSetup } = await import('detox/runners/jest/globalSetup');
+  await (detoxGlobalSetup as DetoxGlobalSetup)();
+}
+
 module.exports = async () => {
   // Run Detox own globalSetup first (initializes the Detox server)
-  await detoxGlobalSetup();
+  await runDetoxGlobalSetup();
 
   // Clear stale logcat so we only detect fresh ReactNativeJS logs
   adb('logcat', '-c');

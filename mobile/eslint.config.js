@@ -29,6 +29,15 @@ module.exports = defineConfig([
     },
   },
   {
+    files: ['**/*.e2e.{ts,tsx}'],
+    rules: {
+      complexity: 'off',
+      'sonarjs/cognitive-complexity': 'off',
+      'max-lines-per-function': 'off',
+      'max-lines': 'off',
+    },
+  },
+  {
     files: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}'],
     rules: {
       // Tests can be more verbose/branchy
