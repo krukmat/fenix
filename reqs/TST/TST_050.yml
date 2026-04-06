@@ -1,7 +1,7 @@
 active: true
 bdd:
   feature: features/uc-s1-sales-copilot.feature
-  scenario: |-
+  scenario: |
     Expose evidence pack and next best actions in the sales brief response
   stack: go
 derived: false
