@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -21,10 +21,28 @@ fi
 
 CHANGED_FILES="$(git diff --name-only "$DIFF_RANGE" 2>/dev/null || true)"
 
-if ! printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(mobile/|scripts/check-no-inline-eslint-disable\.sh$|scripts/qa-mobile-prepush\.sh$|\.github/workflows/ci\.yml$)'; then
-  echo "No mobile-impacting changes detected in $DIFF_RANGE -> skipping mobile pre-push QA"
+GO_CHANGED=0
+MOBILE_CHANGED=0
+
+if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(internal/|cmd/|pkg/|go\.mod$|go\.sum$|\.golangci\.yml$|Makefile$)'; then
+  GO_CHANGED=1
+fi
+
+if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(mobile/|scripts/check-no-inline-eslint-disable\.sh$|scripts/qa-mobile-prepush\.sh$|\.github/workflows/ci\.yml$)'; then
+  MOBILE_CHANGED=1
+fi
+
+if [ "$GO_CHANGED" -eq 0 ] && [ "$MOBILE_CHANGED" -eq 0 ]; then
+  echo "No Go or mobile-impacting changes detected in $DIFF_RANGE -> skipping pre-push QA"
   exit 0
 fi
 
-echo "Mobile-impacting changes detected in $DIFF_RANGE"
-bash scripts/qa-mobile-prepush.sh
+if [ "$GO_CHANGED" -eq 1 ]; then
+  echo "Go-impacting changes detected in $DIFF_RANGE"
+  CHANGED_FILES="$CHANGED_FILES" bash scripts/qa-go-prepush.sh
+fi
+
+if [ "$MOBILE_CHANGED" -eq 1 ]; then
+  echo "Mobile-impacting changes detected in $DIFF_RANGE"
+  bash scripts/qa-mobile-prepush.sh
+fi
