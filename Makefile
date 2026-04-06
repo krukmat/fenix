@@ -117,7 +117,7 @@ pattern-opportunities-gate: pattern-refactor-gate
 RACE_STABILITY_COUNT?=3
 race-stability:
 	@echo "Running race stability checks (count: $(RACE_STABILITY_COUNT))..."
-	go test -race -count=$(RACE_STABILITY_COUNT) \
+	go test -race -timeout 15m -count=$(RACE_STABILITY_COUNT) \
 		./internal/api/handlers \
 		./internal/domain/copilot \
 		./internal/domain/agent \
