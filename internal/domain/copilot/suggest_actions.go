@@ -34,6 +34,10 @@ const (
 	entityTypeLead        string          = "lead"
 	entityTypeAccount     string          = "account"
 	entityTypeDeal        string          = "deal"
+	promptLabelEntityType string          = "Entity type: "
+	promptLabelEntityID   string          = "\nEntity id: "
+	promptLabelEvidence   string          = "\n\nEvidence:\n"
+	discardToolMismatch   string          = "tool_entity_mismatch"
 )
 
 var allowedActionTools = map[string]struct{}{
@@ -287,12 +291,7 @@ func (s *ActionService) SalesBrief(ctx context.Context, in SalesBriefInput) (*Sa
 	}
 
 	startedAt := time.Now()
-	prepared, err := s.prepareSuggestActionsContext(ctx, SuggestActionsInput{
-		WorkspaceID: in.WorkspaceID,
-		UserID:      in.UserID,
-		EntityType:  in.EntityType,
-		EntityID:    in.EntityID,
-	})
+	prepared, err := s.prepareSuggestActionsContext(ctx, SuggestActionsInput(in))
 	if err != nil {
 		return nil, err
 	}
@@ -459,11 +458,11 @@ func buildEntitySummaryQuery(entityType, entityID string) string {
 
 func buildSuggestActionsPrompt(entityType, entityID string, sources []knowledge.Evidence) string {
 	b := strings.Builder{}
-	b.WriteString("Entity type: ")
+	b.WriteString(promptLabelEntityType)
 	b.WriteString(entityType)
-	b.WriteString("\nEntity id: ")
+	b.WriteString(promptLabelEntityID)
 	b.WriteString(entityID)
-	b.WriteString("\n\nEvidence:\n")
+	b.WriteString(promptLabelEvidence)
 	b.WriteString(renderEvidenceForPrompt(sources))
 	b.WriteString("\nTask: Suggest exactly 3 actionable next steps.")
 	b.WriteString("\nRespond ONLY with JSON in this format:")
@@ -473,11 +472,11 @@ func buildSuggestActionsPrompt(entityType, entityID string, sources []knowledge.
 
 func buildSummarizePrompt(entityType, entityID string, sources []knowledge.Evidence) string {
 	b := strings.Builder{}
-	b.WriteString("Entity type: ")
+	b.WriteString(promptLabelEntityType)
 	b.WriteString(entityType)
-	b.WriteString("\nEntity id: ")
+	b.WriteString(promptLabelEntityID)
 	b.WriteString(entityID)
-	b.WriteString("\n\nEvidence:\n")
+	b.WriteString(promptLabelEvidence)
 	b.WriteString(renderEvidenceForPrompt(sources))
 	b.WriteString("\nTask: Write a concise operational summary in 4-6 sentences.")
 	b.WriteString(" Include status, risks, and recommended immediate focus.")
@@ -486,11 +485,11 @@ func buildSummarizePrompt(entityType, entityID string, sources []knowledge.Evide
 
 func buildSalesBriefPrompt(entityType, entityID string, sources []knowledge.Evidence) string {
 	b := strings.Builder{}
-	b.WriteString("Entity type: ")
+	b.WriteString(promptLabelEntityType)
 	b.WriteString(entityType)
-	b.WriteString("\nEntity id: ")
+	b.WriteString(promptLabelEntityID)
 	b.WriteString(entityID)
-	b.WriteString("\n\nEvidence:\n")
+	b.WriteString(promptLabelEvidence)
 	b.WriteString(renderEvidenceForPrompt(sources))
 	b.WriteString("\nTask: Return a grounded sales brief.")
 	b.WriteString("\nRespond ONLY with JSON in this format:")
@@ -700,7 +699,7 @@ func validateCreateTaskEligibility(params map[string]any, entityType, entityID s
 
 func validateUpdateDealEligibility(params map[string]any, entityType, entityID string) string {
 	if entityType != entityTypeDeal {
-		return "tool_entity_mismatch"
+		return discardToolMismatch
 	}
 	if !matchesStringParam(params, "deal_id", entityID) {
 		return "missing_or_mismatched_deal_id"
@@ -710,7 +709,7 @@ func validateUpdateDealEligibility(params map[string]any, entityType, entityID s
 
 func validateUpdateCaseEligibility(params map[string]any, entityType, entityID string) string {
 	if entityType != entityTypeCase {
-		return "tool_entity_mismatch"
+		return discardToolMismatch
 	}
 	if !matchesStringParam(params, "case_id", entityID) {
 		return "missing_or_mismatched_case_id"
@@ -720,7 +719,7 @@ func validateUpdateCaseEligibility(params map[string]any, entityType, entityID s
 
 func validateSendReplyEligibility(params map[string]any, entityType, entityID string) string {
 	if entityType != entityTypeCase {
-		return "tool_entity_mismatch"
+		return discardToolMismatch
 	}
 	if !matchesStringParam(params, "case_id", entityID) {
 		return "missing_or_mismatched_case_id"

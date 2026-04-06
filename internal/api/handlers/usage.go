@@ -116,10 +116,10 @@ func requireQuotaPolicyID(w http.ResponseWriter, r *http.Request) (string, bool)
 }
 
 func writeQuotaPeriodError(w http.ResponseWriter, err error) {
-	switch err {
-	case errBadPeriodStart:
+	switch {
+	case errors.Is(err, errBadPeriodStart):
 		writeError(w, http.StatusBadRequest, errInvalidPeriodStart)
-	case errBadPeriodEnd:
+	case errors.Is(err, errBadPeriodEnd):
 		writeError(w, http.StatusBadRequest, errInvalidPeriodEnd)
 	default:
 		writeError(w, http.StatusBadRequest, errInvalidBody)
