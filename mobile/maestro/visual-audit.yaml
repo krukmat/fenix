@@ -1,0 +1,441 @@
+appId: com.fenixcrm.app
+name: Visual Audit - FenixCRM Mobile
+tags:
+  - screenshots
+  - visual-audit
+env:
+  SEED_SIGNAL_ID: ""
+
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
+    timeout: 120000
+- assertVisible:
+    id: "login-screen"
+- takeScreenshot:
+    path: "01_auth_login"
+
+- tapOn:
+    id: "go-to-register-link"
+- extendedWaitUntil:
+    visible:
+      id: "register-email-input"
+    timeout: 20000
+- takeScreenshot:
+    path: "02_auth_register"
+
+- tapOn:
+    id: "go-to-login-link"
+- extendedWaitUntil:
+    visible:
+      id: "login-email-input"
+    timeout: 20000
+- tapOn:
+    id: "login-email-input"
+- eraseText
+- inputText: ${SEED_EMAIL}
+- tapOn:
+    id: "login-password-input"
+- eraseText
+- inputText: ${SEED_PASSWORD}
+- hideKeyboard
+- tapOn:
+    id: "login-submit-button"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: "home-feed"
+    timeout: 120000
+- takeScreenshot:
+    path: "03_home_feed"
+
+- tapOn:
+    id: "home-feed-chip-signals"
+- runFlow:
+    when:
+      true: ${SEED_SIGNAL_ID != ""}
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: "home-feed-signal-${SEED_SIGNAL_ID}"
+          direction: DOWN
+          timeout: 30000
+      - tapOn:
+          id: "home-feed-signal-${SEED_SIGNAL_ID}"
+      - extendedWaitUntil:
+          visible:
+            id: "signal-detail"
+          timeout: 15000
+      - takeScreenshot:
+          path: "04_home_signal_detail"
+      - back
+- runFlow:
+    when:
+      true: ${SEED_SIGNAL_ID == ""}
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: "home-feed-empty"
+          commands:
+            - takeScreenshot:
+                path: "04_home_signal_detail_EMPTY"
+
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "drawer-open-button"
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: "drawer-content"
+- runFlow:
+    when:
+      notVisible:
+        id: "drawer-crm-submenu"
+    commands:
+      - tapOn:
+          id: "drawer-crm-tab"
+          retryTapIfNoChange: true
+- assertVisible:
+    id: "drawer-crm-submenu"
+- takeScreenshot:
+    path: "05_crm_hub"
+
+- tapOn:
+    id: "drawer-crm-accounts"
+- extendedWaitUntil:
+    visible:
+      id: "accounts-list"
+    timeout: 15000
+- takeScreenshot:
+    path: "06_crm_accounts_list"
+- tapOn:
+    id: "accounts-list-item-0"
+- extendedWaitUntil:
+    visible:
+      id: "account-detail-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "07_crm_account_detail"
+- back
+- extendedWaitUntil:
+    visible:
+      id: "accounts-list"
+    timeout: 15000
+- tapOn:
+    id: "create-account-fab"
+- extendedWaitUntil:
+    visible:
+      id: "account-form-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "08_crm_account_new"
+- back
+
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "drawer-open-button"
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: "drawer-content"
+- runFlow:
+    when:
+      notVisible:
+        id: "drawer-crm-submenu"
+    commands:
+      - tapOn:
+          id: "drawer-crm-tab"
+          retryTapIfNoChange: true
+- tapOn:
+    id: "drawer-crm-contacts"
+- extendedWaitUntil:
+    visible:
+      id: "contacts-list"
+    timeout: 15000
+- takeScreenshot:
+    path: "09_crm_contacts_list"
+- tapOn:
+    id: "contacts-search"
+- eraseText
+- inputText: ${SEED_CONTACT_EMAIL}
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: "contact-item-${SEED_CONTACT_ID}"
+    timeout: 15000
+- tapOn:
+    id: "contact-item-${SEED_CONTACT_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "contact-detail-header"
+    timeout: 15000
+- takeScreenshot:
+    path: "10_crm_contact_detail"
+- back
+
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "drawer-open-button"
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: "drawer-content"
+- runFlow:
+    when:
+      notVisible:
+        id: "drawer-crm-submenu"
+    commands:
+      - tapOn:
+          id: "drawer-crm-tab"
+          retryTapIfNoChange: true
+- tapOn:
+    id: "drawer-crm-deals"
+- extendedWaitUntil:
+    visible:
+      id: "deals-list"
+    timeout: 15000
+- takeScreenshot:
+    path: "11_crm_deals_list"
+- scrollUntilVisible:
+    element:
+      id: "deal-item-${SEED_DEAL_ID}"
+    direction: DOWN
+    timeout: 30000
+- tapOn:
+    id: "deal-item-${SEED_DEAL_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "deal-detail-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "12_crm_deal_detail"
+- back
+- extendedWaitUntil:
+    visible:
+      id: "deals-list"
+    timeout: 15000
+- tapOn:
+    id: "create-deal-fab"
+- extendedWaitUntil:
+    visible:
+      id: "deal-new-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "13_crm_deal_new"
+- back
+- scrollUntilVisible:
+    element:
+      id: "deal-item-${SEED_DEAL_ID}"
+    direction: DOWN
+    timeout: 30000
+- tapOn:
+    id: "deal-item-${SEED_DEAL_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "deal-detail-screen"
+    timeout: 15000
+- tapOn:
+    id: "deal-edit-button"
+- extendedWaitUntil:
+    visible:
+      id: "deal-edit-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "14_crm_deal_edit"
+- back
+- back
+
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "drawer-open-button"
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: "drawer-content"
+- runFlow:
+    when:
+      notVisible:
+        id: "drawer-crm-submenu"
+    commands:
+      - tapOn:
+          id: "drawer-crm-tab"
+          retryTapIfNoChange: true
+- tapOn:
+    id: "drawer-crm-cases"
+- extendedWaitUntil:
+    visible:
+      id: "cases-list"
+    timeout: 15000
+- takeScreenshot:
+    path: "15_crm_cases_list"
+- tapOn:
+    id: "cases-search"
+- eraseText
+- inputText: ${SEED_CASE_SUBJECT}
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: "cases-list-item-0"
+    timeout: 15000
+- tapOn:
+    id: "cases-list-item-0"
+- extendedWaitUntil:
+    visible:
+      id: "case-detail-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "16_crm_case_detail"
+- back
+- extendedWaitUntil:
+    visible:
+      id: "cases-list"
+    timeout: 15000
+- tapOn:
+    id: "create-case-fab"
+- extendedWaitUntil:
+    visible:
+      id: "case-new-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "17_crm_case_new"
+- back
+- tapOn:
+    id: "cases-search"
+- eraseText
+- inputText: ${SEED_CASE_SUBJECT}
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: "cases-list-item-0"
+    timeout: 15000
+- tapOn:
+    id: "cases-list-item-0"
+- extendedWaitUntil:
+    visible:
+      id: "case-detail-screen"
+    timeout: 15000
+- tapOn:
+    id: "case-edit-button"
+- extendedWaitUntil:
+    visible:
+      id: "case-edit-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "18_crm_case_edit"
+- back
+- back
+
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "drawer-open-button"
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: "drawer-content"
+- tapOn:
+    id: "drawer-copilot-tab"
+- extendedWaitUntil:
+    visible:
+      id: "copilot-panel"
+    timeout: 15000
+- takeScreenshot:
+    path: "19_copilot_panel"
+
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "drawer-open-button"
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: "drawer-content"
+- tapOn:
+    id: "drawer-workflows-tab"
+- extendedWaitUntil:
+    visible:
+      id: "workflows-list"
+    timeout: 15000
+- takeScreenshot:
+    path: "20_workflows_list"
+- tapOn:
+    id: "workflows-new-btn"
+- extendedWaitUntil:
+    visible:
+      id: "workflow-new-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "21_workflow_new"
+- back
+- scrollUntilVisible:
+    element:
+      id: "workflow-${SEED_WORKFLOW_ACTIVE_ID}"
+    direction: DOWN
+    timeout: 30000
+- tapOn:
+    id: "workflow-${SEED_WORKFLOW_ACTIVE_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "workflow-detail"
+    timeout: 15000
+- takeScreenshot:
+    path: "22_workflow_detail"
+- tapOn:
+    id: "workflow-edit-btn"
+- extendedWaitUntil:
+    visible:
+      id: "workflow-edit-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "23_workflow_edit"
+- back
+- back
+
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "drawer-open-button"
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: "drawer-content"
+- tapOn:
+    id: "drawer-activity-tab"
+- extendedWaitUntil:
+    visible:
+      id: "agent-runs-list-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "24_agents_list"
+- scrollUntilVisible:
+    element:
+      id: "agent-run-item-${SEED_AGENT_RUN_REJECTED_ID}"
+    direction: DOWN
+    timeout: 30000
+- tapOn:
+    id: "agent-run-item-${SEED_AGENT_RUN_REJECTED_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "agent-run-detail-screen"
+    timeout: 15000
+- takeScreenshot:
+    path: "25_agent_run_detail"
+- back
+
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "drawer-open-button"
+          retryTapIfNoChange: true
+      - assertVisible:
+          id: "drawer-content"
+- takeScreenshot:
+    path: "26_drawer_open"

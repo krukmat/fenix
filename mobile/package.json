@@ -19,7 +19,7 @@
     "test:watch": "jest --watch",
     "e2e:build": "detox build --configuration android.emu.debug",
     "e2e:test": "detox test --configuration android.emu.debug",
-    "screenshots": "detox test --configuration android.emu.debug.screenshots",
+    "screenshots": "bash maestro/seed-and-run.sh",
     "postinstall": "patch-package"
   },
   "dependencies": {

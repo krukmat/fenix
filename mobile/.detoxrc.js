@@ -34,26 +34,5 @@ module.exports = {
       device: 'simulator',
       app: 'android.debug',
     },
-    'android.emu.debug.screenshots': {
-      device: 'simulator',
-      app: 'android.debug',
-      testRunner: {
-        args: {
-          config: 'e2e/jest.screenshots.config.ts',
-        },
-      },
-      artifacts: {
-        rootDir: './artifacts/screenshots',
-        plugins: {
-          screenshot: {
-            shouldTakeAutomaticScreenshots: false,
-            keepOnlyFailedTestsArtifacts: false,
-          },
-          log: 'none',
-          video: 'none',
-          timeline: 'none',
-        },
-      },
-    },
   },
 };
