@@ -937,13 +937,19 @@ paths:
       summary: Ingest knowledge
       x-fr-traces:
       - FR-090
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeIngestRequest'
       responses:
-        '200':
-          description: OK
+        '201':
+          description: Created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AnyResponse'
+                $ref: '#/components/schemas/KnowledgeIngestResponse'
         default:
           description: Unexpected response
       security:
@@ -1997,6 +2003,69 @@ components:
     AnyResponse:
       type: object
       additionalProperties: true
+    KnowledgeIngestRequest:
+      type: object
+      required:
+      - sourceType
+      - title
+      - rawContent
+      properties:
+        sourceSystem:
+          type: string
+        sourceType:
+          type: string
+          enum: [document, email, call, note, case, ticket, kb_article, api, other]
+        sourceObjectId:
+          type: string
+        refreshStrategy:
+          type: string
+        deleteBehavior:
+          type: string
+        permissionContext:
+          type: string
+        title:
+          type: string
+        rawContent:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: string
+        metadata:
+          type: string
+    KnowledgeIngestResponse:
+      type: object
+      required:
+      - id
+      - workspaceId
+      - sourceType
+      - title
+      - createdAt
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        sourceSystem:
+          type: string
+        sourceType:
+          type: string
+        sourceObjectId:
+          type: string
+        refreshStrategy:
+          type: string
+        deleteBehavior:
+          type: string
+        permissionContext:
+          type: string
+        title:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: string
+        createdAt:
+          type: string
     Meta:
       type: object
     ErrorResponse:
