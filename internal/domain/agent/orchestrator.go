@@ -482,32 +482,54 @@ func PublicRunOutcome(run *Run) string {
 		return ""
 	}
 
-	switch run.Status {
+	if outcome, ok := stablePublicOutcome(run.Status); ok {
+		return outcome
+	}
+	return derivedPublicOutcome(run)
+}
+
+func stablePublicOutcome(status string) (string, bool) {
+	switch status {
 	case StatusRunning:
-		return StatusRunning
-	case StatusAccepted:
-		if RunAwaitsApproval(run) {
-			return PublicOutcomeAwaitingApproval
-		}
-		return StatusRunning
+		return StatusRunning, true
 	case StatusSuccess:
-		return PublicOutcomeCompleted
+		return PublicOutcomeCompleted, true
 	case StatusPartial:
-		return PublicOutcomeCompletedWithWarnings
+		return PublicOutcomeCompletedWithWarnings, true
 	case StatusAbstained:
-		return StatusAbstained
+		return StatusAbstained, true
+	case StatusFailed:
+		return StatusFailed, true
+	default:
+		return "", false
+	}
+}
+
+func derivedPublicOutcome(run *Run) string {
+	switch run.Status {
+	case StatusAccepted:
+		return acceptedPublicOutcome(run)
 	case StatusEscalated, StatusDelegated:
 		return PublicOutcomeHandedOff
 	case StatusRejected:
-		if RunDeniedByPolicy(run) {
-			return PublicOutcomeDeniedByPolicy
-		}
-		return StatusFailed
-	case StatusFailed:
-		return StatusFailed
+		return rejectedPublicOutcome(run)
 	default:
 		return run.Status
 	}
+}
+
+func acceptedPublicOutcome(run *Run) string {
+	if RunAwaitsApproval(run) {
+		return PublicOutcomeAwaitingApproval
+	}
+	return StatusRunning
+}
+
+func rejectedPublicOutcome(run *Run) string {
+	if RunDeniedByPolicy(run) {
+		return PublicOutcomeDeniedByPolicy
+	}
+	return StatusFailed
 }
 
 func RunAwaitsApproval(run *Run) bool {

@@ -3,6 +3,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -57,23 +58,48 @@ type evidenceSource struct {
 func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	wsID, wsErr := getWorkspaceID(ctx)
-	if wsErr != nil {
+	wsID, ok := knowledgeEvidenceWorkspaceID(w, ctx)
+	if !ok {
 		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
 		return
 	}
 
+	req, ok := decodeEvidenceRequest(w, r)
+	if !ok {
+		return
+	}
+
+	pack, ok := h.buildEvidencePack(w, ctx, wsID, req)
+	if !ok {
+		return
+	}
+
+	w.Header().Set(headerContentType, mimeJSON)
+	w.WriteHeader(http.StatusOK)
+	if encodeErr := json.NewEncoder(w).Encode(evidenceResponse{Data: newEvidenceData(pack)}); encodeErr != nil {
+		http.Error(w, errFailedToEncodeJSON, http.StatusInternalServerError)
+	}
+}
+
+func knowledgeEvidenceWorkspaceID(_ http.ResponseWriter, ctx context.Context) (string, bool) {
+	wsID, wsErr := getWorkspaceID(ctx)
+	return wsID, wsErr == nil
+}
+
+func decodeEvidenceRequest(w http.ResponseWriter, r *http.Request) (evidenceRequest, bool) {
 	var req evidenceRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		writeError(w, http.StatusBadRequest, errInvalidBody)
-		return
+		return evidenceRequest{}, false
 	}
-
 	if req.Query == "" {
 		writeError(w, http.StatusBadRequest, "query is required")
-		return
+		return evidenceRequest{}, false
 	}
+	return req, true
+}
 
+func (h *KnowledgeEvidenceHandler) buildEvidencePack(w http.ResponseWriter, ctx context.Context, wsID string, req evidenceRequest) (*knowledge.EvidencePack, bool) {
 	pack, buildErr := h.evidenceService.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
 		Query:       req.Query,
 		WorkspaceID: wsID,
@@ -81,11 +107,30 @@ func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request)
 	})
 	if buildErr != nil {
 		writeError(w, http.StatusInternalServerError, "failed to build evidence pack")
-		return
+		return nil, false
 	}
+	return pack, true
+}
 
-	sources := make([]evidenceSource, len(pack.Sources))
-	for i, src := range pack.Sources {
+func newEvidenceData(pack *knowledge.EvidencePack) evidenceData {
+	return evidenceData{
+		SchemaVersion:        pack.SchemaVersion,
+		Query:                pack.Query,
+		Sources:              evidenceSources(pack.Sources),
+		SourceCount:          pack.SourceCount,
+		DedupCount:           pack.DedupCount,
+		Confidence:           string(pack.Confidence),
+		TotalCandidates:      pack.TotalCandidates,
+		FilteredCount:        pack.FilteredCount,
+		Warnings:             pack.Warnings,
+		RetrievalMethodsUsed: evidenceRetrievalMethods(pack.RetrievalMethodsUsed),
+		BuiltAt:              pack.BuiltAt.Format(time.RFC3339),
+	}
+}
+
+func evidenceSources(items []knowledge.Evidence) []evidenceSource {
+	sources := make([]evidenceSource, len(items))
+	for i, src := range items {
 		sources[i] = evidenceSource{
 			KnowledgeItemID: src.KnowledgeItemID,
 			Method:          string(src.Method),
@@ -96,28 +141,13 @@ func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request)
 			CreatedAt:       src.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
 	}
-	retrievalMethods := make([]string, len(pack.RetrievalMethodsUsed))
-	for i, method := range pack.RetrievalMethodsUsed {
-		retrievalMethods[i] = string(method)
-	}
+	return sources
+}
 
-	w.Header().Set(headerContentType, mimeJSON)
-	w.WriteHeader(http.StatusOK)
-	if encodeErr := json.NewEncoder(w).Encode(evidenceResponse{
-		Data: evidenceData{
-			SchemaVersion:        pack.SchemaVersion,
-			Query:                pack.Query,
-			Sources:              sources,
-			SourceCount:          pack.SourceCount,
-			DedupCount:           pack.DedupCount,
-			Confidence:           string(pack.Confidence),
-			TotalCandidates:      pack.TotalCandidates,
-			FilteredCount:        pack.FilteredCount,
-			Warnings:             pack.Warnings,
-			RetrievalMethodsUsed: retrievalMethods,
-			BuiltAt:              pack.BuiltAt.Format(time.RFC3339),
-		},
-	}); encodeErr != nil {
-		http.Error(w, errFailedToEncodeJSON, http.StatusInternalServerError)
+func evidenceRetrievalMethods(items []knowledge.EvidenceMethod) []string {
+	methods := make([]string, len(items))
+	for i, method := range items {
+		methods[i] = string(method)
 	}
+	return methods
 }

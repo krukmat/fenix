@@ -404,31 +404,32 @@ func scanApprovalRequest(scan approvalScanner) (*ApprovalRequest, error) {
 	}
 
 	item.Payload = payload
-	if decidedByRaw.Valid {
-		v := decidedByRaw.String
-		item.DecidedBy = &v
-	}
-	if resourceType.Valid {
-		v := resourceType.String
-		item.ResourceType = &v
-	}
-	if resourceID.Valid {
-		v := resourceID.String
-		item.ResourceID = &v
-	}
-	if reason.Valid {
-		v := reason.String
-		item.Reason = &v
-	}
-	if decidedAtRaw.Valid {
-		v := decidedAtRaw.Time
-		item.DecidedAt = &v
-	}
+	item.DecidedBy = stringPtrFromNull(decidedByRaw)
+	item.ResourceType = stringPtrFromNull(resourceType)
+	item.ResourceID = stringPtrFromNull(resourceID)
+	item.Reason = stringPtrFromNull(reason)
+	item.DecidedAt = timePtrFromNull(decidedAtRaw)
 	if item.Status == approvalStatusLegacyDenied {
 		item.Status = ApprovalStatusRejected
 	}
 
 	return &item, nil
+}
+
+func stringPtrFromNull(value sql.NullString) *string {
+	if !value.Valid {
+		return nil
+	}
+	v := value.String
+	return &v
+}
+
+func timePtrFromNull(value sql.NullTime) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	v := value.Time
+	return &v
 }
 
 func decisionToStatus(decision string) ApprovalStatus {
