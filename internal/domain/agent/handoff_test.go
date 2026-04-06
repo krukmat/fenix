@@ -120,6 +120,12 @@ func TestInitiateHandoff_Success(t *testing.T) {
 	if pkg.CaseStatus != StatusEscalated {
 		t.Errorf("CaseStatus: got %q, want %q", pkg.CaseStatus, StatusEscalated)
 	}
+	if pkg.Status != PublicOutcomeHandedOff {
+		t.Errorf("Status: got %q, want %q", pkg.Status, PublicOutcomeHandedOff)
+	}
+	if pkg.RuntimeStatus != StatusEscalated {
+		t.Errorf("RuntimeStatus: got %q, want %q", pkg.RuntimeStatus, StatusEscalated)
+	}
 	if pkg.Reason != "no solution found" {
 		t.Errorf("Reason: got %q, want %q", pkg.Reason, "no solution found")
 	}

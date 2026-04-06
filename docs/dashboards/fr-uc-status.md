@@ -1,13 +1,18 @@
 ---
 title: FenixCRM — FR & UC Implementation Status
-last_updated: 2026-04-03
+last_updated: 2026-04-06
 tags: [dashboard, status]
 ---
 
 # FenixCRM — FR & UC Implementation Status
 
-> Last updated: 2026-04-03
-> Source of truth: `docs/requirements.md` (v2.0) + BDD feature files in `features/`
+> Last updated: 2026-04-06
+> Source of truth for current wedge priority: `docs/architecture.md` + `docs/plans/fenixcrm_strategic_repositioning_spec.md`
+> Source of truth for detailed requirement inventory: `docs/requirements.md` + BDD feature files in `features/`
+>
+> Strategic note:
+> This dashboard is primarily an implementation-breadth view. It includes legacy broad-platform coverage that no longer defines the commercial wedge by itself.
+> Current priority order is Support Copilot / Support Agent first, Sales Copilot second, with mobile breadth and broad Agent Studio surfaces no longer treated as universal P0 release gates.
 
 ---
 

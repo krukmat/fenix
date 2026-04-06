@@ -221,7 +221,7 @@ func TestListAgentRuns_AppliesFiltersAndMetadataFallbacks(t *testing.T) {
 
 	runs, total, err := orch.ListAgentRuns(ctx, "ws-filter", ListRunsInput{
 		Limit:      10,
-		Status:     StatusRejected,
+		Status:     PublicOutcomeDeniedByPolicy,
 		WorkflowID: "wf-case",
 		EntityType: "case",
 		EntityID:   "case-1",
@@ -231,6 +231,17 @@ func TestListAgentRuns_AppliesFiltersAndMetadataFallbacks(t *testing.T) {
 	}
 	if total != 1 || len(runs) != 1 || runs[0].ID != "run-case" {
 		t.Fatalf("expected only run-case, got total=%d len=%d ids=%v", total, len(runs), collectRunIDs(runs))
+	}
+
+	runs, total, err = orch.ListAgentRuns(ctx, "ws-filter", ListRunsInput{
+		Limit:  10,
+		Status: StatusRejected,
+	})
+	if err != nil {
+		t.Fatalf("ListAgentRuns(filtered legacy rejected): %v", err)
+	}
+	if total != 1 || len(runs) != 1 || runs[0].ID != "run-case" {
+		t.Fatalf("expected legacy rejected filter to keep working, got total=%d len=%d ids=%v", total, len(runs), collectRunIDs(runs))
 	}
 
 	runs, total, err = orch.ListAgentRuns(ctx, "ws-filter", ListRunsInput{
@@ -460,6 +471,35 @@ func TestUpdateAgentRun_AcceptedThenSuccess(t *testing.T) {
 	}
 	if updated.Status != StatusSuccess {
 		t.Fatalf("Status = %q, want %q", updated.Status, StatusSuccess)
+	}
+}
+
+func TestPublicRunOutcome(t *testing.T) {
+	policyReason := "policy denied"
+	tests := []struct {
+		name string
+		run  *Run
+		want string
+	}{
+		{name: "running stays running", run: &Run{Status: StatusRunning}, want: StatusRunning},
+		{name: "success maps completed", run: &Run{Status: StatusSuccess}, want: PublicOutcomeCompleted},
+		{name: "partial maps completed_with_warnings", run: &Run{Status: StatusPartial}, want: PublicOutcomeCompletedWithWarnings},
+		{name: "abstained stays abstained", run: &Run{Status: StatusAbstained}, want: StatusAbstained},
+		{name: "accepted with approval maps awaiting_approval", run: &Run{Status: StatusAccepted, Output: json.RawMessage(`{"action":"pending_approval","approval_id":"apr-1"}`)}, want: PublicOutcomeAwaitingApproval},
+		{name: "accepted without approval stays running", run: &Run{Status: StatusAccepted}, want: StatusRunning},
+		{name: "escalated maps handed_off", run: &Run{Status: StatusEscalated}, want: PublicOutcomeHandedOff},
+		{name: "delegated maps handed_off", run: &Run{Status: StatusDelegated}, want: PublicOutcomeHandedOff},
+		{name: "rejected policy maps denied_by_policy", run: &Run{Status: StatusRejected, Output: json.RawMessage(`{"reason":"policy denied"}`), AbstentionReason: &policyReason}, want: PublicOutcomeDeniedByPolicy},
+		{name: "rejected non policy maps failed", run: &Run{Status: StatusRejected, Output: json.RawMessage(`{"reason":"dispatch_rejected"}`)}, want: StatusFailed},
+		{name: "failed stays failed", run: &Run{Status: StatusFailed}, want: StatusFailed},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := PublicRunOutcome(tc.run); got != tc.want {
+				t.Fatalf("PublicRunOutcome() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

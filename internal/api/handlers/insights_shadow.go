@@ -95,7 +95,8 @@ func buildInsightsShadowErrorResponse(err error, execution *insightsShadowExecut
 	}
 	if execution != nil && execution.WrapperRun != nil {
 		resp["run_id"] = execution.WrapperRun.ID
-		resp["status"] = execution.WrapperRun.Status
+		resp["status"] = agent.PublicRunOutcome(execution.WrapperRun)
+		resp["runtime_status"] = execution.WrapperRun.Status
 	}
 	return resp
 }
@@ -105,16 +106,18 @@ func buildInsightsShadowSuccessResponse(primaryStored *agent.Run, execution *ins
 	effective := coalesceShadowRun(execution.EffectiveRun, run)
 	status := ""
 	if effective != nil {
-		status = effective.Status
+		status = agent.PublicRunOutcome(effective)
 	}
 	resp := map[string]any{
 		"enabled":             true,
 		"run_id":              run.ID,
 		"status":              status,
+		"runtime_status":      run.Status,
 		"agent_definition_id": run.DefinitionID,
 	}
 	if effective != nil {
 		resp["effective_run_id"] = effective.ID
+		resp["effective_runtime_status"] = effective.Status
 	}
 	resp["comparison"] = buildInsightsShadowComparisonFromRuns(primaryStored, run, effective)
 	return resp

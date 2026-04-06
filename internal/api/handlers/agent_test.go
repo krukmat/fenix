@@ -465,7 +465,7 @@ func TestAgentHandler_ListAgentRuns_FiltersByEntityAndExposesContext(t *testing.
 		t.Fatalf("insert agent runs: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/agents/runs?entity_type=case&entity_id=case-1&status=rejected&workflow_id=wf-case", nil)
+	req := httptest.NewRequest(http.MethodGet, "/agents/runs?entity_type=case&entity_id=case-1&status=denied_by_policy&workflow_id=wf-case", nil)
 	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
 	rr := httptest.NewRecorder()
 
@@ -493,6 +493,12 @@ func TestAgentHandler_ListAgentRuns_FiltersByEntityAndExposesContext(t *testing.
 	}
 	if got := resp.Data[0]["workflow_id"]; got != "wf-case" {
 		t.Fatalf("workflow_id = %v, want wf-case", got)
+	}
+	if got := resp.Data[0]["status"]; got != "denied_by_policy" {
+		t.Fatalf("status = %v, want denied_by_policy", got)
+	}
+	if got := resp.Data[0]["runtime_status"]; got != agent.StatusRejected {
+		t.Fatalf("runtime_status = %v, want %s", got, agent.StatusRejected)
 	}
 	if got := resp.Data[0]["rejection_reason"]; got != "policy denied" {
 		t.Fatalf("rejection_reason = %v, want policy denied", got)
@@ -691,6 +697,18 @@ func TestAgentHandler_GetAgentRun_Success(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got := resp.Data["status"]; got != "running" {
+		t.Fatalf("status = %v, want running", got)
+	}
+	if got := resp.Data["runtime_status"]; got != agent.StatusRunning {
+		t.Fatalf("runtime_status = %v, want %s", got, agent.StatusRunning)
 	}
 }
 
@@ -1071,13 +1089,14 @@ func TestInsightsAgentHandler_TriggerInsights_DeclarativeRolloutSegment(t *testi
 		Status  string `json:"status"`
 		Agent   string `json:"agent"`
 		Rollout struct {
-			Enabled           bool   `json:"enabled"`
-			Selected          bool   `json:"selected"`
-			Mode              string `json:"mode"`
-			Source            string `json:"source"`
-			AgentDefinitionID string `json:"agent_definition_id"`
-			EffectiveRunID    string `json:"effective_run_id"`
-			EffectiveStatus   string `json:"effective_status"`
+			Enabled                bool   `json:"enabled"`
+			Selected               bool   `json:"selected"`
+			Mode                   string `json:"mode"`
+			Source                 string `json:"source"`
+			AgentDefinitionID      string `json:"agent_definition_id"`
+			EffectiveRunID         string `json:"effective_run_id"`
+			EffectiveStatus        string `json:"effective_status"`
+			EffectiveRuntimeStatus string `json:"effective_runtime_status"`
 		} `json:"rollout"`
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
@@ -1094,6 +1113,9 @@ func TestInsightsAgentHandler_TriggerInsights_DeclarativeRolloutSegment(t *testi
 	}
 	if resp.Rollout.EffectiveRunID == "" {
 		t.Fatalf("expected effective run id, got %+v", resp.Rollout)
+	}
+	if resp.Rollout.EffectiveStatus == "" || resp.Rollout.EffectiveRuntimeStatus == "" {
+		t.Fatalf("expected effective statuses, got %+v", resp.Rollout)
 	}
 
 	var definitionID string
@@ -1181,13 +1203,14 @@ func TestInsightsAgentHandler_TriggerInsights_RollbackToGoSegment(t *testing.T) 
 		Status  string `json:"status"`
 		Agent   string `json:"agent"`
 		Rollout struct {
-			Enabled           bool   `json:"enabled"`
-			Selected          bool   `json:"selected"`
-			Mode              string `json:"mode"`
-			Source            string `json:"source"`
-			AgentDefinitionID string `json:"agent_definition_id"`
-			EffectiveRunID    string `json:"effective_run_id"`
-			EffectiveStatus   string `json:"effective_status"`
+			Enabled                bool   `json:"enabled"`
+			Selected               bool   `json:"selected"`
+			Mode                   string `json:"mode"`
+			Source                 string `json:"source"`
+			AgentDefinitionID      string `json:"agent_definition_id"`
+			EffectiveRunID         string `json:"effective_run_id"`
+			EffectiveStatus        string `json:"effective_status"`
+			EffectiveRuntimeStatus string `json:"effective_runtime_status"`
 		} `json:"rollout"`
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &secondResp); err != nil {
@@ -1201,6 +1224,9 @@ func TestInsightsAgentHandler_TriggerInsights_RollbackToGoSegment(t *testing.T) 
 	}
 	if secondResp.Rollout.Mode != "go_primary" || secondResp.Rollout.Source != "workspace.settings" {
 		t.Fatalf("unexpected rollback rollout metadata: %+v", secondResp.Rollout)
+	}
+	if secondResp.Rollout.EffectiveStatus == "" || secondResp.Rollout.EffectiveRuntimeStatus == "" {
+		t.Fatalf("expected effective statuses, got %+v", secondResp.Rollout)
 	}
 
 	var secondDefinitionID string
@@ -1243,13 +1269,15 @@ func TestInsightsAgentHandler_TriggerInsights_ShadowMode(t *testing.T) {
 		Status string `json:"status"`
 		Agent  string `json:"agent"`
 		Shadow struct {
-			Enabled           bool   `json:"enabled"`
-			RunID             string `json:"run_id"`
-			EffectiveRunID    string `json:"effective_run_id"`
-			Status            string `json:"status"`
-			AgentDefinitionID string `json:"agent_definition_id"`
-			Error             string `json:"error"`
-			Comparison        struct {
+			Enabled                bool   `json:"enabled"`
+			RunID                  string `json:"run_id"`
+			EffectiveRunID         string `json:"effective_run_id"`
+			Status                 string `json:"status"`
+			RuntimeStatus          string `json:"runtime_status"`
+			EffectiveRuntimeStatus string `json:"effective_runtime_status"`
+			AgentDefinitionID      string `json:"agent_definition_id"`
+			Error                  string `json:"error"`
+			Comparison             struct {
 				PrimaryRunID         string `json:"primary_run_id"`
 				ShadowRunID          string `json:"shadow_run_id"`
 				EffectiveShadowRunID string `json:"effective_shadow_run_id"`
@@ -1284,6 +1312,9 @@ func TestInsightsAgentHandler_TriggerInsights_ShadowMode(t *testing.T) {
 	}
 	if resp.Shadow.EffectiveRunID == "" {
 		t.Fatal("expected shadow effective_run_id")
+	}
+	if resp.Shadow.Status == "" || resp.Shadow.RuntimeStatus == "" || resp.Shadow.EffectiveRuntimeStatus == "" {
+		t.Fatalf("expected shadow status metadata, got %+v", resp.Shadow)
 	}
 	if resp.Shadow.Comparison.EffectiveShadowRunID == "" {
 		t.Fatal("expected effective shadow run id")
@@ -1507,11 +1538,14 @@ func TestBuildInsightsShadowSuccessResponse_UsesFallbackRun(t *testing.T) {
 	wrapper := &agent.Run{ID: "dsl-run", DefinitionID: "insights-shadow-agent", Status: agent.StatusSuccess}
 	resp := buildInsightsShadowSuccessResponse(primary, &insightsShadowExecution{WrapperRun: wrapper})
 
-	if got := resp["status"]; got != agent.StatusSuccess {
-		t.Fatalf("status = %v, want %s", got, agent.StatusSuccess)
+	if got := resp["status"]; got != agent.PublicOutcomeCompleted {
+		t.Fatalf("status = %v, want %s", got, agent.PublicOutcomeCompleted)
 	}
 	if got := resp["effective_run_id"]; got != "dsl-run" {
 		t.Fatalf("effective_run_id = %v, want dsl-run", got)
+	}
+	if got := resp["runtime_status"]; got != agent.StatusSuccess {
+		t.Fatalf("runtime_status = %v, want %s", got, agent.StatusSuccess)
 	}
 }
 
@@ -2053,6 +2087,12 @@ func TestAgentHandlerHelperCoverage(t *testing.T) {
 		StartedAt:    startedAt,
 		CreatedAt:    createdAt,
 	})
+	if resp.Status != agent.PublicOutcomeCompleted {
+		t.Fatalf("status = %q, want %q", resp.Status, agent.PublicOutcomeCompleted)
+	}
+	if resp.RuntimeStatus != agent.StatusSuccess {
+		t.Fatalf("runtime_status = %q, want %q", resp.RuntimeStatus, agent.StatusSuccess)
+	}
 	if resp.CompletedAt != nil {
 		t.Fatalf("unexpected completedAt = %#v", resp.CompletedAt)
 	}

@@ -12,9 +12,11 @@ import (
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
+	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	"github.com/matiasleandrokruk/fenix/internal/domain/usage"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 	_ "modernc.org/sqlite"
 )
@@ -22,6 +24,15 @@ import (
 type mockKnowledgeSearch struct {
 	results *knowledge.SearchResults
 	err     error
+}
+
+type supportUsageStub struct {
+	inputs []usage.RecordEventInput
+}
+
+func (s *supportUsageStub) RecordEvent(_ context.Context, input usage.RecordEventInput) (*usage.Event, error) {
+	s.inputs = append(s.inputs, input)
+	return &usage.Event{}, nil
 }
 
 func (m *mockKnowledgeSearch) HybridSearch(_ context.Context, _ knowledge.SearchInput) (*knowledge.SearchResults, error) {
@@ -202,7 +213,7 @@ func TestSupportAgent_Run_ResolvesWhenHighConfidence(t *testing.T) {
 	caseID := seedSupportCase(t, db, wsID, ownerID, "medium")
 	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{
 		results: &knowledge.SearchResults{
-			Items: []knowledge.SearchResult{{Score: 0.9, Snippet: "restart the service"}},
+			Items: []knowledge.SearchResult{{KnowledgeItemID: "ki-1", Score: 0.9, Snippet: "restart the service"}},
 		},
 	})
 
@@ -223,6 +234,15 @@ func TestSupportAgent_Run_ResolvesWhenHighConfidence(t *testing.T) {
 	if stored.Status != agent.StatusSuccess {
 		t.Fatalf("expected success, got %s", stored.Status)
 	}
+	if got := string(stored.RetrievalQueries); got != `["service is down"]` {
+		t.Fatalf("expected retrieval query trace, got %s", got)
+	}
+	if got := string(stored.RetrievedEvidenceIDs); got == "" || got == "[]" {
+		t.Fatalf("expected evidence ids, got %s", got)
+	}
+	if stored.TriggeredByUserID == nil || *stored.TriggeredByUserID != ownerID {
+		t.Fatalf("expected triggered_by to be preserved, got %#v", stored.TriggeredByUserID)
+	}
 
 	caseTicket, err := crm.NewCaseService(db).Get(context.Background(), wsID, caseID)
 	if err != nil {
@@ -230,6 +250,14 @@ func TestSupportAgent_Run_ResolvesWhenHighConfidence(t *testing.T) {
 	}
 	if caseTicket.Status != "resolved" {
 		t.Fatalf("expected resolved case, got %s", caseTicket.Status)
+	}
+
+	events, err := audit.NewAuditService(db).ListByAction(context.Background(), wsID, "agent.support.run.completed", 10, 0)
+	if err != nil {
+		t.Fatalf("ListByAction() error = %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected support run audit event")
 	}
 }
 
@@ -461,5 +489,70 @@ func TestSupportAgent_FailSupportRunReturnsCauseAndMarksFailed(t *testing.T) {
 	}
 	if stored.Status != agent.StatusFailed {
 		t.Fatalf("status = %q want %q", stored.Status, agent.StatusFailed)
+	}
+
+	events, err := audit.NewAuditService(db).ListByAction(context.Background(), wsID, "agent.support.run.failed", 10, 0)
+	if err != nil {
+		t.Fatalf("ListByAction() error = %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected failed support audit event")
+	}
+}
+
+func TestSupportAgent_Run_RecordsUsageForCompletedRun(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+
+	wsID, ownerID := seedSupportWorkspace(t, db)
+	insertSupportAgentDefinition(t, db, wsID)
+	registry := tool.NewToolRegistry(db)
+	if err := tool.RegisterBuiltInExecutors(registry, tool.BuiltinServices{
+		DB:   db,
+		Case: crm.NewCaseService(db),
+	}); err != nil {
+		t.Fatalf("register builtins: %v", err)
+	}
+	if err := registry.EnsureBuiltInToolDefinitionsForAllWorkspaces(context.Background()); err != nil {
+		t.Fatalf("ensure builtins: %v", err)
+	}
+	usageStub := &supportUsageStub{}
+	sa := NewSupportAgentWithDBAndUsage(agent.NewOrchestrator(db), registry, &mockKnowledgeSearch{
+		results: &knowledge.SearchResults{Items: []knowledge.SearchResult{{KnowledgeItemID: "ki-1", Score: 0.9, Snippet: "restart the service"}}},
+	}, db, usageStub)
+	caseID := seedSupportCase(t, db, wsID, ownerID, "medium")
+
+	run, err := sa.Run(supportRunContext(context.Background(), wsID, ownerID), SupportAgentConfig{
+		WorkspaceID:   wsID,
+		CaseID:        caseID,
+		CustomerQuery: "service is down",
+		Priority:      "medium",
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	var supportEvent *usage.RecordEventInput
+	for i := range usageStub.inputs {
+		event := usageStub.inputs[i]
+		if event.RunID != nil && *event.RunID == run.ID && event.ToolName == nil {
+			supportEvent = &usageStub.inputs[i]
+			break
+		}
+	}
+	if supportEvent == nil {
+		t.Fatalf("expected support runtime usage event, got %#v", usageStub.inputs)
+	}
+	if supportEvent.WorkspaceID != wsID || supportEvent.ActorID != ownerID {
+		t.Fatalf("unexpected usage attribution: %#v", supportEvent)
+	}
+	if supportEvent.ActorType != "user" {
+		t.Fatalf("unexpected actor type: %q", supportEvent.ActorType)
+	}
+	if supportEvent.OutputUnits != 0 {
+		t.Fatalf("expected zero output units with current runtime totals, got %d", supportEvent.OutputUnits)
+	}
+	if supportEvent.LatencyMs == nil {
+		t.Fatal("expected latency")
 	}
 }

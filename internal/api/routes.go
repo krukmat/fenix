@@ -26,6 +26,7 @@ import (
 	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 	signaldomain "github.com/matiasleandrokruk/fenix/internal/domain/signal"
 	tooldomain "github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	usagedomain "github.com/matiasleandrokruk/fenix/internal/domain/usage"
 	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
 	"github.com/matiasleandrokruk/fenix/internal/infra/config"
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
@@ -115,7 +116,8 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		go embedder.Start(context.Background(), knowledgeBus)
 		go reindexSvc.Start(context.Background())
 		policyEngine := policy.NewPolicyEngine(db, nil, auditService)
-		toolRegistry := tooldomain.NewToolRegistryWithRuntime(db, policyEngine, auditService)
+		usageService := usagedomain.NewService(db)
+		toolRegistry := tooldomain.NewToolRegistryWithRuntimeAndUsage(db, policyEngine, auditService, usageService)
 		approvalService := policy.NewApprovalService(db, auditService)
 		runnerRegistry := agent.NewRunnerRegistry()
 		agentOrchestrator := agent.NewOrchestratorWithRegistry(db, runnerRegistry)
@@ -273,7 +275,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		// Task 3.9: Prompt Versioning
 		promptSvc := agent.NewPromptService(db, auditService)
 		promptHandler := handlers.NewPromptHandlerWithAuthorizer(promptSvc, promptSvc, policyEngine)
-		copilotChatSvc := copilotdomain.NewChatService(evidenceSvc, chatProvider, policyEngine, auditService)
+		copilotChatSvc := copilotdomain.NewChatServiceWithUsage(evidenceSvc, chatProvider, policyEngine, auditService, usageService)
 		copilotChatHandler := handlers.NewCopilotChatHandler(copilotChatSvc)
 		copilotActionsSvc := copilotdomain.NewActionService(evidenceSvc, chatProvider, policyEngine, auditService)
 		copilotActionsHandler := handlers.NewCopilotActionsHandler(copilotActionsSvc)
@@ -341,7 +343,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 
 		// Task 3.7: Agent Runtime routes
 		agentHandler := handlers.NewAgentHandler(agentOrchestrator)
-		supportAgent := agents.NewSupportAgentWithDB(agentOrchestrator, toolRegistry, searchSvc, db)
+		supportAgent := agents.NewSupportAgentWithDBAndUsage(agentOrchestrator, toolRegistry, searchSvc, db, usageService)
 		supportAgentHandler := handlers.NewSupportAgentHandler(supportAgent)
 		// Task 4.5b — FR-231: Prospecting Agent wiring.
 		prospectingAgent := agents.NewProspectingAgent(

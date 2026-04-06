@@ -1,10 +1,15 @@
 # Implementation Plan — FenixCRM MVP (P0)
 
-> **Status**: Ready for execution
+> **Status**: Historical execution reference
 > **Duration**: 13 weeks (3 months)
 > **Based on**: `docs/architecture.md` — Sections 9 & 11
 > **Approach**: TDD (Test-Driven Development), incremental delivery, continuous integration
 > **Focused addendum (Deal/Case gap closure)**: `docs/tasks/task_deals_cases_gap.md` (2026-02-24)
+> **Strategic precedence**: superseded for current prioritization by `docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md` on 2026-04-06
+
+> **Compatibility note**:
+> Use this document as historical implementation context and backlog evidence for already-built or partially-built work.
+> For current sequencing and scope, follow `docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md`, `docs/plans/fenixcrm_strategic_repositioning_spec.md`, and `docs/architecture.md`.
 
 ---
 

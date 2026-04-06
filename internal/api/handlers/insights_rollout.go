@@ -109,7 +109,8 @@ func buildInsightsRolloutResponse(config insightsRolloutConfig, wrapperRun, effe
 	}
 	if effectiveRun != nil {
 		resp["effective_run_id"] = effectiveRun.ID
-		resp["effective_status"] = effectiveRun.Status
+		resp["effective_status"] = agent.PublicRunOutcome(effectiveRun)
+		resp["effective_runtime_status"] = effectiveRun.Status
 	}
 	return resp
 }

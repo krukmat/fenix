@@ -50,6 +50,7 @@ type agentRunResponse struct {
 	TriggeredByUserID *string         `json:"triggeredByUserId,omitempty"`
 	TriggerType       string          `json:"triggerType"`
 	Status            string          `json:"status"`
+	RuntimeStatus     string          `json:"runtime_status,omitempty"`
 	Inputs            json.RawMessage `json:"inputs,omitempty"`
 	Output            json.RawMessage `json:"output,omitempty"`
 	ToolCalls         json.RawMessage `json:"toolCalls,omitempty"`
@@ -303,7 +304,8 @@ func agentRunToResponse(run *agent.Run) agentRunResponse {
 		AgentDefinitionID: run.DefinitionID,
 		TriggeredByUserID: run.TriggeredByUserID,
 		TriggerType:       run.TriggerType,
-		Status:            run.Status,
+		Status:            agent.PublicRunOutcome(run),
+		RuntimeStatus:     run.Status,
 		Inputs:            run.Inputs,
 		Output:            run.Output,
 		ToolCalls:         run.ToolCalls,

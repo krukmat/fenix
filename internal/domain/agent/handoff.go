@@ -36,6 +36,7 @@ type HandoffPackage struct {
 	WorkspaceID       string          `json:"workspaceId"`
 	AgentDefinitionID string          `json:"agentDefinitionId"`
 	Status            string          `json:"status"`
+	RuntimeStatus     string          `json:"runtimeStatus,omitempty"`
 	Reason            string          `json:"reason"`
 	AbstentionReason  *string         `json:"abstentionReason,omitempty"`
 	CaseID            string          `json:"caseId"`
@@ -187,7 +188,8 @@ func buildHandoffPackage(run *Run, cs *crm.CaseTicket, reason string) *HandoffPa
 		RunID:             run.ID,
 		WorkspaceID:       run.WorkspaceID,
 		AgentDefinitionID: run.DefinitionID,
-		Status:            run.Status,
+		Status:            PublicRunOutcome(run),
+		RuntimeStatus:     run.Status,
 		Reason:            reason,
 		AbstentionReason:  run.AbstentionReason,
 		CaseID:            cs.ID,

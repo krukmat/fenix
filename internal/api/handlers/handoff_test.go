@@ -127,6 +127,12 @@ func TestHandoffHandler_GetHandoffPackage_Success(t *testing.T) {
 	if data["contractVersion"] != "v1" {
 		t.Errorf("contractVersion: got %v, want v1", data["contractVersion"])
 	}
+	if data["status"] != agent.PublicOutcomeHandedOff {
+		t.Errorf("status: got %v, want %s", data["status"], agent.PublicOutcomeHandedOff)
+	}
+	if data["runtimeStatus"] != agent.StatusEscalated {
+		t.Errorf("runtimeStatus: got %v, want %s", data["runtimeStatus"], agent.StatusEscalated)
+	}
 	if data["abstentionReason"] != "insufficient evidence" {
 		t.Errorf("abstentionReason: got %v, want insufficient evidence", data["abstentionReason"])
 	}

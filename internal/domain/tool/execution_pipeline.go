@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
+	"github.com/matiasleandrokruk/fenix/internal/domain/usage"
 )
 
 type AuditLogger interface {
@@ -62,21 +64,23 @@ func (r *ToolRegistry) executeDefinition(
 	def *ToolDefinition,
 	params json.RawMessage,
 ) (json.RawMessage, error) {
-	if err := r.ensureExecutable(ctx, workspaceID, def, params); err != nil {
+	startedAt := time.Now()
+	if err := r.ensureExecutable(ctx, workspaceID, def, params, startedAt); err != nil {
 		return nil, err
 	}
 
 	executor, err := r.Get(def.Name)
 	if err != nil {
-		return nil, r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInternal, err)
+		return nil, r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInternal, err, startedAt)
 	}
 
 	out, err := executor.Execute(ctx, params)
 	if err != nil {
-		return nil, r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInternal, err)
+		return nil, r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInternal, err, startedAt)
 	}
 
 	r.auditToolExecution(ctx, workspaceID, def.Name, params, audit.OutcomeSuccess, "")
+	r.recordToolUsage(ctx, workspaceID, def.Name, startedAt)
 	return out, nil
 }
 
@@ -85,15 +89,16 @@ func (r *ToolRegistry) ensureExecutable(
 	workspaceID string,
 	def *ToolDefinition,
 	params json.RawMessage,
+	startedAt time.Time,
 ) error {
 	if !def.IsActive {
-		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorToolInactive, ErrToolInactive)
+		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorToolInactive, ErrToolInactive, startedAt)
 	}
 	if err := r.ValidateParams(ctx, workspaceID, def.Name, params); err != nil {
-		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInvalidInput, err)
+		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInvalidInput, err, startedAt)
 	}
 	if err := r.enforceToolPermission(ctx, def.Name); err != nil {
-		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorPermissionDenied, err)
+		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorPermissionDenied, err, startedAt)
 	}
 	return nil
 }
@@ -124,9 +129,11 @@ func (r *ToolRegistry) handleExecutionError(
 	params json.RawMessage,
 	code ExecutionErrorCode,
 	err error,
+	startedAt time.Time,
 ) error {
 	wrapped := &ExecutionError{ToolName: toolName, Code: code, Err: err}
 	r.auditToolExecution(ctx, workspaceID, toolName, params, resolveAuditOutcome(code), string(code))
+	r.recordToolUsage(ctx, workspaceID, toolName, startedAt)
 	return wrapped
 }
 
@@ -185,6 +192,33 @@ func buildToolAuditMetadata(toolName string, params json.RawMessage, errorCode s
 		meta["error_code"] = errorCode
 	}
 	return meta
+}
+
+func (r *ToolRegistry) recordToolUsage(ctx context.Context, workspaceID, toolName string, startedAt time.Time) {
+	if r.usage == nil {
+		return
+	}
+
+	actorID, actorType := auditActorFromContext(ctx)
+	runID := runIDFromContext(ctx)
+	toolNameCopy := toolName
+	latencyMs := time.Since(startedAt).Milliseconds()
+	_, _ = r.usage.RecordEvent(ctx, usage.RecordEventInput{
+		WorkspaceID: workspaceID,
+		ActorID:     actorID,
+		ActorType:   string(actorType),
+		RunID:       runID,
+		ToolName:    &toolNameCopy,
+		LatencyMs:   &latencyMs,
+	})
+}
+
+func runIDFromContext(ctx context.Context) *string {
+	runID, ok := ctx.Value(ctxkeys.RunID).(string)
+	if !ok || strings.TrimSpace(runID) == "" {
+		return nil
+	}
+	return &runID
 }
 
 func extractParamKeys(params json.RawMessage) []string {

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/domain/usage"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
@@ -62,24 +63,33 @@ type ToolAuthorizer interface {
 	CheckToolPermission(ctx context.Context, userID, toolID string) (bool, error)
 }
 
+type UsageRecorder interface {
+	RecordEvent(ctx context.Context, input usage.RecordEventInput) (*usage.Event, error)
+}
+
 //nolint:revive // registro principal usado transversalmente en app/api/tests
 type ToolRegistry struct {
 	db        *sql.DB
 	executors map[string]ToolExecutor
 	authz     ToolAuthorizer
 	audit     AuditLogger
+	usage     UsageRecorder
 }
 
 func NewToolRegistry(db *sql.DB) *ToolRegistry {
-	return NewToolRegistryWithRuntime(db, nil, nil)
+	return NewToolRegistryWithRuntimeAndUsage(db, nil, nil, nil)
 }
 
 func NewToolRegistryWithAuthorizer(db *sql.DB, authz ToolAuthorizer) *ToolRegistry {
-	return NewToolRegistryWithRuntime(db, authz, nil)
+	return NewToolRegistryWithRuntimeAndUsage(db, authz, nil, nil)
 }
 
 func NewToolRegistryWithRuntime(db *sql.DB, authz ToolAuthorizer, audit AuditLogger) *ToolRegistry {
-	return &ToolRegistry{db: db, executors: make(map[string]ToolExecutor), authz: authz, audit: audit}
+	return NewToolRegistryWithRuntimeAndUsage(db, authz, audit, nil)
+}
+
+func NewToolRegistryWithRuntimeAndUsage(db *sql.DB, authz ToolAuthorizer, audit AuditLogger, usage UsageRecorder) *ToolRegistry {
+	return &ToolRegistry{db: db, executors: make(map[string]ToolExecutor), authz: authz, audit: audit, usage: usage}
 }
 
 func (r *ToolRegistry) Register(name string, executor ToolExecutor) error {

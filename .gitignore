@@ -35,8 +35,14 @@ docs/audit.md
 agent.test.exe
 .claude/settings.json
 docs/plans/*
+!docs/plans/fenixcrm_strategic_repositioning_spec.md
+!docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/
 docs/templates/*
 docs/decisions/*
+!docs/decisions/ADR-019-product-category-governed-ai-layer.md
+!docs/decisions/ADR-020-cost-governance-runtime-concern.md
+!docs/decisions/ADR-021-integration-first-context-strategy.md
+!docs/decisions/ADR-022-mobile-deprioritized-for-wedge.md

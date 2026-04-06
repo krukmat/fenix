@@ -11,9 +11,11 @@ import (
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
+	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	"github.com/matiasleandrokruk/fenix/internal/domain/usage"
 )
 
 // KnowledgeSearchInterface defines the interface for knowledge base search
@@ -48,6 +50,16 @@ type SupportAgent struct {
 	toolRegistry    *tool.ToolRegistry
 	knowledgeSearch KnowledgeSearchInterface
 	db              *sql.DB
+	audit           supportAuditLogger
+	usage           supportUsageRecorder
+}
+
+type supportAuditLogger interface {
+	LogWithDetails(ctx context.Context, workspaceID, actorID string, actorType audit.ActorType, action string, entityType, entityID *string, details *audit.EventDetails, outcome audit.Outcome) error
+}
+
+type supportUsageRecorder interface {
+	RecordEvent(ctx context.Context, input usage.RecordEventInput) (*usage.Event, error)
 }
 
 // NewSupportAgent creates a new Support Agent instance
@@ -56,7 +68,7 @@ func NewSupportAgent(
 	toolRegistry *tool.ToolRegistry,
 	knowledgeSearch KnowledgeSearchInterface,
 ) *SupportAgent {
-	return NewSupportAgentWithDB(orchestrator, toolRegistry, knowledgeSearch, nil)
+	return NewSupportAgentWithDBAndUsage(orchestrator, toolRegistry, knowledgeSearch, nil, nil)
 }
 
 func NewSupportAgentWithDB(
@@ -65,11 +77,27 @@ func NewSupportAgentWithDB(
 	knowledgeSearch KnowledgeSearchInterface,
 	db *sql.DB,
 ) *SupportAgent {
+	return NewSupportAgentWithDBAndUsage(orchestrator, toolRegistry, knowledgeSearch, db, nil)
+}
+
+func NewSupportAgentWithDBAndUsage(
+	orchestrator *agent.Orchestrator,
+	toolRegistry *tool.ToolRegistry,
+	knowledgeSearch KnowledgeSearchInterface,
+	db *sql.DB,
+	usage supportUsageRecorder,
+) *SupportAgent {
+	var auditLogger supportAuditLogger
+	if db != nil {
+		auditLogger = audit.NewAuditService(db)
+	}
 	return &SupportAgent{
 		orchestrator:    orchestrator,
 		toolRegistry:    toolRegistry,
 		knowledgeSearch: knowledgeSearch,
 		db:              db,
+		audit:           auditLogger,
+		usage:           usage,
 	}
 }
 
@@ -139,6 +167,8 @@ func (a *SupportAgent) Run(ctx context.Context, config SupportAgentConfig) (*age
 type SupportResult struct {
 	Status         string
 	Output         json.RawMessage
+	RetrievalQuery json.RawMessage
+	EvidenceIDs    json.RawMessage
 	ToolCalls      json.RawMessage
 	ReasoningTrace json.RawMessage
 	TotalTokens    *int64
@@ -215,7 +245,7 @@ func (a *SupportAgent) determineAction(config SupportAgentConfig, caseContext *C
 }
 
 func (a *SupportAgent) executeAction(ctx context.Context, runID string, action *Action, caseContext *CaseContext) (json.RawMessage, string, error) {
-	toolCtx := supportToolContext(ctx, caseContext)
+	toolCtx := supportToolContext(ctx, caseContext, runID)
 	switch action.Type {
 	case supportActionUpdateCase:
 		return a.executeResolvedAction(toolCtx, action, caseContext)
@@ -363,6 +393,12 @@ func buildReasoningTrace(_ SupportAgentConfig, evidence *knowledge.SearchResults
 			"timestamp":   time.Now().UTC().Format(time.RFC3339),
 		},
 		{
+			"step":              "policy",
+			"description":       "Evaluated approval and execution policy gates",
+			"requires_approval": actionRequiresApproval(action),
+			"timestamp":         time.Now().UTC().Format(time.RFC3339),
+		},
+		{
 			"step":        "decide",
 			"description": "Determined action: " + action.Type,
 			"confidence":  action.Confidence,
@@ -385,10 +421,15 @@ func validateSupportConfig(config SupportAgentConfig) error {
 
 func (a *SupportAgent) triggerSupportRun(ctx context.Context, config SupportAgentConfig) (*agent.Run, error) {
 	triggerContext, inputs := supportRunPayloads(config, a.AllowedTools())
+	triggeredBy := supportUserID(ctx)
+	var triggeredByPtr *string
+	if triggeredBy != "" {
+		triggeredByPtr = &triggeredBy
+	}
 	return a.orchestrator.TriggerAgent(ctx, agent.TriggerAgentInput{
 		AgentID:        "support-agent",
 		WorkspaceID:    config.WorkspaceID,
-		TriggeredBy:    nil,
+		TriggeredBy:    triggeredByPtr,
 		TriggerType:    agent.TriggerTypeManual,
 		TriggerContext: triggerContext,
 		Inputs:         inputs,
@@ -415,21 +456,30 @@ func (a *SupportAgent) failSupportRun(ctx context.Context, run *agent.Run, cause
 	if err != nil {
 		return err
 	}
+	a.auditSupportRun(ctx, run, nil, cause)
+	a.recordSupportUsage(ctx, run, nil)
 	return cause
 }
 
 func (a *SupportAgent) completeSupportRun(ctx context.Context, run *agent.Run, result *SupportResult) error {
 	_, err := a.orchestrator.UpdateAgentRun(ctx, run.WorkspaceID, run.ID, agent.RunUpdates{
-		Status:         result.Status,
-		Output:         result.Output,
-		ToolCalls:      result.ToolCalls,
-		ReasoningTrace: result.ReasoningTrace,
-		TotalTokens:    result.TotalTokens,
-		TotalCost:      result.TotalCost,
-		LatencyMs:      result.LatencyMs,
-		Completed:      true,
+		Status:               result.Status,
+		Output:               result.Output,
+		RetrievalQueries:     result.RetrievalQuery,
+		RetrievedEvidenceIDs: result.EvidenceIDs,
+		ToolCalls:            result.ToolCalls,
+		ReasoningTrace:       result.ReasoningTrace,
+		TotalTokens:          result.TotalTokens,
+		TotalCost:            result.TotalCost,
+		LatencyMs:            result.LatencyMs,
+		Completed:            true,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	a.auditSupportRun(ctx, run, result, nil)
+	a.recordSupportUsage(ctx, run, result)
+	return nil
 }
 
 func (a *SupportAgent) loadSupportEvidence(ctx context.Context, workspaceID, query string) *knowledge.SearchResults {
@@ -485,6 +535,8 @@ func buildSupportResult(
 	return &SupportResult{
 		Status:         supportResultStatus(action.Type),
 		Output:         action.toJSON(),
+		RetrievalQuery: marshalSupportRetrievalQueries(config.CustomerQuery),
+		EvidenceIDs:    marshalSupportEvidenceIDs(evidence),
 		ToolCalls:      toolCalls,
 		ReasoningTrace: buildReasoningTrace(config, evidence, action),
 		TotalTokens:    totalTokens,
@@ -638,12 +690,165 @@ func shouldEscalateSupportAction(score float64, config SupportAgentConfig, caseC
 	return false
 }
 
-func supportToolContext(ctx context.Context, caseContext *CaseContext) context.Context {
+func supportToolContext(ctx context.Context, caseContext *CaseContext, runID string) context.Context {
 	toolCtx := context.WithValue(ctx, ctxkeys.WorkspaceID, caseContext.WorkspaceID)
+	if runID != "" {
+		toolCtx = context.WithValue(toolCtx, ctxkeys.RunID, runID)
+	}
 	if caseContext.OwnerID == "" {
 		return toolCtx
 	}
 	return context.WithValue(toolCtx, ctxkeys.UserID, caseContext.OwnerID)
+}
+
+func (a *SupportAgent) recordSupportUsage(ctx context.Context, run *agent.Run, result *SupportResult) {
+	if a.usage == nil || run == nil {
+		return
+	}
+
+	actorID := firstNonEmptySupport(supportUserID(ctx), derefSupportString(run.TriggeredByUserID))
+	actorType := string(auditActorTypeForSupport(actorID))
+	latencyMs := supportLatency(run, result)
+	inputUnits, outputUnits, estimatedCost := supportUsageTotals(result)
+	runID := run.ID
+
+	_, _ = a.usage.RecordEvent(ctx, usage.RecordEventInput{
+		WorkspaceID:   run.WorkspaceID,
+		ActorID:       firstNonEmptySupport(actorID, "system"),
+		ActorType:     actorType,
+		RunID:         &runID,
+		InputUnits:    inputUnits,
+		OutputUnits:   outputUnits,
+		EstimatedCost: estimatedCost,
+		LatencyMs:     latencyMs,
+	})
+}
+
+func (a *SupportAgent) auditSupportRun(ctx context.Context, run *agent.Run, result *SupportResult, cause error) {
+	if a.audit == nil || run == nil {
+		return
+	}
+
+	actorID := firstNonEmptySupport(supportUserID(ctx), derefSupportString(run.TriggeredByUserID), "system")
+	actorType := audit.ActorTypeUser
+	if actorID == "system" {
+		actorType = audit.ActorTypeSystem
+	}
+	caseID := firstNonEmptySupport(firstJSONStringFromRaw(run.TriggerContext, "case_id"), firstJSONStringFromRaw(run.Output, "CaseID"))
+	actionType := firstJSONStringFromRaw(run.Output, "Type")
+	entityType := "case_ticket"
+	entityID := caseID
+	metadata := map[string]any{
+		"run_id":         run.ID,
+		"status":         agent.PublicRunOutcome(run),
+		"runtime_status": run.Status,
+		"action_type":    actionType,
+	}
+	if result != nil {
+		metadata["retrieval_query_count"] = len(rawStringArray(result.RetrievalQuery))
+		metadata["evidence_count"] = len(rawStringArray(result.EvidenceIDs))
+	}
+	if cause != nil {
+		metadata["error"] = cause.Error()
+	}
+
+	outcome := audit.OutcomeSuccess
+	auditAction := "agent.support.run.completed"
+	if cause != nil {
+		outcome = audit.OutcomeError
+		auditAction = "agent.support.run.failed"
+	}
+
+	_ = a.audit.LogWithDetails(
+		ctx,
+		run.WorkspaceID,
+		actorID,
+		actorType,
+		auditAction,
+		&entityType,
+		nilIfEmpty(entityID),
+		&audit.EventDetails{Metadata: metadata},
+		outcome,
+	)
+}
+
+func supportUserID(ctx context.Context) string {
+	userID, _ := ctx.Value(ctxkeys.UserID).(string)
+	return userID
+}
+
+func auditActorTypeForSupport(actorID string) string {
+	if actorID == "" || actorID == "system" {
+		return "system"
+	}
+	return "user"
+}
+
+func supportLatency(run *agent.Run, result *SupportResult) *int64 {
+	if result != nil && result.LatencyMs != nil {
+		return result.LatencyMs
+	}
+	if run == nil {
+		return nil
+	}
+	elapsed := time.Since(run.StartedAt).Milliseconds()
+	return &elapsed
+}
+
+func supportUsageTotals(result *SupportResult) (int64, int64, float64) {
+	if result == nil {
+		return 0, 0, 0
+	}
+
+	totalTokens := int64(0)
+	if result.TotalTokens != nil {
+		totalTokens = *result.TotalTokens
+	}
+	totalCost := 0.0
+	if result.TotalCost != nil {
+		totalCost = *result.TotalCost
+	}
+	return 0, totalTokens, totalCost
+}
+
+func marshalSupportRetrievalQueries(query string) json.RawMessage {
+	queries, _ := json.Marshal([]string{query})
+	return queries
+}
+
+func marshalSupportEvidenceIDs(results *knowledge.SearchResults) json.RawMessage {
+	if results == nil {
+		return json.RawMessage("[]")
+	}
+	ids := make([]string, 0, len(results.Items))
+	for _, item := range results.Items {
+		if item.KnowledgeItemID != "" {
+			ids = append(ids, item.KnowledgeItemID)
+		}
+	}
+	data, _ := json.Marshal(ids)
+	return data
+}
+
+func rawStringArray(raw json.RawMessage) []string {
+	var items []string
+	if len(raw) == 0 {
+		return items
+	}
+	_ = json.Unmarshal(raw, &items)
+	return items
+}
+
+func firstJSONStringFromRaw(raw json.RawMessage, key string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var payload map[string]any
+	if json.Unmarshal(raw, &payload) != nil {
+		return ""
+	}
+	value, _ := payload[key].(string)
+	return value
 }
 
 func (a *SupportAgent) executeTool(ctx context.Context, workspaceID, toolName string, payload map[string]any) (json.RawMessage, error) {

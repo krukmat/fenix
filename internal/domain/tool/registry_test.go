@@ -13,6 +13,7 @@ import (
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
+	"github.com/matiasleandrokruk/fenix/internal/domain/usage"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 )
 
@@ -55,6 +56,15 @@ func (s *toolAuditStub) LogWithDetails(
 		s.details = append(s.details, meta)
 	}
 	return nil
+}
+
+type toolUsageStub struct {
+	inputs []usage.RecordEventInput
+}
+
+func (s *toolUsageStub) RecordEvent(_ context.Context, input usage.RecordEventInput) (*usage.Event, error) {
+	s.inputs = append(s.inputs, input)
+	return &usage.Event{}, nil
 }
 
 func openToolTestDB(t *testing.T) *sql.DB {
@@ -310,6 +320,54 @@ func TestToolRegistry_Execute_BuiltinAuditAndErrorContract(t *testing.T) {
 	}
 	if len(deniedAudit.actions) != 1 || deniedAudit.actions[0] != "tool.denied" {
 		t.Fatalf("unexpected denied audit actions: %#v", deniedAudit.actions)
+	}
+}
+
+func TestToolRegistry_Execute_RecordsUsage(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	usageStub := &toolUsageStub{}
+	r := NewToolRegistryWithRuntimeAndUsage(db, toolPermStub{allow: true}, nil, usageStub)
+	if err := r.Register(BuiltinCreateTask, noopExecutor{}); err != nil {
+		t.Fatalf("Register returned error: %v", err)
+	}
+
+	_, err := r.CreateToolDefinition(context.Background(), CreateToolDefinitionInput{
+		WorkspaceID:         wsID,
+		Name:                BuiltinCreateTask,
+		InputSchema:         json.RawMessage(`{"type":"object","required":["title"],"properties":{"title":{"type":"string"}},"additionalProperties":false}`),
+		RequiredPermissions: []string{"tools:create_task"},
+	})
+	if err != nil {
+		t.Fatalf("CreateToolDefinition returned error: %v", err)
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkeys.UserID, "user-1")
+	ctx = context.WithValue(ctx, ctxkeys.RunID, "run-1")
+	if _, err := r.Execute(ctx, wsID, BuiltinCreateTask, json.RawMessage(`{"title":"x"}`)); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if len(usageStub.inputs) != 1 {
+		t.Fatalf("expected 1 usage event, got %d", len(usageStub.inputs))
+	}
+	event := usageStub.inputs[0]
+	if event.WorkspaceID != wsID || event.ActorID != "user-1" {
+		t.Fatalf("unexpected usage attribution: %#v", event)
+	}
+	if event.ActorType != string(audit.ActorTypeUser) {
+		t.Fatalf("unexpected actor type: %q", event.ActorType)
+	}
+	if event.ToolName == nil || *event.ToolName != BuiltinCreateTask {
+		t.Fatalf("unexpected tool name: %#v", event.ToolName)
+	}
+	if event.RunID == nil || *event.RunID != "run-1" {
+		t.Fatalf("unexpected run id: %#v", event.RunID)
+	}
+	if event.LatencyMs == nil {
+		t.Fatal("expected latency")
 	}
 }
 

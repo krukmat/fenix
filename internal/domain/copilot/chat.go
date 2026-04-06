@@ -10,6 +10,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
+	"github.com/matiasleandrokruk/fenix/internal/domain/usage"
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
 )
 
@@ -26,11 +27,16 @@ type AuditLogger interface {
 	LogWithDetails(ctx context.Context, workspaceID, actorID string, actorType audit.ActorType, action string, entityType, entityID *string, details *audit.EventDetails, outcome audit.Outcome) error
 }
 
+type UsageRecorder interface {
+	RecordEvent(ctx context.Context, input usage.RecordEventInput) (*usage.Event, error)
+}
+
 type ChatService struct {
 	evidence EvidencePackBuilder
 	llm      llm.LLMProvider
 	policy   PolicyEnforcer
 	audit    AuditLogger
+	usage    UsageRecorder
 }
 
 type AnswerType string
@@ -72,21 +78,27 @@ type ChatResult struct {
 }
 
 func NewChatService(e EvidencePackBuilder, l llm.LLMProvider, p PolicyEnforcer, a AuditLogger) *ChatService {
-	return &ChatService{evidence: e, llm: l, policy: p, audit: a}
+	return NewChatServiceWithUsage(e, l, p, a, nil)
+}
+
+func NewChatServiceWithUsage(e EvidencePackBuilder, l llm.LLMProvider, p PolicyEnforcer, a AuditLogger, u UsageRecorder) *ChatService {
+	return &ChatService{evidence: e, llm: l, policy: p, audit: a, usage: u}
 }
 
 func (s *ChatService) Chat(ctx context.Context, in ChatInput) (<-chan StreamChunk, error) {
+	startedAt := time.Now()
 	filter, pack, err := s.prepareChatContext(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := s.buildChatResult(ctx, in.Query, pack)
+	result, record, err := s.buildChatResult(ctx, in.Query, pack)
 	if err != nil {
 		return nil, err
 	}
 
 	s.auditChat(ctx, in, filter, pack, result)
+	s.recordUsage(ctx, in, record, time.Since(startedAt))
 	return streamChatResult(result), nil
 }
 
@@ -114,9 +126,16 @@ func (s *ChatService) prepareChatContext(ctx context.Context, in ChatInput) (pol
 	return filter, pack, nil
 }
 
-func (s *ChatService) buildChatResult(ctx context.Context, query string, pack *knowledge.EvidencePack) (ChatResult, error) {
+type chatUsageRecord struct {
+	modelName   *string
+	inputUnits  int64
+	outputUnits int64
+	cost        float64
+}
+
+func (s *ChatService) buildChatResult(ctx context.Context, query string, pack *knowledge.EvidencePack) (ChatResult, chatUsageRecord, error) {
 	if reason := evaluateAbstention(pack, query); reason != nil {
-		return newAbstentionResult(pack.Sources, *reason), nil
+		return newAbstentionResult(pack.Sources, *reason), chatUsageRecord{}, nil
 	}
 
 	resp, err := s.llm.ChatCompletion(ctx, llm.ChatRequest{
@@ -128,14 +147,24 @@ func (s *ChatService) buildChatResult(ctx context.Context, query string, pack *k
 		MaxTokens:   512,
 	})
 	if err != nil {
-		return ChatResult{}, err
+		return ChatResult{}, chatUsageRecord{}, err
+	}
+
+	modelName := strings.TrimSpace(s.llm.ModelInfo().ID)
+	record := chatUsageRecord{
+		inputUnits:  int64(resp.Tokens),
+		outputUnits: int64(resp.Tokens),
+		cost:        0,
+	}
+	if modelName != "" {
+		record.modelName = &modelName
 	}
 
 	return ChatResult{
 		AnswerType: AnswerTypeGrounded,
 		Content:    redactOutputPII(resp.Content),
 		Sources:    pack.Sources,
-	}, nil
+	}, record, nil
 }
 
 func newAbstentionResult(sources []knowledge.Evidence, reason AbstentionReason) ChatResult {
@@ -240,6 +269,24 @@ func (s *ChatService) auditChat(ctx context.Context, in ChatInput, filter policy
 	_ = s.audit.LogWithDetails(ctx, in.WorkspaceID, in.UserID, audit.ActorTypeUser, "copilot.chat", in.EntityType, in.EntityID, &audit.EventDetails{
 		Metadata: metadata,
 	}, audit.OutcomeSuccess)
+}
+
+func (s *ChatService) recordUsage(ctx context.Context, in ChatInput, record chatUsageRecord, elapsed time.Duration) {
+	if s.usage == nil {
+		return
+	}
+
+	latencyMs := elapsed.Milliseconds()
+	_, _ = s.usage.RecordEvent(ctx, usage.RecordEventInput{
+		WorkspaceID:   in.WorkspaceID,
+		ActorID:       in.UserID,
+		ActorType:     string(audit.ActorTypeUser),
+		ModelName:     record.modelName,
+		InputUnits:    record.inputUnits,
+		OutputUnits:   record.outputUnits,
+		EstimatedCost: record.cost,
+		LatencyMs:     &latencyMs,
+	})
 }
 
 func streamChatResult(result ChatResult) <-chan StreamChunk {

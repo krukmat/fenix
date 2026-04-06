@@ -17,6 +17,9 @@ const (
 	// UserID is the context key for the authenticated user.
 	// Injected by AuthMiddleware (Task 1.6) from JWT claims, read by handlers that need actor identity.
 	UserID Key = "user_id"
+
+	// RunID is the context key for the active agent run when tool execution happens inside a runtime flow.
+	RunID Key = "run_id"
 )
 
 // WithValue adds a ctxkeys.Key value to the context.

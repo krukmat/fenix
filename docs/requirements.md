@@ -1,5 +1,5 @@
 ---
-title: "Agentic CRM OS — Requerimientos (Agent-Ready)"
+title: "Governed AI CRM Operations Layer — Requerimientos (Agent-Ready)"
 version: "2.0"
 date: "2026-03-19"
 timezone: "Europe/Madrid"
@@ -11,11 +11,13 @@ canonical_id: "acrmos-req-v2.0"
 supersedes: ["agentic_crm_requirements_agent_ready.md"]
 ---
 
-# Agentic CRM OS — Requerimientos (Agent-Ready)
+# Governed AI CRM Operations Layer — Requerimientos (Agent-Ready)
 
-> **Propósito**: Este documento consolida el análisis de mercado (CRM + IA/LLM + Agents) y deriva un set completo de requerimientos **funcionales (FR)**, **no funcionales (NFR)** y **casos de uso (UC)** para un producto que cubra el hueco: **CRM AI-native, evidence-first, action-capable, gobernado por políticas y con trazabilidad end-to-end**, con opción **self-hosted** y/o **BYO-model**.
+> **Propósito**: Este documento consolida el análisis de mercado (CRM + IA/LLM + Agents) y deriva un set completo de requerimientos **funcionales (FR)**, **no funcionales (NFR)** y **casos de uso (UC)** para un producto que cubra el hueco: **capa de IA gobernada para customer operations, evidence-first, action-capable, gobernada por políticas y con trazabilidad end-to-end**, con opción **self-hosted** y/o **BYO-model**.
 
 > **Nota**: Este documento reemplaza y consolida `agentic_crm_requirements_agent_ready.md`.
+
+> **Alineación estratégica 2026-04-06**: este documento sigue cubriendo el espacio completo de capacidades, pero la prioridad comercial y arquitectónica vigente es la definida en `docs/architecture.md` y `docs/plans/fenixcrm_strategic_repositioning_spec.md`: FenixCRM se posiciona como **governed AI layer for customer operations**, no como broad CRM replacement; el wedge inicial es **Support Copilot / Support Agent**, con **Sales Copilot** como segundo wedge. Cuando este documento entre en conflicto con esa priorización, prevalece la arquitectura actualizada.
 
 ---
 
@@ -54,11 +56,11 @@ Sin embargo, el mercado queda fragmentado entre:
 
 ### Oportunidad
 
-Un **CRM AI-native** que combine:
+Una **capa de IA gobernada para customer operations** que combine:
 1. CRM core extensible
 2. Capa de conocimiento (RAG) **con evidencia y citación obligatoria**
 3. Runtime agentic (acciones, tools, triggers) con **políticas**
-4. "Agent Studio" con contratos de comportamiento (skills/tools/policies/evals/versioning/rollback/Carta)
+4. Contratos de comportamiento, versionado y evals para gobernar workflows
 5. Auditoría y observabilidad end-to-end
 6. Data sovereignty (self-host/BYO-model, "no-cloud" por policy)
 7. Control de costos (presupuestos/quotas por rol/agente/tenant)
@@ -83,7 +85,7 @@ Un **CRM AI-native** que combine:
 
 ### Patrón B — Agentes + Studio + guardrails + analítica
 **Síntesis**: agentes por dominio y un "studio" para adaptar habilidades/políticas y medir rendimiento.
-**Implicación**: sin **Agent Studio** no hay plataforma; hay features sueltas.
+**Implicación**: la plataforma necesita contratos, evaluación y gobernanza; un **Agent Studio** amplio puede llegar después del wedge inicial.
 
 ### Patrón C — Customer support agentic: handoff humano + reglas
 **Síntesis**: escalado configurable, control por canal, transferencia de contexto.
@@ -102,20 +104,23 @@ Un **CRM AI-native** que combine:
 ## 3 — Definición del producto y alcance
 
 ### Nombre de trabajo
-**Agentic CRM OS (self-hosted + AI-native)**
+**Governed AI CRM Operations Layer (self-hosted + AI-native)**
 
 ### Propuesta de valor
-1. **Copilot contextual** dentro del CRM, con acciones operativas.
-2. **RAG** sobre datos estructurados y no estructurados, con **citas obligatorias**.
-3. **Agentes especializados** con triggers, límites, y handoff humano.
-4. **Agent Studio** para construir skills/tools/policies y evaluar.
-5. **Governance**: RBAC/ABAC, PII/no-cloud, approvals, auditoría.
+1. **Support Copilot** y **Support Agent** para casos con evidencia, approvals y audit trail.
+2. **Sales Copilot** para account/deal context con grounding y next steps.
+3. **RAG** sobre datos estructurados y no estructurados, con **citas obligatorias**.
+4. **Governance runtime**: RBAC/ABAC, PII/no-cloud, approvals, auditoría, handoff.
+5. **Cost governance**: budgets, quotas y atribución por run/workspace/tool.
 6. **Model-agnostic**: LLM local y/o cloud con budgets explícitos.
 
 ### Fuera de alcance (por defecto)
 - ERP completo
 - Marketing automation tipo "suite" (solo features mínimas integrables)
 - Contact center/CTI completo (solo conectores e integración)
+- Broad CRM replacement en la estrategia inicial
+- Mobile parity como criterio de salida a mercado
+- Marketplace o Studio breadth antes de validar el wedge
 
 ---
 
@@ -187,7 +192,7 @@ flowchart LR
     LLM[LLM Provider\nLocal/Cloud]
   end
 
-  SYS[(Agentic CRM OS)]
+  SYS[(Governed AI CRM Operations Layer)]
 
   SR --> SYS
   SM --> SYS
@@ -582,14 +587,14 @@ flowchart TD
 | Dominio | P0 | P1 | P2 | Total |
 |---|---|---|---|---|
 | CRM Core | FR-001, FR-002, FR-003 | FR-003, FR-004, FR-005 | — | 5 |
-| Knowledge & RAG | FR-090, FR-091, FR-092 | FR-091, FR-093, FR-094 | — | 5 |
+| Knowledge & RAG | FR-090, FR-092 | FR-091, FR-093, FR-094 | — | 5 |
 | Copilot | FR-200, FR-201, FR-202 | FR-203 | — | 4 |
 | Comportamiento IA | FR-210, FR-211 | FR-212 | — | 3 |
 | Agent Runtime | FR-230, FR-231, FR-232 | FR-233, FR-234 | — | 5 |
-| Agent Studio | FR-240, FR-242 | FR-241, FR-242, FR-243 | — | 4 |
-| Integraciones | FR-050, FR-051 | FR-050 | FR-052 | 3 |
+| Agent Studio | FR-242 | FR-240, FR-241, FR-243 | — | 4 |
+| Integraciones | FR-050, FR-051 | — | FR-052 | 3 |
 | Seguridad & Audit | FR-060, FR-061, FR-070, FR-071 | FR-071 | — | 4 |
-| Mobile & BFF | FR-300, FR-301 | FR-302, FR-303 | — | 4 |
+| Mobile & BFF | — | FR-300, FR-301, FR-302, FR-303 | — | 4 |
 | **Total** | **19** | **~15** | **1** | **31** |
 
 ---
@@ -627,14 +632,14 @@ flowchart TD
 - **NFR-051 (P1)** Multi-tenant con aislamiento (keys por tenant, namespaces).
 
 ### UX & Operabilidad
-- **NFR-060 (P0)** IA "in-flow" en mobile app (pantallas de record) y acciones contextuales. Diseño mobile-first con React Native Paper (Material Design 3).
+- **NFR-060 (P0)** IA "in-flow" en la interfaz operativa principal del wedge, con acciones contextuales y evidencia visible. Mobile puede cumplir esto cuando el workflow lo requiera, pero no es un gate universal de P0.
 - **NFR-061 (P0)** "Explain why" siempre disponible con evidencia.
 - **NFR-062 (P0)** Handoff y reversión/undo para acciones críticas.
 
 ### Mobile Performance
-- **NFR-070 (P0)** Tiempo de carga inicial de mobile app ≤ **3s** en dispositivos Android mid-range (cold start).
-- **NFR-071 (P0)** Navegación entre pantallas CRM ≤ **300ms** (perceived transition).
-- **NFR-072 (P0)** Copilot SSE streaming: primer token visible ≤ **500ms** después de envío de query (excluye latencia LLM).
+- **NFR-070 (P1)** Tiempo de carga inicial de mobile app ≤ **3s** en dispositivos Android mid-range (cold start).
+- **NFR-071 (P1)** Navegación entre pantallas CRM ≤ **300ms** (perceived transition).
+- **NFR-072 (P1)** Copilot SSE streaming: primer token visible ≤ **500ms** después de envío de query (excluye latencia LLM).
 - **NFR-073 (P1)** Tamaño del APK ≤ **50MB** (sin assets de onboarding).
 - **NFR-074 (P1)** Consumo de memoria ≤ **200MB** en uso típico (lista + detalle + copilot activo).
 
@@ -762,20 +767,20 @@ flowchart LR
 
 ### P0 (MVP)
 - FR-001, FR-002, FR-090, FR-092, FR-200, FR-202, FR-060, FR-070, FR-071
-- FR-210, FR-211, FR-230, FR-231, FR-232, FR-240, FR-242
+- FR-210, FR-211, FR-230, FR-231, FR-232, FR-242
 - FR-050, FR-051, FR-061
-- FR-300, FR-301 (Mobile + BFF con Copilot integrado)
+- Base de metering/cost attribution y reporting de uso por workspace/run/tool
 - Casos de uso: UC-C1 (Support Agent con handoff), UC-S1 (Sales Copilot), UC-G1 (Governance)
 - Telemetría mínima: NFR-030, NFR-031
-- Mobile performance: NFR-070, NFR-071, NFR-072
+- Mobile y BFF: opcionales cuando el workflow del wedge lo requiera, no como gate universal de salida
 
 ### P1 (v1)
 - FR-091, FR-093, FR-094, FR-203, FR-233, FR-234, FR-241, FR-242, FR-243
 - FR-003 (Reporting extendido), FR-004, FR-005
 - Catálogo completo de agentes (FR-231 extendido): UC-S2, UC-S3, UC-K1, UC-D1
 - Agent Studio completo: UC-A1
+- FR-300, FR-301, FR-302, FR-303 (Mobile + BFF breadth y experiencia extendida)
 - Cost control completo: NFR-040, NFR-041
-- Push notifications (FR-302), offline cache (FR-303)
 - iOS support (FR-300 extendido)
 - Mobile performance optimization: NFR-073, NFR-074
 

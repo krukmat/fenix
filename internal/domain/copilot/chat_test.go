@@ -11,6 +11,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
+	"github.com/matiasleandrokruk/fenix/internal/domain/usage"
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
 )
 
@@ -60,7 +61,7 @@ func (s *llmStub) ChatCompletion(_ context.Context, _ llm.ChatRequest) (*llm.Cha
 	if s.err != nil {
 		return nil, s.err
 	}
-	return &llm.ChatResponse{Content: s.resp}, nil
+	return &llm.ChatResponse{Content: s.resp, Tokens: 42}, nil
 }
 
 func (s *llmStub) Embed(_ context.Context, _ llm.EmbedRequest) (*llm.EmbedResponse, error) {
@@ -74,6 +75,15 @@ type auditStub struct{ called int }
 func (s *auditStub) LogWithDetails(_ context.Context, _, _ string, _ audit.ActorType, _ string, _, _ *string, _ *audit.EventDetails, _ audit.Outcome) error {
 	s.called++
 	return nil
+}
+
+type usageRecorderStub struct {
+	inputs []usage.RecordEventInput
+}
+
+func (s *usageRecorderStub) RecordEvent(_ context.Context, input usage.RecordEventInput) (*usage.Event, error) {
+	s.inputs = append(s.inputs, input)
+	return &usage.Event{}, nil
 }
 
 func TestChat_StreamIncludesEvidenceTokenDone(t *testing.T) {
@@ -197,6 +207,44 @@ func TestChat_AbstainsWhenEvidenceIsIrrelevant(t *testing.T) {
 	}
 	if llmSvc.call != 0 {
 		t.Fatalf("expected llm not to be called, got %d", llmSvc.call)
+	}
+}
+
+func TestChat_RecordsUsageForGroundedQuery(t *testing.T) {
+	sn := "enterprise pricing tiers for customer success"
+	recorder := &usageRecorderStub{}
+	svc := NewChatServiceWithUsage(
+		&evidenceStub{pack: &knowledge.EvidencePack{Sources: []knowledge.Evidence{{ID: "ev_1", Snippet: &sn}}, Confidence: knowledge.ConfidenceHigh}},
+		&llmStub{resp: "pricing response"},
+		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
+		&auditStub{},
+		recorder,
+	)
+
+	ch, err := svc.Chat(context.Background(), ChatInput{WorkspaceID: "ws_1", UserID: "u_1", Query: "enterprise pricing tiers"})
+	if err != nil {
+		t.Fatalf("Chat error: %v", err)
+	}
+	_ = collectChatChunks(ch)
+
+	if len(recorder.inputs) != 1 {
+		t.Fatalf("expected 1 usage event, got %d", len(recorder.inputs))
+	}
+	event := recorder.inputs[0]
+	if event.WorkspaceID != "ws_1" || event.ActorID != "u_1" {
+		t.Fatalf("unexpected usage attribution: %#v", event)
+	}
+	if event.ActorType != string(audit.ActorTypeUser) {
+		t.Fatalf("unexpected actor type: %q", event.ActorType)
+	}
+	if event.ModelName == nil || *event.ModelName != "stub" {
+		t.Fatalf("unexpected model name: %#v", event.ModelName)
+	}
+	if event.InputUnits != 42 || event.OutputUnits != 42 {
+		t.Fatalf("unexpected units: input=%d output=%d", event.InputUnits, event.OutputUnits)
+	}
+	if event.LatencyMs == nil {
+		t.Fatal("expected latency")
 	}
 }
 

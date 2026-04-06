@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
@@ -32,6 +33,14 @@ const (
 	StatusAbstained = "abstained"
 	StatusFailed    = "failed"
 	StatusEscalated = "escalated"
+)
+
+const (
+	PublicOutcomeCompleted             = "completed"
+	PublicOutcomeCompletedWithWarnings = "completed_with_warnings"
+	PublicOutcomeAwaitingApproval      = "awaiting_approval"
+	PublicOutcomeHandedOff             = "handed_off"
+	PublicOutcomeDeniedByPolicy        = "denied_by_policy"
 )
 
 // emptyJSONArray is the default value for JSON array fields in a new agent run.
@@ -363,10 +372,17 @@ func matchesRunFilters(run *Run, input ListRunsInput) bool {
 	}
 	meta := extractRunContextMetadata(run)
 
-	return matchesOptionalFilter(run.Status, input.Status) &&
+	return matchRunStatusFilter(run, input.Status) &&
 		matchesOptionalFilter(meta.workflowID, input.WorkflowID) &&
 		matchesOptionalFilter(meta.entityType, input.EntityType) &&
 		matchesOptionalFilter(meta.entityID, input.EntityID)
+}
+
+func matchRunStatusFilter(run *Run, expected string) bool {
+	if expected == "" {
+		return true
+	}
+	return run.Status == expected || PublicRunOutcome(run) == expected
 }
 
 func matchesOptionalFilter(actual, expected string) bool {
@@ -456,7 +472,90 @@ func firstNonEmptyRunValue(values ...string) string {
 	return ""
 }
 
-const dispatchReasonKey = "reason"
+const (
+	dispatchReasonKey  = "reason"
+	rejectionReasonKey = "rejection_reason"
+)
+
+func PublicRunOutcome(run *Run) string {
+	if run == nil {
+		return ""
+	}
+
+	switch run.Status {
+	case StatusRunning:
+		return StatusRunning
+	case StatusAccepted:
+		if RunAwaitsApproval(run) {
+			return PublicOutcomeAwaitingApproval
+		}
+		return StatusRunning
+	case StatusSuccess:
+		return PublicOutcomeCompleted
+	case StatusPartial:
+		return PublicOutcomeCompletedWithWarnings
+	case StatusAbstained:
+		return StatusAbstained
+	case StatusEscalated, StatusDelegated:
+		return PublicOutcomeHandedOff
+	case StatusRejected:
+		if RunDeniedByPolicy(run) {
+			return PublicOutcomeDeniedByPolicy
+		}
+		return StatusFailed
+	case StatusFailed:
+		return StatusFailed
+	default:
+		return run.Status
+	}
+}
+
+func RunAwaitsApproval(run *Run) bool {
+	if run == nil {
+		return false
+	}
+	output := decodeAgentRunOutput(run.Output)
+	action, _ := output["action"].(string)
+	if action == "pending_approval" {
+		return true
+	}
+	_, hasApprovalID := output["approval_id"]
+	return hasApprovalID
+}
+
+func RunDeniedByPolicy(run *Run) bool {
+	if run == nil || run.Status != StatusRejected {
+		return false
+	}
+	for _, candidate := range []string{
+		firstJSONString(run.Output, dispatchReasonKey),
+		firstJSONString(run.Output, rejectionReasonKey),
+		derefString(run.AbstentionReason),
+	} {
+		if strings.Contains(strings.ToLower(candidate), "policy") {
+			return true
+		}
+	}
+	return false
+}
+
+func decodeAgentRunOutput(raw json.RawMessage) map[string]any {
+	if len(raw) == 0 {
+		return map[string]any{}
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return map[string]any{}
+	}
+	return decoded
+}
+
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
 
 // UpdateAgentRunStatus updates the status of an agent run
 func (o *Orchestrator) UpdateAgentRunStatus(ctx context.Context, workspaceID, runID, status string) (*Run, error) {

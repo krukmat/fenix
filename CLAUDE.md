@@ -4,24 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-## Project: Agentic CRM OS
+## Project: Governed AI CRM Operations Layer
 
-**What**: A self-hosted, AI-native CRM platform combining operational CRM with evidence-based agents, RAG retrieval, and policy-driven governance.
+**What**: A self-hosted governed AI layer for customer operations, combining CRM context, retrieval grounding, safe tools, approvals, auditability, and agent/copilot execution.
 
-**Why**: Close the gap between traditional CRMs (no agentic layer) and enterprise suites (vendor lock-in). Enable teams to build trustworthy AI workflows with full audit trails, evidence requirements, and cost controls.
+**Why**: Enable trustworthy AI workflows over customer context without forcing teams into opaque automation or broad CRM replacement bets. The moat is governance, evidence, approval, audit, and controlled execution.
 
-**Where we are**: Architecture design complete. Entering implementation phase.
+**Where we are**: Core implementation exists. The architecture has been strategically realigned toward support and sales workflow wedges, with planning to follow for the remaining backlog reshaping.
 
 **Key documents**:
 - Requirements: `docs/requirements.md`
 - Architecture & design (ERD, diagrams, API, build order): `docs/architecture.md`
-- Implementation plan (13 weeks, 4 phases, TDD): `docs/implementation-plan.md`
+- Strategic repositioning spec: `docs/plans/fenixcrm_strategic_repositioning_spec.md`
+- Canonical implementation plan: `docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md`
+- Historical MVP implementation plan (reference only): `docs/implementation-plan.md`
 - Corrections applied (audit report): `docs/CORRECTIONS-APPLIED.md`
 
 **Source of truth rules (MANDATORY)**:
-- Before planning or implementing any task, ALWAYS read `docs/implementation-plan.md` for the task spec and `docs/architecture.md` for architectural constraints.
-- These two documents are the primary source of truth. Only deviate with explicit user approval.
-- If the implementation plan is ambiguous or conflicts with the architecture doc, ask the user before proceeding.
+- Before planning or implementing any task, ALWAYS read `docs/architecture.md` for current architectural constraints and `docs/plans/fenixcrm_strategic_repositioning_spec.md` for product-direction constraints.
+- `docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md` is the canonical implementation ordering for the current strategy.
+- `docs/implementation-plan.md` remains useful historical execution context, but if it conflicts with the canonical repositioning plan, the architecture doc, or the repositioning spec, the newer documents take precedence.
+- If the historical implementation plan is ambiguous or conflicts with the architecture doc, follow the canonical repositioning plan and architecture doc, then flag the drift explicitly.
 
 **Agent attribution (MANDATORY)**:
 - Before making any git commit, ALWAYS run both to avoid stale attribution from a previous agent:
@@ -42,6 +45,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - If a required local QA gate cannot be executed, stop and report that explicitly before pushing.
 - Install hooks with `make install-hooks` so the repository `pre-push` hook can enforce this automatically.
 
+**Knowledge management / Obsidian rules (MANDATORY)**:
+- Obsidian is the repository knowledge-management layer for project tracking docs, not a product feature.
+- Maintain the doc vault proactively. If a task changes architecture, scope, roadmap, requirements, APIs, data model, operational rules, or delivery status, update the relevant Obsidian artifacts in the same turn without waiting for an explicit user request.
+- Do not assume markdown files under `docs/` are structured task records unless they start with YAML frontmatter.
+- Any new tracking artifact intended for Obsidian must declare `doc_type` in YAML frontmatter at the top of the file.
+- Allowed `doc_type` values are: `task`, `adr`, `summary`, `audit`, `handoff`.
+- If a change creates project-understanding drift, update the source document and also create or update the appropriate vault artifact (`summary`, `audit`, `adr`, or `task`) when future planning, governance, or traceability would otherwise be weakened.
+- `docs/tasks/` is reserved for actual task records only. Do not place summaries, audits, handoffs, or scratch notes there unless the user explicitly asks for that structure.
+- New task records in `docs/tasks/` must include at minimum:
+  ```
+  doc_type: task
+  id:
+  title:
+  status:
+  phase:
+  week:
+  tags: []
+  fr_refs: []
+  uc_refs: []
+  blocked_by: []
+  blocks: []
+  files_affected: []
+  created:
+  completed:
+  ```
+- ADRs belong in `docs/decisions/`, not in `docs/tasks/`.
+- Durable vault artifacts that define shared project reality must remain trackable in Git. This applies by default to canonical plans in `docs/plans/` and ADRs in `docs/decisions/`.
+- `docs/tasks/` may contain operational task records that are useful in Obsidian without necessarily being promoted to shared Git history. Do not assume every task record must be committed.
+- If a task record becomes the canonical source for coordination, delivery tracking, or cross-session handoff, promote it to a Git-trackable artifact explicitly.
+- If ignore rules block a canonical plan or ADR that should be shared, fix the ignore rule or flag the conflict immediately.
+- If you create or edit Obsidian dashboards / Dataview queries, filter by `doc_type` instead of assuming all files in a folder share the same schema.
+- When strategic priorities change, update the relevant dashboards or summary notes so the vault continues to reflect current project reality.
+
 ---
 
 ## Core Design Principles
@@ -57,22 +93,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Priorities: What Builds On What
 
 **P0 (MVP)** — Must complete before P1:
-- CRM entities (FR-001/002): Account, Contact, Lead, Deal, Case, Activity
+- Context entities needed by the wedge: Account, Contact, Deal, Case, Activity, supporting notes and timeline
 - Hybrid retrieval (FR-090/092): Keyword + vector with mandatory evidence packs
-- Copilot + tools (FR-200/202): In-flow UI, executable actions
+- Copilot + tools (FR-200/202): Grounded response flow, executable actions
 - One end-to-end agent (UC-C1, FR-230): Support agent resolves cases
 - Governance (FR-060/070/071): Permissions, audit trail, approvals
 - Handoff (FR-232): Escalate to human with evidence
 - Basic observability (NFR-030/031): Metrics per agent
+- Usage and cost metering foundation (NFR-040/041 direction): per run, per workspace, per tool attribution
 
 **P1 (v1)** — Enabled by P0:
 - Multi-source ingestion (FR-091): Email, docs, calls
+- Sales Copilot end-to-end
+- Better connector coverage
 - Agent catalog (FR-231): Prospecting, KB, insights agents
 - Agent Studio (FR-240/241/242): Versioning, skills builder, evals
 - Quotas + degradation (FR-233, NFR-040/041): Budget controls
 - Replay/simulation (FR-243): Troubleshoot agent runs
 
 **P2 (v2)** — Enabled by P1:
+- Broad mobile parity and non-wedge CRM expansion
 - Marketplace (FR-052): Plugin SDK and store
 
 ---

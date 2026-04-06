@@ -1,6 +1,6 @@
 # FenixCRM
 
-> A CRM where evidence produces signals, signals trigger workflows, workflows drive actions, and humans stay in control where it matters.
+> A governed AI layer for customer operations where evidence grounds answers, policy constrains actions, and humans stay in control where it matters.
 
 ---
 
@@ -9,23 +9,25 @@
 Most CRMs are passive databases. Teams update them after the fact, work happens elsewhere,
 and the system lags behind reality.
 
-FenixCRM starts from a different assumption: **the key unit is not the record. It is the signal.**
+FenixCRM starts from a different assumption: **the key unit is the governed workflow over trusted context.**
 
-A signal is an operational conclusion backed by evidence — high intent, escalation risk, deal at risk.
-Once the system detects what matters, it can help act on it: structured workflows, governed tool execution,
-human approval where needed, and a full audit trail.
-
-That means FenixCRM is not "AI on top of CRM." It is a CRM designed around execution from the start —
-a governed execution layer sitting between human teams, business events, external agents, and shared context.
+That means FenixCRM is not trying to win as a broad CRM replacement. It is a governed AI execution layer
+for customer operations, sitting between human teams, business events, external systems, and shared context.
 
 Concretely, it combines:
 
-- a traditional operational CRM: accounts, contacts, leads, deals, cases, activities
-- an agentic layer: tools, policy, audit, evidence packs, and agents acting on the CRM
-- a declarative workflow layer: visible, verifiable, executable business logic
+- a context layer: native CRM records plus external context and provenance
+- a governed AI layer: retrieval, evidence packs, policy, approvals, audit, and safe tools
+- an execution layer: copilots, agents, handoff, and declarative workflow evolution
+
+The current wedge is:
+
+- Support Copilot and Support Agent for case handling
+- Sales Copilot for account and deal context
+- Evidence-grounded execution with approval and auditability
 
 The current direction of the project is to evolve from hardcoded Go agents toward verified,
-executable declarative workflows.
+executable declarative workflows without losing the governed runtime already built.
 
 The core idea is simple:
 
@@ -50,7 +52,7 @@ to:
 
 A workflow should be understandable, verifiable, and executable.
 A judge verifies it before activation. A runtime executes it. Tools perform the concrete operations.
-Policy, approvals, and audit keep the whole thing under control.
+Policy, approvals, audit, and cost controls keep the whole thing under control.
 
 This does not require a rewrite. The strategy is to extend the current infrastructure:
 
@@ -58,6 +60,7 @@ This does not require a rewrite. The strategy is to extend the current infrastru
 - `PolicyEngine`
 - `ApprovalService`
 - `AuditTrail`
+- `Usage Ledger`
 - `EventBus`
 - `agent_run`
 
@@ -107,6 +110,7 @@ flowchart LR
     GO --> TOOLS[ToolRegistry]
     TOOLS --> POLICY[PolicyEngine]
     TOOLS --> AUDIT[Audit]
+    GO --> USAGE[Usage and Cost Signals]
     GO --> EVIDENCE[Knowledge and Evidence]
     GO --> CRM[CRM State]
 ```
@@ -121,6 +125,7 @@ flowchart LR
     RUNTIME --> TOOLS[ToolRegistry]
     TOOLS --> POLICY[PolicyEngine]
     TOOLS --> AUDIT[Audit]
+    RUNTIME --> USAGE[Usage Ledger and Quotas]
     RUNTIME --> SIGNALS[SignalService]
     RUNTIME --> CRM[CRM State]
 ```
@@ -164,13 +169,13 @@ In short:
 - workflow: `resolve_support_case`
 - tool call: `update_case`
 - policy decision: allow or deny
-- outcome: CRM updated and execution audited
+- outcome: CRM updated, usage attributed, and execution audited
 
 ---
 
 ## Transition Strategy
 
-The transition is phased.
+The transition is phased, but the commercial priority is narrower than the full platform surface.
 
 ```mermaid
 flowchart LR
@@ -197,6 +202,12 @@ Quick summary:
 - `Phase 7`: gradual agent migration
 - `Phase 8`: standards-based interoperability
 
+The current product priority order is:
+
+- first: support workflows, approvals, audit, evidence quality, and usage attribution
+- next: sales copilot, connector coverage, eval depth, and quotas
+- later: mobile breadth, broad studio surfaces, and marketplace-style extensibility
+
 ---
 
 ## Interoperability
@@ -222,16 +233,19 @@ That means:
 ## Project Structure
 
 ```text
-fenix/
+fenixcrm/
 |-- cmd/                # entrypoints
 |-- internal/
 |   |-- api/            # HTTP handlers and middleware
-|   |-- domain/         # crm, agent, tool, policy, audit, knowledge
-|   |-- infra/          # sqlite, eventbus, llm, config
+|   |-- domain/         # crm, agent, tool, policy, audit, knowledge, workflow, signal
+|   |-- infra/          # sqlite, llm, supporting runtime infra
 |-- docs/               # architecture, plans, and task docs
+|-- reqs/               # UC / FR / TST requirement traceability
 |-- tests/              # contract and integration tests
-|-- mobile/             # mobile app
-|-- bff/                # backend for frontend
+|-- mobile/             # optional mobile app surface
+|-- bff/                # optional backend for frontend
+|-- pkg/                # shared Go utilities
+|-- scripts/            # QA and automation
 ```
 
 ---
@@ -252,7 +266,7 @@ Important note:
 - `make ci` is currently designed for a POSIX/Linux environment
 - the documented local reference is remote CI or a compatible environment
 
-See: [docs/ci.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/ci.md)
+See: `docs/ci.md`
 
 ---
 
@@ -260,34 +274,36 @@ See: [docs/ci.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/ci.md)
 
 To understand the current system:
 
-- [docs/architecture.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/architecture.md)
-- [docs/implementation-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/implementation-plan.md)
+- `docs/architecture.md`
+- `docs/plans/fenixcrm_strategic_repositioning_spec.md`
+- `docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md`
+- `docs/implementation-plan.md` (historical reference)
 
 To understand the AGENT_SPEC transition:
 
-- [docs/agent-spec-overview.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-overview.md)
-- [docs/agent-spec-traceability.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-traceability.md)
-- [docs/agent-spec-use-cases.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-use-cases.md)
-- [docs/agent-spec-design.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-design.md)
-- [docs/agent-spec-integration-analysis.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-integration-analysis.md)
-- [docs/agent-spec-development-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-development-plan.md)
+- `docs/agent-spec-overview.md`
+- `docs/agent-spec-traceability.md`
+- `docs/agent-spec-use-cases.md`
+- `docs/agent-spec-design.md`
+- `docs/agent-spec-integration-analysis.md`
+- `docs/agent-spec-development-plan.md`
 
 Reference-only AGENT_SPEC documents:
 
-- [docs/agent-spec-transition-plan.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-transition-plan.md)
-- [docs/AGENT_SPEC.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/AGENT_SPEC.md)
+- `docs/agent-spec-transition-plan.md`
+- `docs/AGENT_SPEC.md`
 
 To understand the transition baselines:
 
-- [docs/agent-spec-regression-baseline.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-regression-baseline.md)
-- [docs/agent-spec-go-agents-baseline.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-go-agents-baseline.md)
-- [docs/agent-spec-core-contracts-baseline.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-core-contracts-baseline.md)
-- [docs/agent-spec-phase1-quality-gates.md](/c:/Users/octoedro/Desktop/fenixCRM/fenix/docs/agent-spec-phase1-quality-gates.md)
+- `docs/agent-spec-regression-baseline.md`
+- `docs/agent-spec-go-agents-baseline.md`
+- `docs/agent-spec-core-contracts-baseline.md`
+- `docs/agent-spec-phase1-quality-gates.md`
 
 ---
 
 ## Status
 
-- the CRM base and agentic layer already exist
-- the declarative workflow transition is documented
-- implementation work is isolated in the `agent-spec-transition` branch
+- the governed runtime, retrieval layer, approvals, and audit foundations already exist
+- the current wedge is support workflows first, sales copilot second
+- the declarative workflow transition is documented but does not define the market-facing wedge by itself
