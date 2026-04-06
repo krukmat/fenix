@@ -237,7 +237,7 @@ func loadDoorstopTSTs(dir string) ([]TSTItem, error) {
 			Ref:         raw.Ref,
 			FRLinks:     extractFRLinks(raw.Links),
 			BDDFeature:  raw.BDD.Feature,
-			BDDScenario: raw.BDD.Scenario,
+			BDDScenario: strings.TrimSpace(raw.BDD.Scenario),
 			BDDStack:    raw.BDD.Stack,
 			BDDBehavior: raw.BDD.Behavior,
 		})
