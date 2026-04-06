@@ -1,16 +1,16 @@
 active: true
+bdd:
+  behavior: verify_workflow
+  feature: features/uc-a3-workflow-verification-and-activation.feature
+  scenario: Verify a draft workflow before activation
+  stack: go
 derived: false
 header: ''
 level: 2
 links:
-- FR240: verifyTST053=
 - FR_070: auditTST053=
+- FR_240: verifyTST053=
 normative: true
-bdd:
-  feature: features/uc-a3-workflow-verification-and-activation.feature
-  scenario: Verify a draft workflow before activation
-  stack: go
-  behavior: verify_workflow
 ref: tests/bdd/go/bdd_test.go
 reviewed: TST053review=
 text: |

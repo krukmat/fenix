@@ -1,4 +1,9 @@
 active: true
+bdd:
+  behavior: detect_signal
+  feature: features/uc-a5-signal-detection-and-lifecycle.feature
+  scenario: Detect a grounded signal from evidence
+  stack: go
 derived: false
 header: ''
 level: 2
@@ -6,11 +11,6 @@ links:
 - FR_091: signalTST055=
 - FR_092: evidenceTST055=
 normative: true
-bdd:
-  feature: features/uc-a5-signal-detection-and-lifecycle.feature
-  scenario: Detect a grounded signal from evidence
-  stack: go
-  behavior: detect_signal
 ref: tests/bdd/go/bdd_test.go
 reviewed: TST055review=
 text: |

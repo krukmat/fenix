@@ -4,8 +4,8 @@ derived: false
 header: ''
 level: 1
 links:
-- FR240: versionA8Link=
 - FR_070: 0EI2DzGEbbuJwCbFNpiyooEbIct4y4-ntxVudS_uW5o=
+- FR_240: versionA8Link=
 normative: true
 ref: docs/agent-spec-overview.md
 reviewed: null

@@ -1,16 +1,16 @@
 active: true
+bdd:
+  behavior: delegate_workflow
+  feature: features/uc-a9-agent-delegation.feature
+  scenario: Delegate workflow execution to another agent
+  stack: go
 derived: false
 header: ''
 level: 2
 links:
-- FR_202: delegateTST059=
 - FR_070: auditDelegateTST059=
+- FR_202: delegateTST059=
 normative: true
-bdd:
-  feature: features/uc-a9-agent-delegation.feature
-  scenario: Delegate workflow execution to another agent
-  stack: go
-  behavior: delegate_workflow
 ref: tests/bdd/go/bdd_test.go
 reviewed: TST059review=
 text: |

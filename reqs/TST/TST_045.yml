@@ -1,14 +1,14 @@
 active: true
+bdd:
+  feature: features/uc-s2-prospecting-agent.feature
+  scenario: Generate an outreach draft with approved tools
+  stack: go
 derived: false
 header: ''
 level: 2
 links:
 - FR_202: nFGnMmATxFZ5xBTA3M0Hql3TA8DE5tDBFX6oZX-JaMg=
 normative: true
-bdd:
-  feature: features/uc-s2-prospecting-agent.feature
-  scenario: Generate an outreach draft with approved tools
-  stack: go
 ref: internal/domain/tool/registry_test.go
 reviewed: zX3GwYwVRarjsE8gABnA4pgcjC9zgERG8ALoLwfTyWA=
 text: |

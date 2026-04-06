@@ -1,16 +1,16 @@
 active: true
+bdd:
+  behavior: version_workflow
+  feature: features/uc-a8-workflow-versioning-and-rollback.feature
+  scenario: Create a new draft version from an active workflow
+  stack: go
 derived: false
 header: ''
 level: 2
 links:
-- FR240: versionTST058=
 - FR_070: auditVersionTST058=
+- FR_240: versionTST058=
 normative: true
-bdd:
-  feature: features/uc-a8-workflow-versioning-and-rollback.feature
-  scenario: Create a new draft version from an active workflow
-  stack: go
-  behavior: version_workflow
 ref: tests/bdd/go/bdd_test.go
 reviewed: TST058review=
 text: |

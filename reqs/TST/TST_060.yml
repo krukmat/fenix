@@ -1,16 +1,16 @@
 active: true
+bdd:
+  behavior: execute_workflow_condition_false
+  feature: features/uc-a4-workflow-execution.feature
+  scenario: Skip a conditional branch when the workflow condition is false
+  stack: go
 derived: false
 header: ''
 level: 2
 links:
-- FR_202: conditionFalseTST060=
 - FR_070: traceConditionFalseTST060=
+- FR_202: conditionFalseTST060=
 normative: true
-bdd:
-  feature: features/uc-a4-workflow-execution.feature
-  scenario: Skip a conditional branch when the workflow condition is false
-  stack: go
-  behavior: execute_workflow_condition_false
 ref: tests/bdd/go/bdd_test.go
 reviewed: TST060review=
 text: |

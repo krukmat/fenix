@@ -1,14 +1,14 @@
 active: true
+bdd:
+  feature: features/uc-c1-support-agent.feature
+  scenario: Abstain when the evidence is insufficient
+  stack: go
 derived: false
 header: ''
 level: 2
 links:
 - FR_092: 4AlL939onTbDSRm5iIwU1uOE73w4uCUoG-m7bgOWilk=
 normative: true
-bdd:
-  feature: features/uc-c1-support-agent.feature
-  scenario: Abstain when the evidence is insufficient
-  stack: go
 ref: internal/api/handlers/knowledge_evidence_test.go
 reviewed: jf1U1LAQae5psAOd9AzqFi_TAA3r8l93_KEAp9dS4PE=
 text: |

@@ -4,7 +4,7 @@ derived: false
 header: ''
 level: 1
 links:
-- FR240: draftA2Link=
+- FR_240: draftA2Link=
 normative: true
 ref: docs/agent-spec-overview.md
 reviewed: null

@@ -1,4 +1,9 @@
 active: true
+bdd:
+  behavior: human_override
+  feature: features/uc-a7-human-override-and-approval.feature
+  scenario: Require approval before a sensitive workflow action
+  stack: go
 derived: false
 header: ''
 level: 2
@@ -6,11 +11,6 @@ links:
 - FR_061: approvalTST057=
 - FR_070: auditApprovalTST057=
 normative: true
-bdd:
-  feature: features/uc-a7-human-override-and-approval.feature
-  scenario: Require approval before a sensitive workflow action
-  stack: go
-  behavior: human_override
 ref: tests/bdd/go/bdd_test.go
 reviewed: TST057review=
 text: |

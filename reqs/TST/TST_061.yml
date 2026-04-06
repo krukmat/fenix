@@ -1,16 +1,16 @@
 active: true
+bdd:
+  behavior: execute_workflow_tool_failure
+  feature: features/uc-a4-workflow-execution.feature
+  scenario: Fail workflow execution when a mapped tool call errors
+  stack: go
 derived: false
 header: ''
 level: 2
 links:
-- FR_202: toolFailureTST061=
 - FR_070: auditToolFailureTST061=
+- FR_202: toolFailureTST061=
 normative: true
-bdd:
-  feature: features/uc-a4-workflow-execution.feature
-  scenario: Fail workflow execution when a mapped tool call errors
-  stack: go
-  behavior: execute_workflow_tool_failure
 ref: tests/bdd/go/bdd_test.go
 reviewed: TST061review=
 text: |

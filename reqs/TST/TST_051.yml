@@ -1,4 +1,8 @@
 active: true
+bdd:
+  feature: features/uc-a1-agent-studio.feature
+  scenario: Validate an agent studio configuration before promotion
+  stack: go
 derived: false
 header: ''
 level: 2
@@ -6,10 +10,6 @@ links:
 - FR_070: 7bA7xjJ6t0nuz7H2CwWf8d2d6K4lGQ3f9n7T0Y1xZ2A=
 - FR_202: nFGnMmATxFZ5xBTA3M0Hql3TA8DE5tDBFX6oZX-JaMg=
 normative: true
-bdd:
-  feature: features/uc-a1-agent-studio.feature
-  scenario: Validate an agent studio configuration before promotion
-  stack: go
 ref: tests/bdd/go/bdd_test.go
 reviewed: 6S8n9J8M-B3LkT1v5dQ0rK2sYxN7pQ4wE1cV6mH9jR0=
 text: |
