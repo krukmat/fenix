@@ -19,16 +19,13 @@ type scenarioState struct {
 	hasEvidence             bool
 	hasProspectContext      bool
 	hasAnalyticalData       bool
-	hasAllowedResolution    bool
 	hasRegisteredTool       bool
 	hasStudioDraft          bool
 	hasWorkflowDraft        bool
 	hasWorkflowSpec         bool
-	needsHumanReview        bool
 	requiresSensitiveAction bool
 	auditRecorded           bool
 	approvalPending         bool
-	agentAbstained          bool
 	validationPassed        bool
 	workflowInTesting       bool
 	workflowVersionCreated  bool
@@ -40,8 +37,6 @@ type scenarioState struct {
 	dealAtRisk              bool
 	actionRejected          bool
 	runExecuted             bool
-	replayAllowed           bool
-	replayAccepted          bool
 	denialRecorded          bool
 	lastStatusCode          int
 	lastResponseBody        []byte
