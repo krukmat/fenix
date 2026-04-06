@@ -200,18 +200,36 @@ func TestEvidencePackService_PackConfidenceAndNormalizeScore(t *testing.T) {
 func TestEvidencePackService_EmptyEvidencePackAndWarnings(t *testing.T) {
 	svc := &EvidencePackService{cfg: DefaultEvidenceConfig()}
 
-	empty := svc.emptyEvidencePack()
+	empty := svc.emptyEvidencePack("pricing")
 	if empty == nil {
 		t.Fatal("expected non-nil empty evidence pack")
 	}
+	if empty.SchemaVersion != EvidencePackSchemaVersion {
+		t.Fatalf("schema_version = %q, want %q", empty.SchemaVersion, EvidencePackSchemaVersion)
+	}
+	if empty.Query != "pricing" {
+		t.Fatalf("query = %q, want pricing", empty.Query)
+	}
 	if len(empty.Sources) != 0 {
 		t.Fatalf("expected zero sources in empty pack, got %d", len(empty.Sources))
+	}
+	if empty.SourceCount != 0 {
+		t.Fatalf("source_count = %d, want 0", empty.SourceCount)
+	}
+	if empty.DedupCount != 0 {
+		t.Fatalf("dedup_count = %d, want 0", empty.DedupCount)
 	}
 	if empty.Confidence != ConfidenceLow {
 		t.Fatalf("expected low confidence for empty pack, got %v", empty.Confidence)
 	}
 	if len(empty.Warnings) == 0 {
 		t.Fatal("expected warning in empty pack")
+	}
+	if len(empty.RetrievalMethodsUsed) != 0 {
+		t.Fatalf("retrieval_methods_used = %v, want empty", empty.RetrievalMethodsUsed)
+	}
+	if empty.BuiltAt.IsZero() {
+		t.Fatal("expected built_at to be set")
 	}
 
 	if warnings := svc.buildWarnings(0, 0); len(warnings) != 0 {
@@ -270,6 +288,21 @@ func TestEvidencePackService_Build_Basic(t *testing.T) {
 	// Verify counters
 	if pack.TotalCandidates == 0 {
 		t.Error("expected TotalCandidates > 0")
+	}
+	if pack.SchemaVersion != EvidencePackSchemaVersion {
+		t.Fatalf("schema_version = %q, want %q", pack.SchemaVersion, EvidencePackSchemaVersion)
+	}
+	if pack.Query != "pricing" {
+		t.Fatalf("query = %q, want pricing", pack.Query)
+	}
+	if pack.SourceCount != len(pack.Sources) {
+		t.Fatalf("source_count = %d, want %d", pack.SourceCount, len(pack.Sources))
+	}
+	if len(pack.RetrievalMethodsUsed) == 0 {
+		t.Fatal("expected retrieval methods to be set")
+	}
+	if pack.BuiltAt.IsZero() {
+		t.Fatal("expected built_at to be set")
 	}
 }
 

@@ -5,6 +5,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 )
@@ -29,11 +30,17 @@ type evidenceResponse struct {
 }
 
 type evidenceData struct {
-	Sources         []evidenceSource `json:"sources"`
-	Confidence      string           `json:"confidence"`
-	TotalCandidates int              `json:"total_candidates"`
-	FilteredCount   int              `json:"filtered_count"`
-	Warnings        []string         `json:"warnings"`
+	SchemaVersion        string           `json:"schema_version"`
+	Query                string           `json:"query"`
+	Sources              []evidenceSource `json:"sources"`
+	SourceCount          int              `json:"source_count"`
+	DedupCount           int              `json:"dedup_count"`
+	Confidence           string           `json:"confidence"`
+	TotalCandidates      int              `json:"total_candidates"`
+	FilteredCount        int              `json:"filtered_count"`
+	Warnings             []string         `json:"warnings"`
+	RetrievalMethodsUsed []string         `json:"retrieval_methods_used"`
+	BuiltAt              string           `json:"built_at"`
 }
 
 type evidenceSource struct {
@@ -89,16 +96,26 @@ func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request)
 			CreatedAt:       src.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
 	}
+	retrievalMethods := make([]string, len(pack.RetrievalMethodsUsed))
+	for i, method := range pack.RetrievalMethodsUsed {
+		retrievalMethods[i] = string(method)
+	}
 
 	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusOK)
 	if encodeErr := json.NewEncoder(w).Encode(evidenceResponse{
 		Data: evidenceData{
-			Sources:         sources,
-			Confidence:      string(pack.Confidence),
-			TotalCandidates: pack.TotalCandidates,
-			FilteredCount:   pack.FilteredCount,
-			Warnings:        pack.Warnings,
+			SchemaVersion:        pack.SchemaVersion,
+			Query:                pack.Query,
+			Sources:              sources,
+			SourceCount:          pack.SourceCount,
+			DedupCount:           pack.DedupCount,
+			Confidence:           string(pack.Confidence),
+			TotalCandidates:      pack.TotalCandidates,
+			FilteredCount:        pack.FilteredCount,
+			Warnings:             pack.Warnings,
+			RetrievalMethodsUsed: retrievalMethods,
+			BuiltAt:              pack.BuiltAt.Format(time.RFC3339),
 		},
 	}); encodeErr != nil {
 		http.Error(w, errFailedToEncodeJSON, http.StatusInternalServerError)

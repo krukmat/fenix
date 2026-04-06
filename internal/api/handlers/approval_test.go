@@ -113,6 +113,43 @@ func TestApprovalHandler_DecideApproval_SuccessNoContent(t *testing.T) {
 	}
 }
 
+func TestApprovalHandler_DecideApproval_CancelByRequester_SuccessNoContent(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	requesterID := createUser(t, db, wsID)
+	approverID := createUser(t, db, wsID)
+
+	svc := policy.NewApprovalService(db, audit.NewAuditService(db))
+	approval, err := svc.CreateApprovalRequest(context.Background(), policy.CreateApprovalRequestInput{
+		WorkspaceID: wsID,
+		RequestedBy: requesterID,
+		ApproverID:  approverID,
+		Action:      "tool.execute",
+		ExpiresAt:   time.Now().Add(30 * time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("seed approval request: %v", err)
+	}
+
+	h := NewApprovalHandler(svc)
+	body, _ := json.Marshal(map[string]any{"decision": "cancel"})
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/approvals/"+approval.ID, bytes.NewReader(body))
+	req = req.WithContext(contextWithUserID(req.Context(), requesterID))
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", approval.ID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.DecideApproval(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status=%d want=%d body=%s", rr.Code, http.StatusNoContent, rr.Body.String())
+	}
+}
+
 func TestApprovalHandler_DecideApproval_InvalidDecision_Returns400(t *testing.T) {
 	t.Parallel()
 

@@ -246,7 +246,7 @@ func streamChatResult(result ChatResult) <-chan StreamChunk {
 	ch := make(chan StreamChunk)
 	go func() {
 		defer close(ch)
-		ch <- StreamChunk{Type: "evidence", Sources: result.Sources}
+		ch <- StreamChunk{Type: "evidence", Sources: result.Sources, Meta: evidenceMeta(result.Sources)}
 		for _, tk := range strings.Fields(result.Content) {
 			ch <- StreamChunk{Type: "token", Delta: tk + " "}
 		}
@@ -254,6 +254,25 @@ func streamChatResult(result ChatResult) <-chan StreamChunk {
 	}()
 
 	return ch
+}
+
+func evidenceMeta(sources []knowledge.Evidence) map[string]any {
+	methods := make([]string, 0, len(sources))
+	seen := make(map[knowledge.EvidenceMethod]struct{}, len(sources))
+	for _, source := range sources {
+		if _, ok := seen[source.Method]; ok {
+			continue
+		}
+		seen[source.Method] = struct{}{}
+		methods = append(methods, string(source.Method))
+	}
+
+	return map[string]any{
+		"schema_version":         knowledge.EvidencePackSchemaVersion,
+		"source_count":           len(sources),
+		"retrieval_methods_used": methods,
+		"built_at":               time.Now().UTC().Format(time.RFC3339),
+	}
 }
 
 func doneMeta(result ChatResult) map[string]any {

@@ -64,8 +64,26 @@ func TestKnowledgeEvidenceHandler_Success_Returns200(t *testing.T) {
 		t.Fatal("expected 'data' field")
 	}
 	data := resp["data"].(map[string]interface{})
+	if data["schema_version"] != knowledge.EvidencePackSchemaVersion {
+		t.Fatalf("schema_version=%v want=%s", data["schema_version"], knowledge.EvidencePackSchemaVersion)
+	}
+	if data["query"] != "pricing" {
+		t.Fatalf("query=%v want=pricing", data["query"])
+	}
 	if data["confidence"] == "" {
 		t.Error("expected confidence in response")
+	}
+	if got, ok := data["source_count"].(float64); !ok || got < 1 {
+		t.Fatalf("source_count=%v want>=1", data["source_count"])
+	}
+	if _, ok := data["dedup_count"].(float64); !ok {
+		t.Fatalf("dedup_count type=%T want number", data["dedup_count"])
+	}
+	if methods, ok := data["retrieval_methods_used"].([]interface{}); !ok || len(methods) == 0 {
+		t.Fatalf("retrieval_methods_used=%v want non-empty array", data["retrieval_methods_used"])
+	}
+	if builtAt, ok := data["built_at"].(string); !ok || builtAt == "" {
+		t.Fatalf("built_at=%v want RFC3339 string", data["built_at"])
 	}
 }
 

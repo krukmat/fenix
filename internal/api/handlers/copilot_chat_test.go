@@ -34,7 +34,7 @@ func (s *copilotChatServiceStub) Chat(_ context.Context, _ copilot.ChatInput) (<
 
 func TestCopilotChatHandler_SSE_OK(t *testing.T) {
 	h := NewCopilotChatHandler(&copilotChatServiceStub{chunks: []copilot.StreamChunk{
-		{Type: "evidence"},
+		{Type: "evidence", Meta: map[string]any{"schema_version": "v1", "source_count": 1}},
 		{Type: "token", Delta: "hola "},
 		{Type: "done", Done: true, Meta: map[string]any{"answer_type": "grounded_answer"}},
 	}})
@@ -60,6 +60,9 @@ func TestCopilotChatHandler_SSE_OK(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "\"answer_type\":\"grounded_answer\"") {
 		t.Fatalf("expected done metadata to be preserved, got %q", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "\"schema_version\":\"v1\"") {
+		t.Fatalf("expected evidence metadata to be preserved, got %q", rr.Body.String())
 	}
 }
 

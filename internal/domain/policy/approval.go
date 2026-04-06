@@ -14,25 +14,33 @@ import (
 type ApprovalStatus string
 
 const (
-	ApprovalStatusPending  ApprovalStatus = "pending"
-	ApprovalStatusApproved ApprovalStatus = "approved"
-	ApprovalStatusDenied   ApprovalStatus = "denied"
-	ApprovalStatusExpired  ApprovalStatus = "expired"
+	ApprovalStatusPending   ApprovalStatus = "pending"
+	ApprovalStatusApproved  ApprovalStatus = "approved"
+	ApprovalStatusExpired   ApprovalStatus = "expired"
+	ApprovalStatusRejected  ApprovalStatus = "rejected"
+	ApprovalStatusCancelled ApprovalStatus = "cancelled"
+
+	approvalStatusLegacyDenied ApprovalStatus = "denied"
 )
 
-// Decision input aliases — callers may send "approve" or "approved", "deny" or "denied".
+// Decision input aliases — callers may send approve/approved, reject/rejected,
+// deny/denied (legacy alias), or cancel/cancelled.
 const (
-	decisionApprove  = "approve"
-	decisionApproved = "approved"
-	decisionDeny     = "deny"
-	decisionDenied   = "denied"
+	decisionApprove   = "approve"
+	decisionApproved  = "approved"
+	decisionReject    = "reject"
+	decisionRejected  = "rejected"
+	decisionDeny      = "deny"
+	decisionDenied    = "denied"
+	decisionCancel    = "cancel"
+	decisionCancelled = "cancelled"
 
 	emptyJSONPayload = "{}"
 )
 
 var (
 	ErrApprovalNotFound      = errors.New("approval request not found")
-	ErrApprovalForbidden     = errors.New("approval request does not belong to approver")
+	ErrApprovalForbidden     = errors.New("approval request cannot be decided by current actor")
 	ErrApprovalAlreadyClosed = errors.New("approval request is already decided")
 	ErrApprovalExpired       = errors.New("approval request is expired")
 	ErrInvalidDecision       = errors.New("invalid approval decision")
@@ -153,7 +161,7 @@ func (s *ApprovalService) DecideApprovalRequest(ctx context.Context, id, decisio
 		return err
 	}
 
-	if validateErr := validateApprovalDecision(req, decidedBy); validateErr != nil {
+	if validateErr := validateApprovalAction(req, decidedBy, status); validateErr != nil {
 		return validateErr
 	}
 
@@ -193,6 +201,9 @@ func (s *ApprovalService) GetPendingApprovals(ctx context.Context, userID string
 }
 
 func validateApprovalDecision(req *ApprovalRequest, decidedBy string) error {
+	if req.Status == approvalStatusLegacyDenied {
+		return ErrApprovalAlreadyClosed
+	}
 	if req.ApproverID != decidedBy {
 		return ErrApprovalForbidden
 	}
@@ -203,6 +214,26 @@ func validateApprovalDecision(req *ApprovalRequest, decidedBy string) error {
 		return ErrApprovalAlreadyClosed
 	}
 	return nil
+}
+
+func validateApprovalAction(req *ApprovalRequest, actorID string, status ApprovalStatus) error {
+	if status == ApprovalStatusCancelled {
+		if req.Status == approvalStatusLegacyDenied {
+			return ErrApprovalAlreadyClosed
+		}
+		if req.Status == ApprovalStatusExpired {
+			return ErrApprovalExpired
+		}
+		if req.Status != ApprovalStatusPending {
+			return ErrApprovalAlreadyClosed
+		}
+		if req.RequestedBy != actorID && req.ApproverID != actorID {
+			return ErrApprovalForbidden
+		}
+		return nil
+	}
+
+	return validateApprovalDecision(req, actorID)
 }
 
 func (s *ApprovalService) expireIfNeeded(ctx context.Context, req *ApprovalRequest, id, decidedBy string, now time.Time) error {
@@ -234,11 +265,22 @@ func (s *ApprovalService) expireIfNeeded(ctx context.Context, req *ApprovalReque
 }
 
 func (s *ApprovalService) applyDecision(ctx context.Context, req *ApprovalRequest, id, decidedBy string, status ApprovalStatus, now time.Time) error {
-	result, err := s.db.ExecContext(ctx, `
+	query := `
 		UPDATE approval_request
 		SET status = ?, decided_by = ?, decided_at = ?, updated_at = ?
 		WHERE id = ? AND status = ? AND approver_id = ?
-	`, string(status), decidedBy, now, now, id, string(ApprovalStatusPending), decidedBy)
+	`
+	args := []any{string(status), decidedBy, now, now, id, string(ApprovalStatusPending), decidedBy}
+	if status == ApprovalStatusCancelled {
+		query = `
+			UPDATE approval_request
+			SET status = ?, decided_by = ?, decided_at = ?, updated_at = ?
+			WHERE id = ? AND status = ? AND (? = approver_id OR ? = requested_by)
+		`
+		args = []any{string(status), decidedBy, now, now, id, string(ApprovalStatusPending), decidedBy, decidedBy}
+	}
+
+	result, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -251,9 +293,12 @@ func (s *ApprovalService) applyDecision(ctx context.Context, req *ApprovalReques
 		return ErrApprovalAlreadyClosed
 	}
 
-	action := "approval.denied"
+	action := "approval.rejected"
 	if status == ApprovalStatusApproved {
 		action = "approval.approved"
+	}
+	if status == ApprovalStatusCancelled {
+		action = "approval.cancelled"
 	}
 
 	_ = s.audit.LogWithDetails(
@@ -379,6 +424,9 @@ func scanApprovalRequest(scan approvalScanner) (*ApprovalRequest, error) {
 		v := decidedAtRaw.Time
 		item.DecidedAt = &v
 	}
+	if item.Status == approvalStatusLegacyDenied {
+		item.Status = ApprovalStatusRejected
+	}
 
 	return &item, nil
 }
@@ -387,8 +435,10 @@ func decisionToStatus(decision string) ApprovalStatus {
 	switch decision {
 	case decisionApprove, decisionApproved:
 		return ApprovalStatusApproved
-	case decisionDeny, decisionDenied:
-		return ApprovalStatusDenied
+	case decisionReject, decisionRejected, decisionDeny, decisionDenied:
+		return ApprovalStatusRejected
+	case decisionCancel, decisionCancelled:
+		return ApprovalStatusCancelled
 	default:
 		return ""
 	}

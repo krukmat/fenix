@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
@@ -79,7 +80,14 @@ func TestChat_StreamIncludesEvidenceTokenDone(t *testing.T) {
 	sn := "estado del caso abierto para el cliente john@acme.com"
 	llmSvc := &llmStub{resp: "respuesta final"}
 	svc := NewChatService(
-		&evidenceStub{pack: &knowledge.EvidencePack{Sources: []knowledge.Evidence{{ID: "ev_1", Snippet: &sn}}, Confidence: knowledge.ConfidenceHigh}},
+		&evidenceStub{pack: &knowledge.EvidencePack{
+			Sources:              []knowledge.Evidence{{ID: "ev_1", Snippet: &sn, Method: knowledge.EvidenceMethodHybrid}},
+			Confidence:           knowledge.ConfidenceHigh,
+			SchemaVersion:        knowledge.EvidencePackSchemaVersion,
+			SourceCount:          1,
+			RetrievalMethodsUsed: []knowledge.EvidenceMethod{knowledge.EvidenceMethodHybrid},
+			BuiltAt:              time.Now().UTC(),
+		}},
 		llmSvc,
 		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
 		&auditStub{},
@@ -99,6 +107,18 @@ func TestChat_StreamIncludesEvidenceTokenDone(t *testing.T) {
 	}
 	if chunks[0].Type != "evidence" {
 		t.Fatalf("first chunk should be evidence, got %q", chunks[0].Type)
+	}
+	if got := chunks[0].Meta["schema_version"]; got != knowledge.EvidencePackSchemaVersion {
+		t.Fatalf("expected schema_version %q, got %#v", knowledge.EvidencePackSchemaVersion, got)
+	}
+	if got := chunks[0].Meta["source_count"]; got != 1 {
+		t.Fatalf("expected source_count 1, got %#v", got)
+	}
+	if methods, ok := chunks[0].Meta["retrieval_methods_used"].([]string); !ok || len(methods) != 1 || methods[0] != string(knowledge.EvidenceMethodHybrid) {
+		t.Fatalf("unexpected retrieval_methods_used: %#v", chunks[0].Meta["retrieval_methods_used"])
+	}
+	if builtAt, ok := chunks[0].Meta["built_at"].(string); !ok || builtAt == "" {
+		t.Fatalf("expected built_at in evidence meta, got %#v", chunks[0].Meta["built_at"])
 	}
 	if chunks[len(chunks)-1].Type != "done" {
 		t.Fatalf("last chunk should be done, got %q", chunks[len(chunks)-1].Type)

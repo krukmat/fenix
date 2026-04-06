@@ -103,7 +103,7 @@ func (s *EvidencePackService) BuildEvidencePack(ctx context.Context, input Build
 
 	totalCandidates := len(searchRes.Items)
 	if totalCandidates == 0 {
-		return s.emptyEvidencePack(), nil
+		return s.emptyEvidencePack(input.Query), nil
 	}
 
 	representativeVectors, _ := s.getRepresentativeVectors(ctx, input.WorkspaceID)
@@ -116,21 +116,33 @@ func (s *EvidencePackService) BuildEvidencePack(ctx context.Context, input Build
 	}
 
 	return &EvidencePack{
-		Sources:         evidenceRows,
-		Confidence:      s.packConfidence(selected),
-		TotalCandidates: totalCandidates,
-		FilteredCount:   s.filteredCount(totalCandidates, len(selected)),
-		Warnings:        warnings,
+		SchemaVersion:        EvidencePackSchemaVersion,
+		Query:                input.Query,
+		Sources:              evidenceRows,
+		SourceCount:          len(evidenceRows),
+		DedupCount:           dedupCount,
+		Confidence:           s.packConfidence(selected),
+		TotalCandidates:      totalCandidates,
+		FilteredCount:        s.filteredCount(totalCandidates, len(selected)),
+		Warnings:             warnings,
+		RetrievalMethodsUsed: collectEvidenceMethods(selected),
+		BuiltAt:              time.Now().UTC(),
 	}, nil
 }
 
-func (s *EvidencePackService) emptyEvidencePack() *EvidencePack {
+func (s *EvidencePackService) emptyEvidencePack(query string) *EvidencePack {
 	return &EvidencePack{
-		Sources:         []Evidence{},
-		Confidence:      ConfidenceLow,
-		TotalCandidates: 0,
-		FilteredCount:   0,
-		Warnings:        []string{"no sources found"},
+		SchemaVersion:        EvidencePackSchemaVersion,
+		Query:                query,
+		Sources:              []Evidence{},
+		SourceCount:          0,
+		DedupCount:           0,
+		Confidence:           ConfidenceLow,
+		TotalCandidates:      0,
+		FilteredCount:        0,
+		Warnings:             []string{"no sources found"},
+		RetrievalMethodsUsed: []EvidenceMethod{},
+		BuiltAt:              time.Now().UTC(),
 	}
 }
 
@@ -225,6 +237,24 @@ func (s *EvidencePackService) resolveTopK(limit int) int {
 		return maxEvidenceTopK
 	}
 	return limit
+}
+
+func collectEvidenceMethods(selected []SearchResult) []EvidenceMethod {
+	if len(selected) == 0 {
+		return []EvidenceMethod{}
+	}
+
+	seen := make(map[EvidenceMethod]struct{}, len(selected))
+	methods := make([]EvidenceMethod, 0, len(selected))
+	for _, item := range selected {
+		if _, ok := seen[item.Method]; ok {
+			continue
+		}
+		seen[item.Method] = struct{}{}
+		methods = append(methods, item.Method)
+	}
+	sort.Slice(methods, func(i, j int) bool { return methods[i] < methods[j] })
+	return methods
 }
 
 func (s *EvidencePackService) persistEvidence(ctx context.Context, wsID string, selected []SearchResult) ([]Evidence, error) {

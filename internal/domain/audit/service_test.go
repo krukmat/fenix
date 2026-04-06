@@ -1295,8 +1295,8 @@ func TestServiceHelpers_UtilityFunctions(t *testing.T) {
 	if eid == nil || *eid != "apr-1" {
 		t.Fatalf("extractEventContext(typed) entity_id mismatch: %v", eid)
 	}
-	if got := resolveAuditAction("approval.decided", typed); got != "approval.denied" {
-		t.Fatalf("resolveAuditAction(typed approval) = %q; want approval.denied", got)
+	if got := resolveAuditAction("approval.decided", typed); got != "approval.rejected" {
+		t.Fatalf("resolveAuditAction(typed approval) = %q; want approval.rejected", got)
 	}
 	if got := resolveAuditAction("tool.executed", typed); got != "tool.executed" {
 		t.Fatalf("resolveAuditAction(non-approval) = %q; want tool.executed", got)
@@ -1310,6 +1310,9 @@ func TestAuditHelpers_DecisionFromMapAndPointerField(t *testing.T) {
 	}
 	if got := decisionFromMap(map[string]any{"status": decisionDeny}); got != decisionDeny {
 		t.Fatalf("decisionFromMap(status) = %q; want deny", got)
+	}
+	if got := decisionFromMap(map[string]any{"outcome": decisionCancelled}); got != decisionCancelled {
+		t.Fatalf("decisionFromMap(outcome cancelled) = %q; want cancelled", got)
 	}
 	if got := decisionFromMap(map[string]any{"outcome": "expired"}); got != "expired" {
 		t.Fatalf("decisionFromMap(outcome) = %q; want expired", got)
@@ -1367,9 +1370,15 @@ func TestAuditHelpers_DecisionFromMapAndPointerField(t *testing.T) {
 		t.Fatalf("rawMessageFromAny(int/default) should be nil, got %v", got)
 	}
 
-	// resolveAuditAction: approve and expire branches
+	// resolveAuditAction: approve/reject/cancel/expire branches
 	if got := resolveAuditAction(topicApprovalDecided, map[string]any{"decision": decisionApprove}); got != actionApprovalApproved {
 		t.Fatalf("resolveAuditAction approve = %q", got)
+	}
+	if got := resolveAuditAction(topicApprovalDecided, map[string]any{"status": decisionRejected}); got != actionApprovalRejected {
+		t.Fatalf("resolveAuditAction reject = %q", got)
+	}
+	if got := resolveAuditAction(topicApprovalDecided, map[string]any{"status": decisionCancel}); got != actionApprovalCancelled {
+		t.Fatalf("resolveAuditAction cancel = %q", got)
 	}
 	if got := resolveAuditAction(topicApprovalDecided, map[string]any{"outcome": decisionExpire}); got != actionApprovalExpired {
 		t.Fatalf("resolveAuditAction expire = %q", got)

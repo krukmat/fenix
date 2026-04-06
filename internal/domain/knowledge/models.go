@@ -136,15 +136,23 @@ const (
 	ConfidenceHigh   ConfidenceLevel = "high"
 )
 
+const EvidencePackSchemaVersion = "v1"
+
 // EvidencePack is the assembled result returned from the hybrid search pipeline (Task 2.6).
 // It groups deduplicated Evidence records, computes overall confidence, and carries
 // any warnings (stale data, filtered results, etc.) for the calling agent/copilot.
 type EvidencePack struct {
-	Sources         []Evidence
-	Confidence      ConfidenceLevel
-	TotalCandidates int // total results from hybrid search before filtering/dedup
-	FilteredCount   int // how many were removed by permissions/dedup/freshness
-	Warnings        []string
+	SchemaVersion        string
+	Query                string
+	Sources              []Evidence
+	SourceCount          int
+	DedupCount           int
+	Confidence           ConfidenceLevel
+	TotalCandidates      int // total results from hybrid search before filtering/dedup
+	FilteredCount        int // how many were removed by permissions/dedup/freshness
+	Warnings             []string
+	RetrievalMethodsUsed []EvidenceMethod
+	BuiltAt              time.Time
 }
 
 // ============================================================================

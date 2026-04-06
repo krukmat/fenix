@@ -35,7 +35,7 @@ func TestApprovalService_CreateApprovalRequest(t *testing.T) {
 	}
 }
 
-func TestApprovalService_Decide_ApproveAndDeny(t *testing.T) {
+func TestApprovalService_Decide_ApproveAndReject(t *testing.T) {
 	t.Run("approve", func(t *testing.T) {
 		db := setupPolicyTestDB(t)
 		workspaceID, requesterID := seedWorkspaceUserRole(t, db, `{"tools":["update_case"]}`)
@@ -66,7 +66,7 @@ func TestApprovalService_Decide_ApproveAndDeny(t *testing.T) {
 		}
 	})
 
-	t.Run("deny", func(t *testing.T) {
+	t.Run("reject via legacy deny alias", func(t *testing.T) {
 		db := setupPolicyTestDB(t)
 		workspaceID, requesterID := seedWorkspaceUserRole(t, db, `{"tools":["update_case"]}`)
 		approverID := seedUserInWorkspace(t, db, workspaceID)
@@ -91,8 +91,67 @@ func TestApprovalService_Decide_ApproveAndDeny(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getApprovalByID error: %v", err)
 		}
-		if stored.Status != ApprovalStatusDenied {
-			t.Fatalf("status = %s; want denied", stored.Status)
+		if stored.Status != ApprovalStatusRejected {
+			t.Fatalf("status = %s; want rejected", stored.Status)
+		}
+	})
+}
+
+func TestApprovalService_CancelPendingRequest(t *testing.T) {
+	t.Run("requester can cancel", func(t *testing.T) {
+		db := setupPolicyTestDB(t)
+		workspaceID, requesterID := seedWorkspaceUserRole(t, db, emptyJSONPayload)
+		approverID := seedUserInWorkspace(t, db, workspaceID)
+		svc := NewApprovalService(db, audit.NewAuditService(db))
+
+		req, err := svc.CreateApprovalRequest(context.Background(), CreateApprovalRequestInput{
+			WorkspaceID: workspaceID,
+			RequestedBy: requesterID,
+			ApproverID:  approverID,
+			Action:      "tool.execute",
+			ExpiresAt:   time.Now().Add(1 * time.Hour),
+		})
+		if err != nil {
+			t.Fatalf("create error: %v", err)
+		}
+
+		if err := svc.DecideApprovalRequest(context.Background(), req.ID, "cancel", requesterID); err != nil {
+			t.Fatalf("cancel error: %v", err)
+		}
+
+		stored, err := svc.getApprovalByID(context.Background(), req.ID)
+		if err != nil {
+			t.Fatalf("getApprovalByID error: %v", err)
+		}
+		if stored.Status != ApprovalStatusCancelled {
+			t.Fatalf("status = %s; want cancelled", stored.Status)
+		}
+		if stored.DecidedBy == nil || *stored.DecidedBy != requesterID {
+			t.Fatalf("decidedBy = %v; want requester %q", stored.DecidedBy, requesterID)
+		}
+	})
+
+	t.Run("unrelated actor cannot cancel", func(t *testing.T) {
+		db := setupPolicyTestDB(t)
+		workspaceID, requesterID := seedWorkspaceUserRole(t, db, emptyJSONPayload)
+		approverID := seedUserInWorkspace(t, db, workspaceID)
+		intruderID := seedUserInWorkspace(t, db, workspaceID)
+		svc := NewApprovalService(db, audit.NewAuditService(db))
+
+		req, err := svc.CreateApprovalRequest(context.Background(), CreateApprovalRequestInput{
+			WorkspaceID: workspaceID,
+			RequestedBy: requesterID,
+			ApproverID:  approverID,
+			Action:      "tool.execute",
+			ExpiresAt:   time.Now().Add(1 * time.Hour),
+		})
+		if err != nil {
+			t.Fatalf("create error: %v", err)
+		}
+
+		err = svc.DecideApprovalRequest(context.Background(), req.ID, "cancel", intruderID)
+		if !errors.Is(err, ErrApprovalForbidden) {
+			t.Fatalf("expected ErrApprovalForbidden, got %v", err)
 		}
 	})
 }
@@ -193,7 +252,7 @@ func TestApprovalService_DecideAlreadyClosed_ReturnsAlreadyClosedError(t *testin
 	}
 
 	// Second decision on already-closed request
-	err = svc.DecideApprovalRequest(context.Background(), req.ID, "deny", approverID)
+	err = svc.DecideApprovalRequest(context.Background(), req.ID, "reject", approverID)
 	if !errors.Is(err, ErrApprovalAlreadyClosed) {
 		t.Fatalf("expected ErrApprovalAlreadyClosed, got %v", err)
 	}
@@ -268,8 +327,12 @@ func TestDecisionToStatus(t *testing.T) {
 	}{
 		{"approve", ApprovalStatusApproved},
 		{"approved", ApprovalStatusApproved},
-		{"deny", ApprovalStatusDenied},
-		{"denied", ApprovalStatusDenied},
+		{"deny", ApprovalStatusRejected},
+		{"denied", ApprovalStatusRejected},
+		{"reject", ApprovalStatusRejected},
+		{"rejected", ApprovalStatusRejected},
+		{"cancel", ApprovalStatusCancelled},
+		{"cancelled", ApprovalStatusCancelled},
 		{"unknown", ""},
 		{"", ""},
 	}
@@ -279,6 +342,63 @@ func TestDecisionToStatus(t *testing.T) {
 			t.Errorf("decisionToStatus(%q) = %q; want %q", tc.input, got, tc.want)
 		}
 	}
+}
+
+func TestScanApprovalRequest_NormalizesLegacyDenied(t *testing.T) {
+	now := time.Now().UTC()
+	stored, err := scanApprovalRequest(approvalScannerStub{
+		values: []any{
+			"apr-1",
+			"ws-1",
+			"req-1",
+			"app-1",
+			sql.NullString{String: "app-1", Valid: true},
+			"tool.execute",
+			sql.NullString{},
+			sql.NullString{},
+			[]byte(`{}`),
+			sql.NullString{},
+			approvalStatusLegacyDenied,
+			now.Add(time.Hour),
+			sql.NullTime{Time: now, Valid: true},
+			now,
+			now,
+		},
+	})
+	if err != nil {
+		t.Fatalf("scanApprovalRequest error: %v", err)
+	}
+	if stored.Status != ApprovalStatusRejected {
+		t.Fatalf("status = %s; want rejected", stored.Status)
+	}
+}
+
+type approvalScannerStub struct {
+	values []any
+}
+
+func (s approvalScannerStub) Scan(dest ...any) error {
+	for i := range dest {
+		switch ptr := dest[i].(type) {
+		case *string:
+			*ptr = s.values[i].(string)
+		case *json.RawMessage:
+			*ptr = s.values[i].(json.RawMessage)
+		case *[]byte:
+			*ptr = s.values[i].([]byte)
+		case *ApprovalStatus:
+			*ptr = s.values[i].(ApprovalStatus)
+		case *time.Time:
+			*ptr = s.values[i].(time.Time)
+		case *sql.NullString:
+			*ptr = s.values[i].(sql.NullString)
+		case *sql.NullTime:
+			*ptr = s.values[i].(sql.NullTime)
+		default:
+			return fmt.Errorf("unsupported dest type %T", dest[i])
+		}
+	}
+	return nil
 }
 
 func seedUserInWorkspace(t *testing.T, db *sql.DB, workspaceID string) string {
