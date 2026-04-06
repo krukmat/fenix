@@ -116,16 +116,21 @@ const createKnowledgeItem = `-- name: CreateKnowledgeItem :exec
 
 
 INSERT INTO knowledge_item (
-    id, workspace_id, source_type, title, raw_content,
-    normalized_content, entity_type, entity_id, metadata,
-    created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    id, workspace_id, source_system, source_type, source_object_id,
+    refresh_strategy, delete_behavior, permission_context, title, raw_content,
+    normalized_content, entity_type, entity_id, metadata, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateKnowledgeItemParams struct {
 	ID                string    `db:"id" json:"id"`
 	WorkspaceID       string    `db:"workspace_id" json:"workspaceId"`
+	SourceSystem      *string   `db:"source_system" json:"sourceSystem"`
 	SourceType        string    `db:"source_type" json:"sourceType"`
+	SourceObjectID    *string   `db:"source_object_id" json:"sourceObjectId"`
+	RefreshStrategy   *string   `db:"refresh_strategy" json:"refreshStrategy"`
+	DeleteBehavior    *string   `db:"delete_behavior" json:"deleteBehavior"`
+	PermissionContext *string   `db:"permission_context" json:"permissionContext"`
 	Title             string    `db:"title" json:"title"`
 	RawContent        string    `db:"raw_content" json:"rawContent"`
 	NormalizedContent *string   `db:"normalized_content" json:"normalizedContent"`
@@ -149,7 +154,12 @@ func (q *Queries) CreateKnowledgeItem(ctx context.Context, arg CreateKnowledgeIt
 	_, err := q.db.ExecContext(ctx, createKnowledgeItem,
 		arg.ID,
 		arg.WorkspaceID,
+		arg.SourceSystem,
 		arg.SourceType,
+		arg.SourceObjectID,
+		arg.RefreshStrategy,
+		arg.DeleteBehavior,
+		arg.PermissionContext,
 		arg.Title,
 		arg.RawContent,
 		arg.NormalizedContent,
@@ -301,7 +311,7 @@ func (q *Queries) GetEvidenceByID(ctx context.Context, arg GetEvidenceByIDParams
 }
 
 const getKnowledgeItemByEntity = `-- name: GetKnowledgeItemByEntity :one
-SELECT id, workspace_id, source_type, title, raw_content, normalized_content, entity_type, entity_id, metadata, created_at, updated_at, deleted_at FROM knowledge_item
+SELECT id, workspace_id, source_system, source_type, source_object_id, refresh_strategy, delete_behavior, permission_context, title, raw_content, normalized_content, entity_type, entity_id, metadata, created_at, updated_at, deleted_at FROM knowledge_item
 WHERE workspace_id = ? AND entity_type = ? AND entity_id = ? AND deleted_at IS NULL
 LIMIT 1
 `
@@ -319,7 +329,12 @@ func (q *Queries) GetKnowledgeItemByEntity(ctx context.Context, arg GetKnowledge
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
+		&i.SourceSystem,
 		&i.SourceType,
+		&i.SourceObjectID,
+		&i.RefreshStrategy,
+		&i.DeleteBehavior,
+		&i.PermissionContext,
 		&i.Title,
 		&i.RawContent,
 		&i.NormalizedContent,
@@ -334,7 +349,7 @@ func (q *Queries) GetKnowledgeItemByEntity(ctx context.Context, arg GetKnowledge
 }
 
 const getKnowledgeItemByID = `-- name: GetKnowledgeItemByID :one
-SELECT id, workspace_id, source_type, title, raw_content, normalized_content, entity_type, entity_id, metadata, created_at, updated_at, deleted_at FROM knowledge_item
+SELECT id, workspace_id, source_system, source_type, source_object_id, refresh_strategy, delete_behavior, permission_context, title, raw_content, normalized_content, entity_type, entity_id, metadata, created_at, updated_at, deleted_at FROM knowledge_item
 WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL
 LIMIT 1
 `
@@ -351,7 +366,12 @@ func (q *Queries) GetKnowledgeItemByID(ctx context.Context, arg GetKnowledgeItem
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
+		&i.SourceSystem,
 		&i.SourceType,
+		&i.SourceObjectID,
+		&i.RefreshStrategy,
+		&i.DeleteBehavior,
+		&i.PermissionContext,
 		&i.Title,
 		&i.RawContent,
 		&i.NormalizedContent,
@@ -536,7 +556,7 @@ func (q *Queries) ListEvidenceByMethod(ctx context.Context, arg ListEvidenceByMe
 }
 
 const listKnowledgeItemsByEntity = `-- name: ListKnowledgeItemsByEntity :many
-SELECT id, workspace_id, source_type, title, raw_content, normalized_content, entity_type, entity_id, metadata, created_at, updated_at, deleted_at FROM knowledge_item
+SELECT id, workspace_id, source_system, source_type, source_object_id, refresh_strategy, delete_behavior, permission_context, title, raw_content, normalized_content, entity_type, entity_id, metadata, created_at, updated_at, deleted_at FROM knowledge_item
 WHERE workspace_id = ? AND entity_type = ? AND deleted_at IS NULL
 ORDER BY created_at DESC
 LIMIT ? OFFSET ?
@@ -567,7 +587,12 @@ func (q *Queries) ListKnowledgeItemsByEntity(ctx context.Context, arg ListKnowle
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
+			&i.SourceSystem,
 			&i.SourceType,
+			&i.SourceObjectID,
+			&i.RefreshStrategy,
+			&i.DeleteBehavior,
+			&i.PermissionContext,
 			&i.Title,
 			&i.RawContent,
 			&i.NormalizedContent,
@@ -592,7 +617,7 @@ func (q *Queries) ListKnowledgeItemsByEntity(ctx context.Context, arg ListKnowle
 }
 
 const listKnowledgeItemsByWorkspace = `-- name: ListKnowledgeItemsByWorkspace :many
-SELECT id, workspace_id, source_type, title, raw_content, normalized_content, entity_type, entity_id, metadata, created_at, updated_at, deleted_at FROM knowledge_item
+SELECT id, workspace_id, source_system, source_type, source_object_id, refresh_strategy, delete_behavior, permission_context, title, raw_content, normalized_content, entity_type, entity_id, metadata, created_at, updated_at, deleted_at FROM knowledge_item
 WHERE workspace_id = ? AND deleted_at IS NULL
 ORDER BY created_at DESC
 LIMIT ? OFFSET ?
@@ -617,7 +642,12 @@ func (q *Queries) ListKnowledgeItemsByWorkspace(ctx context.Context, arg ListKno
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
+			&i.SourceSystem,
 			&i.SourceType,
+			&i.SourceObjectID,
+			&i.RefreshStrategy,
+			&i.DeleteBehavior,
+			&i.PermissionContext,
 			&i.Title,
 			&i.RawContent,
 			&i.NormalizedContent,

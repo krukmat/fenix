@@ -92,6 +92,7 @@ SORT date DESC
 ## Referencias rápidas
 
 - [[plans/fenixcrm_strategic_repositioning_implementation_plan|Strategic Repositioning Implementation Plan]]
+- [[wedge-demo-uat-summary|Wedge Demo and UAT Bundle]]
 - [[implementation-plan|Implementation Plan]]
 - [[architecture|Architecture]]
 - [[requirements|Requirements]]

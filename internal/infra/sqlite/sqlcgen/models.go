@@ -259,7 +259,12 @@ type Evidence struct {
 type KnowledgeItem struct {
 	ID                string     `db:"id" json:"id"`
 	WorkspaceID       string     `db:"workspace_id" json:"workspaceId"`
+	SourceSystem      *string    `db:"source_system" json:"sourceSystem"`
 	SourceType        string     `db:"source_type" json:"sourceType"`
+	SourceObjectID    *string    `db:"source_object_id" json:"sourceObjectId"`
+	RefreshStrategy   *string    `db:"refresh_strategy" json:"refreshStrategy"`
+	DeleteBehavior    *string    `db:"delete_behavior" json:"deleteBehavior"`
+	PermissionContext *string    `db:"permission_context" json:"permissionContext"`
 	Title             string     `db:"title" json:"title"`
 	RawContent        string     `db:"raw_content" json:"rawContent"`
 	NormalizedContent *string    `db:"normalized_content" json:"normalizedContent"`

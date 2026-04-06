@@ -13,6 +13,9 @@ tags: [dashboard, status]
 > Strategic note:
 > This dashboard is primarily an implementation-breadth view. It includes legacy broad-platform coverage that no longer defines the commercial wedge by itself.
 > Current priority order is Support Copilot / Support Agent first, Sales Copilot second, with mobile breadth and broad Agent Studio surfaces no longer treated as universal P0 release gates.
+>
+> Commercial package model:
+> `Support Copilot`, `Support Agent`, `Sales Copilot`
 
 ---
 
@@ -35,7 +38,7 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 | FR | Title | Priority | Status | Implementing Task | BDD Coverage |
 |----|-------|----------|--------|-------------------|--------------|
 | FR-090 | Hybrid retrieval (BM25 + vector) | P0 | ✅ | task_2.5 | @FR-090 in uc-d1, uc-s1, uc-c1 |
-| FR-091 | Multi-source ingestion (email, docs, calls) | P0/P1 | ⏳ | task_2.2 (base) | @FR-091 in uc-d1 |
+| FR-091 | Multi-source ingestion (email, docs, calls) | P0/P1 | ⏳ | task_2.2 (base), W2-T4 boundary | @FR-091 in uc-d1 |
 | FR-092 | Evidence pack (mandatory, grounded) | P0 | ✅ | task_2.6 | @FR-092 in uc-s1, uc-c1, uc-s2, uc-k1, uc-d1 |
 | FR-093 | Incremental reindex via CDC (<60s SLA) | P0 | ✅ | task_2.7 | — |
 | FR-094 | Knowledge item CRUD + workspace isolation | P0 | ✅ | task_2.1, task_2.2 | — |

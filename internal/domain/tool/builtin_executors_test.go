@@ -398,6 +398,44 @@ func TestCreateKnowledgeItemExecutor_SuccessAndWorkspaceMismatch(t *testing.T) {
 	}
 }
 
+func TestCreateKnowledgeItemExecutor_PersistsConnectorBoundaryFields(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	exec := NewCreateKnowledgeItemExecutor(knowledge.NewIngestService(db, eventbus.New()))
+	ctx := context.WithValue(context.Background(), ctxkeys.WorkspaceID, wsID)
+
+	_, err := exec.Execute(ctx, json.RawMessage(`{"title":"KB1","content":"contenido","source_system":"zendesk","source_type":"ticket","source_object_id":"ticket-9","refresh_strategy":"webhook","delete_behavior":"archive","permission_context":"{\"role\":\"agent\"}","workspace_id":"`+wsID+`"}`))
+	if err != nil {
+		t.Fatalf("Execute error = %v", err)
+	}
+
+	var sourceSystem, sourceObjectID, refreshStrategy, deleteBehavior, permissionContext string
+	err = db.QueryRow(
+		`SELECT source_system, source_object_id, refresh_strategy, delete_behavior, permission_context
+		 FROM knowledge_item WHERE workspace_id = ? ORDER BY created_at DESC LIMIT 1`,
+		wsID,
+	).Scan(&sourceSystem, &sourceObjectID, &refreshStrategy, &deleteBehavior, &permissionContext)
+	if err != nil {
+		t.Fatalf("query ingested knowledge item: %v", err)
+	}
+	if sourceSystem != "zendesk" || sourceObjectID != "ticket-9" {
+		t.Fatalf("unexpected source identity: %q / %q", sourceSystem, sourceObjectID)
+	}
+	if refreshStrategy != "webhook" || deleteBehavior != "archive" {
+		t.Fatalf("unexpected sync fields: %q / %q", refreshStrategy, deleteBehavior)
+	}
+	if permissionContext != "{\"role\":\"agent\"}" {
+		t.Fatalf("permission_context = %q", permissionContext)
+	}
+
+	_, err = exec.Execute(ctx, json.RawMessage(`{"title":"KB2","content":"contenido","source_type":"ticket","source_object_id":"ticket-10","workspace_id":"`+wsID+`"}`))
+	if err == nil {
+		t.Fatal("expected source_system validation error")
+	}
+}
+
 func TestUpdateKnowledgeItemExecutor_SuccessAndNotFound(t *testing.T) {
 	t.Parallel()
 

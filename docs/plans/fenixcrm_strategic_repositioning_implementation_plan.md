@@ -39,7 +39,7 @@ However, the current implementation and planning layer still show strategic drif
 1. the active execution plan still overweights `mobile`, `BFF`, and broad UI surface completion
 2. the `usage/quota` domain now has persistence, service, runtime emission, and read APIs for workspace and run visibility
 3. approval and runtime outcome contracts are normalized to the target public model, and the support wedge now runs end-to-end with evidence, approval, audit, handoff, and usage traces
-4. the evidence pack contract is locked across evidence, copilot, support handoff, and the canonical sales brief flow; packaging, messaging, and demo closure remain in the next wave
+4. the evidence pack contract is locked across evidence, copilot, support handoff, and the canonical sales brief flow; packaging, messaging, demo/UAT closure, and the minimum connector-ingest boundary are now reflected in the top-level docs and persistence model
 
 This plan closes that drift without expanding scope.
 
@@ -230,11 +230,18 @@ Require ingestion and connector flows to preserve these fields:
 - `delete_behavior`
 - `permission_context`
 
+Current status:
+
+- `knowledge_item` now persists this minimum connector boundary
+- `POST /api/v1/knowledge/ingest` accepts and returns the same provenance fields
+- future connector work can extend source families without redefining the ingest contract
+
 ### Acceptance criteria
 
 - evidence, approval, and outcome contracts are documented and wired to current strategic APIs
 - approval states are no longer ambiguous at the API/documentation layer
 - handoff payloads preserve rationale plus evidence context under a stable contract
+- connector provenance fields are persisted and documented before connector breadth expands
 
 ---
 
@@ -358,6 +365,12 @@ Align the repository narrative to these packages:
 
 Update product-facing docs so the primary offer is the governed AI layer, not generic CRM breadth.
 
+Current status:
+
+- `README.md`, `docs/architecture.md`, and dashboard-facing status notes align to the package model above
+- support remains the primary wedge, sales remains the secondary wedge
+- mobile breadth is still documented as a delivery surface, not a package or release gate
+
 #### C. Demo/UAT packaging
 
 Prepare a stable demonstration path:
@@ -366,6 +379,12 @@ Prepare a stable demonstration path:
 - one support scenario with abstention or handoff
 - one sales copilot scenario with grounded summary
 - visible audit and usage evidence for each scenario
+
+Current status:
+
+- the canonical bundle now lives in `docs/wedge-demo-uat-summary.md`
+- the bundle uses the shipped support, handoff, sales brief, audit, and usage APIs
+- wedge acceptance no longer depends on reconstructing a demo path from scattered notes
 
 ### Acceptance criteria
 

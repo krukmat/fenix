@@ -445,10 +445,15 @@ func NewCreateKnowledgeItemExecutor(ingest knowledgeIngestor) ToolExecutor {
 }
 
 type createKnowledgeItemParams struct {
-	Title       string `json:"title"`
-	Content     string `json:"content"`
-	SourceType  string `json:"source_type"`
-	WorkspaceID string `json:"workspace_id"`
+	Title             string  `json:"title"`
+	Content           string  `json:"content"`
+	SourceSystem      *string `json:"source_system"`
+	SourceType        string  `json:"source_type"`
+	SourceObjectID    *string `json:"source_object_id"`
+	RefreshStrategy   *string `json:"refresh_strategy"`
+	DeleteBehavior    *string `json:"delete_behavior"`
+	PermissionContext *string `json:"permission_context"`
+	WorkspaceID       string  `json:"workspace_id"`
 }
 
 func (e *CreateKnowledgeItemExecutor) Execute(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
@@ -476,6 +481,9 @@ func parseCreateKnowledgeItemParams(params json.RawMessage) (createKnowledgeItem
 	if in.Title == "" || in.Content == "" || in.SourceType == "" {
 		return createKnowledgeItemParams{}, fmt.Errorf("%w: title, content and source_type are required", ErrBuiltinExecutionFailed)
 	}
+	if hasNonEmptyString(in.SourceObjectID) && !hasNonEmptyString(in.SourceSystem) {
+		return createKnowledgeItemParams{}, fmt.Errorf("%w: source_system is required when source_object_id is provided", ErrBuiltinExecutionFailed)
+	}
 	return in, nil
 }
 
@@ -488,15 +496,24 @@ func (e *CreateKnowledgeItemExecutor) createKnowledgeItem(
 		return nil, fmt.Errorf("%w: ingest service not configured", ErrBuiltinExecutionFailed)
 	}
 	item, err := e.ingest.Ingest(ctx, knowledge.CreateKnowledgeItemInput{
-		WorkspaceID: workspaceID,
-		SourceType:  knowledge.SourceType(in.SourceType),
-		Title:       in.Title,
-		RawContent:  in.Content,
+		WorkspaceID:       workspaceID,
+		SourceSystem:      in.SourceSystem,
+		SourceType:        knowledge.SourceType(in.SourceType),
+		SourceObjectID:    in.SourceObjectID,
+		RefreshStrategy:   in.RefreshStrategy,
+		DeleteBehavior:    in.DeleteBehavior,
+		PermissionContext: in.PermissionContext,
+		Title:             in.Title,
+		RawContent:        in.Content,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("%w: create knowledge item: %w", ErrBuiltinExecutionFailed, err)
 	}
 	return item, nil
+}
+
+func hasNonEmptyString(value *string) bool {
+	return value != nil && *value != ""
 }
 
 // Task 4.5a — UpdateKnowledgeItemExecutor

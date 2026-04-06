@@ -52,21 +52,24 @@ Current wedge order:
 - Retrieval and evidence are first-class product boundaries.
 - Policy, approval, audit, and metering are runtime-critical concerns.
 - Usage and quota capabilities are now explicit target domains.
+- The minimum connector-ingest boundary is now frozen in `knowledge_item` and `POST /api/v1/knowledge/ingest`.
 - Mobile and BFF remain supported interfaces, but they do not define wedge completion.
+- The package model is now explicit in top-level docs: `Support Copilot`, `Support Agent`, and `Sales Copilot`.
 
 ## Planning Inputs Now Required
 
 The next planning iteration should prioritize:
 
-1. Connector contract specification
-2. Packaging and messaging alignment
-3. Demo/UAT closure
+1. Commercial validation material around the two wedges
+2. Deferred connector expansion on top of the frozen ingest boundary
+3. Marketplace and non-wedge follow-up outside the main delivery path
 
 ## Implementation Plan Added
 
 The canonical implementation plan for the strategic direction now lives in:
 
 - `docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md`
+- `docs/wedge-demo-uat-summary.md`
 
 That plan does three things:
 

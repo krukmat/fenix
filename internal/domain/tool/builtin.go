@@ -91,7 +91,7 @@ func builtinDefinitions() []builtinDefinition {
 		{
 			Name:                BuiltinCreateKnowledgeItem,
 			Description:         "Create knowledge item from title/content/source",
-			InputSchema:         json.RawMessage(`{"type":"object","required":["title","content","source_type","workspace_id"],"properties":{"title":{"type":"string"},"content":{"type":"string"},"source_type":{"type":"string"},"workspace_id":{"type":"string"}},"additionalProperties":false}`),
+			InputSchema:         json.RawMessage(`{"type":"object","required":["title","content","source_type","workspace_id"],"properties":{"title":{"type":"string"},"content":{"type":"string"},"source_type":{"type":"string"},"workspace_id":{"type":"string"},"source_system":{"type":"string"},"source_object_id":{"type":"string"},"refresh_strategy":{"type":"string"},"delete_behavior":{"type":"string"},"permission_context":{"type":"string"}},"additionalProperties":false}`),
 			RequiredPermissions: []string{"tools:create_knowledge_item"},
 		},
 		{

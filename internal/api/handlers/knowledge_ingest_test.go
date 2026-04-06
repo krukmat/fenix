@@ -25,9 +25,14 @@ func TestKnowledgeIngestHandler_Success_Returns201(t *testing.T) {
 	handler := NewKnowledgeIngestHandler(svc)
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"sourceType": "document",
-		"title":      "Test Document",
-		"rawContent": "This is the raw content of the document.",
+		"sourceSystem":      "google_drive",
+		"sourceType":        "document",
+		"sourceObjectId":    "doc-42",
+		"refreshStrategy":   "scheduled_sync",
+		"deleteBehavior":    "soft_delete",
+		"permissionContext": "{\"acl\":\"workspace\"}",
+		"title":             "Test Document",
+		"rawContent":        "This is the raw content of the document.",
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/ingest", bytes.NewReader(body))
@@ -50,6 +55,12 @@ func TestKnowledgeIngestHandler_Success_Returns201(t *testing.T) {
 	}
 	if resp["workspaceId"] != wsID {
 		t.Errorf("expected workspaceId %q, got %v", wsID, resp["workspaceId"])
+	}
+	if resp["sourceSystem"] != "google_drive" {
+		t.Errorf("expected sourceSystem google_drive, got %v", resp["sourceSystem"])
+	}
+	if resp["sourceObjectId"] != "doc-42" {
+		t.Errorf("expected sourceObjectId doc-42, got %v", resp["sourceObjectId"])
 	}
 }
 
@@ -159,5 +170,34 @@ func TestKnowledgeIngestHandler_NoWorkspaceContext_Returns401(t *testing.T) {
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 without workspace context, got %d", rr.Code)
+	}
+}
+
+func TestKnowledgeIngestHandler_SourceObjectRequiresSourceSystem_Returns400(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+
+	bus := eventbus.New()
+	svc := knowledge.NewIngestService(db, bus)
+	handler := NewKnowledgeIngestHandler(svc)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"sourceType":     "document",
+		"sourceObjectId": "doc-42",
+		"title":          "Title",
+		"rawContent":     "content",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/ingest", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+
+	rr := httptest.NewRecorder()
+	handler.Ingest(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 when sourceObjectId has no sourceSystem, got %d", rr.Code)
 	}
 }

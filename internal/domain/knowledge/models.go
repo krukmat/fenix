@@ -60,7 +60,12 @@ const (
 type KnowledgeItem struct {
 	ID                string
 	WorkspaceID       string
+	SourceSystem      *string
 	SourceType        SourceType
+	SourceObjectID    *string
+	RefreshStrategy   *string
+	DeleteBehavior    *string
+	PermissionContext *string
 	Title             string
 	RawContent        string
 	NormalizedContent *string
@@ -162,7 +167,12 @@ type EvidencePack struct {
 // CreateKnowledgeItemInput carries the fields required to create a new KnowledgeItem.
 type CreateKnowledgeItemInput struct {
 	WorkspaceID       string
+	SourceSystem      *string
 	SourceType        SourceType
+	SourceObjectID    *string
+	RefreshStrategy   *string
+	DeleteBehavior    *string
+	PermissionContext *string
 	Title             string
 	RawContent        string
 	NormalizedContent *string

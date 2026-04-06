@@ -21,23 +21,33 @@ func NewKnowledgeIngestHandler(svc *knowledge.IngestService) *KnowledgeIngestHan
 
 // ingestRequest is the JSON request body for POST /api/v1/knowledge/ingest.
 type ingestRequest struct {
-	SourceType string  `json:"sourceType"`
-	Title      string  `json:"title"`
-	RawContent string  `json:"rawContent"`
-	EntityType *string `json:"entityType,omitempty"`
-	EntityID   *string `json:"entityId,omitempty"`
-	Metadata   *string `json:"metadata,omitempty"`
+	SourceSystem      *string `json:"sourceSystem,omitempty"`
+	SourceType        string  `json:"sourceType"`
+	SourceObjectID    *string `json:"sourceObjectId,omitempty"`
+	RefreshStrategy   *string `json:"refreshStrategy,omitempty"`
+	DeleteBehavior    *string `json:"deleteBehavior,omitempty"`
+	PermissionContext *string `json:"permissionContext,omitempty"`
+	Title             string  `json:"title"`
+	RawContent        string  `json:"rawContent"`
+	EntityType        *string `json:"entityType,omitempty"`
+	EntityID          *string `json:"entityId,omitempty"`
+	Metadata          *string `json:"metadata,omitempty"`
 }
 
 // ingestResponse is the JSON response body for a successful ingest.
 type ingestResponse struct {
-	ID          string  `json:"id"`
-	WorkspaceID string  `json:"workspaceId"`
-	SourceType  string  `json:"sourceType"`
-	Title       string  `json:"title"`
-	EntityType  *string `json:"entityType,omitempty"`
-	EntityID    *string `json:"entityId,omitempty"`
-	CreatedAt   string  `json:"createdAt"`
+	ID                string  `json:"id"`
+	WorkspaceID       string  `json:"workspaceId"`
+	SourceSystem      *string `json:"sourceSystem,omitempty"`
+	SourceType        string  `json:"sourceType"`
+	SourceObjectID    *string `json:"sourceObjectId,omitempty"`
+	RefreshStrategy   *string `json:"refreshStrategy,omitempty"`
+	DeleteBehavior    *string `json:"deleteBehavior,omitempty"`
+	PermissionContext *string `json:"permissionContext,omitempty"`
+	Title             string  `json:"title"`
+	EntityType        *string `json:"entityType,omitempty"`
+	EntityID          *string `json:"entityId,omitempty"`
+	CreatedAt         string  `json:"createdAt"`
 }
 
 // Ingest handles POST /api/v1/knowledge/ingest.
@@ -62,13 +72,18 @@ func (h *KnowledgeIngestHandler) Ingest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	input := knowledge.CreateKnowledgeItemInput{
-		WorkspaceID: wsID,
-		SourceType:  knowledge.SourceType(req.SourceType),
-		Title:       req.Title,
-		RawContent:  req.RawContent,
-		EntityType:  req.EntityType,
-		EntityID:    req.EntityID,
-		Metadata:    req.Metadata,
+		WorkspaceID:       wsID,
+		SourceSystem:      req.SourceSystem,
+		SourceType:        knowledge.SourceType(req.SourceType),
+		SourceObjectID:    req.SourceObjectID,
+		RefreshStrategy:   req.RefreshStrategy,
+		DeleteBehavior:    req.DeleteBehavior,
+		PermissionContext: req.PermissionContext,
+		Title:             req.Title,
+		RawContent:        req.RawContent,
+		EntityType:        req.EntityType,
+		EntityID:          req.EntityID,
+		Metadata:          req.Metadata,
 	}
 
 	item, ingestErr := h.ingestService.Ingest(ctx, input)
@@ -80,13 +95,18 @@ func (h *KnowledgeIngestHandler) Ingest(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	if encodeErr := json.NewEncoder(w).Encode(ingestResponse{
-		ID:          item.ID,
-		WorkspaceID: item.WorkspaceID,
-		SourceType:  string(item.SourceType),
-		Title:       item.Title,
-		EntityType:  item.EntityType,
-		EntityID:    item.EntityID,
-		CreatedAt:   item.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:                item.ID,
+		WorkspaceID:       item.WorkspaceID,
+		SourceSystem:      item.SourceSystem,
+		SourceType:        string(item.SourceType),
+		SourceObjectID:    item.SourceObjectID,
+		RefreshStrategy:   item.RefreshStrategy,
+		DeleteBehavior:    item.DeleteBehavior,
+		PermissionContext: item.PermissionContext,
+		Title:             item.Title,
+		EntityType:        item.EntityType,
+		EntityID:          item.EntityID,
+		CreatedAt:         item.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}); encodeErr != nil {
 		http.Error(w, errFailedToEncodeJSON, http.StatusInternalServerError)
 	}
@@ -100,10 +120,17 @@ func validateIngestRequest(req ingestRequest) error {
 	if req.SourceType == "" {
 		return errorf("sourceType is required")
 	}
+	if hasValue(req.SourceObjectID) && !hasValue(req.SourceSystem) {
+		return errorf("sourceSystem is required when sourceObjectId is provided")
+	}
 	if !isValidSourceType(req.SourceType) {
 		return errorf("invalid sourceType: must be one of document, email, call, note, case, ticket, kb_article, api, other")
 	}
 	return nil
+}
+
+func hasValue(s *string) bool {
+	return s != nil && *s != ""
 }
 
 // isValidSourceType returns true if s is a recognised SourceType value.

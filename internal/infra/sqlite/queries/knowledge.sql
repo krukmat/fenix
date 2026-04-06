@@ -11,33 +11,45 @@
 -- name: CreateKnowledgeItem :exec
 -- Task 2.1/2.2: Insert a new knowledge item
 INSERT INTO knowledge_item (
-    id, workspace_id, source_type, title, raw_content,
-    normalized_content, entity_type, entity_id, metadata,
-    created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    id, workspace_id, source_system, source_type, source_object_id,
+    refresh_strategy, delete_behavior, permission_context, title, raw_content,
+    normalized_content, entity_type, entity_id, metadata, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetKnowledgeItemByID :one
 -- Task 2.1/2.2: Retrieve a single knowledge item (excludes soft-deleted)
-SELECT * FROM knowledge_item
+SELECT id, workspace_id, source_system, source_type, source_object_id, refresh_strategy,
+       delete_behavior, permission_context, title, raw_content, normalized_content,
+       entity_type, entity_id, metadata, created_at, updated_at, deleted_at
+FROM knowledge_item
 WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL
 LIMIT 1;
 
 -- name: GetKnowledgeItemByEntity :one
 -- Task 2.7: Find knowledge item linked to a CRM entity
-SELECT * FROM knowledge_item
+SELECT id, workspace_id, source_system, source_type, source_object_id, refresh_strategy,
+       delete_behavior, permission_context, title, raw_content, normalized_content,
+       entity_type, entity_id, metadata, created_at, updated_at, deleted_at
+FROM knowledge_item
 WHERE workspace_id = ? AND entity_type = ? AND entity_id = ? AND deleted_at IS NULL
 LIMIT 1;
 
 -- name: ListKnowledgeItemsByWorkspace :many
 -- Task 2.2: List all knowledge items for a workspace (paginated)
-SELECT * FROM knowledge_item
+SELECT id, workspace_id, source_system, source_type, source_object_id, refresh_strategy,
+       delete_behavior, permission_context, title, raw_content, normalized_content,
+       entity_type, entity_id, metadata, created_at, updated_at, deleted_at
+FROM knowledge_item
 WHERE workspace_id = ? AND deleted_at IS NULL
 ORDER BY created_at DESC
 LIMIT ? OFFSET ?;
 
 -- name: ListKnowledgeItemsByEntity :many
 -- Task 2.7: List knowledge items linked to a specific entity type
-SELECT * FROM knowledge_item
+SELECT id, workspace_id, source_system, source_type, source_object_id, refresh_strategy,
+       delete_behavior, permission_context, title, raw_content, normalized_content,
+       entity_type, entity_id, metadata, created_at, updated_at, deleted_at
+FROM knowledge_item
 WHERE workspace_id = ? AND entity_type = ? AND deleted_at IS NULL
 ORDER BY created_at DESC
 LIMIT ? OFFSET ?;

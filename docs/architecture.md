@@ -40,6 +40,14 @@ The product shall optimize first for:
 2. **Sales Copilot** for account and deal context
 3. **Evidence-grounded execution** with approvals, auditability, and policy enforcement
 
+### Commercial packaging
+
+The current product-facing package model is:
+
+1. **Support Copilot**: grounded support assistance with visible evidence and governed action suggestions
+2. **Support Agent**: governed case execution with approvals, handoff continuity, audit trail, and usage attribution
+3. **Sales Copilot**: grounded account/deal briefs with risks, next best actions, and deterministic abstention on weak evidence
+
 ### Explicit non-goals for the wedge
 
 The current architecture shall **not** optimize first for:
@@ -210,10 +218,15 @@ erDiagram
     knowledge_item {
         text id PK
         text workspace_id FK
+        text source_system
         text source_type
+        text source_object_id
+        text refresh_strategy
+        text delete_behavior
+        text permission_context
         text entity_type
         text entity_id
-        text source_metadata
+        text metadata
     }
 
     embedding_document {
@@ -362,8 +375,8 @@ erDiagram
 ### 2.3 Required domain adjustments
 
 1. **Context, not moat**: CRM entities are preserved because they power support and sales workflows, but architecture shall not treat broad CRM expansion as the core business axis.
-2. **Integration-first context**: external system references shall be preserved in entity metadata and `knowledge_item.source_metadata` until a dedicated connector registry is introduced.
-3. **Usage domain added**: `usage_event`, `quota_policy`, and `quota_state` now exist as first-class persistence and domain primitives; runtime emission is active on copilot, support-agent, and tool paths, while public read APIs remain follow-up work.
+2. **Integration-first context**: external system references now persist on `knowledge_item` through `source_system`, `source_object_id`, `refresh_strategy`, `delete_behavior`, and `permission_context`, while free-form source metadata remains available through `knowledge_item.metadata`.
+3. **Usage domain added**: `usage_event`, `quota_policy`, and `quota_state` now exist as first-class persistence and domain primitives; runtime emission and public read APIs are active on the current wedge path.
 4. **Approval states formalized**: the target model uses `pending`, `approved`, `rejected`, `expired`, `cancelled`.
 5. **Evidence pack is a contract**: the persisted `evidence` table supports a versioned evidence-pack response contract defined in Section 8.
 
@@ -767,7 +780,7 @@ Before a dedicated connector module exists, every ingestion path shall preserve:
 - `delete_behavior`
 - `permission_context`
 
-This information may live in metadata today, but it is part of the stable architectural boundary.
+These fields are now persisted on `knowledge_item` and define the stable connector-ingest boundary for future source expansion.
 
 ---
 

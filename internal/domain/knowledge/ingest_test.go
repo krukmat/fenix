@@ -237,6 +237,137 @@ func TestIngestService_Idempotent_SameEntity_UpdatesAndReplacesChunks(t *testing
 	}
 }
 
+func TestIngestService_PersistsConnectorBoundaryMetadata(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	bus := eventbus.New()
+	svc := NewIngestService(db, bus)
+	wsID := createWorkspace(t, db)
+
+	sourceSystem := "google_drive"
+	sourceObjectID := "doc-123"
+	refreshStrategy := "scheduled_sync"
+	deleteBehavior := "soft_delete"
+	permissionContext := "{\"acl\":\"workspace\"}"
+	entityType := "case"
+	entityID := newID()
+
+	item, err := svc.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID:       wsID,
+		SourceSystem:      &sourceSystem,
+		SourceType:        SourceTypeDocument,
+		SourceObjectID:    &sourceObjectID,
+		RefreshStrategy:   &refreshStrategy,
+		DeleteBehavior:    &deleteBehavior,
+		PermissionContext: &permissionContext,
+		Title:             "Connector doc",
+		RawContent:        "connector-backed knowledge",
+		EntityType:        &entityType,
+		EntityID:          &entityID,
+	})
+	if err != nil {
+		t.Fatalf("Ingest failed: %v", err)
+	}
+
+	var gotSourceSystem, gotSourceObjectID, gotRefreshStrategy, gotDeleteBehavior, gotPermissionContext *string
+	err = db.QueryRow(
+		`SELECT source_system, source_object_id, refresh_strategy, delete_behavior, permission_context
+		 FROM knowledge_item WHERE id = ? AND workspace_id = ?`,
+		item.ID, wsID,
+	).Scan(&gotSourceSystem, &gotSourceObjectID, &gotRefreshStrategy, &gotDeleteBehavior, &gotPermissionContext)
+	if err != nil {
+		t.Fatalf("failed to query connector boundary fields: %v", err)
+	}
+
+	if gotSourceSystem == nil || *gotSourceSystem != sourceSystem {
+		t.Fatalf("source_system = %v, want %q", gotSourceSystem, sourceSystem)
+	}
+	if gotSourceObjectID == nil || *gotSourceObjectID != sourceObjectID {
+		t.Fatalf("source_object_id = %v, want %q", gotSourceObjectID, sourceObjectID)
+	}
+	if gotRefreshStrategy == nil || *gotRefreshStrategy != refreshStrategy {
+		t.Fatalf("refresh_strategy = %v, want %q", gotRefreshStrategy, refreshStrategy)
+	}
+	if gotDeleteBehavior == nil || *gotDeleteBehavior != deleteBehavior {
+		t.Fatalf("delete_behavior = %v, want %q", gotDeleteBehavior, deleteBehavior)
+	}
+	if gotPermissionContext == nil || *gotPermissionContext != permissionContext {
+		t.Fatalf("permission_context = %v, want %q", gotPermissionContext, permissionContext)
+	}
+}
+
+func TestIngestService_ReingestUpdatesConnectorBoundaryMetadata(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	bus := eventbus.New()
+	svc := NewIngestService(db, bus)
+	wsID := createWorkspace(t, db)
+
+	entityType := "case"
+	entityID := newID()
+	firstSourceSystem := "zendesk"
+	secondSourceSystem := "salesforce"
+	firstSourceObjectID := "ticket-1"
+	secondSourceObjectID := "case-2"
+	firstRefreshStrategy := "webhook"
+	secondRefreshStrategy := "manual_resync"
+
+	_, err := svc.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID:     wsID,
+		SourceSystem:    &firstSourceSystem,
+		SourceType:      SourceTypeTicket,
+		SourceObjectID:  &firstSourceObjectID,
+		RefreshStrategy: &firstRefreshStrategy,
+		Title:           "First import",
+		RawContent:      "first",
+		EntityType:      &entityType,
+		EntityID:        &entityID,
+	})
+	if err != nil {
+		t.Fatalf("first ingest failed: %v", err)
+	}
+
+	item, err := svc.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID:     wsID,
+		SourceSystem:    &secondSourceSystem,
+		SourceType:      SourceTypeCase,
+		SourceObjectID:  &secondSourceObjectID,
+		RefreshStrategy: &secondRefreshStrategy,
+		Title:           "Second import",
+		RawContent:      "second",
+		EntityType:      &entityType,
+		EntityID:        &entityID,
+	})
+	if err != nil {
+		t.Fatalf("second ingest failed: %v", err)
+	}
+
+	var gotSourceSystem, gotSourceType, gotSourceObjectID, gotRefreshStrategy string
+	err = db.QueryRow(
+		`SELECT source_system, source_type, source_object_id, refresh_strategy
+		 FROM knowledge_item WHERE id = ? AND workspace_id = ?`,
+		item.ID, wsID,
+	).Scan(&gotSourceSystem, &gotSourceType, &gotSourceObjectID, &gotRefreshStrategy)
+	if err != nil {
+		t.Fatalf("failed to query updated connector boundary fields: %v", err)
+	}
+
+	if gotSourceSystem != secondSourceSystem {
+		t.Fatalf("source_system = %q, want %q", gotSourceSystem, secondSourceSystem)
+	}
+	if gotSourceType != string(SourceTypeCase) {
+		t.Fatalf("source_type = %q, want %q", gotSourceType, SourceTypeCase)
+	}
+	if gotSourceObjectID != secondSourceObjectID {
+		t.Fatalf("source_object_id = %q, want %q", gotSourceObjectID, secondSourceObjectID)
+	}
+	if gotRefreshStrategy != secondRefreshStrategy {
+		t.Fatalf("refresh_strategy = %q, want %q", gotRefreshStrategy, secondRefreshStrategy)
+	}
+}
+
 func TestIngestService_WorkspaceIsolation(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()

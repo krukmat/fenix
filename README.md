@@ -26,6 +26,12 @@ The current wedge is:
 - Sales Copilot for account and deal context
 - Evidence-grounded execution with approval and auditability
 
+The commercial packaging aligned to that wedge is:
+
+- `Support Copilot`: grounded support assistance with evidence visibility and governed actions
+- `Support Agent`: governed case execution with approvals, handoff, audit, and usage traces
+- `Sales Copilot`: grounded account and deal briefs with risks, next steps, and abstention on weak evidence
+
 The current direction of the project is to evolve from hardcoded Go agents toward verified,
 executable declarative workflows without losing the governed runtime already built.
 
