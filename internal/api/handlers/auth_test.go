@@ -438,7 +438,7 @@ func TestAuthHandler_Register_ShortPassword_Returns400(t *testing.T) {
 
 	req := postRequest(t, "/auth/register", registerPayload{
 		Email:         "short@acme.com",
-		Password:      "Short1!",    // 7 chars — below minimum
+		Password:      "Short1!", // 7 chars — below minimum
 		DisplayName:   "Short",
 		WorkspaceName: "Acme Corp",
 	})
@@ -459,7 +459,7 @@ func TestAuthHandler_Register_ExactMinPassword_Succeeds(t *testing.T) {
 
 	req := postRequest(t, "/auth/register", registerPayload{
 		Email:         "exact@acme.com",
-		Password:      "Exactly12Chr",  // exactly 12 chars
+		Password:      "Exactly12Chr", // exactly 12 chars
 		DisplayName:   "Exact",
 		WorkspaceName: "Acme Corp",
 	})
@@ -480,7 +480,7 @@ func TestAuthHandler_Register_11CharPassword_Returns400(t *testing.T) {
 
 	req := postRequest(t, "/auth/register", registerPayload{
 		Email:         "eleven@acme.com",
-		Password:      "OnlyEleven!",  // 11 chars
+		Password:      "OnlyEleven!", // 11 chars
 		DisplayName:   "Eleven",
 		WorkspaceName: "Acme Corp",
 	})

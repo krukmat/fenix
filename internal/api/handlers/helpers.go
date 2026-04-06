@@ -61,7 +61,7 @@ const (
 	entityTypeCase    = "case"
 
 	// Error messages — account
-	errAccountIDRequired = "account id is required"
+	errAccountIDRequired  = "account id is required"
 	errAccountNotFound    = "account not found"
 	errFailedToGetAccount = "failed to get account: %v"
 
@@ -354,7 +354,6 @@ func handleMappedListWithPagination[T any, R any](
 
 	_ = writePaginatedOr500(w, mapped, total, page)
 }
-
 
 // handleEntityUpdate centraliza el flujo común de UPDATE por entidad:
 // workspace + carga previa + decode + update + respuesta JSON.

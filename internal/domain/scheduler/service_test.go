@@ -130,7 +130,7 @@ func TestNormalizeScheduledPayloadAcceptsGenericPayloadForNonResumeJobs(t *testi
 	t.Parallel()
 
 	raw, err := normalizeScheduledPayload(ScheduleJobInput{
-		JobType:  JobType("custom_job"),
+		JobType: JobType("custom_job"),
 		Payload: map[string]any{
 			"kind": "generic",
 			"ok":   true,

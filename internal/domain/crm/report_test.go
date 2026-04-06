@@ -149,7 +149,6 @@ type DBTX interface {
 	Exec(query string, args ...any) (sql.Result, error)
 }
 
-
 func TestReportService_GetSupportBacklog_EmptyMTTR(t *testing.T) {
 	t.Parallel()
 	db := mustOpenDBWithMigrations(t)

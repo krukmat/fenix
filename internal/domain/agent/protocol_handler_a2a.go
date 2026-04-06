@@ -88,7 +88,7 @@ func rejectedCircularDispatchResponse(input DispatchInput) (*DispatchResponse, b
 		return nil, false, nil
 	}
 	resp, err := NewDispatchRejectedResponse(dispatchRejectLoop, map[string]any{
-		dispatchMetaCallChain: append([]string(nil), input.CallChain...),
+		dispatchMetaCallChain:   append([]string(nil), input.CallChain...),
 		dispatchMetaTargetAgent: strings.TrimSpace(input.TargetAgent),
 	})
 	return resp, true, err

@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	judgeViolationDSLSyntax    = "dsl_syntax_error"
-	judgeViolationDSLValidate  = "dsl_validation_error"
+	judgeViolationDSLSyntax   = "dsl_syntax_error"
+	judgeViolationDSLValidate = "dsl_validation_error"
 )
 
 type WorkflowSyntaxValidationResult struct {

@@ -555,7 +555,6 @@ func extractCaseID(evalCtx map[string]any) string {
 	return ""
 }
 
-
 func marshalStringArray(values ...string) json.RawMessage {
 	items := make([]string, 0, len(values))
 	for _, value := range values {

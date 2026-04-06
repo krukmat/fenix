@@ -14,12 +14,12 @@ import (
 )
 
 type mockSignalService struct {
-	items       map[string]*signaldomain.Signal
-	listErr     error
+	items        map[string]*signaldomain.Signal
+	listErr      error
 	getEntityErr error
-	dismissErr  error
-	dismissedID string
-	dismissedBy string
+	dismissErr   error
+	dismissedID  string
+	dismissedBy  string
 }
 
 func newMockSignalService() *mockSignalService {

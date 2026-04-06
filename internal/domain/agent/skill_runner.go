@@ -156,10 +156,10 @@ func emptyTracesUpdate(status string, output, toolCalls json.RawMessage, complet
 }
 
 type stepResult struct {
-	execution     SkillStepExecution
-	call          *ToolCall
+	execution       SkillStepExecution
+	call            *ToolCall
 	pendingApproval *skillApprovalResult
-	done          bool // stop sequence after this step
+	done            bool // stop sequence after this step
 }
 
 func (r *SkillRunner) executeSequentialSteps(

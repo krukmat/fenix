@@ -822,16 +822,16 @@ func TestDSLRunnerFinalizeResumeHelpers(t *testing.T) {
 	existing.ToolCalls = json.RawMessage(`[{"tool_name":"left"}]`)
 
 	workflow := &workflowdomain.Workflow{
-		ID:         "wf-1",
+		ID:          "wf-1",
 		WorkspaceID: "ws_dsl",
-		Name:       "resume_workflow",
-		Version:    2,
-		Status:     workflowdomain.StatusActive,
+		Name:        "resume_workflow",
+		Version:     2,
+		Status:      workflowdomain.StatusActive,
 	}
 	input := schedulerdomain.WorkflowResumePayload{
-		WorkflowID:       "wf-1",
-		RunID:            baseRun.ID,
-		ResumeStepIndex:  3,
+		WorkflowID:      "wf-1",
+		RunID:           baseRun.ID,
+		ResumeStepIndex: 3,
 	}
 
 	executor := &dslRuntimeExecutor{

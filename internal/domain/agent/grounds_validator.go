@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	groundsQueryKeySummary    = "summary"
-	groundsQueryKeyMessage    = "message"
+	groundsQueryKeySummary = "summary"
+	groundsQueryKeyMessage = "message"
 )
 
 type groundsEvidencePackBuilder interface {
@@ -25,9 +25,9 @@ type GroundsValidator struct {
 }
 
 type GroundsResult struct {
-	Met         bool
-	Reason      string
-	Query       string
+	Met          bool
+	Reason       string
+	Query        string
 	EvidencePack *knowledge.EvidencePack
 }
 

@@ -51,16 +51,16 @@ func TestRunContextClonePreservesDepsAndCopiesChain(t *testing.T) {
 	groundsValidator := &GroundsValidator{}
 
 	original := &RunContext{
-		Orchestrator:    orch,
-		PolicyEngine:    policyEngine,
-		ApprovalService: approvalService,
-		AuditService:    auditService,
-		EventBus:        bus,
-		RunnerRegistry:  NewRunnerRegistry(),
+		Orchestrator:     orch,
+		PolicyEngine:     policyEngine,
+		ApprovalService:  approvalService,
+		AuditService:     auditService,
+		EventBus:         bus,
+		RunnerRegistry:   NewRunnerRegistry(),
 		GroundsValidator: groundsValidator,
-		DB:              db,
-		CallDepth:       1,
-		CallChain:       []string{"support-agent"},
+		DB:               db,
+		CallDepth:        1,
+		CallChain:        []string{"support-agent"},
 	}
 
 	clone := original.Clone()

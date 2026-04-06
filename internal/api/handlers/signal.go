@@ -24,22 +24,22 @@ type SignalHandler struct {
 }
 
 type SignalResponse struct {
-	ID          string                 `json:"id"`
-	WorkspaceID string                 `json:"workspace_id"`
-	EntityType  string                 `json:"entity_type"`
-	EntityID    string                 `json:"entity_id"`
-	SignalType  string                 `json:"signal_type"`
-	Confidence  float64                `json:"confidence"`
-	EvidenceIDs []string               `json:"evidence_ids"`
-	SourceType  string                 `json:"source_type"`
-	SourceID    string                 `json:"source_id"`
-	Metadata    map[string]any         `json:"metadata"`
-	Status      string                 `json:"status"`
-	DismissedBy *string                `json:"dismissed_by,omitempty"`
-	DismissedAt *string                `json:"dismissed_at,omitempty"`
-	ExpiresAt   *string                `json:"expires_at,omitempty"`
-	CreatedAt   string                 `json:"created_at"`
-	UpdatedAt   string                 `json:"updated_at"`
+	ID          string         `json:"id"`
+	WorkspaceID string         `json:"workspace_id"`
+	EntityType  string         `json:"entity_type"`
+	EntityID    string         `json:"entity_id"`
+	SignalType  string         `json:"signal_type"`
+	Confidence  float64        `json:"confidence"`
+	EvidenceIDs []string       `json:"evidence_ids"`
+	SourceType  string         `json:"source_type"`
+	SourceID    string         `json:"source_id"`
+	Metadata    map[string]any `json:"metadata"`
+	Status      string         `json:"status"`
+	DismissedBy *string        `json:"dismissed_by,omitempty"`
+	DismissedAt *string        `json:"dismissed_at,omitempty"`
+	ExpiresAt   *string        `json:"expires_at,omitempty"`
+	CreatedAt   string         `json:"created_at"`
+	UpdatedAt   string         `json:"updated_at"`
 }
 
 func NewSignalHandler(service SignalService) *SignalHandler {

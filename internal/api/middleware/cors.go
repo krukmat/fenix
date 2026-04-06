@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	headerOrigin      = "Origin"
+	headerOrigin        = "Origin"
 	headerACAllowOrigin = "Access-Control-Allow-Origin"
 )
 

@@ -39,9 +39,9 @@ const (
 // steps, and a small conditional envelope per step. WAIT and DISPATCH remain
 // explicitly out of scope for this bridge format.
 type BridgeWorkflow struct {
-	Name    string       `json:"name"`
+	Name    string        `json:"name"`
 	Trigger BridgeTrigger `json:"trigger"`
-	Steps   []BridgeStep `json:"steps"`
+	Steps   []BridgeStep  `json:"steps"`
 }
 
 type BridgeTrigger struct {
@@ -56,15 +56,15 @@ type BridgeStep struct {
 }
 
 type BridgeCondition struct {
-	Left     string   `json:"left"`
-	Operator string   `json:"operator"`
-	Right    any      `json:"right"`
+	Left     string `json:"left"`
+	Operator string `json:"operator"`
+	Right    any    `json:"right"`
 }
 
 type BridgeAction struct {
-	Verb    string         `json:"verb"`
-	Target  string         `json:"target,omitempty"`
-	Args    map[string]any `json:"args,omitempty"`
+	Verb   string         `json:"verb"`
+	Target string         `json:"target,omitempty"`
+	Args   map[string]any `json:"args,omitempty"`
 }
 
 func (wf BridgeWorkflow) Validate() error {

@@ -30,4 +30,3 @@ func normalizeJSON(raw []byte, fallback []byte) json.RawMessage {
 	}
 	return append(json.RawMessage(nil), raw...)
 }
-

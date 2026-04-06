@@ -278,7 +278,7 @@ func TestInsightsAgent_QueryMetricsFailures(t *testing.T) {
 	}
 
 	registry = tool.NewToolRegistry(db)
-	if err := registry.Register(tool.BuiltinQueryMetrics, &mockToolExecutor{out: json.RawMessage(`{invalid`) }); err != nil {
+	if err := registry.Register(tool.BuiltinQueryMetrics, &mockToolExecutor{out: json.RawMessage(`{invalid`)}); err != nil {
 		t.Fatalf("register query_metrics: %v", err)
 	}
 	a = NewInsightsAgent(orch, registry, &mockKnowledgeSearch{results: emptyResults()}, db)

@@ -18,18 +18,18 @@ import (
 // constructor so current Go agents and future declarative runners can share the
 // same execution contract.
 type RunContext struct {
-	Orchestrator    *Orchestrator
-	ToolRegistry    *tool.ToolRegistry
-	PolicyEngine    *policy.PolicyEngine
-	ApprovalService *policy.ApprovalService
-	Scheduler       schedulerdomain.Scheduler
-	SignalService   *signaldomain.Service
-	AuditService    *audit.AuditService
-	EventBus        eventbus.EventBus
-	RunnerRegistry  *RunnerRegistry
-	ProtocolHandler ProtocolHandler // nil = internal dispatch only
+	Orchestrator     *Orchestrator
+	ToolRegistry     *tool.ToolRegistry
+	PolicyEngine     *policy.PolicyEngine
+	ApprovalService  *policy.ApprovalService
+	Scheduler        schedulerdomain.Scheduler
+	SignalService    *signaldomain.Service
+	AuditService     *audit.AuditService
+	EventBus         eventbus.EventBus
+	RunnerRegistry   *RunnerRegistry
+	ProtocolHandler  ProtocolHandler // nil = internal dispatch only
 	GroundsValidator *GroundsValidator
-	DB              *sql.DB
+	DB               *sql.DB
 
 	// Call metadata is used by future nested executions and delegation flow.
 	CallDepth int

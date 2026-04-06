@@ -27,6 +27,7 @@ type Filter struct {
 }
 
 // PolicyDecisionTrace captures deterministic rule resolution context.
+//
 //nolint:revive // API name kept for backward compatibility in policy package.
 type PolicyDecisionTrace struct {
 	PolicySetID      string
@@ -40,6 +41,7 @@ type PolicyDecisionTrace struct {
 }
 
 // PolicyDecision contains final allow/deny and optional trace metadata.
+//
 //nolint:revive // API name kept for backward compatibility in policy package.
 type PolicyDecision struct {
 	Allow bool

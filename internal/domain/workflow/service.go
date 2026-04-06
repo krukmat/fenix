@@ -49,9 +49,9 @@ type ListWorkflowsInput struct {
 }
 
 type Service struct {
-	repo                      *Repository
-	scheduler                 workflowScheduler
-	cartaBudgetLimitsResolver func(string) (map[string]any, error)
+	repo                        *Repository
+	scheduler                   workflowScheduler
+	cartaBudgetLimitsResolver   func(string) (map[string]any, error)
 	cartaInvariantRulesResolver func(string) ([]map[string]any, error)
 }
 
@@ -59,7 +59,7 @@ type workflowScheduler interface {
 	CancelBySource(ctx context.Context, workspaceID, sourceID string) (int64, error)
 }
 
-func defaultBudgetLimitsResolver(string) (map[string]any, error)   { return nil, nil }
+func defaultBudgetLimitsResolver(string) (map[string]any, error)     { return nil, nil }
 func defaultInvariantRulesResolver(string) ([]map[string]any, error) { return nil, nil }
 
 func RegisterCartaBudgetLimitsResolver(resolver func(string) (map[string]any, error)) {
