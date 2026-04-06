@@ -82,22 +82,14 @@ func (h *UsageHandler) GetQuotaState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	policyID := r.URL.Query().Get(queryQuotaPolicyID)
-	if policyID == "" {
-		writeError(w, http.StatusBadRequest, errQuotaPolicyIDRequired)
+	policyID, ok := requireQuotaPolicyID(w, r)
+	if !ok {
 		return
 	}
 
 	periodStart, periodEnd, err := quotaPeriodFromRequest(r)
 	if err != nil {
-		switch err {
-		case errBadPeriodStart:
-			writeError(w, http.StatusBadRequest, errInvalidPeriodStart)
-		case errBadPeriodEnd:
-			writeError(w, http.StatusBadRequest, errInvalidPeriodEnd)
-		default:
-			writeError(w, http.StatusBadRequest, errInvalidBody)
-		}
+		writeQuotaPeriodError(w, err)
 		return
 	}
 
@@ -112,6 +104,26 @@ func (h *UsageHandler) GetQuotaState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = writeJSONOr500(w, map[string]any{"data": quotaStateToResponse(state)})
+}
+
+func requireQuotaPolicyID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	policyID := r.URL.Query().Get(queryQuotaPolicyID)
+	if policyID == "" {
+		writeError(w, http.StatusBadRequest, errQuotaPolicyIDRequired)
+		return "", false
+	}
+	return policyID, true
+}
+
+func writeQuotaPeriodError(w http.ResponseWriter, err error) {
+	switch err {
+	case errBadPeriodStart:
+		writeError(w, http.StatusBadRequest, errInvalidPeriodStart)
+	case errBadPeriodEnd:
+		writeError(w, http.StatusBadRequest, errInvalidPeriodEnd)
+	default:
+		writeError(w, http.StatusBadRequest, errInvalidBody)
+	}
 }
 
 func usageEventToResponse(event *usagedomain.Event) usageEventResponse {
