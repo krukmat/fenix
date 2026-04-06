@@ -538,7 +538,7 @@ func RunAwaitsApproval(run *Run) bool {
 	}
 	output := decodeAgentRunOutput(run.Output)
 	action, _ := output["action"].(string)
-	if action == "pending_approval" {
+	if action == pendingApprovalAction {
 		return true
 	}
 	_, hasApprovalID := output["approval_id"]

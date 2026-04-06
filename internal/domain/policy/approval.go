@@ -217,23 +217,33 @@ func validateApprovalDecision(req *ApprovalRequest, decidedBy string) error {
 }
 
 func validateApprovalAction(req *ApprovalRequest, actorID string, status ApprovalStatus) error {
-	if status == ApprovalStatusCancelled {
-		if req.Status == approvalStatusLegacyDenied {
-			return ErrApprovalAlreadyClosed
-		}
-		if req.Status == ApprovalStatusExpired {
-			return ErrApprovalExpired
-		}
-		if req.Status != ApprovalStatusPending {
-			return ErrApprovalAlreadyClosed
-		}
-		if req.RequestedBy != actorID && req.ApproverID != actorID {
-			return ErrApprovalForbidden
-		}
+	if status != ApprovalStatusCancelled {
+		return validateApprovalDecision(req, actorID)
+	}
+	if err := validateApprovalCancellationState(req); err != nil {
+		return err
+	}
+	return validateApprovalCancellationActor(req, actorID)
+}
+
+func validateApprovalCancellationState(req *ApprovalRequest) error {
+	switch req.Status {
+	case approvalStatusLegacyDenied:
+		return ErrApprovalAlreadyClosed
+	case ApprovalStatusExpired:
+		return ErrApprovalExpired
+	case ApprovalStatusPending:
+		return nil
+	default:
+		return ErrApprovalAlreadyClosed
+	}
+}
+
+func validateApprovalCancellationActor(req *ApprovalRequest, actorID string) error {
+	if req.RequestedBy == actorID || req.ApproverID == actorID {
 		return nil
 	}
-
-	return validateApprovalDecision(req, actorID)
+	return ErrApprovalForbidden
 }
 
 func (s *ApprovalService) expireIfNeeded(ctx context.Context, req *ApprovalRequest, id, decidedBy string, now time.Time) error {

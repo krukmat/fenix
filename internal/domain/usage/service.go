@@ -88,8 +88,8 @@ func (s *Service) ListEvents(ctx context.Context, workspaceID string, runID *str
 		}
 		events = append(events, event)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, rowsErr
 	}
 	return events, nil
 }

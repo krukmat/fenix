@@ -58,7 +58,7 @@ type evidenceSource struct {
 func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	wsID, ok := knowledgeEvidenceWorkspaceID(w, ctx)
+	wsID, ok := knowledgeEvidenceWorkspaceID(ctx)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, errMissingWorkspaceContext)
 		return
@@ -69,7 +69,7 @@ func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	pack, ok := h.buildEvidencePack(w, ctx, wsID, req)
+	pack, ok := h.buildEvidencePack(ctx, w, wsID, req)
 	if !ok {
 		return
 	}
@@ -81,7 +81,7 @@ func (h *KnowledgeEvidenceHandler) Build(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-func knowledgeEvidenceWorkspaceID(_ http.ResponseWriter, ctx context.Context) (string, bool) {
+func knowledgeEvidenceWorkspaceID(ctx context.Context) (string, bool) {
 	wsID, wsErr := getWorkspaceID(ctx)
 	return wsID, wsErr == nil
 }
@@ -99,7 +99,7 @@ func decodeEvidenceRequest(w http.ResponseWriter, r *http.Request) (evidenceRequ
 	return req, true
 }
 
-func (h *KnowledgeEvidenceHandler) buildEvidencePack(w http.ResponseWriter, ctx context.Context, wsID string, req evidenceRequest) (*knowledge.EvidencePack, bool) {
+func (h *KnowledgeEvidenceHandler) buildEvidencePack(ctx context.Context, w http.ResponseWriter, wsID string, req evidenceRequest) (*knowledge.EvidencePack, bool) {
 	pack, buildErr := h.evidenceService.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
 		Query:       req.Query,
 		WorkspaceID: wsID,

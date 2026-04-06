@@ -37,6 +37,8 @@ type SupportAgentConfig struct {
 const supportActionUpdateCase = "update_case"
 const supportActionAbstain = "abstain"
 const supportActionEscalate = "escalate"
+const supportPendingApprovalAction = "pending_approval"
+const supportSystemActorID = "system"
 
 const (
 	supportResolveThreshold  = 0.85
@@ -509,10 +511,10 @@ func (a *SupportAgent) buildApprovalEscalationResult(
 		return nil, err
 	}
 	escalatedAction := &Action{
-		Type:       "pending_approval",
+		Type:       supportPendingApprovalAction,
 		Details:    "Sensitive action requires human approval",
 		CaseID:     action.CaseID,
-		Status:     "pending_approval",
+		Status:     supportPendingApprovalAction,
 		Confidence: action.Confidence,
 		ApprovalID: approvalID,
 	}
@@ -714,7 +716,7 @@ func (a *SupportAgent) recordSupportUsage(ctx context.Context, run *agent.Run, r
 
 	_, _ = a.usage.RecordEvent(ctx, usage.RecordEventInput{
 		WorkspaceID:   run.WorkspaceID,
-		ActorID:       firstNonEmptySupport(actorID, "system"),
+		ActorID:       firstNonEmptySupport(actorID, supportSystemActorID),
 		ActorType:     actorType,
 		RunID:         &runID,
 		InputUnits:    inputUnits,
@@ -729,9 +731,9 @@ func (a *SupportAgent) auditSupportRun(ctx context.Context, run *agent.Run, resu
 		return
 	}
 
-	actorID := firstNonEmptySupport(supportUserID(ctx), derefSupportString(run.TriggeredByUserID), "system")
+	actorID := firstNonEmptySupport(supportUserID(ctx), derefSupportString(run.TriggeredByUserID), supportSystemActorID)
 	actorType := audit.ActorTypeUser
-	if actorID == "system" {
+	if actorID == supportSystemActorID {
 		actorType = audit.ActorTypeSystem
 	}
 	caseID := firstNonEmptySupport(firstJSONStringFromRaw(run.TriggerContext, "case_id"), firstJSONStringFromRaw(run.Output, "CaseID"))
@@ -778,8 +780,8 @@ func supportUserID(ctx context.Context) string {
 }
 
 func auditActorTypeForSupport(actorID string) string {
-	if actorID == "" || actorID == "system" {
-		return "system"
+	if actorID == "" || actorID == supportSystemActorID {
+		return supportSystemActorID
 	}
 	return "user"
 }
