@@ -16,7 +16,7 @@ function runCurl<T>(args: string[]): T {
   return JSON.parse(execFileSync('curl', ['-fsS', ...args], { encoding: 'utf8' }).trim()) as T;
 }
 
-function ensureBffSession(): BffSession {
+export function ensureBffSession(): BffSession {
   if (cachedSession) return cachedSession;
   cachedSession = runCurl<BffSession>([
     '-X', 'POST', 'http://localhost:3000/bff/auth/login', '-H', 'Content-Type: application/json', '--data',

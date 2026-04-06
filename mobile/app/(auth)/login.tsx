@@ -36,7 +36,7 @@ export default function LoginScreen() {
         userId: response.userId,
         workspaceId: response.workspaceId,
       });
-      router.replace('/accounts');
+      router.replace('/home');
     } catch (err) {
       console.error('Login error:', err);
       if (isAxiosError(err) && err.response?.status === 401) {

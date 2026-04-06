@@ -125,7 +125,7 @@ export default function RegisterScreen() {
       });
 
       // Navigate to main app
-      router.replace('/accounts');
+      router.replace('/home');
     } catch (err) {
       console.error('Register error:', err);
       if (isAxiosError(err) && err.response?.status === 409) {

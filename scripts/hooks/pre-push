@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+UPSTREAM_REF="$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null || true)"
+
+if [ -n "$UPSTREAM_REF" ]; then
+  DIFF_RANGE="${UPSTREAM_REF}...HEAD"
+else
+  DEFAULT_REMOTE="$(git remote 2>/dev/null | head -n 1)"
+  DEFAULT_BRANCH="$(git symbolic-ref refs/remotes/${DEFAULT_REMOTE}/HEAD 2>/dev/null | sed "s@^refs/remotes/${DEFAULT_REMOTE}/@@")"
+  if [ -n "${DEFAULT_REMOTE:-}" ] && [ -n "${DEFAULT_BRANCH:-}" ] && git rev-parse "${DEFAULT_REMOTE}/${DEFAULT_BRANCH}" >/dev/null 2>&1; then
+    DIFF_RANGE="${DEFAULT_REMOTE}/${DEFAULT_BRANCH}...HEAD"
+  else
+    DIFF_RANGE="HEAD~1...HEAD"
+  fi
+fi
+
+CHANGED_FILES="$(git diff --name-only "$DIFF_RANGE" 2>/dev/null || true)"
+
+if ! printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(mobile/|scripts/check-no-inline-eslint-disable\.sh$|scripts/qa-mobile-prepush\.sh$|\.github/workflows/ci\.yml$)'; then
+  echo "No mobile-impacting changes detected in $DIFF_RANGE -> skipping mobile pre-push QA"
+  exit 0
+fi
+
+echo "Mobile-impacting changes detected in $DIFF_RANGE"
+bash scripts/qa-mobile-prepush.sh

@@ -6,16 +6,55 @@ const TEST_EMAIL = 'e2e@fenixcrm.test';
 const TEST_PASSWORD = 'e2eTestPass123!';
 const TEST_NAME = 'E2E Test User';
 
-async function dismissKeyboard() {
-  await device.pressBack();
+async function waitForPostLoginLanding(timeout = 30000) {
+  const targets = [
+    'authenticated-root',
+    'drawer-open-button',
+    'home-feed',
+    'home-feed-flatlist',
+    'home-feed-empty',
+  ];
+
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    for (const testID of targets) {
+      try {
+        await waitFor(element(by.id(testID))).toBeVisible().withTimeout(1000);
+        return;
+      } catch {
+        // Try the next landing marker until timeout expires.
+      }
+    }
+  }
+
+  throw new Error(`Timed out waiting for post-login landing: ${targets.join(', ')}`);
+}
+
+async function waitForAnyVisible(testIDs: string[], timeout = 30000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    for (const testID of testIDs) {
+      try {
+        await waitFor(element(by.id(testID))).toBeVisible().withTimeout(1000);
+        return testID;
+      } catch {
+        // Keep probing until timeout expires.
+      }
+    }
+  }
+
+  throw new Error(`Timed out waiting for any of: ${testIDs.join(', ')}`);
 }
 
 /**
- * Registers a new user and lands on the accounts tab.
+ * Registers a new user and lands on the authenticated home route.
  * Call once at the beginning of an E2E suite.
  */
 export async function registerAndLogin(): Promise<void> {
-  await device.launchApp({ newInstance: true });
+  await device.launchApp({
+    newInstance: true,
+    launchArgs: { detoxEnableSynchronization: '0' },
+  });
   await device.disableSynchronization();
 
   // Navigate to register if not already there — use waitFor with short timeout
@@ -31,11 +70,9 @@ export async function registerAndLogin(): Promise<void> {
   // Task 4.8 — workspace field is required by RegisterForm
   await element(by.id('register-workspace-input')).typeText('E2E Test Workspace');
   await element(by.id('register-password-input')).typeText(TEST_PASSWORD);
-  await dismissKeyboard();
   await element(by.id('register-submit-button')).tap();
 
-  // Wait for accounts list to appear (authentication succeeded)
-  await waitFor(element(by.id('accounts-list'))).toBeVisible().withTimeout(10000);
+  await waitForPostLoginLanding(10000);
 }
 
 /**
@@ -43,36 +80,47 @@ export async function registerAndLogin(): Promise<void> {
  */
 export async function loginAsTestUser(): Promise<void> {
   const seeded = ensureMobileP2Seed();
-  await device.launchApp({ newInstance: true });
-  await device.disableSynchronization();
+  try {
+    await waitForPostLoginLanding(3000);
+    return;
+  } catch {
+    // Not already authenticated in the current session.
+  }
 
   try {
     await waitFor(element(by.id('login-screen'))).toBeVisible().withTimeout(30000);
   } catch {
-    try {
-      await waitFor(element(by.id('accounts-list'))).toBeVisible().withTimeout(30000);
-      return;
-    } catch {
-      // fall through to relaunch and retry login
+    for (let i = 0; i < 3; i += 1) {
+      await device.pressBack();
+      try {
+        await waitForAnyVisible([
+          'login-screen',
+          'authenticated-root',
+          'drawer-open-button',
+          'home-feed',
+          'home-feed-flatlist',
+          'home-feed-empty',
+        ], 3000);
+        break;
+      } catch {
+        // Keep unwinding the current screen state.
+      }
     }
-    await device.terminateApp();
-    await device.launchApp({ newInstance: true });
-    await device.disableSynchronization();
-    try {
-      await waitFor(element(by.id('accounts-list'))).toBeVisible().withTimeout(30000);
-      return;
-    } catch {
-      // fall through to login form
-    }
+  }
+
+  try {
+    await waitForPostLoginLanding(3000);
+    return;
+  } catch {
+    // Not authenticated yet; continue to login form.
   }
 
   await element(by.id('login-email-input')).replaceText(seeded.credentials.email || TEST_EMAIL);
   await element(by.id('login-password-input')).replaceText(seeded.credentials.password || TEST_PASSWORD);
-  await dismissKeyboard();
   await element(by.id('login-submit-button')).tap();
 
-  // Screenshot suite: login + navigation to accounts-list can be slow on emulator with ANR noise
-  await waitFor(element(by.id('accounts-list'))).toBeVisible().withTimeout(60000);
+  // Screenshot suite: login + navigation can be slow on emulator with ANR noise.
+  await waitForPostLoginLanding(60000);
 }
 
 /**

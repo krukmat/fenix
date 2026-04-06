@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { Drawer } from 'expo-router/drawer';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useRouter, type Href } from 'expo-router';
 import { DrawerContentScrollView, DrawerContentComponentProps } from '@react-navigation/drawer';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from 'react-native-paper';
@@ -56,9 +56,9 @@ function DrawerSubItem({
 // ─── CRM Section (colapsable) ─────────────────────────────────────────────────
 
 function CRMSection({
-  router,
+  navigateFromDrawer,
 }: {
-  router: ReturnType<typeof useRouter>;
+  navigateFromDrawer: (href: Href) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -78,22 +78,22 @@ function CRMSection({
           <DrawerSubItem
             label="Accounts"
             testID="drawer-crm-accounts"
-            onPress={() => router.push('/crm/accounts')}
+            onPress={() => navigateFromDrawer('/accounts')}
           />
           <DrawerSubItem
             label="Contacts"
             testID="drawer-crm-contacts"
-            onPress={() => router.push('/crm/contacts')}
+            onPress={() => navigateFromDrawer('/contacts')}
           />
           <DrawerSubItem
             label="Deals"
             testID="drawer-crm-deals"
-            onPress={() => router.push('/crm/deals')}
+            onPress={() => navigateFromDrawer('/deals')}
           />
           <DrawerSubItem
             label="Cases"
             testID="drawer-crm-cases"
-            onPress={() => router.push('/crm/cases')}
+            onPress={() => navigateFromDrawer('/cases')}
           />
         </View>
       )}
@@ -110,7 +110,15 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { data: pendingApprovals } = usePendingApprovals();
   const pendingCount = pendingApprovals?.length ?? 0;
 
+  const navigateFromDrawer = (href: Href) => {
+    router.push(href);
+    requestAnimationFrame(() => {
+      props.navigation.closeDrawer();
+    });
+  };
+
   const handleLogout = async () => {
+    props.navigation.closeDrawer();
     await logout();
     router.replace('/login');
   };
@@ -127,31 +135,31 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         label="Home"
         testID="drawer-home-tab"
         badge={pendingCount}
-        onPress={() => router.push('/home')}
+        onPress={() => navigateFromDrawer('/home')}
       />
 
       {/* 2 — CRM (collapsible submenu) */}
-      <CRMSection router={router} />
+      <CRMSection navigateFromDrawer={navigateFromDrawer} />
 
       {/* 3 — Copilot */}
       <DrawerNavItem
         label="Copilot"
         testID="drawer-copilot-tab"
-        onPress={() => router.push('/copilot')}
+        onPress={() => navigateFromDrawer('/copilot')}
       />
 
       {/* 4 — Workflows */}
       <DrawerNavItem
         label="Workflows"
         testID="drawer-workflows-tab"
-        onPress={() => router.push('/workflows')}
+        onPress={() => navigateFromDrawer('/workflows')}
       />
 
       {/* 5 — Activity Log (renamed from Agent Runs) */}
       <DrawerNavItem
         label="Activity Log"
         testID="drawer-activity-tab"
-        onPress={() => router.push('/activity')}
+        onPress={() => navigateFromDrawer('/activity')}
       />
 
       <View style={styles.footer}>
@@ -173,48 +181,51 @@ export default function TabsLayout() {
   }
 
   return (
-    <Drawer
-      drawerContent={(props) => <CustomDrawerContent {...props} />}
-      screenOptions={({ navigation }) => ({
-        headerLeft: () => (
-          <TouchableOpacity
-            testID="drawer-open-button"
-            style={styles.drawerOpenButton}
-            onPress={() => navigation.openDrawer()}
-          >
-            <Text style={styles.drawerOpenButtonText}>☰</Text>
-          </TouchableOpacity>
-        ),
-      })}
-    >
-      {/* Home */}
-      <Drawer.Screen name="home" options={{ title: 'Home', drawerItemStyle: { display: 'none' } }} />
+    <View style={styles.container} testID="authenticated-root">
+      <Drawer
+        drawerContent={(props) => <CustomDrawerContent {...props} />}
+        screenOptions={({ navigation }) => ({
+          headerLeft: () => (
+            <TouchableOpacity
+              testID="drawer-open-button"
+              style={styles.drawerOpenButton}
+              onPress={() => navigation.openDrawer()}
+            >
+              <Text style={styles.drawerOpenButtonText}>☰</Text>
+            </TouchableOpacity>
+          ),
+        })}
+      >
+        {/* Home */}
+        <Drawer.Screen name="home" options={{ title: 'Home', drawerItemStyle: { display: 'none' } }} />
 
-      {/* CRM hub + sub-screens */}
-      <Drawer.Screen name="crm" options={{ title: 'CRM', drawerItemStyle: { display: 'none' } }} />
+        {/* CRM hub + sub-screens */}
+        <Drawer.Screen name="crm" options={{ title: 'CRM', drawerItemStyle: { display: 'none' } }} />
 
-      {/* Copilot */}
-      <Drawer.Screen name="copilot/index" options={{ title: 'Copilot', drawerItemStyle: { display: 'none' } }} />
+        {/* Copilot */}
+        <Drawer.Screen name="copilot/index" options={{ title: 'Copilot', drawerItemStyle: { display: 'none' } }} />
 
-      {/* Workflows */}
-      <Drawer.Screen name="workflows" options={{ title: 'Workflows', drawerItemStyle: { display: 'none' } }} />
+        {/* Workflows */}
+        <Drawer.Screen name="workflows" options={{ title: 'Workflows', drawerItemStyle: { display: 'none' } }} />
 
-      {/* Activity Log */}
-      <Drawer.Screen name="activity" options={{ title: 'Activity Log', drawerItemStyle: { display: 'none' } }} />
+        {/* Activity Log */}
+        <Drawer.Screen name="activity" options={{ title: 'Activity Log', drawerItemStyle: { display: 'none' } }} />
 
-      {/* Legacy routes — kept for backward compat, hidden from drawer */}
-      <Drawer.Screen name="accounts/index" options={{ drawerItemStyle: { display: 'none' } }} />
-      <Drawer.Screen name="contacts/index" options={{ drawerItemStyle: { display: 'none' } }} />
-      <Drawer.Screen name="deals/index" options={{ drawerItemStyle: { display: 'none' } }} />
-      <Drawer.Screen name="cases/index" options={{ drawerItemStyle: { display: 'none' } }} />
-      <Drawer.Screen name="agents" options={{ drawerItemStyle: { display: 'none' } }} />
-    </Drawer>
+        {/* Legacy routes — kept for backward compat, hidden from drawer */}
+        <Drawer.Screen name="accounts/index" options={{ drawerItemStyle: { display: 'none' } }} />
+        <Drawer.Screen name="contacts/index" options={{ drawerItemStyle: { display: 'none' } }} />
+        <Drawer.Screen name="deals/index" options={{ drawerItemStyle: { display: 'none' } }} />
+        <Drawer.Screen name="cases/index" options={{ drawerItemStyle: { display: 'none' } }} />
+        <Drawer.Screen name="agents" options={{ drawerItemStyle: { display: 'none' } }} />
+      </Drawer>
+    </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
   header: { padding: 20, marginBottom: 10 },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#FFFFFF' },
   headerSubtitle: { fontSize: 14, color: '#FFFFFF', opacity: 0.8 },

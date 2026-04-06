@@ -33,6 +33,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - The hook reads env var first, then git config, then falls back to `unknown`.
 - Setting both guarantees correct attribution even if the env var is lost between shell sessions.
 
+**Push discipline (MANDATORY)**:
+- Treat `git push` as the final step after local validation, not as the first validation step.
+- Before pushing changes that touch `mobile/` or mobile-related CI files, run:
+  ```
+  bash scripts/qa-mobile-prepush.sh
+  ```
+- If a required local QA gate cannot be executed, stop and report that explicitly before pushing.
+- Install hooks with `make install-hooks` so the repository `pre-push` hook can enforce this automatically.
+
 ---
 
 ## Core Design Principles
