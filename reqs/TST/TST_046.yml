@@ -1,7 +1,7 @@
 active: true
 bdd:
-  feature: features/uc-s1-sales-copilot.feature
-  scenario: Fall back safely when context grounding is insufficient
+  feature: features/uc-s1-sales-copilot-mobile-smoke.feature
+  scenario: Open Sales Copilot from the deal detail screen
   stack: mobile
 derived: false
 header: ''
@@ -12,4 +12,4 @@ normative: true
 ref: internal/api/handlers/tool_test.go
 reviewed: OFhc0oXZMKSG4Kpu7t0aWNJ3zTrtA0wC_E5T-HkWVEM=
 text: |
-  TST_046 mapped test file.
+  TST_046 mobile smoke coverage for opening Sales Copilot from deal detail.

@@ -486,6 +486,7 @@ func TestPublicRunOutcome(t *testing.T) {
 		{name: "partial maps completed_with_warnings", run: &Run{Status: StatusPartial}, want: PublicOutcomeCompletedWithWarnings},
 		{name: "abstained stays abstained", run: &Run{Status: StatusAbstained}, want: StatusAbstained},
 		{name: "accepted with approval maps awaiting_approval", run: &Run{Status: StatusAccepted, Output: json.RawMessage(`{"action":"pending_approval","approval_id":"apr-1"}`)}, want: PublicOutcomeAwaitingApproval},
+		{name: "escalated with approval maps awaiting_approval", run: &Run{Status: StatusEscalated, Output: json.RawMessage(`{"action":"pending_approval","approval_id":"apr-2"}`)}, want: PublicOutcomeAwaitingApproval},
 		{name: "accepted without approval stays running", run: &Run{Status: StatusAccepted}, want: StatusRunning},
 		{name: "escalated maps handed_off", run: &Run{Status: StatusEscalated}, want: PublicOutcomeHandedOff},
 		{name: "delegated maps handed_off", run: &Run{Status: StatusDelegated}, want: PublicOutcomeHandedOff},

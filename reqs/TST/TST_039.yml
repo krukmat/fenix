@@ -1,7 +1,7 @@
 active: true
 bdd:
   feature: features/uc-c1-support-agent.feature
-  scenario: Abstain when the evidence is insufficient
+  scenario: Abstain with outcome abstained
   stack: go
 derived: false
 header: ''
@@ -12,4 +12,4 @@ normative: true
 ref: internal/api/handlers/knowledge_evidence_test.go
 reviewed: jf1U1LAQae5psAOd9AzqFi_TAA3r8l93_KEAp9dS4PE=
 text: |
-  TST_039 mapped test file.
+  TST_039 support abstention coverage.

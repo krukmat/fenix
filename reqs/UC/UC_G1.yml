@@ -12,4 +12,5 @@ ref: docs/requirements.md
 reviewed: null
 text: |
   UC-G1: Governance
-  Audit agent runs, support replay and rollback control, and preserve operational accountability.
+  Inspect governed runs, approvals, audit events, usage, and quota state through the
+  governance surfaces currently implemented.

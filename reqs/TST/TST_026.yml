@@ -13,4 +13,4 @@ normative: true
 ref: internal/api/middleware/audit_test.go
 reviewed: uD3ClNyhrF195Z6uyKuNgpvs-Iq3-AhzyeYoTJ4zRj4=
 text: |
-  TST_026 mapped test file.
+  TST_026 run inspection and audit visibility coverage.

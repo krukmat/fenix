@@ -481,6 +481,9 @@ func PublicRunOutcome(run *Run) string {
 	if run == nil {
 		return ""
 	}
+	if RunAwaitsApproval(run) {
+		return PublicOutcomeAwaitingApproval
+	}
 
 	if outcome, ok := stablePublicOutcome(run.Status); ok {
 		return outcome

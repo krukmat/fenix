@@ -1,0 +1,16 @@
+active: true
+bdd:
+  feature: features/uc-s1-sales-copilot.feature
+  scenario: Expose evidence pack and next best actions in the sales brief response
+  stack: go
+derived: false
+header: ''
+level: 2
+links:
+- FR_092: 4AlL939onTbDSRm5iIwU1uOE73w4uCUoG-m7bgOWilk=
+- FR_202: nFGnMmATxFZ5xBTA3M0Hql3TA8DE5tDBFX6oZX-JaMg=
+normative: true
+ref: tests/bdd/go/sales_copilot_bdd.go
+reviewed: null
+text: |
+  TST_050 sales brief contract coverage for evidence pack and next actions.

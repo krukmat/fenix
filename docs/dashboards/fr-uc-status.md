@@ -13,6 +13,7 @@ tags: [dashboard, status]
 > Strategic note:
 > This dashboard is primarily an implementation-breadth view. It includes legacy broad-platform coverage that no longer defines the commercial wedge by itself.
 > Current priority order is Support Copilot / Support Agent first, Sales Copilot second, with mobile breadth and broad Agent Studio surfaces no longer treated as universal P0 release gates.
+> BDD audit for the current runner model: `docs/bdd_post_repositioning_audit.md`
 >
 > Commercial package model:
 > `Support Copilot`, `Support Agent`, `Sales Copilot`
@@ -111,14 +112,14 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 
 | UC | Title | Feature File | Go BDD | BFF BDD | Mobile BDD | Doorstop | Gaps |
 |----|-------|-------------|--------|---------|------------|----------|------|
-| UC-S1 | Sales Copilot | `uc-s1-sales-copilot.feature` | ✅ | ⏳ | ⏳ partial | ✅ UC_S1.yml | Mobile Account/Deal screens still pending |
+| UC-S1 | Sales Copilot | `uc-s1-sales-copilot.feature` + `uc-s1-sales-copilot-mobile-smoke.feature` | ✅ canonical backend | ⏳ | ⏳ smoke | ✅ UC_S1.yml | Mobile remains smoke-only, not canonical |
 | UC-S2 | Prospecting Agent | `uc-s2-prospecting-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_S2.yml | Mobile trigger button |
-| UC-S3 | Deal Risk Agent | `uc-s3-deal-risk-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_S3.yml | deal_risk.go agent + mobile |
-| UC-C1 | Support Agent | `uc-c1-support-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_C1.yml | — (Go fully covered) |
+| UC-S3 | Deal Risk Agent | `uc-s3-deal-risk-agent.feature` | 🔒 deferred | ⏳ | ❌ | ✅ UC_S3.yml | deal_risk.go agent + mobile |
+| UC-C1 | Support Agent | `uc-c1-support-agent.feature` | ✅ canonical backend | ⏳ | ❌ | ✅ UC_C1.yml | — |
 | UC-K1 | KB Agent | `uc-k1-kb-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_K1.yml | Mobile KB trigger |
 | UC-D1 | Data Insights Agent | `uc-d1-data-insights-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_D1.yml | Mobile Insights screen |
-| UC-G1 | Governance | `uc-g1-governance.feature` | ✅ | ⏳ | ❌ | ✅ UC_G1.yml | Audit Log mobile screen |
-| UC-A1 | Agent Studio | `uc-a1-agent-studio.feature` | ✅ | ⏳ | ❌ | ✅ UC_A1.yml | — |
+| UC-G1 | Governance | `uc-g1-governance.feature` | ✅ canonical backend | ⏳ | ❌ | ✅ UC_G1.yml | Replay/rollback scenarios deferred |
+| UC-A1 | Agent Studio | `uc-a1-agent-studio.feature` | ⏳ baseline | ⏳ | ❌ | ✅ UC_A1.yml | Baseline/stub coverage only |
 | UC-A2 | Workflow Authoring | `uc-a2-workflow-authoring.feature` | ✅ | ⏳ | ❌ | ✅ UC_A2.yml | — |
 | UC-A3 | Workflow Verification | `uc-a3-workflow-verification-and-activation.feature` | ✅ | ⏳ | ❌ | ✅ UC_A3.yml | — |
 | UC-A4 | Workflow Execution | `uc-a4-workflow-execution.feature` | ✅ | ⏳ | ❌ | ✅ UC_A4.yml | — (4 scenarios: happy, condition_false, tool_failure, approval) |
@@ -129,7 +130,7 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 | UC-A9 | Agent Delegation | `uc-a9-agent-delegation.feature` | ✅ | ⏳ | ❌ | ✅ UC_A9.yml | — |
 | UC-B1 | Safe Tool Routing | `uc-b1-safe-tool-routing.feature` | ✅ | ⏳ | ❌ | ✅ UC_B1.yml | — |
 
-**Totals:** 17 UCs | Go: 17/17 ✅ | BFF: 0/17 ⏳ | Mobile: 0/17 ❌ (1 partial)
+**Totals:** 17 UCs | Go canonical: 3 wedge UCs + runtime UCs | BFF: 0/17 ⏳ | Mobile: smoke only for UC-S1
 
 ---
 
@@ -163,7 +164,7 @@ Source: `docs/tasks/task_uc_gap_closure.md`
 |------|-----------|---------|
 | Doorstop integrity | ✅ Passing | `make doorstop-check` |
 | UC→FR→TST traceability | ✅ Passing | `make bdd-trace-check` |
-| Go BDD runner (33 scenarios) | ✅ Passing | `make test-bdd-go` |
+| Go BDD runner (`@stack-go and not @deferred`) | ✅ Passing | `make test-bdd-go` |
 | BFF BDD runner | ⏳ Not implemented | `make test-bdd-bff` (reserved) |
 | Mobile BDD runner | ❌ Blocked (Android SDK) | `make test-bdd-mobile` |
 

@@ -1,7 +1,7 @@
 active: true
 bdd:
   feature: features/uc-c1-support-agent.feature
-  scenario: Hand off to a human with preserved context
+  scenario: Hand off with outcome handed off
   stack: go
 derived: false
 header: ''
@@ -12,4 +12,4 @@ normative: true
 ref: internal/api/handlers/knowledge_search_test.go
 reviewed: mw2d9umAixqwZ5dXy1psfAAubbkqv5kWQCeTv-94X60=
 text: |
-  TST_037 mapped test file.
+  TST_037 support handoff package coverage.

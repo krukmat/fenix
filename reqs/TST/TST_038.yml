@@ -1,7 +1,7 @@
 active: true
 bdd:
   feature: features/uc-c1-support-agent.feature
-  scenario: Resolve a case with sufficient grounded evidence
+  scenario: Resolve a case with outcome completed
   stack: go
 derived: false
 header: ''
@@ -12,4 +12,4 @@ normative: true
 ref: internal/domain/knowledge/evidence_test.go
 reviewed: 2E9VVOV3ap2wl8vTRsuFDWr7UPHj_OWQ_elUHJawa64=
 text: |
-  TST_038 mapped test file.
+  TST_038 support completed outcome coverage.

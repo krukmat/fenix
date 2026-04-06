@@ -1,15 +1,17 @@
 active: true
+bdd:
+  feature: features/uc-s1-sales-copilot.feature
+  scenario: Generate a grounded sales brief for an account
+  stack: go
 derived: false
 header: ''
-level: 1
+level: 2
 links:
 - FR_001: _FMhHcb-tf9Y2j3DYetX6eV4JqH7cXmC3DyLLxnoaA4=
 - FR_092: 4AlL939onTbDSRm5iIwU1uOE73w4uCUoG-m7bgOWilk=
 - FR_202: nFGnMmATxFZ5xBTA3M0Hql3TA8DE5tDBFX6oZX-JaMg=
 normative: true
-ref: docs/requirements.md
+ref: tests/bdd/go/sales_copilot_bdd.go
 reviewed: null
 text: |
-  UC-S1: Sales Copilot
-  Produce a backend sales brief for account or deal context with grounded evidence,
-  explicit abstention when confidence is low, and next-best actions in the response contract.
+  TST_047 backend sales brief coverage for account context.

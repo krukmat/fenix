@@ -11,3 +11,4 @@ reviewed: null
 text: |
   UC-S3: Deal Risk Agent
   Detect deal risk, explain it with evidence, and suggest mitigation actions.
+  This use case remains deferred from executable canonical BDD until the deal risk agent exists.

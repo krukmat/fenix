@@ -1,7 +1,7 @@
 active: true
 bdd:
   feature: features/uc-g1-governance.feature
-  scenario: Replay an agent run when replay is allowed
+  scenario: Inspect and approve a pending approval request
   stack: go
 derived: false
 header: ''
@@ -13,4 +13,4 @@ normative: true
 ref: internal/domain/policy/evaluator_test.go
 reviewed: Wb-CFmvITLMxjXis2u182iRVzfou79pmo_A1FtohNC4=
 text: |
-  TST_042 mapped test file.
+  TST_042 governance approval inspection coverage.

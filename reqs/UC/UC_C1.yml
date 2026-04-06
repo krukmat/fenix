@@ -11,4 +11,5 @@ ref: docs/requirements.md
 reviewed: null
 text: |
   UC-C1: Support Agent
-  Respond to a case, update the case, and hand off to a human when required.
+  Resolve, abstain, await approval, or hand off a case through the public support runtime
+  while preserving audit, usage, and evidence context.

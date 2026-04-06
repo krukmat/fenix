@@ -1,7 +1,7 @@
 active: true
 bdd:
   feature: features/uc-c1-support-agent.feature
-  scenario: Require approval before a sensitive case action
+  scenario: Require approval with outcome awaiting approval
   stack: go
 derived: false
 header: ''
@@ -12,4 +12,4 @@ normative: true
 ref: internal/api/handlers/approval_test.go
 reviewed: dLomcJe9RUJ21jMjse8YwnIhXbg_pQWLxl6dbR2_l3s=
 text: |
-  TST_044 mapped test file.
+  TST_044 support awaiting approval coverage.

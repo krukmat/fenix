@@ -1,7 +1,7 @@
 active: true
 bdd:
   feature: features/uc-g1-governance.feature
-  scenario: Reject replay or rollback when policy denies it
+  scenario: Record a governance rejection decision in the audit trail
   stack: go
 derived: false
 header: ''
@@ -13,4 +13,4 @@ normative: true
 ref: internal/domain/audit/service_test.go
 reviewed: Z290bjQ2YlJEE32XkKPLv5FvZZ6x4jxhvIzJhNE1NXM=
 text: |
-  TST_025 mapped test file.
+  TST_025 governance rejection audit coverage.

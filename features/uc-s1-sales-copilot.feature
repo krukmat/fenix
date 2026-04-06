@@ -1,29 +1,34 @@
-@UC-S1 @stack-mobile
+@UC-S1 @stack-go
 Feature: Sales Copilot
   As a CRM user
-  I want to launch Sales Copilot from account and deal contexts
-  So that I can get grounded guidance without leaving the flow
+  I want Sales Copilot to return grounded briefs for account and deal contexts
+  So that the commercial wedge is validated against the backend contract that now exists
 
-  @happy @FR-001 @FR-202 @FR-092 @TST-011
-  Scenario: Launch Sales Copilot from account detail with grounded context
-    Given an authenticated workspace user opens an account detail screen
-    And the account has CRM timeline data and linked evidence
-    When the user opens Sales Copilot from the account detail
-    Then Sales Copilot shows the current account context
-    And the response includes evidence-backed guidance for the next step
+  @account @FR-001 @FR-092 @FR-202 @TST-047
+  Scenario: Generate a grounded sales brief for an account
+    Given an account record has grounded CRM timeline evidence
+    When the workspace user requests a sales brief for the account
+    Then the sales brief outcome is completed
+    And the sales brief summary reflects the account context
+    And the sales brief includes evidence-backed next best actions
 
-  @happy @FR-001 @FR-202 @FR-092 @TST-047
-  Scenario: Launch Sales Copilot from deal detail with grounded context
-    Given an authenticated workspace user opens a deal detail screen
-    And the deal has stage, owner, and evidence-backed activity history
-    When the user opens Sales Copilot from the deal detail
-    Then Sales Copilot shows the current deal context
-    And the response includes evidence-backed guidance for the next step
+  @deal @FR-001 @FR-092 @FR-202 @TST-048
+  Scenario: Generate a grounded sales brief for a deal
+    Given a deal record has grounded stage, owner, and activity evidence
+    When the workspace user requests a sales brief for the deal
+    Then the sales brief outcome is completed
+    And the sales brief summary reflects the deal context
+    And the sales brief includes evidence-backed next best actions
 
-  @fallback @FR-202 @FR-092 @TST-046
-  Scenario: Fall back safely when context grounding is insufficient
-    Given an authenticated workspace user opens Sales Copilot from a CRM record
-    And the record does not have enough grounded evidence for a recommendation
-    When the user asks for the next best action
-    Then Sales Copilot does not fabricate a recommendation
-    And Sales Copilot explains that more evidence is required
+  @abstention @FR-092 @FR-202 @TST-049
+  Scenario: Abstain when grounded evidence is insufficient for a sales brief
+    Given a CRM record lacks enough grounded evidence for a sales brief
+    When the workspace user requests a sales brief for the record
+    Then the sales brief outcome is abstained
+    And the sales brief explains that more evidence is required
+
+  @contract @FR-092 @FR-202 @TST-050
+  Scenario: Expose evidence pack and next best actions in the sales brief response
+    Given a completed sales brief is requested for a CRM record
+    Then the response exposes the evidence pack contract
+    And the response exposes the proposed next best actions

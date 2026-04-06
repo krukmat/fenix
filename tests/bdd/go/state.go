@@ -15,6 +15,7 @@ type scenarioState struct {
 	workflowService         *workflowdomain.Service
 	workflowRecord          *workflowdomain.Workflow
 	workflowRuntime         *workflowRuntimeState
+	apiRuntime              *bddAPIRuntime
 	hasEvidence             bool
 	hasProspectContext      bool
 	hasAnalyticalData       bool
@@ -42,9 +43,17 @@ type scenarioState struct {
 	replayAllowed           bool
 	replayAccepted          bool
 	denialRecorded          bool
+	lastStatusCode          int
+	lastResponseBody        []byte
+	lastRunID               string
+	lastApprovalID          string
+	lastEntityID            string
 }
 
 func (s *scenarioState) reset() {
+	if s.apiRuntime != nil {
+		_ = s.apiRuntime.close()
+	}
 	if s.workflowRuntime != nil {
 		_ = s.workflowRuntime.close()
 	}

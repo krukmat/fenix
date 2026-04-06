@@ -8,4 +8,8 @@ normative: true
 ref: internal/domain/policy/approval_test.go
 reviewed: E4xdUmXWPJtpxwkrqvoqcFHqulVtWbYET_xNRRQ9wYI=
 text: |
-  TST_043 mapped test file.
+  TST_043 governance usage and quota visibility coverage.
+bdd:
+  feature: features/uc-g1-governance.feature
+  scenario: Inspect usage and quota state for a governed run
+  stack: go

@@ -1,7 +1,7 @@
 active: true
 bdd:
-  feature: features/uc-s1-sales-copilot.feature
-  scenario: Launch Sales Copilot from account detail with grounded context
+  feature: features/uc-s1-sales-copilot-mobile-smoke.feature
+  scenario: Open Sales Copilot from the account detail screen
   stack: mobile
 derived: false
 header: ''
@@ -13,4 +13,4 @@ normative: true
 ref: internal/api/handlers/account_test.go
 reviewed: H6INg7BKjhfGwHApu_4hKozx7_vi9DvbqEROXOcRGWo=
 text: |
-  TST_011 mapped test file.
+  TST_011 mobile smoke coverage for opening Sales Copilot from account detail.
