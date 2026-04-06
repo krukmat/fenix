@@ -8,11 +8,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	"github.com/matiasleandrokruk/fenix/internal/domain/usage"
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
 )
 
@@ -30,11 +32,14 @@ const (
 	ConfidenceLevelHigh   ConfidenceLevel = "high"
 	entityTypeCase        string          = "case"
 	entityTypeLead        string          = "lead"
+	entityTypeAccount     string          = "account"
+	entityTypeDeal        string          = "deal"
 )
 
 var allowedActionTools = map[string]struct{}{
 	tool.BuiltinCreateTask: {},
 	tool.BuiltinUpdateCase: {},
+	tool.BuiltinUpdateDeal: {},
 	tool.BuiltinSendReply:  {},
 }
 
@@ -61,11 +66,31 @@ type SummarizeInput struct {
 	EntityID    string
 }
 
+type SalesBriefInput struct {
+	WorkspaceID string
+	UserID      string
+	EntityType  string
+	EntityID    string
+}
+
+type SalesBriefResult struct {
+	Outcome          string
+	EntityType       string
+	EntityID         string
+	Summary          string
+	Risks            []string
+	NextBestActions  []SuggestedAction
+	Confidence       ConfidenceLevel
+	AbstentionReason *AbstentionReason
+	EvidencePack     *knowledge.EvidencePack
+}
+
 type ActionService struct {
 	evidence EvidencePackBuilder
 	llm      llm.LLMProvider
 	policy   PolicyEnforcer
 	audit    AuditLogger
+	usage    UsageRecorder
 }
 
 type suggestActionsContext struct {
@@ -81,7 +106,11 @@ type suggestActionsMetrics struct {
 }
 
 func NewActionService(e EvidencePackBuilder, l llm.LLMProvider, p PolicyEnforcer, a AuditLogger) *ActionService {
-	return &ActionService{evidence: e, llm: l, policy: p, audit: a}
+	return NewActionServiceWithUsage(e, l, p, a, nil)
+}
+
+func NewActionServiceWithUsage(e EvidencePackBuilder, l llm.LLMProvider, p PolicyEnforcer, a AuditLogger, u UsageRecorder) *ActionService {
+	return &ActionService{evidence: e, llm: l, policy: p, audit: a, usage: u}
 }
 
 func (s *ActionService) SuggestActions(ctx context.Context, in SuggestActionsInput) ([]SuggestedAction, error) {
@@ -240,8 +269,181 @@ func (s *ActionService) Summarize(ctx context.Context, in SummarizeInput) (strin
 	return summary, nil
 }
 
+type salesBriefPayload struct {
+	Summary string   `json:"summary"`
+	Risks   []string `json:"risks"`
+}
+
+type salesBriefUsageRecord struct {
+	modelName   *string
+	inputUnits  int64
+	outputUnits int64
+	cost        float64
+}
+
+func (s *ActionService) SalesBrief(ctx context.Context, in SalesBriefInput) (*SalesBriefResult, error) {
+	if err := validateSalesEntityInput(in.EntityType, in.EntityID); err != nil {
+		return nil, err
+	}
+
+	startedAt := time.Now()
+	prepared, err := s.prepareSuggestActionsContext(ctx, SuggestActionsInput{
+		WorkspaceID: in.WorkspaceID,
+		UserID:      in.UserID,
+		EntityType:  in.EntityType,
+		EntityID:    in.EntityID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if reason := salesBriefAbstentionReason(prepared.evidencePack); reason != nil {
+		result := &SalesBriefResult{
+			Outcome:          "abstained",
+			EntityType:       in.EntityType,
+			EntityID:         in.EntityID,
+			Summary:          abstentionMessage(*reason),
+			Risks:            []string{},
+			NextBestActions:  []SuggestedAction{},
+			Confidence:       ConfidenceLevelLow,
+			AbstentionReason: reason,
+			EvidencePack:     prepared.evidencePack,
+		}
+		s.logSalesBriefAudit(ctx, in, prepared, result, suggestActionsMetrics{})
+		s.recordSalesBriefUsage(ctx, in, salesBriefUsageRecord{}, time.Since(startedAt))
+		return result, nil
+	}
+
+	brief, record, err := s.generateSalesBrief(ctx, in.EntityType, in.EntityID, prepared.evidencePack, prepared.redactedSources)
+	if err != nil {
+		return nil, err
+	}
+	actions, metrics, err := s.generateSuggestedActions(ctx, in.EntityType, in.EntityID, prepared.evidencePack, prepared.redactedSources)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &SalesBriefResult{
+		Outcome:         "completed",
+		EntityType:      in.EntityType,
+		EntityID:        in.EntityID,
+		Summary:         brief.Summary,
+		Risks:           brief.Risks,
+		NextBestActions: actions,
+		Confidence:      scoreToConfidenceLevel(baseScoreFromConfidence(prepared.evidencePack)),
+		EvidencePack:    prepared.evidencePack,
+	}
+	s.logSalesBriefAudit(ctx, in, prepared, result, metrics)
+	s.recordSalesBriefUsage(ctx, in, record, time.Since(startedAt))
+	return result, nil
+}
+
+func (s *ActionService) generateSalesBrief(
+	ctx context.Context,
+	entityType, entityID string,
+	pack *knowledge.EvidencePack,
+	sources []knowledge.Evidence,
+) (salesBriefPayload, salesBriefUsageRecord, error) {
+	resp, err := s.llm.ChatCompletion(ctx, llm.ChatRequest{
+		Messages: []llm.Message{
+			{Role: "system", Content: "You are FenixCRM Sales Copilot. Return only valid JSON."},
+			{Role: "user", Content: buildSalesBriefPrompt(entityType, entityID, sources)},
+		},
+		Temperature: 0.1,
+		MaxTokens:   500,
+	})
+	if err != nil {
+		return salesBriefPayload{}, salesBriefUsageRecord{}, err
+	}
+
+	payload, err := parseSalesBriefPayload(resp.Content)
+	if err != nil {
+		return salesBriefPayload{}, salesBriefUsageRecord{}, err
+	}
+
+	modelName := strings.TrimSpace(s.llm.ModelInfo().ID)
+	record := salesBriefUsageRecord{
+		inputUnits:  int64(resp.Tokens),
+		outputUnits: int64(resp.Tokens),
+		cost:        0,
+	}
+	if modelName != "" {
+		record.modelName = &modelName
+	}
+
+	payload.Risks = filterNonEmptyStrings(payload.Risks)
+	if payload.Summary == "" {
+		payload.Summary = fallbackSalesSummary(entityType, entityID, pack)
+	}
+	return payload, record, nil
+}
+
+func (s *ActionService) logSalesBriefAudit(
+	ctx context.Context,
+	in SalesBriefInput,
+	prepared *suggestActionsContext,
+	result *SalesBriefResult,
+	metrics suggestActionsMetrics,
+) {
+	entityType := in.EntityType
+	entityID := in.EntityID
+	metadata := map[string]any{
+		"permissionWhere":  prepared.filter.Where,
+		"filteredCount":    prepared.evidencePack.FilteredCount,
+		"confidence":       string(prepared.evidencePack.Confidence),
+		"outcome":          result.Outcome,
+		"returned_actions": len(result.NextBestActions),
+	}
+	if metrics.generated > 0 {
+		metadata["generated_actions"] = metrics.generated
+		metadata["discard_categories"] = metrics.discardReasons
+	}
+	if result.AbstentionReason != nil {
+		metadata["abstention_reason"] = string(*result.AbstentionReason)
+	}
+	_ = s.audit.LogWithDetails(ctx, in.WorkspaceID, in.UserID, audit.ActorTypeUser, "copilot.sales_brief", &entityType, &entityID, &audit.EventDetails{
+		Metadata: metadata,
+	}, audit.OutcomeSuccess)
+}
+
+func (s *ActionService) recordSalesBriefUsage(ctx context.Context, in SalesBriefInput, record salesBriefUsageRecord, duration time.Duration) {
+	if s.usage == nil {
+		return
+	}
+
+	latencyMs := duration.Milliseconds()
+	_, _ = s.usage.RecordEvent(ctx, usage.RecordEventInput{
+		WorkspaceID:   in.WorkspaceID,
+		ActorID:       in.UserID,
+		ActorType:     string(audit.ActorTypeUser),
+		ModelName:     record.modelName,
+		InputUnits:    record.inputUnits,
+		OutputUnits:   record.outputUnits,
+		EstimatedCost: record.cost,
+		LatencyMs:     &latencyMs,
+	})
+}
+
+func salesBriefAbstentionReason(pack *knowledge.EvidencePack) *AbstentionReason {
+	if !hasTraceableEvidence(pack) {
+		reason := AbstentionReasonInsufficientEvidence
+		return &reason
+	}
+	return nil
+}
+
 func validateEntityInput(entityType, entityID string) error {
 	if strings.TrimSpace(entityType) == "" || strings.TrimSpace(entityID) == "" {
+		return errInvalidEntityInput
+	}
+	return nil
+}
+
+func validateSalesEntityInput(entityType, entityID string) error {
+	if err := validateEntityInput(entityType, entityID); err != nil {
+		return err
+	}
+	if entityType != entityTypeAccount && entityType != entityTypeDeal {
 		return errInvalidEntityInput
 	}
 	return nil
@@ -265,7 +467,7 @@ func buildSuggestActionsPrompt(entityType, entityID string, sources []knowledge.
 	b.WriteString(renderEvidenceForPrompt(sources))
 	b.WriteString("\nTask: Suggest exactly 3 actionable next steps.")
 	b.WriteString("\nRespond ONLY with JSON in this format:")
-	b.WriteString(` {"actions":[{"title":"...","description":"...","tool":"create_task|update_case|send_reply","params":{}}]}`)
+	b.WriteString(` {"actions":[{"title":"...","description":"...","tool":"create_task|update_case|update_deal|send_reply","params":{}}]}`)
 	return b.String()
 }
 
@@ -279,6 +481,21 @@ func buildSummarizePrompt(entityType, entityID string, sources []knowledge.Evide
 	b.WriteString(renderEvidenceForPrompt(sources))
 	b.WriteString("\nTask: Write a concise operational summary in 4-6 sentences.")
 	b.WriteString(" Include status, risks, and recommended immediate focus.")
+	return b.String()
+}
+
+func buildSalesBriefPrompt(entityType, entityID string, sources []knowledge.Evidence) string {
+	b := strings.Builder{}
+	b.WriteString("Entity type: ")
+	b.WriteString(entityType)
+	b.WriteString("\nEntity id: ")
+	b.WriteString(entityID)
+	b.WriteString("\n\nEvidence:\n")
+	b.WriteString(renderEvidenceForPrompt(sources))
+	b.WriteString("\nTask: Return a grounded sales brief.")
+	b.WriteString("\nRespond ONLY with JSON in this format:")
+	b.WriteString(` {"summary":"...","risks":["..."]}`)
+	b.WriteString("\nThe summary must be concise and operational. Risks must list objections, blockers, or gaps visible in the evidence.")
 	return b.String()
 }
 
@@ -407,6 +624,26 @@ func normalizeActions(actions []SuggestedAction, limit int) []SuggestedAction {
 	return out
 }
 
+func parseSalesBriefPayload(raw string) (salesBriefPayload, error) {
+	candidates := extractJSONCandidates(raw)
+	for _, candidate := range candidates {
+		var payload salesBriefPayload
+		if err := json.Unmarshal([]byte(candidate), &payload); err == nil && strings.TrimSpace(payload.Summary) != "" {
+			payload.Summary = strings.TrimSpace(payload.Summary)
+			return payload, nil
+		}
+
+		var envelope struct {
+			Data salesBriefPayload `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(candidate), &envelope); err == nil && strings.TrimSpace(envelope.Data.Summary) != "" {
+			envelope.Data.Summary = strings.TrimSpace(envelope.Data.Summary)
+			return envelope.Data, nil
+		}
+	}
+	return salesBriefPayload{}, errors.New("could not parse sales brief")
+}
+
 func scoreAndFilterSuggestedActions(
 	actions []SuggestedAction,
 	entityType, entityID string,
@@ -439,6 +676,8 @@ func eligibilityDiscardReason(action SuggestedAction, entityType, entityID strin
 		return validateCreateTaskEligibility(action.Params, entityType, entityID)
 	case tool.BuiltinUpdateCase:
 		return validateUpdateCaseEligibility(action.Params, entityType, entityID)
+	case tool.BuiltinUpdateDeal:
+		return validateUpdateDealEligibility(action.Params, entityType, entityID)
 	case tool.BuiltinSendReply:
 		return validateSendReplyEligibility(action.Params, entityType, entityID)
 	default:
@@ -447,7 +686,7 @@ func eligibilityDiscardReason(action SuggestedAction, entityType, entityID strin
 }
 
 func validateCreateTaskEligibility(params map[string]any, entityType, entityID string) string {
-	if entityType != entityTypeCase && entityType != entityTypeLead {
+	if !isActionEntityTypeSupported(entityType) {
 		return "entity_not_supported"
 	}
 	if !matchesStringParam(params, "entity_type", entityType) {
@@ -455,6 +694,16 @@ func validateCreateTaskEligibility(params map[string]any, entityType, entityID s
 	}
 	if !matchesStringParam(params, "entity_id", entityID) {
 		return "missing_or_mismatched_entity_id"
+	}
+	return ""
+}
+
+func validateUpdateDealEligibility(params map[string]any, entityType, entityID string) string {
+	if entityType != entityTypeDeal {
+		return "tool_entity_mismatch"
+	}
+	if !matchesStringParam(params, "deal_id", entityID) {
+		return "missing_or_mismatched_deal_id"
 	}
 	return ""
 }
@@ -554,6 +803,22 @@ func scoreToConfidenceLevel(score float64) ConfidenceLevel {
 	}
 }
 
+func fallbackSalesSummary(entityType, entityID string, pack *knowledge.EvidencePack) string {
+	return fmt.Sprintf("Grounded %s summary ready for %s with %d evidence sources.", entityType, entityID, len(pack.Sources))
+}
+
+func filterNonEmptyStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		out = append(out, value)
+	}
+	return out
+}
+
 func dedupeStrings(values []string) []string {
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(values))
@@ -574,4 +839,13 @@ func dedupeStrings(values []string) []string {
 func isAllowedActionTool(name string) bool {
 	_, ok := allowedActionTools[name]
 	return ok
+}
+
+func isActionEntityTypeSupported(entityType string) bool {
+	switch entityType {
+	case entityTypeCase, entityTypeLead, entityTypeAccount, entityTypeDeal:
+		return true
+	default:
+		return false
+	}
 }

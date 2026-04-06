@@ -13,6 +13,7 @@ import (
 type CopilotActionsService interface {
 	SuggestActions(ctx context.Context, in copilot.SuggestActionsInput) ([]copilot.SuggestedAction, error)
 	Summarize(ctx context.Context, in copilot.SummarizeInput) (string, error)
+	SalesBrief(ctx context.Context, in copilot.SalesBriefInput) (*copilot.SalesBriefResult, error)
 }
 
 type CopilotActionsHandler struct {
@@ -37,6 +38,20 @@ type copilotSuggestActionsResponse struct {
 type copilotSummarizeResponse struct {
 	Data struct {
 		Summary string `json:"summary"`
+	} `json:"data"`
+}
+
+type copilotSalesBriefResponse struct {
+	Data struct {
+		Outcome          string                    `json:"outcome"`
+		EntityType       string                    `json:"entityType"`
+		EntityID         string                    `json:"entityId"`
+		Summary          string                    `json:"summary"`
+		Risks            []string                  `json:"risks"`
+		NextBestActions  []copilot.SuggestedAction `json:"nextBestActions"`
+		Confidence       string                    `json:"confidence"`
+		AbstentionReason *string                   `json:"abstentionReason,omitempty"`
+		EvidencePack     evidenceData              `json:"evidencePack"`
 	} `json:"data"`
 }
 
@@ -86,6 +101,38 @@ func (h *CopilotActionsHandler) Summarize(w http.ResponseWriter, r *http.Request
 			)
 		},
 		"summarize failed",
+	)
+}
+
+func (h *CopilotActionsHandler) SalesBrief(w http.ResponseWriter, r *http.Request) {
+	handleCopilotEntityAction(w, r,
+		func(ctx context.Context, in copilotEntityInput) (copilotSalesBriefResponse, error) {
+			result, err := h.service.SalesBrief(ctx, copilot.SalesBriefInput{
+				WorkspaceID: in.WorkspaceID,
+				UserID:      in.UserID,
+				EntityType:  in.EntityType,
+				EntityID:    in.EntityID,
+			})
+			return mapCopilotEntityAction(
+				result,
+				err,
+				func(resp *copilotSalesBriefResponse, result *copilot.SalesBriefResult) {
+					resp.Data.Outcome = result.Outcome
+					resp.Data.EntityType = result.EntityType
+					resp.Data.EntityID = result.EntityID
+					resp.Data.Summary = result.Summary
+					resp.Data.Risks = result.Risks
+					resp.Data.NextBestActions = result.NextBestActions
+					resp.Data.Confidence = string(result.Confidence)
+					if result.AbstentionReason != nil {
+						reason := string(*result.AbstentionReason)
+						resp.Data.AbstentionReason = &reason
+					}
+					resp.Data.EvidencePack = newEvidenceData(result.EvidencePack)
+				},
+			)
+		},
+		"sales brief failed",
 	)
 }
 

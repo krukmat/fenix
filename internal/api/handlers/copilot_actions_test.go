@@ -8,14 +8,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/copilot"
+	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 )
 
 type copilotActionsServiceStub struct {
 	actions []copilot.SuggestedAction
 	summary string
+	brief   *copilot.SalesBriefResult
 	err     error
 }
 
@@ -31,6 +34,13 @@ func (s *copilotActionsServiceStub) Summarize(_ context.Context, _ copilot.Summa
 		return "", s.err
 	}
 	return s.summary, nil
+}
+
+func (s *copilotActionsServiceStub) SalesBrief(_ context.Context, _ copilot.SalesBriefInput) (*copilot.SalesBriefResult, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.brief, nil
 }
 
 func TestActionRequestError_Error(t *testing.T) {
@@ -116,6 +126,69 @@ func TestCopilotActionsHandler_Summarize_OK(t *testing.T) {
 	}
 	if resp.Data.Summary == "" {
 		t.Fatal("expected non-empty summary")
+	}
+}
+
+func TestCopilotActionsHandler_SalesBrief_OK(t *testing.T) {
+	t.Parallel()
+
+	h := NewCopilotActionsHandler(&copilotActionsServiceStub{brief: &copilot.SalesBriefResult{
+		Outcome:         "completed",
+		EntityType:      "deal",
+		EntityID:        "d1",
+		Summary:         "Deal summary",
+		Risks:           []string{"Pricing objection"},
+		NextBestActions: []copilot.SuggestedAction{{Title: "Actualizar deal", Tool: "update_deal", Params: map[string]any{"deal_id": "d1"}}},
+		Confidence:      copilot.ConfidenceLevelHigh,
+		EvidencePack: &knowledge.EvidencePack{
+			SchemaVersion:        knowledge.EvidencePackSchemaVersion,
+			Query:                "entity_type:deal entity_id:d1 latest updates timeline next steps",
+			SourceCount:          1,
+			DedupCount:           0,
+			FilteredCount:        0,
+			Confidence:           knowledge.ConfidenceHigh,
+			Warnings:             []string{},
+			RetrievalMethodsUsed: []knowledge.EvidenceMethod{knowledge.EvidenceMethodHybrid},
+			BuiltAt:              time.Now().UTC(),
+		},
+	}})
+
+	body, _ := json.Marshal(map[string]any{"entityType": "deal", "entityId": "d1"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/copilot/sales-brief", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(req.Context(), ctxkeys.WorkspaceID, "ws_1")
+	ctx = context.WithValue(ctx, ctxkeys.UserID, "u_1")
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	h.SalesBrief(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		Data struct {
+			Outcome      string         `json:"outcome"`
+			Confidence   string         `json:"confidence"`
+			Risks        []string       `json:"risks"`
+			EvidencePack map[string]any `json:"evidencePack"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response error: %v", err)
+	}
+	if resp.Data.Outcome != "completed" {
+		t.Fatalf("expected completed outcome, got %q", resp.Data.Outcome)
+	}
+	if resp.Data.Confidence != string(copilot.ConfidenceLevelHigh) {
+		t.Fatalf("expected high confidence, got %q", resp.Data.Confidence)
+	}
+	if len(resp.Data.Risks) != 1 {
+		t.Fatalf("expected 1 risk, got %d", len(resp.Data.Risks))
+	}
+	if resp.Data.EvidencePack["schema_version"] != knowledge.EvidencePackSchemaVersion {
+		t.Fatalf("unexpected evidence pack: %#v", resp.Data.EvidencePack)
 	}
 }
 

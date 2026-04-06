@@ -580,7 +580,7 @@ The architecture keeps **four mandatory enforcement points**. Usage metering is 
 | `internal/domain/workflow` | implemented | Workflow definitions, activation metadata | Supports ongoing declarative transition |
 | `internal/domain/signal` | implemented | Signal lifecycle over CRM context | Secondary to the current wedge |
 | `internal/domain/eval` | implemented | Eval suites and runs | Needed for quality gates and later replay |
-| `internal/domain/usage` | runtime emission implemented | Usage ledger, per-run attribution, quota state | Persistence, service, and runtime emission exist; public read APIs remain pending |
+| `internal/domain/usage` | implemented | Usage ledger, per-run attribution, quota state | Persistence, service, runtime emission, and read APIs are now wired for workspace and run visibility |
 | `internal/domain/connectors` | target | Formal connector contracts and source adapters | May begin inside knowledge before extraction |
 
 ### 6.2 Interface and infrastructure modules
@@ -612,13 +612,14 @@ These APIs define the product category more than generic CRUD does.
 | Knowledge retrieval | `POST /api/v1/knowledge/search` | Deterministic filters, relevance metadata, audit of strategic queries |
 | Evidence assembly | `POST /api/v1/knowledge/evidence` | Return the versioned evidence-pack contract from Section 8 |
 | Grounded copilot query | `POST /api/v1/copilot/chat` | Grounded answer, abstention path, audit, usage attribution |
+| Sales copilot brief | `POST /api/v1/copilot/sales-brief` | Canonical account/deal summary, risks, next actions, and abstention under an evidence-pack contract |
 | Support agent trigger | `POST /api/v1/agents/trigger`, `POST /api/v1/agents/support/trigger` | Create agent run, bind trace, preserve policy context |
 | Agent run inspection | `GET /api/v1/agents/runs/{id}` | Return execution state, evidence linkage, audit trace references |
 | Handoff package | `GET /api/v1/agents/runs/{id}/handoff`, `POST /api/v1/agents/runs/{id}/handoff` | Preserve rationale and evidence for human takeover |
 | Approval review | `GET /api/v1/approvals`, `PUT /api/v1/approvals/{id}` | Deterministic state transitions, audit emission on decision |
 | Audit review | `GET /api/v1/audit/events`, `GET /api/v1/audit/events/{id}`, `POST /api/v1/audit/export` | Append-only semantics and stable query/export behavior |
 | Operability | `GET /health`, `GET /readyz`, `GET /metrics` | Health, dependency readiness, and runtime metrics |
-| Usage and quota | reserved: `/api/v1/usage`, `/api/v1/quota-state` | Must expose per-workspace, per-run, and per-tool attribution once implemented |
+| Usage and quota | `GET /api/v1/usage`, `GET /api/v1/quota-state` | Expose per-workspace and per-run attribution plus quota-state visibility |
 
 ### 7.2 Support APIs
 

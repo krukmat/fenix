@@ -14,9 +14,11 @@ import (
 const (
 	BuiltinCreateTask          = "create_task"
 	BuiltinUpdateCase          = "update_case"
+	BuiltinUpdateDeal          = "update_deal"
 	BuiltinSendReply           = "send_reply"
 	BuiltinGetLead             = "get_lead"
 	BuiltinGetAccount          = "get_account"
+	BuiltinGetDeal             = "get_deal"
 	BuiltinCreateKnowledgeItem = "create_knowledge_item"
 	BuiltinUpdateKnowledgeItem = "update_knowledge_item"
 	BuiltinQueryMetrics        = "query_metrics"
@@ -27,6 +29,7 @@ type BuiltinServices struct {
 	Case    *crm.CaseService
 	Lead    *crm.LeadService
 	Account *crm.AccountService
+	Deal    *crm.DealService
 	Ingest  knowledgeIngestor
 }
 
@@ -56,6 +59,12 @@ func builtinDefinitions() []builtinDefinition {
 			RequiredPermissions: []string{"tools:update_case"},
 		},
 		{
+			Name:                BuiltinUpdateDeal,
+			Description:         "Update deal status/stage/amount and emit record.updated",
+			InputSchema:         json.RawMessage(`{"type":"object","required":["deal_id"],"properties":{"deal_id":{"type":"string"},"status":{"type":"string"},"stage_id":{"type":"string"},"amount":{"type":"number"}},"additionalProperties":false}`),
+			RequiredPermissions: []string{"tools:update_deal"},
+		},
+		{
 			Name:                BuiltinSendReply,
 			Description:         "Create a case reply note",
 			InputSchema:         json.RawMessage(`{"type":"object","required":["case_id","body"],"properties":{"case_id":{"type":"string"},"body":{"type":"string"},"is_internal":{"type":"boolean"}},"additionalProperties":false}`),
@@ -72,6 +81,12 @@ func builtinDefinitions() []builtinDefinition {
 			Description:         "Fetch an account by id in current workspace",
 			InputSchema:         json.RawMessage(`{"type":"object","required":["account_id"],"properties":{"account_id":{"type":"string"}},"additionalProperties":false}`),
 			RequiredPermissions: []string{"tools:get_account"},
+		},
+		{
+			Name:                BuiltinGetDeal,
+			Description:         "Fetch a deal by id in current workspace",
+			InputSchema:         json.RawMessage(`{"type":"object","required":["deal_id"],"properties":{"deal_id":{"type":"string"}},"additionalProperties":false}`),
+			RequiredPermissions: []string{"tools:get_deal"},
 		},
 		{
 			Name:                BuiltinCreateKnowledgeItem,
@@ -175,9 +190,11 @@ func RegisterBuiltInExecutors(registry *ToolRegistry, services BuiltinServices) 
 	}{
 		{name: BuiltinCreateTask, executor: NewCreateTaskExecutor(services.DB)},
 		{name: BuiltinUpdateCase, executor: NewUpdateCaseExecutor(services.Case)},
+		{name: BuiltinUpdateDeal, executor: NewUpdateDealExecutor(services.Deal)},
 		{name: BuiltinSendReply, executor: NewSendReplyExecutor(services.DB, services.Case)},
 		{name: BuiltinGetLead, executor: NewGetLeadExecutor(services.Lead)},
 		{name: BuiltinGetAccount, executor: NewGetAccountExecutor(services.Account)},
+		{name: BuiltinGetDeal, executor: NewGetDealExecutor(services.Deal)},
 		{name: BuiltinCreateKnowledgeItem, executor: NewCreateKnowledgeItemExecutor(services.Ingest)},
 		{name: BuiltinUpdateKnowledgeItem, executor: NewUpdateKnowledgeItemExecutor(services.DB)},
 		{name: BuiltinQueryMetrics, executor: NewQueryMetricsExecutor(services.DB)},

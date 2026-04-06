@@ -136,6 +136,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		timelineHandler := handlers.NewTimelineHandler(crm.NewTimelineService(db))
 		reportHandler := handlers.NewReportHandler(crm.NewReportService(db))
 		auditHandler := handlers.NewAuditHandler(auditService)
+		usageHandler := handlers.NewUsageHandler(usageService)
 		schedulerRepo := schedulerdomain.NewRepository(db)
 		schedulerSvc := schedulerdomain.NewService(schedulerRepo)
 		workflowRepo := workflowdomain.NewRepository(db)
@@ -265,6 +266,8 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 			r.Get("/events/{id}", auditHandler.GetByID)
 			r.Post("/export", auditHandler.Export)
 		})
+		r.Get("/usage", usageHandler.ListUsage)
+		r.Get("/quota-state", usageHandler.GetQuotaState)
 
 		knowledgeIngestHandler := handlers.NewKnowledgeIngestHandler(ingestSvc)
 		knowledgeSearchHandler := handlers.NewKnowledgeSearchHandler(searchSvc)
@@ -277,7 +280,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		promptHandler := handlers.NewPromptHandlerWithAuthorizer(promptSvc, promptSvc, policyEngine)
 		copilotChatSvc := copilotdomain.NewChatServiceWithUsage(evidenceSvc, chatProvider, policyEngine, auditService, usageService)
 		copilotChatHandler := handlers.NewCopilotChatHandler(copilotChatSvc)
-		copilotActionsSvc := copilotdomain.NewActionService(evidenceSvc, chatProvider, policyEngine, auditService)
+		copilotActionsSvc := copilotdomain.NewActionServiceWithUsage(evidenceSvc, chatProvider, policyEngine, auditService, usageService)
 		copilotActionsHandler := handlers.NewCopilotActionsHandler(copilotActionsSvc)
 
 		_ = tooldomain.RegisterBuiltInExecutors(toolRegistry, tooldomain.BuiltinServices{
@@ -285,6 +288,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 			Case:    caseService,
 			Lead:    crm.NewLeadService(db),
 			Account: crm.NewAccountService(db),
+			Deal:    dealService,
 			Ingest:  ingestSvc,
 		})
 		_ = toolRegistry.EnsureBuiltInToolDefinitionsForAllWorkspaces(context.Background())
@@ -339,6 +343,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 			r.Post("/chat", copilotChatHandler.Chat)                         // POST /api/v1/copilot/chat
 			r.Post("/suggest-actions", copilotActionsHandler.SuggestActions) // POST /api/v1/copilot/suggest-actions
 			r.Post("/summarize", copilotActionsHandler.Summarize)            // POST /api/v1/copilot/summarize
+			r.Post("/sales-brief", copilotActionsHandler.SalesBrief)         // POST /api/v1/copilot/sales-brief
 		})
 
 		// Task 3.7: Agent Runtime routes

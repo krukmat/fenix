@@ -37,9 +37,9 @@ The repository already contains meaningful implementation across the target wedg
 However, the current implementation and planning layer still show strategic drift in four material areas:
 
 1. the active execution plan still overweights `mobile`, `BFF`, and broad UI surface completion
-2. the `usage/quota` domain now has persistence, service, and runtime emission foundations, but read APIs and quota visibility are still missing
+2. the `usage/quota` domain now has persistence, service, runtime emission, and read APIs for workspace and run visibility
 3. approval and runtime outcome contracts are normalized to the target public model, and the support wedge now runs end-to-end with evidence, approval, audit, handoff, and usage traces
-4. the evidence pack contract is locked across evidence, copilot, and support handoff surfaces, while sales closure work and usage-facing APIs remain in the next wave
+4. the evidence pack contract is locked across evidence, copilot, support handoff, and the canonical sales brief flow; packaging, messaging, and demo closure remain in the next wave
 
 This plan closes that drift without expanding scope.
 

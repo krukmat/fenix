@@ -143,8 +143,8 @@ func TestEnsureBuiltInToolDefinitionsForAllWorkspaces_Idempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListToolDefinitions error = %v", err)
 	}
-	if len(items) != 8 {
-		t.Fatalf("expected 8 built-in definitions, got %d", len(items))
+	if len(items) != 10 {
+		t.Fatalf("expected 10 built-in definitions, got %d", len(items))
 	}
 }
 
@@ -159,6 +159,7 @@ func TestRegisterBuiltInExecutors(t *testing.T) {
 		Case:    crm.NewCaseService(db),
 		Lead:    crm.NewLeadService(db),
 		Account: crm.NewAccountService(db),
+		Deal:    crm.NewDealService(db),
 		Ingest:  knowledge.NewIngestService(db, eventbus.New()),
 	}); err != nil {
 		t.Fatalf("RegisterBuiltInExecutors error = %v", err)
@@ -178,6 +179,12 @@ func TestRegisterBuiltInExecutors(t *testing.T) {
 	}
 	if _, err := r.Get(BuiltinGetAccount); err != nil {
 		t.Fatalf("expected get_account executor registered, err = %v", err)
+	}
+	if _, err := r.Get(BuiltinGetDeal); err != nil {
+		t.Fatalf("expected get_deal executor registered, err = %v", err)
+	}
+	if _, err := r.Get(BuiltinUpdateDeal); err != nil {
+		t.Fatalf("expected update_deal executor registered, err = %v", err)
 	}
 	if _, err := r.Get(BuiltinCreateKnowledgeItem); err != nil {
 		t.Fatalf("expected create_knowledge_item executor registered, err = %v", err)
@@ -254,6 +261,119 @@ func TestGetAccountExecutor_SuccessAndNotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected not found error")
 	}
+}
+
+func TestGetDealExecutor_SuccessAndNotFound(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	ownerID := createToolUser(t, db, wsID)
+	accountID, pipelineID, stageID := createToolDealContext(t, db, wsID, ownerID)
+
+	deal, err := crm.NewDealService(db).Create(context.Background(), crm.CreateDealInput{
+		WorkspaceID: wsID,
+		AccountID:   accountID,
+		PipelineID:  pipelineID,
+		StageID:     stageID,
+		OwnerID:     ownerID,
+		Title:       "Strategic renewal",
+		Status:      "open",
+	})
+	if err != nil {
+		t.Fatalf("create deal: %v", err)
+	}
+
+	exec := NewGetDealExecutor(crm.NewDealService(db))
+	ctx := context.WithValue(context.Background(), ctxkeys.WorkspaceID, wsID)
+
+	out, err := exec.Execute(ctx, json.RawMessage(`{"deal_id":"`+deal.ID+`"}`))
+	if err != nil {
+		t.Fatalf("Execute success error = %v", err)
+	}
+	if len(out) == 0 {
+		t.Fatal("expected non-empty output")
+	}
+
+	_, err = exec.Execute(ctx, json.RawMessage(`{"deal_id":"missing"}`))
+	if err == nil {
+		t.Fatal("expected not found error")
+	}
+}
+
+func TestUpdateDealExecutor_Execute_UpdatesDeal(t *testing.T) {
+	t.Parallel()
+
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	ownerID := createToolUser(t, db, wsID)
+	accountID, pipelineID, stageID := createToolDealContext(t, db, wsID, ownerID)
+
+	dealSvc := crm.NewDealService(db)
+	created, err := dealSvc.Create(context.Background(), crm.CreateDealInput{
+		WorkspaceID: wsID,
+		AccountID:   accountID,
+		PipelineID:  pipelineID,
+		StageID:     stageID,
+		OwnerID:     ownerID,
+		Title:       "Deal from tool",
+		Status:      "open",
+	})
+	if err != nil {
+		t.Fatalf("Create deal error = %v", err)
+	}
+
+	exec := NewUpdateDealExecutor(dealSvc)
+	ctx := context.WithValue(context.Background(), ctxkeys.WorkspaceID, wsID)
+	params := json.RawMessage(`{"deal_id":"` + created.ID + `","status":"won","amount":12500}`)
+
+	if _, err := exec.Execute(ctx, params); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	updated, err := dealSvc.Get(context.Background(), wsID, created.ID)
+	if err != nil {
+		t.Fatalf("Get deal error = %v", err)
+	}
+	if updated.Status != "won" {
+		t.Fatalf("expected status updated, got %q", updated.Status)
+	}
+	if updated.Amount == nil || *updated.Amount != 12500 {
+		t.Fatalf("expected amount updated, got %#v", updated.Amount)
+	}
+}
+
+func createToolDealContext(t *testing.T, db *sql.DB, wsID, ownerID string) (string, string, string) {
+	t.Helper()
+
+	account, err := crm.NewAccountService(db).Create(context.Background(), crm.CreateAccountInput{
+		WorkspaceID: wsID,
+		Name:        "ACME Expansion",
+		OwnerID:     ownerID,
+	})
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+
+	pipelineSvc := crm.NewPipelineService(db)
+	pipeline, err := pipelineSvc.Create(context.Background(), crm.CreatePipelineInput{
+		WorkspaceID: wsID,
+		Name:        "Sales Pipeline",
+		EntityType:  "deal",
+	})
+	if err != nil {
+		t.Fatalf("create pipeline: %v", err)
+	}
+	stage, err := pipelineSvc.CreateStage(context.Background(), crm.CreatePipelineStageInput{
+		PipelineID: pipeline.ID,
+		Name:       "Discovery",
+		Position:   0,
+	})
+	if err != nil {
+		t.Fatalf("create stage: %v", err)
+	}
+
+	return account.ID, pipeline.ID, stage.ID
 }
 
 func TestCreateKnowledgeItemExecutor_SuccessAndWorkspaceMismatch(t *testing.T) {

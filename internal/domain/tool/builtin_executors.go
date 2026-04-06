@@ -171,6 +171,85 @@ func marshalCaseUpdated(updated *crm.CaseTicket) json.RawMessage {
 	return out
 }
 
+type UpdateDealExecutor struct{ deals *crm.DealService }
+
+func NewUpdateDealExecutor(deals *crm.DealService) ToolExecutor {
+	return &UpdateDealExecutor{deals: deals}
+}
+
+type updateDealParams struct {
+	DealID  string   `json:"deal_id"`
+	Status  string   `json:"status"`
+	StageID string   `json:"stage_id"`
+	Amount  *float64 `json:"amount"`
+}
+
+func (e *UpdateDealExecutor) Execute(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
+	in, err := parseUpdateDealParams(params)
+	if err != nil {
+		return nil, err
+	}
+	workspaceID, err := workspaceIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := e.updateDeal(ctx, workspaceID, in)
+	if err != nil {
+		return nil, err
+	}
+	return marshalDealUpdated(updated), nil
+}
+
+func parseUpdateDealParams(params json.RawMessage) (updateDealParams, error) {
+	var in updateDealParams
+	if err := json.Unmarshal(params, &in); err != nil {
+		return updateDealParams{}, fmt.Errorf(errInvalidParams, ErrBuiltinExecutionFailed)
+	}
+	if in.DealID == "" {
+		return updateDealParams{}, fmt.Errorf("%w: deal_id is required", ErrBuiltinExecutionFailed)
+	}
+	return in, nil
+}
+
+func (e *UpdateDealExecutor) updateDeal(ctx context.Context, workspaceID string, in updateDealParams) (*crm.Deal, error) {
+	if e.deals == nil {
+		return nil, fmt.Errorf("%w: deal service not configured", ErrBuiltinExecutionFailed)
+	}
+	existing, err := e.deals.Get(ctx, workspaceID, in.DealID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: deal not found", ErrBuiltinExecutionFailed)
+	}
+	updated, err := e.deals.Update(ctx, workspaceID, in.DealID, crm.UpdateDealInput{
+		AccountID:     existing.AccountID,
+		ContactID:     derefString(existing.ContactID),
+		PipelineID:    existing.PipelineID,
+		StageID:       firstNonEmpty(in.StageID, existing.StageID),
+		OwnerID:       existing.OwnerID,
+		Title:         existing.Title,
+		Amount:        firstNonNilFloat(in.Amount, existing.Amount),
+		Currency:      derefString(existing.Currency),
+		ExpectedClose: derefString(existing.ExpectedClose),
+		Status:        firstNonEmpty(in.Status, existing.Status),
+		Metadata:      derefString(existing.Metadata),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: update deal: %w", ErrBuiltinExecutionFailed, err)
+	}
+	return updated, nil
+}
+
+func firstNonNilFloat(primary, fallback *float64) *float64 {
+	if primary != nil {
+		return primary
+	}
+	return fallback
+}
+
+func marshalDealUpdated(updated *crm.Deal) json.RawMessage {
+	out, _ := json.Marshal(map[string]any{"deal_id": updated.ID, "updated_at": updated.UpdatedAt.Format(time.RFC3339)})
+	return out
+}
+
 type SendReplyExecutor struct {
 	db    *sql.DB
 	cases *crm.CaseService
@@ -315,6 +394,25 @@ func (e *GetAccountExecutor) Execute(ctx context.Context, params json.RawMessage
 	}
 	return getEntityByID(ctx, in.AccountID, "account_id", "account", e.accounts != nil,
 		func(wsID string) (any, error) { return e.accounts.Get(ctx, wsID, in.AccountID) })
+}
+
+type GetDealExecutor struct{ deals *crm.DealService }
+
+func NewGetDealExecutor(deals *crm.DealService) ToolExecutor {
+	return &GetDealExecutor{deals: deals}
+}
+
+type getDealParams struct {
+	DealID string `json:"deal_id"`
+}
+
+func (e *GetDealExecutor) Execute(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
+	var in getDealParams
+	if err := json.Unmarshal(params, &in); err != nil {
+		return nil, fmt.Errorf(errInvalidParams, ErrBuiltinExecutionFailed)
+	}
+	return getEntityByID(ctx, in.DealID, "deal_id", "deal", e.deals != nil,
+		func(wsID string) (any, error) { return e.deals.Get(ctx, wsID, in.DealID) })
 }
 
 // getEntityByID is a shared helper for single-entity lookup executors.

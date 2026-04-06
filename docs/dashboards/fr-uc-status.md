@@ -108,7 +108,7 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 
 | UC | Title | Feature File | Go BDD | BFF BDD | Mobile BDD | Doorstop | Gaps |
 |----|-------|-------------|--------|---------|------------|----------|------|
-| UC-S1 | Sales Copilot | `uc-s1-sales-copilot.feature` | ✅ | ⏳ | ⏳ partial | ✅ UC_S1.yml | Copilot section on Account/Deal screens |
+| UC-S1 | Sales Copilot | `uc-s1-sales-copilot.feature` | ✅ | ⏳ | ⏳ partial | ✅ UC_S1.yml | Mobile Account/Deal screens still pending |
 | UC-S2 | Prospecting Agent | `uc-s2-prospecting-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_S2.yml | Mobile trigger button |
 | UC-S3 | Deal Risk Agent | `uc-s3-deal-risk-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_S3.yml | deal_risk.go agent + mobile |
 | UC-C1 | Support Agent | `uc-c1-support-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_C1.yml | — (Go fully covered) |
@@ -138,8 +138,8 @@ Source: `docs/tasks/task_uc_gap_closure.md`
 
 | Task | UC | Gap | Status |
 |------|-----|-----|--------|
-| Gap-1 | UC-S1 | Extend `suggest_actions.go` for Account/Deal (BE only responds to Case today) | ❌ pending |
-| Gap-2 | UC-S1, UC-S3 | Add `get_deal` and `update_deal` to tool registry | ❌ pending |
+| Gap-1 | UC-S1 | Extend `suggest_actions.go` for Account/Deal (BE only responds to Case today) | ✅ done |
+| Gap-2 | UC-S1, UC-S3 | Add `get_deal` and `update_deal` to tool registry | ✅ done |
 | Gap-3 | UC-S1 | Copilot panel section on Account detail + Deal detail screens (Mobile) | ❌ pending |
 | Gap-4 | UC-G1 | Audit Log screen in mobile app + `/audit/events` API methods | ❌ pending |
 

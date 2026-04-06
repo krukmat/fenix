@@ -88,6 +88,73 @@ func TestSuggestActions_FiltersToolEntityMismatch(t *testing.T) {
 	}
 }
 
+func TestSuggestActions_AllowsAccountCreateTask(t *testing.T) {
+	t.Parallel()
+
+	snippet := "account renewal is blocked by procurement review"
+	svc := NewActionService(
+		&evidenceStub{pack: &knowledge.EvidencePack{
+			Sources:    []knowledge.Evidence{{ID: "ev_1", Snippet: &snippet}},
+			Confidence: knowledge.ConfidenceMedium,
+		}},
+		&llmStub{resp: `{"actions":[
+			{"title":"Crear seguimiento","description":"Coordinar proximo paso comercial","tool":"create_task","params":{"entity_type":"account","entity_id":"acc_1"}}
+		]}`},
+		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
+		&auditStub{},
+	)
+
+	actions, err := svc.SuggestActions(context.Background(), SuggestActionsInput{
+		WorkspaceID: "ws_1",
+		UserID:      "u_1",
+		EntityType:  "account",
+		EntityID:    "acc_1",
+	})
+	if err != nil {
+		t.Fatalf("SuggestActions error: %v", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 eligible action, got %d", len(actions))
+	}
+	if actions[0].Tool != "create_task" {
+		t.Fatalf("unexpected tool %q", actions[0].Tool)
+	}
+}
+
+func TestSuggestActions_AllowsDealUpdateAndTask(t *testing.T) {
+	t.Parallel()
+
+	snippet := "deal stalled after pricing objection from procurement"
+	svc := NewActionService(
+		&evidenceStub{pack: &knowledge.EvidencePack{
+			Sources:    []knowledge.Evidence{{ID: "ev_1", Snippet: &snippet}},
+			Confidence: knowledge.ConfidenceHigh,
+		}},
+		&llmStub{resp: `{"actions":[
+			{"title":"Mover deal","description":"Actualizar etapa","tool":"update_deal","params":{"deal_id":"d1","stage_id":"stage_2"}},
+			{"title":"Crear seguimiento","description":"Programar llamada","tool":"create_task","params":{"entity_type":"deal","entity_id":"d1"}}
+		]}`},
+		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
+		&auditStub{},
+	)
+
+	actions, err := svc.SuggestActions(context.Background(), SuggestActionsInput{
+		WorkspaceID: "ws_1",
+		UserID:      "u_1",
+		EntityType:  "deal",
+		EntityID:    "d1",
+	})
+	if err != nil {
+		t.Fatalf("SuggestActions error: %v", err)
+	}
+	if len(actions) != 2 {
+		t.Fatalf("expected 2 eligible actions, got %d", len(actions))
+	}
+	if actions[0].Tool != "update_deal" {
+		t.Fatalf("unexpected first tool %q", actions[0].Tool)
+	}
+}
+
 func TestSuggestActions_FiltersMissingReplyBody(t *testing.T) {
 	t.Parallel()
 
@@ -211,5 +278,76 @@ func TestSummarize_ValidatesEntityInput(t *testing.T) {
 	_, err := svc.Summarize(context.Background(), SummarizeInput{WorkspaceID: "ws_1", UserID: "u_1", EntityType: "", EntityID: ""})
 	if !errors.Is(err, errInvalidEntityInput) {
 		t.Fatalf("expected invalid entity input error, got %v", err)
+	}
+}
+
+func TestSalesBrief_CompletesForDealContext(t *testing.T) {
+	t.Parallel()
+
+	snippet := "deal has procurement objection and next meeting is pending"
+	recorder := &usageRecorderStub{}
+	svc := NewActionServiceWithUsage(
+		&evidenceStub{pack: &knowledge.EvidencePack{
+			Sources:    []knowledge.Evidence{{ID: "ev_1", Snippet: &snippet}},
+			Confidence: knowledge.ConfidenceHigh,
+		}},
+		&llmStub{responses: []string{
+			`{"summary":"Deal summary","risks":["Procurement objection"]}`,
+			`{"actions":[{"title":"Actualizar deal","description":"Mover a negociacion","tool":"update_deal","params":{"deal_id":"d1","stage_id":"negotiation"}}]}`,
+		}},
+		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
+		&auditStub{},
+		recorder,
+	)
+
+	result, err := svc.SalesBrief(context.Background(), SalesBriefInput{
+		WorkspaceID: "ws_1",
+		UserID:      "u_1",
+		EntityType:  "deal",
+		EntityID:    "d1",
+	})
+	if err != nil {
+		t.Fatalf("SalesBrief error: %v", err)
+	}
+	if result.Outcome != "completed" {
+		t.Fatalf("expected completed, got %q", result.Outcome)
+	}
+	if result.Summary == "" || len(result.Risks) != 1 || len(result.NextBestActions) != 1 {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if len(recorder.inputs) != 1 {
+		t.Fatalf("expected 1 usage event, got %d", len(recorder.inputs))
+	}
+}
+
+func TestSalesBrief_AbstainsWhenEvidenceIsInsufficient(t *testing.T) {
+	t.Parallel()
+
+	snippet := "generic crm note"
+	llmSvc := &llmStub{resp: "should not be used"}
+	svc := NewActionService(
+		&evidenceStub{pack: &knowledge.EvidencePack{
+			Sources:    []knowledge.Evidence{{Snippet: &snippet}},
+			Confidence: knowledge.ConfidenceLow,
+		}},
+		llmSvc,
+		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
+		&auditStub{},
+	)
+
+	result, err := svc.SalesBrief(context.Background(), SalesBriefInput{
+		WorkspaceID: "ws_1",
+		UserID:      "u_1",
+		EntityType:  "account",
+		EntityID:    "acc_1",
+	})
+	if err != nil {
+		t.Fatalf("SalesBrief error: %v", err)
+	}
+	if result.Outcome != "abstained" {
+		t.Fatalf("expected abstained, got %q", result.Outcome)
+	}
+	if llmSvc.call != 0 {
+		t.Fatalf("expected llm not to be called, got %d", llmSvc.call)
 	}
 }

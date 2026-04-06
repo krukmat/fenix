@@ -51,9 +51,10 @@ func (s *policyStub) RedactPII(_ context.Context, evidence []knowledge.Evidence)
 }
 
 type llmStub struct {
-	resp string
-	err  error
-	call int
+	resp      string
+	responses []string
+	err       error
+	call      int
 }
 
 func (s *llmStub) ChatCompletion(_ context.Context, _ llm.ChatRequest) (*llm.ChatResponse, error) {
@@ -61,7 +62,15 @@ func (s *llmStub) ChatCompletion(_ context.Context, _ llm.ChatRequest) (*llm.Cha
 	if s.err != nil {
 		return nil, s.err
 	}
-	return &llm.ChatResponse{Content: s.resp, Tokens: 42}, nil
+	content := s.resp
+	if len(s.responses) > 0 {
+		idx := s.call - 1
+		if idx >= len(s.responses) {
+			idx = len(s.responses) - 1
+		}
+		content = s.responses[idx]
+	}
+	return &llm.ChatResponse{Content: content, Tokens: 42}, nil
 }
 
 func (s *llmStub) Embed(_ context.Context, _ llm.EmbedRequest) (*llm.EmbedResponse, error) {

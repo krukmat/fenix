@@ -58,11 +58,9 @@ Current wedge order:
 
 The next planning iteration should prioritize:
 
-1. Usage and quota read/reporting APIs
-2. Sales Copilot reference flow
-3. Connector contract specification
-4. Packaging and messaging alignment
-5. Demo/UAT closure
+1. Connector contract specification
+2. Packaging and messaging alignment
+3. Demo/UAT closure
 
 ## Implementation Plan Added
 
