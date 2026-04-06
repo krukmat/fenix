@@ -55,6 +55,9 @@ else
   echo "==> Gate: govulncheck — SKIPPED (no go.mod/go.sum changes)"
 fi
 
+echo "==> Gate: race-stability"
+RACE_STABILITY_COUNT=3 make race-stability
+
 echo "==> Gate: pattern-refactor-gate"
 make pattern-refactor-gate
 
