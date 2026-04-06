@@ -58,12 +58,11 @@ Current wedge order:
 
 The next planning iteration should prioritize:
 
-1. Usage and quota technical specification
-2. Evidence pack contract lock
-3. Approval and runtime outcome normalization
-4. Support Agent reference flow
-5. Sales Copilot reference flow
-6. Connector contract specification
+1. Usage and quota read/reporting APIs
+2. Sales Copilot reference flow
+3. Connector contract specification
+4. Packaging and messaging alignment
+5. Demo/UAT closure
 
 ## Implementation Plan Added
 

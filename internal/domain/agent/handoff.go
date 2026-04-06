@@ -7,10 +7,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
+	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
+	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
 )
 
 // ErrHandoffCaseNotFound is returned when the requested case does not exist.
@@ -31,26 +34,51 @@ type CaseServiceInterface interface {
 // HandoffPackage is the structured context delivered to a human agent
 // when an AI agent cannot resolve a case and escalates.
 type HandoffPackage struct {
-	ContractVersion   string          `json:"contractVersion"`
-	RunID             string          `json:"runId"`
-	WorkspaceID       string          `json:"workspaceId"`
-	AgentDefinitionID string          `json:"agentDefinitionId"`
-	Status            string          `json:"status"`
-	RuntimeStatus     string          `json:"runtimeStatus,omitempty"`
-	Reason            string          `json:"reason"`
-	AbstentionReason  *string         `json:"abstentionReason,omitempty"`
-	CaseID            string          `json:"caseId"`
-	CaseSubject       string          `json:"caseSubject"`
-	CaseStatus        string          `json:"caseStatus"`
-	CasePriority      string          `json:"casePriority"`
-	CaseOwnerID       string          `json:"caseOwnerId"`
-	TriggerContext    json.RawMessage `json:"triggerContext"`
-	FinalOutput       json.RawMessage `json:"finalOutput"`
-	ReasoningTrace    json.RawMessage `json:"reasoningTrace"`
-	ToolCalls         json.RawMessage `json:"toolCalls"`
-	EvidenceIDs       json.RawMessage `json:"evidenceIds"`
-	StartedAt         time.Time       `json:"startedAt"`
-	CompletedAt       *time.Time      `json:"completedAt,omitempty"`
+	ContractVersion   string              `json:"contractVersion"`
+	RunID             string              `json:"runId"`
+	WorkspaceID       string              `json:"workspaceId"`
+	AgentDefinitionID string              `json:"agentDefinitionId"`
+	Status            string              `json:"status"`
+	RuntimeStatus     string              `json:"runtimeStatus,omitempty"`
+	Reason            string              `json:"reason"`
+	AbstentionReason  *string             `json:"abstentionReason,omitempty"`
+	CaseID            string              `json:"caseId"`
+	CaseSubject       string              `json:"caseSubject"`
+	CaseStatus        string              `json:"caseStatus"`
+	CasePriority      string              `json:"casePriority"`
+	CaseOwnerID       string              `json:"caseOwnerId"`
+	TriggerContext    json.RawMessage     `json:"triggerContext"`
+	FinalOutput       json.RawMessage     `json:"finalOutput"`
+	ReasoningTrace    json.RawMessage     `json:"reasoningTrace"`
+	ToolCalls         json.RawMessage     `json:"toolCalls"`
+	EvidenceIDs       json.RawMessage     `json:"evidenceIds"`
+	EvidencePack      HandoffEvidencePack `json:"evidencePack"`
+	StartedAt         time.Time           `json:"startedAt"`
+	CompletedAt       *time.Time          `json:"completedAt,omitempty"`
+}
+
+type HandoffEvidencePack struct {
+	SchemaVersion        string                  `json:"schema_version"`
+	Query                string                  `json:"query"`
+	Sources              []HandoffEvidenceSource `json:"sources"`
+	SourceCount          int                     `json:"source_count"`
+	DedupCount           int                     `json:"dedup_count"`
+	FilteredCount        int                     `json:"filtered_count"`
+	Confidence           string                  `json:"confidence"`
+	Warnings             []string                `json:"warnings"`
+	RetrievalMethodsUsed []string                `json:"retrieval_methods_used"`
+	BuiltAt              string                  `json:"built_at"`
+}
+
+type HandoffEvidenceSource struct {
+	EvidenceID      string  `json:"evidence_id"`
+	KnowledgeItemID string  `json:"knowledge_item_id"`
+	Method          string  `json:"method"`
+	Score           float64 `json:"score"`
+	Snippet         *string `json:"snippet,omitempty"`
+	PiiRedacted     bool    `json:"pii_redacted"`
+	Metadata        *string `json:"metadata,omitempty"`
+	CreatedAt       string  `json:"created_at"`
 }
 
 // HandoffService handles agent-to-human escalation packaging.
@@ -84,7 +112,7 @@ func (s *HandoffService) InitiateHandoff(ctx context.Context, workspaceID, runID
 		return nil, err
 	}
 
-	pkg := buildHandoffPackage(run, cs, reason)
+	pkg := s.buildHandoffPackage(ctx, run, cs, reason)
 	s.publishHandoffEvent(pkg)
 	return pkg, nil
 }
@@ -101,7 +129,7 @@ func (s *HandoffService) GetHandoffPackage(ctx context.Context, workspaceID, run
 		return nil, ErrHandoffCaseNotFound
 	}
 
-	return buildHandoffPackage(run, cs, resolveHandoffReason("", run)), nil
+	return s.buildHandoffPackage(ctx, run, cs, resolveHandoffReason("", run)), nil
 }
 
 // ── Private helpers ──────────────────────────────────────────────────────────
@@ -182,7 +210,8 @@ func nullableHandoffReason(reason string) any {
 // buildHandoffPackage assembles a HandoffPackage from a Run and a CaseTicket.
 // Extracted as a standalone helper to keep InitiateHandoff and GetHandoffPackage
 // within cyclomatic complexity ≤ 4 each.
-func buildHandoffPackage(run *Run, cs *crm.CaseTicket, reason string) *HandoffPackage {
+func (s *HandoffService) buildHandoffPackage(ctx context.Context, run *Run, cs *crm.CaseTicket, reason string) *HandoffPackage {
+	evidencePack := s.reconstructEvidencePack(ctx, run)
 	return &HandoffPackage{
 		ContractVersion:   handoffContractVersion,
 		RunID:             run.ID,
@@ -202,7 +231,122 @@ func buildHandoffPackage(run *Run, cs *crm.CaseTicket, reason string) *HandoffPa
 		ReasoningTrace:    run.ReasoningTrace,
 		ToolCalls:         run.ToolCalls,
 		EvidenceIDs:       run.RetrievedEvidenceIDs,
+		EvidencePack:      evidencePack,
 		StartedAt:         run.StartedAt,
 		CompletedAt:       run.CompletedAt,
+	}
+}
+
+func (s *HandoffService) reconstructEvidencePack(ctx context.Context, run *Run) HandoffEvidencePack {
+	query := firstHandoffStringArrayValue(run.RetrievalQueries)
+	sources := s.loadHandoffEvidenceSources(ctx, run.WorkspaceID, handoffEvidenceIDs(run.RetrievedEvidenceIDs))
+	return newHandoffEvidencePack(query, sources, run.StartedAt)
+}
+
+func (s *HandoffService) loadHandoffEvidenceSources(ctx context.Context, workspaceID string, evidenceIDs []string) []knowledge.Evidence {
+	if len(evidenceIDs) == 0 {
+		return []knowledge.Evidence{}
+	}
+	q := sqlcgen.New(s.db)
+	sources := make([]knowledge.Evidence, 0, len(evidenceIDs))
+	for _, evidenceID := range evidenceIDs {
+		row, err := q.GetEvidenceByID(ctx, sqlcgen.GetEvidenceByIDParams{ID: evidenceID, WorkspaceID: workspaceID})
+		if err != nil {
+			continue
+		}
+		sources = append(sources, knowledge.Evidence{
+			ID:              row.ID,
+			KnowledgeItemID: row.KnowledgeItemID,
+			WorkspaceID:     row.WorkspaceID,
+			Method:          knowledge.EvidenceMethod(row.Method),
+			Score:           row.Score,
+			Snippet:         row.Snippet,
+			PiiRedacted:     row.PiiRedacted,
+			Metadata:        row.Metadata,
+			CreatedAt:       row.CreatedAt,
+		})
+	}
+	return sources
+}
+
+func newHandoffEvidencePack(query string, sources []knowledge.Evidence, fallbackBuiltAt time.Time) HandoffEvidencePack {
+	methods := make([]string, 0, len(sources))
+	seenMethods := make(map[string]struct{}, len(sources))
+	builtAt := fallbackBuiltAt.UTC()
+	for _, source := range sources {
+		method := string(source.Method)
+		if _, ok := seenMethods[method]; !ok && method != "" {
+			seenMethods[method] = struct{}{}
+			methods = append(methods, method)
+		}
+		if source.CreatedAt.After(builtAt) {
+			builtAt = source.CreatedAt.UTC()
+		}
+	}
+	return HandoffEvidencePack{
+		SchemaVersion:        knowledge.EvidencePackSchemaVersion,
+		Query:                query,
+		Sources:              handoffEvidenceSources(sources),
+		SourceCount:          len(sources),
+		DedupCount:           0,
+		FilteredCount:        0,
+		Confidence:           string(handoffEvidenceConfidence(sources)),
+		Warnings:             []string{},
+		RetrievalMethodsUsed: methods,
+		BuiltAt:              builtAt.Format(time.RFC3339),
+	}
+}
+
+func handoffEvidenceSources(sources []knowledge.Evidence) []HandoffEvidenceSource {
+	items := make([]HandoffEvidenceSource, 0, len(sources))
+	for _, source := range sources {
+		items = append(items, HandoffEvidenceSource{
+			EvidenceID:      source.ID,
+			KnowledgeItemID: source.KnowledgeItemID,
+			Method:          string(source.Method),
+			Score:           source.Score,
+			Snippet:         source.Snippet,
+			PiiRedacted:     source.PiiRedacted,
+			Metadata:        source.Metadata,
+			CreatedAt:       source.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	return items
+}
+
+func handoffEvidenceIDs(raw json.RawMessage) []string {
+	var ids []string
+	if len(raw) == 0 || json.Unmarshal(raw, &ids) != nil {
+		return []string{}
+	}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if trimmed := strings.TrimSpace(id); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func firstHandoffStringArrayValue(raw json.RawMessage) string {
+	values := handoffEvidenceIDs(raw)
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+func handoffEvidenceConfidence(sources []knowledge.Evidence) knowledge.ConfidenceLevel {
+	if len(sources) == 0 {
+		return knowledge.ConfidenceLow
+	}
+	topScore := sources[0].Score
+	switch {
+	case topScore >= 0.8:
+		return knowledge.ConfidenceHigh
+	case topScore >= 0.5:
+		return knowledge.ConfidenceMedium
+	default:
+		return knowledge.ConfidenceLow
 	}
 }

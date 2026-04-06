@@ -343,7 +343,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 
 		// Task 3.7: Agent Runtime routes
 		agentHandler := handlers.NewAgentHandler(agentOrchestrator)
-		supportAgent := agents.NewSupportAgentWithDBAndUsage(agentOrchestrator, toolRegistry, searchSvc, db, usageService)
+		supportAgent := agents.NewSupportAgentWithDBAndUsage(agentOrchestrator, toolRegistry, evidenceSvc, db, usageService)
 		supportAgentHandler := handlers.NewSupportAgentHandler(supportAgent)
 		// Task 4.5b — FR-231: Prospecting Agent wiring.
 		prospectingAgent := agents.NewProspectingAgent(

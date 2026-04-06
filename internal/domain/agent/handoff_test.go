@@ -7,8 +7,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
+	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 )
 
@@ -46,6 +48,31 @@ func insertHandoffTestRun(t *testing.T, db *sql.DB, runID, workspaceID, agentDef
 		)`, runID, workspaceID, agentDefID)
 	if err != nil {
 		t.Fatalf("insertHandoffTestRun: %v", err)
+	}
+}
+
+func insertHandoffTestEvidence(t *testing.T, db *sql.DB, workspaceID string) {
+	t.Helper()
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO knowledge_item (
+			id, workspace_id, source_type, title, raw_content, normalized_content, created_at, updated_at
+		) VALUES (
+			'ki1', ?, 'document', 'Support Runbook', 'restart the service', 'restart the service', datetime('now'), datetime('now')
+		)
+	`, workspaceID)
+	if err != nil {
+		t.Fatalf("insertHandoffTestEvidence knowledge_item: %v", err)
+	}
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO evidence (
+			id, knowledge_item_id, workspace_id, method, score, snippet, pii_redacted, created_at
+		) VALUES (
+			'ev1', 'ki1', ?, 'hybrid', 0.91, 'restart the service', 0, ?
+		)
+	`, workspaceID, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("insertHandoffTestEvidence evidence: %v", err)
 	}
 }
 
@@ -99,6 +126,7 @@ func TestInitiateHandoff_Success(t *testing.T) {
 	insertHandoffTestAgentDef(t, db, agentDefID, wsID)
 	insertHandoffTestRun(t, db, runID, wsID, agentDefID)
 	insertHandoffTestCase(t, db, caseID, wsID)
+	insertHandoffTestEvidence(t, db, wsID)
 
 	pkg, err := svc.InitiateHandoff(ctx, wsID, runID, caseID, "no solution found")
 	if err != nil {
@@ -143,6 +171,21 @@ func TestInitiateHandoff_Success(t *testing.T) {
 	}
 	assertJSONField(t, pkg.TriggerContext, "source", "support-agent")
 	assertJSONField(t, pkg.FinalOutput, "summary", "Need human review")
+	if pkg.EvidencePack.SchemaVersion != knowledge.EvidencePackSchemaVersion {
+		t.Errorf("EvidencePack.SchemaVersion: got %q, want %q", pkg.EvidencePack.SchemaVersion, knowledge.EvidencePackSchemaVersion)
+	}
+	if pkg.EvidencePack.Query != "q1" {
+		t.Errorf("EvidencePack.Query: got %q, want %q", pkg.EvidencePack.Query, "q1")
+	}
+	if pkg.EvidencePack.SourceCount != 1 {
+		t.Errorf("EvidencePack.SourceCount: got %d, want 1", pkg.EvidencePack.SourceCount)
+	}
+	if pkg.EvidencePack.Confidence != string(knowledge.ConfidenceHigh) {
+		t.Errorf("EvidencePack.Confidence: got %q, want %q", pkg.EvidencePack.Confidence, knowledge.ConfidenceHigh)
+	}
+	if len(pkg.EvidencePack.Sources) != 1 || pkg.EvidencePack.Sources[0].EvidenceID != "ev1" {
+		t.Errorf("EvidencePack.Sources: got %+v, want source ev1", pkg.EvidencePack.Sources)
+	}
 }
 
 // TestInitiateHandoff_RunNotFound returns ErrAgentRunNotFound for unknown run.
@@ -199,6 +242,7 @@ func TestGetHandoffPackage_ContainsAllContext(t *testing.T) {
 	insertHandoffTestAgentDef(t, db, agentDefID, wsID)
 	insertHandoffTestRun(t, db, runID, wsID, agentDefID)
 	insertHandoffTestCase(t, db, caseID, wsID)
+	insertHandoffTestEvidence(t, db, wsID)
 
 	pkg, err := svc.GetHandoffPackage(ctx, wsID, runID, caseID)
 	if err != nil {
@@ -228,6 +272,15 @@ func TestGetHandoffPackage_ContainsAllContext(t *testing.T) {
 	}
 	assertJSONField(t, pkg.TriggerContext, "source", "support-agent")
 	assertJSONField(t, pkg.FinalOutput, "summary", "Need human review")
+	if pkg.EvidencePack.SchemaVersion != knowledge.EvidencePackSchemaVersion {
+		t.Errorf("EvidencePack.SchemaVersion: got %q, want %q", pkg.EvidencePack.SchemaVersion, knowledge.EvidencePackSchemaVersion)
+	}
+	if pkg.EvidencePack.Query != "q1" {
+		t.Errorf("EvidencePack.Query: got %q, want %q", pkg.EvidencePack.Query, "q1")
+	}
+	if len(pkg.EvidencePack.Sources) != 1 || pkg.EvidencePack.Sources[0].KnowledgeItemID != "ki1" {
+		t.Errorf("EvidencePack.Sources: got %+v, want knowledge item ki1", pkg.EvidencePack.Sources)
+	}
 }
 
 // TestGetHandoffPackage_UsesPersistedReason verifies GetHandoffPackage returns the

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -35,8 +36,21 @@ func (s *supportUsageStub) RecordEvent(_ context.Context, input usage.RecordEven
 	return &usage.Event{}, nil
 }
 
+func (m *mockKnowledgeSearch) BuildEvidencePack(_ context.Context, input knowledge.BuildEvidencePackInput) (*knowledge.EvidencePack, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return searchResultsToEvidencePack(input.Query, m.results), nil
+}
+
 func (m *mockKnowledgeSearch) HybridSearch(_ context.Context, _ knowledge.SearchInput) (*knowledge.SearchResults, error) {
-	return m.results, m.err
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.results == nil {
+		return emptyResults(), nil
+	}
+	return m.results, nil
 }
 
 func setupAgentTestDB(t *testing.T) *sql.DB {
@@ -64,7 +78,7 @@ func insertSupportAgentDefinition(t *testing.T, db *sql.DB, workspaceID string) 
 	}
 }
 
-func newTestSupportAgent(t *testing.T, db *sql.DB, search KnowledgeSearchInterface) *SupportAgent {
+func newTestSupportAgent(t *testing.T, db *sql.DB, search SupportEvidenceBuilder) *SupportAgent {
 	t.Helper()
 	orch := agent.NewOrchestrator(db)
 	registry := tool.NewToolRegistry(db)
@@ -109,7 +123,7 @@ func TestDetermineAction_NoEvidence_Escalates(t *testing.T) {
 	action := sa.determineAction(
 		SupportAgentConfig{CaseID: "case-1", CustomerQuery: "help", Priority: "high"},
 		&CaseContext{ID: "case-1", WorkspaceID: "ws-1", Priority: "high"},
-		emptyResults(),
+		searchResultsToEvidencePack("help", emptyResults()),
 	)
 	if action.Type != supportActionEscalate {
 		t.Fatalf("expected escalate, got %s", action.Type)
@@ -124,7 +138,7 @@ func TestDetermineAction_HighScore_Resolves(t *testing.T) {
 	action := sa.determineAction(
 		SupportAgentConfig{CaseID: "case-1", CustomerQuery: "help", Priority: "medium"},
 		&CaseContext{ID: "case-1", WorkspaceID: "ws-1", Priority: "medium"},
-		&knowledge.SearchResults{Items: []knowledge.SearchResult{{Score: 0.95}}},
+		searchResultsToEvidencePack("help", &knowledge.SearchResults{Items: []knowledge.SearchResult{{Score: 0.95}}}),
 	)
 	if action.Type != supportActionUpdateCase {
 		t.Fatalf("expected update_case, got %s", action.Type)
@@ -139,7 +153,7 @@ func TestDetermineAction_MediumScore_Abstains(t *testing.T) {
 	action := sa.determineAction(
 		SupportAgentConfig{CaseID: "case-1", CustomerQuery: "help", Priority: "medium"},
 		&CaseContext{ID: "case-1", WorkspaceID: "ws-1", Priority: "medium"},
-		&knowledge.SearchResults{Items: []knowledge.SearchResult{{Score: 0.7}}},
+		searchResultsToEvidencePack("help", &knowledge.SearchResults{Items: []knowledge.SearchResult{{Score: 0.7}}}),
 	)
 	if action.Type != supportActionAbstain {
 		t.Fatalf("expected abstain, got %s", action.Type)
@@ -305,6 +319,58 @@ func emptyResults() *knowledge.SearchResults {
 	return &knowledge.SearchResults{Items: []knowledge.SearchResult{}}
 }
 
+func searchResultsToEvidencePack(query string, results *knowledge.SearchResults) *knowledge.EvidencePack {
+	if results == nil {
+		results = emptyResults()
+	}
+	sources := make([]knowledge.Evidence, 0, len(results.Items))
+	methods := make([]knowledge.EvidenceMethod, 0, len(results.Items))
+	confidence := knowledge.ConfidenceLow
+	if len(results.Items) > 0 {
+		switch {
+		case results.Items[0].Score >= 0.85:
+			confidence = knowledge.ConfidenceHigh
+		case results.Items[0].Score >= 0.55:
+			confidence = knowledge.ConfidenceMedium
+		}
+	}
+	for i, item := range results.Items {
+		method := item.Method
+		if method == "" {
+			method = knowledge.EvidenceMethodHybrid
+		}
+		snippet := item.Snippet
+		var snippetPtr *string
+		if snippet != "" {
+			snippetPtr = &snippet
+		}
+		evidenceID := item.KnowledgeItemID
+		if evidenceID == "" {
+			evidenceID = fmt.Sprintf("ev-test-%d", i)
+		}
+		sources = append(sources, knowledge.Evidence{
+			ID:              evidenceID,
+			KnowledgeItemID: item.KnowledgeItemID,
+			Method:          method,
+			Score:           item.Score,
+			Snippet:         snippetPtr,
+		})
+		methods = append(methods, method)
+	}
+	return &knowledge.EvidencePack{
+		SchemaVersion:        knowledge.EvidencePackSchemaVersion,
+		Query:                query,
+		Sources:              sources,
+		SourceCount:          len(sources),
+		DedupCount:           0,
+		Confidence:           confidence,
+		FilteredCount:        0,
+		Warnings:             []string{},
+		RetrievalMethodsUsed: methods,
+		BuiltAt:              time.Now().UTC(),
+	}
+}
+
 func seedSupportWorkspace(t *testing.T, db *sql.DB) (string, string) {
 	t.Helper()
 	suffix := time.Now().UTC().Format("150405.000000000")
@@ -437,7 +503,7 @@ func TestSupportAgent_RequestSupportApprovalAndBuildApprovalEscalationResult(t *
 		time.Now().Add(-time.Second),
 		SupportAgentConfig{WorkspaceID: wsID, CaseID: caseContext.ID, CustomerQuery: "please help"},
 		caseContext,
-		emptyResults(),
+		emptySupportEvidencePack("please help"),
 		action,
 		&tokens,
 		&cost,

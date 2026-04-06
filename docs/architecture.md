@@ -575,7 +575,7 @@ The architecture keeps **four mandatory enforcement points**. Usage metering is 
 | `internal/domain/policy` | implemented | RBAC/ABAC, approvals, policy decisions, no-cloud/PII | Must become more machine-explainable |
 | `internal/domain/tool` | implemented | Registered tool execution, schema validation, rate limits | All governed mutations route here |
 | `internal/domain/copilot` | implemented | Grounded query and action suggestion flows | Primary wedge surface for sales and support assistance |
-| `internal/domain/agent` | implemented | Support agent runtime, orchestration, handoff, DSL/bridge work | Public outcomes are normalized; support hardening is the active follow-up |
+| `internal/domain/agent` | implemented | Support agent runtime, orchestration, handoff, DSL/bridge work | Public outcomes are normalized; support now carries evidence-pack handoff, audit, and usage traces end-to-end |
 | `internal/domain/audit` | implemented | Immutable append-only audit logging, query, export | Already a core capability |
 | `internal/domain/workflow` | implemented | Workflow definitions, activation metadata | Supports ongoing declarative transition |
 | `internal/domain/signal` | implemented | Signal lifecycle over CRM context | Secondary to the current wedge |

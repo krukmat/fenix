@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
@@ -18,9 +19,12 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/usage"
 )
 
-// KnowledgeSearchInterface defines the interface for knowledge base search
 type KnowledgeSearchInterface interface {
 	HybridSearch(ctx context.Context, input knowledge.SearchInput) (*knowledge.SearchResults, error)
+}
+
+type SupportEvidenceBuilder interface {
+	BuildEvidencePack(ctx context.Context, input knowledge.BuildEvidencePackInput) (*knowledge.EvidencePack, error)
 }
 
 // SupportAgentConfig defines the configuration for the Support Agent
@@ -50,7 +54,7 @@ const (
 type SupportAgent struct {
 	orchestrator    *agent.Orchestrator
 	toolRegistry    *tool.ToolRegistry
-	knowledgeSearch KnowledgeSearchInterface
+	evidenceBuilder SupportEvidenceBuilder
 	db              *sql.DB
 	audit           supportAuditLogger
 	usage           supportUsageRecorder
@@ -68,24 +72,24 @@ type supportUsageRecorder interface {
 func NewSupportAgent(
 	orchestrator *agent.Orchestrator,
 	toolRegistry *tool.ToolRegistry,
-	knowledgeSearch KnowledgeSearchInterface,
+	evidenceBuilder SupportEvidenceBuilder,
 ) *SupportAgent {
-	return NewSupportAgentWithDBAndUsage(orchestrator, toolRegistry, knowledgeSearch, nil, nil)
+	return NewSupportAgentWithDBAndUsage(orchestrator, toolRegistry, evidenceBuilder, nil, nil)
 }
 
 func NewSupportAgentWithDB(
 	orchestrator *agent.Orchestrator,
 	toolRegistry *tool.ToolRegistry,
-	knowledgeSearch KnowledgeSearchInterface,
+	evidenceBuilder SupportEvidenceBuilder,
 	db *sql.DB,
 ) *SupportAgent {
-	return NewSupportAgentWithDBAndUsage(orchestrator, toolRegistry, knowledgeSearch, db, nil)
+	return NewSupportAgentWithDBAndUsage(orchestrator, toolRegistry, evidenceBuilder, db, nil)
 }
 
 func NewSupportAgentWithDBAndUsage(
 	orchestrator *agent.Orchestrator,
 	toolRegistry *tool.ToolRegistry,
-	knowledgeSearch KnowledgeSearchInterface,
+	evidenceBuilder SupportEvidenceBuilder,
 	db *sql.DB,
 	usage supportUsageRecorder,
 ) *SupportAgent {
@@ -96,7 +100,7 @@ func NewSupportAgentWithDBAndUsage(
 	return &SupportAgent{
 		orchestrator:    orchestrator,
 		toolRegistry:    toolRegistry,
-		knowledgeSearch: knowledgeSearch,
+		evidenceBuilder: evidenceBuilder,
 		db:              db,
 		audit:           auditLogger,
 		usage:           usage,
@@ -189,7 +193,7 @@ func (a *SupportAgent) executeSupportFlow(ctx context.Context, runID string, con
 		return nil, err
 	}
 
-	evidence := a.loadSupportEvidence(ctx, caseContext.WorkspaceID, config.CustomerQuery)
+	evidence := a.loadSupportEvidencePack(ctx, caseContext.WorkspaceID, config.CustomerQuery)
 
 	action := a.determineAction(config, caseContext, evidence)
 	if actionRequiresApproval(action) {
@@ -235,7 +239,7 @@ func (a *SupportAgent) getCaseContext(ctx context.Context, workspaceID, caseID s
 	return a.enrichCaseContextWithContact(ctx, ctxOut)
 }
 
-func (a *SupportAgent) determineAction(config SupportAgentConfig, caseContext *CaseContext, evidence *knowledge.SearchResults) *Action {
+func (a *SupportAgent) determineAction(config SupportAgentConfig, caseContext *CaseContext, evidence *knowledge.EvidencePack) *Action {
 	score := topEvidenceScore(evidence)
 	if shouldResolveSupportAction(score) {
 		return supportResolvedAction(config)
@@ -381,7 +385,11 @@ func (a *SupportAgent) requestSupportApproval(ctx context.Context, caseContext *
 	})
 }
 
-func buildReasoningTrace(_ SupportAgentConfig, evidence *knowledge.SearchResults, action *Action) json.RawMessage {
+func buildReasoningTrace(_ SupportAgentConfig, evidence *knowledge.EvidencePack, action *Action) json.RawMessage {
+	sourceCount := 0
+	if evidence != nil {
+		sourceCount = len(evidence.Sources)
+	}
 	trace := []map[string]any{
 		{
 			"step":        "analyze",
@@ -390,8 +398,10 @@ func buildReasoningTrace(_ SupportAgentConfig, evidence *knowledge.SearchResults
 		},
 		{
 			"step":        "search",
-			"description": "Searched knowledge base",
-			"results":     len(evidence.Items),
+			"description": "Built evidence pack from knowledge base",
+			"results":     sourceCount,
+			"confidence":  supportEvidenceConfidence(evidence),
+			"query":       supportEvidenceQuery(evidence),
 			"timestamp":   time.Now().UTC().Format(time.RFC3339),
 		},
 		{
@@ -484,14 +494,18 @@ func (a *SupportAgent) completeSupportRun(ctx context.Context, run *agent.Run, r
 	return nil
 }
 
-func (a *SupportAgent) loadSupportEvidence(ctx context.Context, workspaceID, query string) *knowledge.SearchResults {
-	evidence, err := a.knowledgeSearch.HybridSearch(ctx, knowledge.SearchInput{
-		WorkspaceID: workspaceID,
+func (a *SupportAgent) loadSupportEvidencePack(ctx context.Context, workspaceID, query string) *knowledge.EvidencePack {
+	if a.evidenceBuilder == nil {
+		return emptySupportEvidencePack(query)
+	}
+
+	evidence, err := a.evidenceBuilder.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
 		Query:       query,
+		WorkspaceID: workspaceID,
 		Limit:       5,
 	})
 	if err != nil {
-		return &knowledge.SearchResults{Items: []knowledge.SearchResult{}}
+		return emptySupportEvidencePack(query)
 	}
 	return evidence
 }
@@ -501,7 +515,7 @@ func (a *SupportAgent) buildApprovalEscalationResult(
 	startTime time.Time,
 	config SupportAgentConfig,
 	caseContext *CaseContext,
-	evidence *knowledge.SearchResults,
+	evidence *knowledge.EvidencePack,
 	action *Action,
 	totalTokens *int64,
 	totalCost *float64,
@@ -527,7 +541,7 @@ func (a *SupportAgent) buildApprovalEscalationResult(
 func buildSupportResult(
 	startTime time.Time,
 	config SupportAgentConfig,
-	evidence *knowledge.SearchResults,
+	evidence *knowledge.EvidencePack,
 	action *Action,
 	toolCalls json.RawMessage,
 	totalTokens *int64,
@@ -678,11 +692,11 @@ func actionRequiresApproval(action *Action) bool {
 	return action.Type == supportActionUpdateCase && isHighSensitivityMetadata(nilIfEmpty(action.Metadata))
 }
 
-func topEvidenceScore(evidence *knowledge.SearchResults) float64 {
-	if evidence == nil || len(evidence.Items) == 0 {
+func topEvidenceScore(evidence *knowledge.EvidencePack) float64 {
+	if evidence == nil || len(evidence.Sources) == 0 {
 		return 0
 	}
-	return evidence.Items[0].Score
+	return evidence.Sources[0].Score
 }
 
 func shouldEscalateSupportAction(score float64, config SupportAgentConfig, caseContext *CaseContext) bool {
@@ -818,14 +832,14 @@ func marshalSupportRetrievalQueries(query string) json.RawMessage {
 	return queries
 }
 
-func marshalSupportEvidenceIDs(results *knowledge.SearchResults) json.RawMessage {
+func marshalSupportEvidenceIDs(results *knowledge.EvidencePack) json.RawMessage {
 	if results == nil {
 		return json.RawMessage("[]")
 	}
-	ids := make([]string, 0, len(results.Items))
-	for _, item := range results.Items {
-		if item.KnowledgeItemID != "" {
-			ids = append(ids, item.KnowledgeItemID)
+	ids := make([]string, 0, len(results.Sources))
+	for _, item := range results.Sources {
+		if trimmed := strings.TrimSpace(item.ID); trimmed != "" {
+			ids = append(ids, trimmed)
 		}
 	}
 	data, _ := json.Marshal(ids)
@@ -839,6 +853,35 @@ func rawStringArray(raw json.RawMessage) []string {
 	}
 	_ = json.Unmarshal(raw, &items)
 	return items
+}
+
+func emptySupportEvidencePack(query string) *knowledge.EvidencePack {
+	return &knowledge.EvidencePack{
+		SchemaVersion:        knowledge.EvidencePackSchemaVersion,
+		Query:                query,
+		Sources:              []knowledge.Evidence{},
+		SourceCount:          0,
+		DedupCount:           0,
+		Confidence:           knowledge.ConfidenceLow,
+		FilteredCount:        0,
+		Warnings:             []string{"no sources found"},
+		RetrievalMethodsUsed: []knowledge.EvidenceMethod{},
+		BuiltAt:              time.Now().UTC(),
+	}
+}
+
+func supportEvidenceConfidence(pack *knowledge.EvidencePack) string {
+	if pack == nil {
+		return string(knowledge.ConfidenceLow)
+	}
+	return string(pack.Confidence)
+}
+
+func supportEvidenceQuery(pack *knowledge.EvidencePack) string {
+	if pack == nil {
+		return ""
+	}
+	return pack.Query
 }
 
 func firstJSONStringFromRaw(raw json.RawMessage, key string) string {

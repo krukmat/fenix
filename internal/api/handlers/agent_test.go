@@ -31,6 +31,21 @@ func (m *mockKnowledgeSearchHandler) HybridSearch(_ context.Context, _ knowledge
 	return &knowledge.SearchResults{}, nil
 }
 
+func (m *mockKnowledgeSearchHandler) BuildEvidencePack(_ context.Context, input knowledge.BuildEvidencePackInput) (*knowledge.EvidencePack, error) {
+	return &knowledge.EvidencePack{
+		SchemaVersion:        knowledge.EvidencePackSchemaVersion,
+		Query:                input.Query,
+		Sources:              []knowledge.Evidence{},
+		SourceCount:          0,
+		DedupCount:           0,
+		FilteredCount:        0,
+		Confidence:           knowledge.ConfidenceLow,
+		Warnings:             []string{},
+		RetrievalMethodsUsed: []knowledge.EvidenceMethod{},
+		BuiltAt:              time.Now().UTC(),
+	}, nil
+}
+
 type mockLLMProviderHandler struct{}
 
 func (m *mockLLMProviderHandler) ChatCompletion(_ context.Context, _ llm.ChatRequest) (*llm.ChatResponse, error) {
