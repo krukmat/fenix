@@ -36,14 +36,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - The hook reads env var first, then git config, then falls back to `unknown`.
 - Setting both guarantees correct attribution even if the env var is lost between shell sessions.
 
+**Local environment setup (MANDATORY after clone)**:
+- After cloning the repo or setting up a new local environment, ALWAYS run:
+  ```
+  make install-hooks
+  ```
+- This installs the pre-push hook that enforces Go and mobile quality gates locally before any push reaches GitHub Actions.
+- Without this step, broken code can reach the CI pipeline undetected.
+
 **Push discipline (MANDATORY)**:
 - Treat `git push` as the final step after local validation, not as the first validation step.
-- Before pushing changes that touch `mobile/` or mobile-related CI files, run:
-  ```
-  bash scripts/qa-mobile-prepush.sh
-  ```
+- The pre-push hook (`scripts/hooks/pre-push`) automatically detects what changed and runs the appropriate QA gates:
+  - **Go changes** (`internal/`, `cmd/`, `pkg/`, `go.mod`, `go.sum`, `.golangci.yml`, `Makefile`): runs `scripts/qa-go-prepush.sh` (fmt-check, complexity, lint, test, coverage, deadcode, traceability, govulncheck, pattern-gate)
+  - **Mobile changes** (`mobile/`, mobile scripts, `ci.yml`): runs `scripts/qa-mobile-prepush.sh` (typecheck, lint, arch, coverage)
 - If a required local QA gate cannot be executed, stop and report that explicitly before pushing.
-- Install hooks with `make install-hooks` so the repository `pre-push` hook can enforce this automatically.
+- Hooks must be installed with `make install-hooks` (see setup above).
 
 **Knowledge management / Obsidian rules (MANDATORY)**:
 - Obsidian is the repository knowledge-management layer for project tracking docs, not a product feature.

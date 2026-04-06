@@ -22,8 +22,10 @@ Preferred shortcut:
 
 ## Hooks
 
-- Install repository hooks with `make install-hooks`.
-- The `pre-push` hook runs the mobile QA script when the pending push includes `mobile/` or mobile-related CI files.
+- **After cloning the repo or setting up a new environment, ALWAYS run `make install-hooks`** to activate pre-push QA gates.
+- The `pre-push` hook automatically detects what changed and runs the appropriate QA gates:
+  - **Go changes** (`internal/`, `cmd/`, `pkg/`, `go.mod`, `go.sum`, `.golangci.yml`, `Makefile`): runs `scripts/qa-go-prepush.sh` (fmt-check, complexity, lint, test, coverage, deadcode, traceability, govulncheck, pattern-gate)
+  - **Mobile changes** (`mobile/`, mobile scripts, `ci.yml`): runs `scripts/qa-mobile-prepush.sh` (typecheck, lint, arch, coverage)
 - There is no bypass. Fix the failing gate before pushing.
 
 ## Knowledge Management
