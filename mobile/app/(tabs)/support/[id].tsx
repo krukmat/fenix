@@ -54,23 +54,31 @@ function s(o: Record<string, unknown> | null | undefined, key: string): string |
   return o?.[key] as string | undefined;
 }
 
-function parseCasePayload(data: unknown): CaseDetailData | undefined {
-  const payload = (data ?? null) as Record<string, unknown> | null;
-  const c = (payload?.case as Record<string, unknown> | undefined) ?? payload ?? undefined;
-  if (!c) return undefined;
-  const acct = payload?.account as Record<string, unknown> | undefined;
-  const handoff = payload?.handoff as Record<string, unknown> | undefined;
-  const signalCount = payload?.active_signal_count;
+type R = Record<string, unknown>;
+
+function parseCaseCore(c: R, handoff: R | undefined): Omit<CaseDetailData, 'accountName' | 'activeSignalCount'> {
   return {
     id: String(c.id ?? ''),
     subject: s(c, 'subject'),
     status: s(c, 'status') ?? 'open',
-    priority: (s(c, 'priority') as 'low' | 'medium' | 'high' | undefined) ?? 'medium',
+    priority: (s(c, 'priority') as CaseDetailData['priority'] | undefined) ?? 'medium',
     description: s(c, 'description'),
     accountId: s(c, 'accountId') ?? s(c, 'account_id'),
     slaDeadline: s(c, 'slaDeadline') ?? s(c, 'sla_deadline'),
     handoffStatus: s(handoff, 'status') ?? s(c, 'handoffStatus'),
     assignee: s(c, 'assignee'),
+  };
+}
+
+function parseCasePayload(data: unknown): CaseDetailData | undefined {
+  const payload = (data ?? null) as R | null;
+  const c = (payload?.case as R | undefined) ?? payload ?? undefined;
+  if (!c) return undefined;
+  const acct = payload?.account as R | undefined;
+  const handoff = payload?.handoff as R | undefined;
+  const signalCount = payload?.active_signal_count;
+  return {
+    ...parseCaseCore(c, handoff),
     accountName: s(acct, 'name'),
     activeSignalCount: typeof signalCount === 'number' ? signalCount : 0,
   };
@@ -121,8 +129,9 @@ function AccountSection({
 
 function ActiveRunBadge({ caseId, colors }: { caseId: string; colors: ThemeColors }) {
   const { data } = useAgentRuns({ status: 'awaiting_approval' });
-  const runs = (data?.pages ?? []).flatMap((p: { data?: unknown[] }) => (p.data ?? []) as Array<{ id: string; status: string }>);
-  const active = runs.find((r: { id: string; status: string }) => r.id.includes(caseId) || runs.length > 0);
+  type Run = { id: string; status: string };
+  const runs = (data?.pages ?? []).flatMap((p: { data?: unknown[] }) => (p.data ?? []) as Run[]);
+  const active = runs.find((r: Run) => r.id.includes(caseId) || runs.length > 0);
   if (!active) return null;
   return (
     <View style={[styles.card, { backgroundColor: colors.surface }]} testID="support-active-run-status">
