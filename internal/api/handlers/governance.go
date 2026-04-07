@@ -79,37 +79,47 @@ func (h *GovernanceHandler) GetGovernanceSummary(w http.ResponseWriter, r *http.
 	now := time.Now().UTC()
 	quotaStates := make([]quotaStateItemResponse, 0, len(policies))
 	for _, p := range policies {
-		periodStart, periodEnd := currentPeriodBounds(now, p.ResetPeriod)
-		item := quotaStateItemResponse{
-			PolicyID:        p.ID,
-			PolicyType:      p.PolicyType,
-			MetricName:      p.MetricName,
-			LimitValue:      p.LimitValue,
-			ResetPeriod:     p.ResetPeriod,
-			EnforcementMode: p.EnforcementMode,
-			CurrentValue:    0,
-			PeriodStart:     periodStart.UTC().Format(time.RFC3339),
-			PeriodEnd:       periodEnd.UTC().Format(time.RFC3339),
-			StatePresent:    false,
-		}
-
-		state, stateErr := h.service.GetState(r.Context(), workspaceID, p.ID, periodStart, periodEnd)
-		if stateErr == nil {
-			item.CurrentValue = state.CurrentValue
-			item.StatePresent = true
-			if state.LastEventAt != nil {
-				v := state.LastEventAt.UTC().Format(time.RFC3339)
-				item.LastEventAt = &v
-			}
-		}
-		// ErrQuotaStateNotFound → keep synthetic zero; other errors → same (best-effort)
-		quotaStates = append(quotaStates, item)
+		quotaStates = append(quotaStates, h.enrichPolicyState(r, workspaceID, p, now))
 	}
 
 	_ = writeJSONOr500(w, governanceSummaryResponse{
 		RecentUsage: recentUsage,
 		QuotaStates: quotaStates,
 	})
+}
+
+// enrichPolicyState fetches the current-period quota state for a policy and returns an enriched item.
+// If no state row exists (ErrQuotaStateNotFound) or any other error, returns a synthetic zero item.
+func (h *GovernanceHandler) enrichPolicyState(
+	r *http.Request,
+	workspaceID string,
+	p *usagedomain.Policy,
+	now time.Time,
+) quotaStateItemResponse {
+	periodStart, periodEnd := currentPeriodBounds(now, p.ResetPeriod)
+	item := quotaStateItemResponse{
+		PolicyID:        p.ID,
+		PolicyType:      p.PolicyType,
+		MetricName:      p.MetricName,
+		LimitValue:      p.LimitValue,
+		ResetPeriod:     p.ResetPeriod,
+		EnforcementMode: p.EnforcementMode,
+		CurrentValue:    0,
+		PeriodStart:     periodStart.UTC().Format(time.RFC3339),
+		PeriodEnd:       periodEnd.UTC().Format(time.RFC3339),
+		StatePresent:    false,
+	}
+	state, stateErr := h.service.GetState(r.Context(), workspaceID, p.ID, periodStart, periodEnd)
+	if stateErr != nil {
+		return item
+	}
+	item.CurrentValue = state.CurrentValue
+	item.StatePresent = true
+	if state.LastEventAt != nil {
+		v := state.LastEventAt.UTC().Format(time.RFC3339)
+		item.LastEventAt = &v
+	}
+	return item
 }
 
 // currentPeriodBounds computes [start, end) for the given reset period relative to now.
