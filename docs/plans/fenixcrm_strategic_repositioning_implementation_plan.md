@@ -85,7 +85,7 @@ Execution rules:
 ### 3.4 Ordered task graph
 
 | ID | Task | Hard dependencies | Unblocks | Status |
-|---|---|---|---|---|
+|---|---|---|---|--- |
 | `W1-T1` | Canonical plan + precedence notes | none | all remaining work | **done** |
 | `W1-T2` | Summary/dashboard alignment | `W1-T1` | unambiguous repo navigation | **done** |
 | `W2-T1` | Evidence Pack v1 contract | `W1-T1` | `W2-T3`, `W3-T3`, `W4-T1` | **done** |
