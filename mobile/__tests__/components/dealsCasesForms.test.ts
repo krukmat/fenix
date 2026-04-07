@@ -1,7 +1,7 @@
 // Traces: FR-001
+// validateNewDealForm/validateNewCaseForm moved to src/utils/formValidation.ts
 import { describe, expect, it } from '@jest/globals';
-import { validateNewDealForm } from '../../app/(tabs)/deals/new';
-import { validateNewCaseForm } from '../../app/(tabs)/cases/new';
+import { validateNewDealForm, validateNewCaseForm } from '../../src/utils/formValidation';
 
 describe('Deals/Cases forms validation', () => {
   it('validates required fields for new deal', () => {

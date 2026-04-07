@@ -1,5 +1,6 @@
+// W2-T2: renderDealItem moved to src/components/crm/DealItem.tsx
 import { describe, it, expect } from '@jest/globals';
-import { renderDealItem } from '../../app/(tabs)/deals/index';
+import { renderDealItem } from '../../src/components/crm/DealItem';
 
 const mockColors = {
   background: '#fff',

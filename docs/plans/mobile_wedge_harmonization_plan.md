@@ -557,14 +557,14 @@ Parallelization:
 
 **Objective**: replace the top-level product shell before migrating wedge screens.
 
-> Wave 2 status: W2-T1 ✅ COMPLETED
+> Wave 2 status: ✅ COMPLETED (W2-T1, W2-T2, W2-T3, W2-T4)
 
 | ID | Task | Hard dependencies | Unblocks | Status |
 |---|---|---|---|---|
 | `W2-T1` | Replace the drawer and top-level route tree with `Inbox`, `Support`, `Sales`, `Activity Log`, `Governance` | `W1-T1` | all surface rewrites | ✅ done |
-| `W2-T2` | Add hidden redirects for `/home`, `/cases/*`, `/accounts/*`, and `/deals/*` into their wedge destinations | `W2-T1` | low-friction migration of existing entry points and tests | pending |
-| `W2-T3` | Remove visible `CRM`, `Workflows`, top-level `Copilot`, and top-level `Contacts` navigation | `W2-T1` | `W6-T1`, `W6-T2` | pending |
-| `W2-T4` | Remove visible create and edit entry points that are not part of the approved wedge | `W2-T1` | cleaner support and sales detail screens | pending |
+| `W2-T2` | Add hidden redirects for `/home`, `/cases/*`, `/accounts/*`, and `/deals/*` into their wedge destinations | `W2-T1` | low-friction migration of existing entry points and tests | ✅ done |
+| `W2-T3` | Remove visible `CRM`, `Workflows`, top-level `Copilot`, and top-level `Contacts` navigation | `W2-T1` | `W6-T1`, `W6-T2` | ✅ done |
+| `W2-T4` | Remove visible create and edit entry points that are not part of the approved wedge | `W2-T1` | cleaner support and sales detail screens | ✅ done |
 
 Parallelization:
 
