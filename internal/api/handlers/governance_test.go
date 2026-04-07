@@ -31,8 +31,8 @@ func TestGovernanceHandler_GetGovernanceSummary_NoData(t *testing.T) {
 	}
 
 	var resp struct {
-		RecentUsage []interface{}   `json:"recentUsage"`
-		QuotaStates []interface{}   `json:"quotaStates"`
+		RecentUsage []interface{} `json:"recentUsage"`
+		QuotaStates []interface{} `json:"quotaStates"`
 	}
 	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
