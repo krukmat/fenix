@@ -1,10 +1,9 @@
-// Seed helper for Mobile P2 Detox smoke suites.
-// Uses a repo-local Go helper so the tests run against deterministic SQLite data.
-
+// W6-T3: Wedge-first seed helper — removed workflow fixtures, added wedge-relevant
+// run statuses (completed, handoff, denied_by_policy) and inbox approval.
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
-type MobileP2Seed = {
+export type WedgeSeed = {
   credentials: {
     email: string;
     password: string;
@@ -23,20 +22,19 @@ type MobileP2Seed = {
     id: string;
     subject: string;
   };
-  workflows: {
-    activeId: string;
-    archivedId: string;
-  };
   agentRuns: {
-    rejectedId: string;
-    dealRejectedId: string;
-    caseRejectedId: string;
+    completedId: string;
+    handoffId: string;
+    deniedByPolicyId: string;
+  };
+  inbox: {
+    approvalId: string;
   };
 };
 
-let cachedSeed: MobileP2Seed | null = null;
+let cachedSeed: WedgeSeed | null = null;
 
-export function ensureMobileP2Seed(): MobileP2Seed {
+export function ensureWedgeSeed(): WedgeSeed {
   if (cachedSeed) return cachedSeed;
 
   const repoRoot = path.resolve(__dirname, '../../..');
@@ -50,6 +48,6 @@ export function ensureMobileP2Seed(): MobileP2Seed {
     },
   });
 
-  cachedSeed = JSON.parse(stdout) as MobileP2Seed;
+  cachedSeed = JSON.parse(stdout) as WedgeSeed;
   return cachedSeed;
 }

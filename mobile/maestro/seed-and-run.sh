@@ -88,22 +88,25 @@ unlock_device() {
 }
 
 seed_to_env_lines() {
+  # W6-T3: wedge-first seed mapping — workflows removed, wedge runs and inbox added
   local seed_file="$1"
   node - "${seed_file}" <<'NODE'
 const fs = require('fs');
 const file = process.argv[2];
 const seed = JSON.parse(fs.readFileSync(file, 'utf8'));
 const pairs = {
-  SEED_EMAIL: seed.credentials?.email ?? '',
-  SEED_PASSWORD: seed.credentials?.password ?? '',
-  SEED_ACCOUNT_ID: seed.account?.id ?? '',
-  SEED_CONTACT_ID: seed.contact?.id ?? '',
-  SEED_CONTACT_EMAIL: seed.contact?.email ?? '',
-  SEED_DEAL_ID: seed.deal?.id ?? '',
-  SEED_CASE_ID: seed.case?.id ?? '',
-  SEED_CASE_SUBJECT: seed.case?.subject ?? '',
-  SEED_WORKFLOW_ACTIVE_ID: seed.workflows?.activeId ?? '',
-  SEED_AGENT_RUN_REJECTED_ID: seed.agentRuns?.rejectedId ?? '',
+  SEED_EMAIL:              seed.credentials?.email ?? '',
+  SEED_PASSWORD:           seed.credentials?.password ?? '',
+  SEED_ACCOUNT_ID:         seed.account?.id ?? '',
+  SEED_CONTACT_ID:         seed.contact?.id ?? '',
+  SEED_CONTACT_EMAIL:      seed.contact?.email ?? '',
+  SEED_DEAL_ID:            seed.deal?.id ?? '',
+  SEED_CASE_ID:            seed.case?.id ?? '',
+  SEED_CASE_SUBJECT:       seed.case?.subject ?? '',
+  SEED_RUN_COMPLETED_ID:   seed.agentRuns?.completedId ?? '',
+  SEED_RUN_HANDOFF_ID:     seed.agentRuns?.handoffId ?? '',
+  SEED_RUN_DENIED_ID:      seed.agentRuns?.deniedByPolicyId ?? '',
+  SEED_APPROVAL_ID:        seed.inbox?.approvalId ?? '',
 };
 for (const [key, value] of Object.entries(pairs)) {
   process.stdout.write(`${key}=${String(value)}\n`);
@@ -111,35 +114,9 @@ for (const [key, value] of Object.entries(pairs)) {
 NODE
 }
 
-resolve_signal_id() {
-  local login_payload login_response token workspace_id signals_response
-  login_payload="$(node -e "process.stdout.write(JSON.stringify({ email: process.env.SEED_EMAIL, password: process.env.SEED_PASSWORD }))")"
-  login_response="$(curl -fsS -X POST -H 'Content-Type: application/json' --data "${login_payload}" 'http://localhost:3000/bff/auth/login' || true)"
-  if [[ -z "${login_response}" ]]; then
-    export SEED_SIGNAL_ID=""
-    return 0
-  fi
-
-  token="$(printf '%s' "${login_response}" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const data=JSON.parse(s);process.stdout.write(data.token||'')})")"
-  workspace_id="$(printf '%s' "${login_response}" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const data=JSON.parse(s);process.stdout.write(data.workspaceId||'')})")"
-  if [[ -z "${token}" || -z "${workspace_id}" ]]; then
-    export SEED_SIGNAL_ID=""
-    return 0
-  fi
-
-  signals_response="$(curl -fsS -H "Authorization: Bearer ${token}" "http://localhost:3000/bff/api/v1/signals?workspace_id=${workspace_id}&status=active" || true)"
-  if [[ -z "${signals_response}" ]]; then
-    export SEED_SIGNAL_ID=""
-    return 0
-  fi
-
-  export SEED_SIGNAL_ID
-  SEED_SIGNAL_ID="$(
-    printf '%s' "${signals_response}" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const data=JSON.parse(s);process.stdout.write(data?.data?.[0]?.id || '')})"
-  )"
-}
 
 print_seed_summary() {
+  # W6-T3: wedge-first variables
   log "Device: ${SERIAL}"
   log "SEED_EMAIL=${SEED_EMAIL}"
   log "SEED_PASSWORD=[redacted]"
@@ -147,9 +124,10 @@ print_seed_summary() {
   log "SEED_CONTACT_ID=${SEED_CONTACT_ID}"
   log "SEED_DEAL_ID=${SEED_DEAL_ID}"
   log "SEED_CASE_ID=${SEED_CASE_ID}"
-  log "SEED_WORKFLOW_ACTIVE_ID=${SEED_WORKFLOW_ACTIVE_ID}"
-  log "SEED_AGENT_RUN_REJECTED_ID=${SEED_AGENT_RUN_REJECTED_ID}"
-  log "SEED_SIGNAL_ID=${SEED_SIGNAL_ID:-}"
+  log "SEED_RUN_COMPLETED_ID=${SEED_RUN_COMPLETED_ID}"
+  log "SEED_RUN_HANDOFF_ID=${SEED_RUN_HANDOFF_ID}"
+  log "SEED_RUN_DENIED_ID=${SEED_RUN_DENIED_ID}"
+  log "SEED_APPROVAL_ID=${SEED_APPROVAL_ID}"
 }
 
 main() {
@@ -180,7 +158,6 @@ main() {
     export "${key}=${value}"
   done < <(seed_to_env_lines "${seed_file}")
 
-  resolve_signal_id
   print_seed_summary
 
   log 'Preparing emulator networking...'
@@ -208,9 +185,10 @@ main() {
     -e "SEED_DEAL_ID=${SEED_DEAL_ID}" \
     -e "SEED_CASE_ID=${SEED_CASE_ID}" \
     -e "SEED_CASE_SUBJECT=${SEED_CASE_SUBJECT}" \
-    -e "SEED_WORKFLOW_ACTIVE_ID=${SEED_WORKFLOW_ACTIVE_ID}" \
-    -e "SEED_AGENT_RUN_REJECTED_ID=${SEED_AGENT_RUN_REJECTED_ID}" \
-    -e "SEED_SIGNAL_ID=${SEED_SIGNAL_ID:-}" \
+    -e "SEED_RUN_COMPLETED_ID=${SEED_RUN_COMPLETED_ID}" \
+    -e "SEED_RUN_HANDOFF_ID=${SEED_RUN_HANDOFF_ID}" \
+    -e "SEED_RUN_DENIED_ID=${SEED_RUN_DENIED_ID}" \
+    -e "SEED_APPROVAL_ID=${SEED_APPROVAL_ID}" \
     "${FLOW_FILE}"
 
   log "Screenshots available in ${OUTPUT_DIR}"

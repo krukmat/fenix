@@ -1,3 +1,5 @@
+// W6-T3: Wedge-first seed — removed workflow fixtures, added approval, handoff,
+// denied_by_policy, completed runs, usage events, and quota policy.
 package main
 
 import (
@@ -13,7 +15,6 @@ import (
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
-	"github.com/matiasleandrokruk/fenix/internal/domain/workflow"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -34,6 +35,7 @@ type authResponse struct {
 	WorkspaceID string `json:"workspaceId"`
 }
 
+// seedOutput is the JSON written to stdout — consumed by seed-and-run.sh.
 type seedOutput struct {
 	Credentials struct {
 		Email    string `json:"email"`
@@ -53,15 +55,15 @@ type seedOutput struct {
 		ID      string `json:"id"`
 		Subject string `json:"subject"`
 	} `json:"case"`
-	Workflows struct {
-		ActiveID   string `json:"activeId"`
-		ArchivedID string `json:"archivedId"`
-	} `json:"workflows"`
 	AgentRuns struct {
-		RejectedID     string `json:"rejectedId"`
-		DealRejectedID string `json:"dealRejectedId"`
-		CaseRejectedID string `json:"caseRejectedId"`
+		// W6-T3: wedge-relevant run statuses
+		CompletedID      string `json:"completedId"`
+		HandoffID        string `json:"handoffId"`
+		DeniedByPolicyID string `json:"deniedByPolicyId"`
 	} `json:"agentRuns"`
+	Inbox struct {
+		ApprovalID string `json:"approvalId"`
+	} `json:"inbox"`
 }
 
 type requestError struct {
@@ -97,118 +99,116 @@ func main() {
 	seeded.Credentials.Email = testEmail
 	seeded.Credentials.Password = testPassword
 
-	encodeErr := json.NewEncoder(os.Stdout).Encode(seeded)
-	if encodeErr != nil {
-		fail(encodeErr)
+	if err := json.NewEncoder(os.Stdout).Encode(seeded); err != nil {
+		fail(err)
 	}
 }
 
 func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutput, error) {
 	suffix := time.Now().UTC().Format("20060102T150405")
+
 	accountID, err := seedAccount(ctx, db, auth, suffix)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("seedAccount: %w", err)
 	}
 
-	return seedDependentFixtures(ctx, db, auth, suffix, accountID)
-}
-
-func seedDependentFixtures(
-	ctx context.Context,
-	db *sql.DB,
-	auth authResponse,
-	suffix, accountID string,
-) (*seedOutput, error) {
 	contactID, contactEmail, err := seedContact(ctx, db, auth, accountID, suffix)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("seedContact: %w", err)
 	}
 
 	dealID, err := seedDeal(ctx, db, auth, accountID, suffix)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("seedDeal: %w", err)
 	}
 
 	caseID, caseSubject, err := seedCase(ctx, db, auth, accountID, suffix)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("seedCase: %w", err)
 	}
 
-	activeWorkflowID, err := seedActiveWorkflow(ctx, db, auth, suffix)
+	// W6-T3: wedge runs — completed, handed-off, denied-by-policy
+	completedRunID, err := seedRun(ctx, db, auth, runParams{
+		entityType: "case",
+		entityID:   caseID,
+		suffix:     suffix + "_completed",
+		status:     "completed",
+		agentType:  "support",
+		agentName:  "Support Agent",
+		latencyMs:  1200,
+		cost:       0.05,
+	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("seedCompletedRun: %w", err)
 	}
 
-	archivedWorkflowID, err := seedArchivedWorkflow(ctx, db, auth, suffix)
+	handoffRunID, err := seedRun(ctx, db, auth, runParams{
+		entityType:    "case",
+		entityID:      caseID,
+		suffix:        suffix + "_handoff",
+		status:        "handed_off",
+		agentType:     "support",
+		agentName:     "Support Agent",
+		latencyMs:     800,
+		cost:          0.03,
+		abstentionReason: "Escalated to human — insufficient confidence",
+	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("seedHandoffRun: %w", err)
 	}
 
-	rejectedRunID, err := seedRejectedRun(ctx, db, auth, accountID, suffix)
+	deniedRunID, err := seedRun(ctx, db, auth, runParams{
+		entityType:       "case",
+		entityID:         caseID,
+		suffix:           suffix + "_denied",
+		status:           "denied_by_policy",
+		agentType:        "support",
+		agentName:        "Support Agent",
+		latencyMs:        300,
+		cost:             0.01,
+		rejectionReason:  "Policy: external email requires manager approval",
+	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("seedDeniedRun: %w", err)
 	}
 
-	dealRejectedRunID, err := seedEntityRejectedRun(ctx, db, auth, "deal", dealID, suffix+"_deal")
+	// W6-T3: usage events for governance screen
+	if err := seedUsageEvents(ctx, db, auth, completedRunID); err != nil {
+		return nil, fmt.Errorf("seedUsageEvents: %w", err)
+	}
+
+	// W6-T3: quota policy + state for governance screen
+	if err := seedQuotaPolicy(ctx, db, auth); err != nil {
+		return nil, fmt.Errorf("seedQuotaPolicy: %w", err)
+	}
+
+	// W6-T3: pending approval for inbox
+	approvalID, err := seedApproval(ctx, db, auth, caseID, suffix)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("seedApproval: %w", err)
 	}
 
-	caseRejectedRunID, err := seedEntityRejectedRun(ctx, db, auth, "case", caseID, suffix+"_case")
-	if err != nil {
-		return nil, err
-	}
-
-	return buildSeedOutput(seedOutputParams{
-		accountID:          accountID,
-		contactID:          contactID,
-		contactEmail:       contactEmail,
-		dealID:             dealID,
-		caseID:             caseID,
-		caseSubject:        caseSubject,
-		activeWorkflowID:   activeWorkflowID,
-		archivedWorkflowID: archivedWorkflowID,
-		rejectedRunID:      rejectedRunID,
-		dealRejectedRunID:  dealRejectedRunID,
-		caseRejectedRunID:  caseRejectedRunID,
-	}), nil
-}
-
-type seedOutputParams struct {
-	accountID          string
-	contactID          string
-	contactEmail       string
-	dealID             string
-	caseID             string
-	caseSubject        string
-	activeWorkflowID   string
-	archivedWorkflowID string
-	rejectedRunID      string
-	dealRejectedRunID  string
-	caseRejectedRunID  string
-}
-
-func buildSeedOutput(params seedOutputParams) *seedOutput {
 	out := &seedOutput{}
-	out.Account.ID = params.accountID
-	out.Contact.ID = params.contactID
-	out.Contact.Email = params.contactEmail
-	out.Deal.ID = params.dealID
-	out.Case.ID = params.caseID
-	out.Case.Subject = params.caseSubject
-	out.Workflows.ActiveID = params.activeWorkflowID
-	out.Workflows.ArchivedID = params.archivedWorkflowID
-	out.AgentRuns.RejectedID = params.rejectedRunID
-	out.AgentRuns.DealRejectedID = params.dealRejectedRunID
-	out.AgentRuns.CaseRejectedID = params.caseRejectedRunID
-	return out
+	out.Account.ID = accountID
+	out.Contact.ID = contactID
+	out.Contact.Email = contactEmail
+	out.Deal.ID = dealID
+	out.Case.ID = caseID
+	out.Case.Subject = caseSubject
+	out.AgentRuns.CompletedID = completedRunID
+	out.AgentRuns.HandoffID = handoffRunID
+	out.AgentRuns.DeniedByPolicyID = deniedRunID
+	out.Inbox.ApprovalID = approvalID
+	return out, nil
 }
+
+// ─── CRM fixtures ────────────────────────────────────────────────────────────
 
 func seedAccount(ctx context.Context, db *sql.DB, auth authResponse, suffix string) (string, error) {
-	accountSvc := crm.NewAccountService(db)
-	account, err := accountSvc.Create(ctx, crm.CreateAccountInput{
+	svc := crm.NewAccountService(db)
+	account, err := svc.Create(ctx, crm.CreateAccountInput{
 		WorkspaceID: auth.WorkspaceID,
-		Name:        "E2E P2 Account " + suffix,
+		Name:        "E2E Wedge Account " + suffix,
 		Industry:    "Technology",
 		OwnerID:     auth.UserID,
 	})
@@ -219,12 +219,12 @@ func seedAccount(ctx context.Context, db *sql.DB, auth authResponse, suffix stri
 }
 
 func seedContact(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, string, error) {
-	contactSvc := crm.NewContactService(db)
-	email := "e2e.p2.contact." + suffix + "@fenixcrm.test"
-	contact, err := contactSvc.Create(ctx, crm.CreateContactInput{
+	svc := crm.NewContactService(db)
+	email := "e2e.wedge.contact." + suffix + "@fenixcrm.test"
+	contact, err := svc.Create(ctx, crm.CreateContactInput{
 		WorkspaceID: auth.WorkspaceID,
 		AccountID:   accountID,
-		FirstName:   "Audit",
+		FirstName:   "Wedge",
 		LastName:    "Contact " + suffix,
 		Email:       email,
 		OwnerID:     auth.UserID,
@@ -235,129 +235,11 @@ func seedContact(ctx context.Context, db *sql.DB, auth authResponse, accountID, 
 	return contact.ID, email, nil
 }
 
-func seedActiveWorkflow(ctx context.Context, db *sql.DB, auth authResponse, suffix string) (string, error) {
-	svc := workflow.NewService(db)
-	createdBy := auth.UserID
-	wf, err := svc.Create(ctx, workflow.CreateWorkflowInput{
-		WorkspaceID:     auth.WorkspaceID,
-		Name:            "e2e_p2_active_" + suffix,
-		Description:     "Seeded active workflow for Detox smoke",
-		DSLSource:       fmt.Sprintf("WORKFLOW e2e_p2_active_%s\nON case.created\nSET case.status = \"open\"", suffix),
-		CreatedByUserID: &createdBy,
-	})
-	if err != nil {
-		return "", err
-	}
-	_, err = svc.MarkTesting(ctx, auth.WorkspaceID, wf.ID)
-	if err != nil {
-		return "", err
-	}
-	_, err = svc.Activate(ctx, auth.WorkspaceID, wf.ID)
-	if err != nil {
-		return "", err
-	}
-	return wf.ID, nil
-}
-
-func seedArchivedWorkflow(ctx context.Context, db *sql.DB, auth authResponse, suffix string) (string, error) {
-	svc := workflow.NewService(db)
-	createdBy := auth.UserID
-	wf, err := svc.Create(ctx, workflow.CreateWorkflowInput{
-		WorkspaceID:     auth.WorkspaceID,
-		Name:            "e2e_p2_archived_" + suffix,
-		Description:     "Seeded archived workflow for Detox rollback smoke",
-		DSLSource:       fmt.Sprintf("WORKFLOW e2e_p2_archived_%s\nON case.created\nSET case.status = \"resolved\"", suffix),
-		CreatedByUserID: &createdBy,
-	})
-	if err != nil {
-		return "", err
-	}
-	_, err = svc.MarkTesting(ctx, auth.WorkspaceID, wf.ID)
-	if err != nil {
-		return "", err
-	}
-	_, err = svc.Activate(ctx, auth.WorkspaceID, wf.ID)
-	if err != nil {
-		return "", err
-	}
-	_, err = svc.MarkArchived(ctx, auth.WorkspaceID, wf.ID)
-	if err != nil {
-		return "", err
-	}
-	return wf.ID, nil
-}
-
-func seedRejectedRun(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
-	agentDefinitionID := uuid.NewV7().String()
-	runID := uuid.NewV7().String()
-	now := time.Now().UTC()
-	agentName := "e2e_p2_agent_" + suffix
-
-	if _, err := db.ExecContext(ctx, `
-		INSERT INTO agent_definition (
-			id, workspace_id, name, description, agent_type, objective,
-			allowed_tools, limits, trigger_config, status, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, '[]', '{}', '{}', 'active', ?, ?)
-	`,
-		agentDefinitionID,
-		auth.WorkspaceID,
-		agentName,
-		"Seeded agent definition for Mobile P2 Detox smoke",
-		"support",
-		`{"goal":"validate mobile p2 smoke"}`,
-		now.Format(time.RFC3339),
-		now.Format(time.RFC3339),
-	); err != nil {
-		return "", err
-	}
-
-	triggerContext := fmt.Sprintf(`{"entity_type":"account","entity_id":"%s","account":{"id":"%s"}}`, accountID, accountID)
-	output := fmt.Sprintf(`{"workflow_id":"wf-seeded-rejected","entity_type":"account","entity_id":"%s","rejection_reason":"Policy threshold not met","reason":"Policy threshold not met"}`, accountID)
-
-	if _, err := db.ExecContext(ctx, `
-		INSERT INTO agent_run (
-			id, workspace_id, agent_definition_id, triggered_by_user_id,
-			trigger_type, trigger_context, status, inputs,
-			retrieval_queries, retrieved_evidence_ids, reasoning_trace,
-			tool_calls, output, abstention_reason,
-			total_tokens, total_cost, latency_ms, trace_id,
-			started_at, completed_at, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`,
-		runID,
-		auth.WorkspaceID,
-		agentDefinitionID,
-		auth.UserID,
-		"manual",
-		triggerContext,
-		"rejected",
-		`{"source":"mobile-e2e"}`,
-		emptyJSONArray,
-		emptyJSONArray,
-		emptyJSONArray,
-		emptyJSONArray,
-		output,
-		"Policy threshold not met",
-		128,
-		0.01,
-		420,
-		uuid.NewV7().String(),
-		now.Format(time.RFC3339),
-		now.Format(time.RFC3339),
-		now.Format(time.RFC3339),
-		now.Format(time.RFC3339),
-	); err != nil {
-		return "", err
-	}
-
-	return runID, nil
-}
-
 func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
 	pipelineSvc := crm.NewPipelineService(db)
 	pipeline, err := pipelineSvc.Create(ctx, crm.CreatePipelineInput{
 		WorkspaceID: auth.WorkspaceID,
-		Name:        "E2E P2 Sales " + suffix,
+		Name:        "E2E Wedge Sales " + suffix,
 		EntityType:  "deal",
 	})
 	if err != nil {
@@ -374,14 +256,13 @@ func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 	}
 
 	svc := crm.NewDealService(db)
-	title := "E2E P2 Deal " + suffix
 	deal, err := svc.Create(ctx, crm.CreateDealInput{
 		WorkspaceID: auth.WorkspaceID,
 		AccountID:   accountID,
 		PipelineID:  pipeline.ID,
 		StageID:     stage.ID,
 		OwnerID:     auth.UserID,
-		Title:       title,
+		Title:       "E2E Wedge Deal " + suffix,
 		Status:      "open",
 	})
 	if err != nil {
@@ -392,7 +273,7 @@ func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 
 func seedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, string, error) {
 	svc := crm.NewCaseService(db)
-	subject := "E2E P2 Case " + suffix
+	subject := "E2E Wedge Case " + suffix
 	ct, err := svc.Create(ctx, crm.CreateCaseInput{
 		WorkspaceID: auth.WorkspaceID,
 		AccountID:   accountID,
@@ -407,32 +288,42 @@ func seedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 	return ct.ID, subject, nil
 }
 
-func seedEntityRejectedRun(ctx context.Context, db *sql.DB, auth authResponse, entityType, entityID, suffix string) (string, error) {
-	agentDefinitionID := uuid.NewV7().String()
+// ─── Agent run fixtures ───────────────────────────────────────────────────────
+
+type runParams struct {
+	entityType       string
+	entityID         string
+	suffix           string
+	status           string
+	agentType        string
+	agentName        string
+	latencyMs        int
+	cost             float64
+	abstentionReason string
+	rejectionReason  string
+}
+
+func seedRun(ctx context.Context, db *sql.DB, auth authResponse, p runParams) (string, error) {
+	agentDefID := uuid.NewV7().String()
 	runID := uuid.NewV7().String()
 	now := time.Now().UTC()
-	agentName := "e2e_p2_agent_" + suffix
 
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO agent_definition (
 			id, workspace_id, name, description, agent_type, objective,
 			allowed_tools, limits, trigger_config, status, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, '[]', '{}', '{}', 'active', ?, ?)
-	`,
-		agentDefinitionID,
-		auth.WorkspaceID,
-		agentName,
-		"Seeded agent definition for Mobile P2 Detox smoke ("+entityType+")",
-		"support",
-		`{"goal":"validate mobile p2 smoke `+entityType+`"}`,
-		now.Format(time.RFC3339),
-		now.Format(time.RFC3339),
+		) VALUES (?, ?, ?, ?, ?, ?, '[]', '{}', '{}', 'active', ?, ?)`,
+		agentDefID, auth.WorkspaceID,
+		"e2e_wedge_"+p.suffix, "Seeded for Maestro wedge audit",
+		p.agentType, `{"goal":"wedge smoke"}`,
+		now.Format(time.RFC3339), now.Format(time.RFC3339),
 	); err != nil {
 		return "", err
 	}
 
-	triggerContext := fmt.Sprintf(`{"entity_type":%q,"entity_id":%q}`, entityType, entityID)
-	output := fmt.Sprintf(`{"entity_type":%q,"entity_id":%q,"rejection_reason":"Policy threshold not met","reason":"Policy threshold not met"}`, entityType, entityID)
+	triggerContext := fmt.Sprintf(`{"entity_type":%q,"entity_id":%q}`, p.entityType, p.entityID)
+	output := fmt.Sprintf(`{"agent_name":%q,"entity_type":%q,"entity_id":%q,"rejection_reason":%q}`,
+		p.agentName, p.entityType, p.entityID, p.rejectionReason)
 
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO agent_run (
@@ -442,36 +333,116 @@ func seedEntityRejectedRun(ctx context.Context, db *sql.DB, auth authResponse, e
 			tool_calls, output, abstention_reason,
 			total_tokens, total_cost, latency_ms, trace_id,
 			started_at, completed_at, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`,
-		runID,
-		auth.WorkspaceID,
-		agentDefinitionID,
-		auth.UserID,
-		"manual",
-		triggerContext,
-		"rejected",
-		`{"source":"mobile-e2e"}`,
-		emptyJSONArray,
-		emptyJSONArray,
-		emptyJSONArray,
-		emptyJSONArray,
-		output,
-		"Policy threshold not met",
-		128,
-		0.01,
-		420,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		runID, auth.WorkspaceID, agentDefID, auth.UserID,
+		"manual", triggerContext, p.status,
+		`{"source":"maestro-e2e"}`,
+		emptyJSONArray, emptyJSONArray, emptyJSONArray, emptyJSONArray,
+		output, p.abstentionReason,
+		512, p.cost, p.latencyMs,
 		uuid.NewV7().String(),
-		now.Format(time.RFC3339),
-		now.Format(time.RFC3339),
-		now.Format(time.RFC3339),
-		now.Format(time.RFC3339),
+		now.Format(time.RFC3339), now.Format(time.RFC3339),
+		now.Format(time.RFC3339), now.Format(time.RFC3339),
 	); err != nil {
 		return "", err
 	}
 
 	return runID, nil
 }
+
+// ─── Governance fixtures ─────────────────────────────────────────────────────
+
+func seedUsageEvents(ctx context.Context, db *sql.DB, auth authResponse, runID string) error {
+	now := time.Now().UTC()
+	events := []struct {
+		metricName string
+		value      float64
+	}{
+		{"tokens", 512},
+		{"cost_euros", 0.05},
+	}
+	for _, e := range events {
+		if _, err := db.ExecContext(ctx, `
+			INSERT INTO usage_event (
+				id, workspace_id, actor_id, actor_type, run_id,
+				metric_name, value, recorded_at, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			uuid.NewV7().String(), auth.WorkspaceID,
+			auth.UserID, "user", runID,
+			e.metricName, e.value,
+			now.Format(time.RFC3339), now.Format(time.RFC3339),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func seedQuotaPolicy(ctx context.Context, db *sql.DB, auth authResponse) error {
+	now := time.Now().UTC()
+	policyID := uuid.NewV7().String()
+
+	// Insert policy
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO governance_policy (
+			id, workspace_id, policy_type, metric_name, limit_value,
+			reset_period, enforcement_mode, enabled, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+		policyID, auth.WorkspaceID,
+		"token_budget", "tokens", 100000,
+		"daily", "soft",
+		now.Format(time.RFC3339), now.Format(time.RFC3339),
+	); err != nil {
+		// Policy table may not exist or policy already inserted — non-fatal for demo
+		return nil
+	}
+
+	// Insert quota state for current period
+	periodStart := now.UTC().Truncate(24 * time.Hour)
+	periodEnd := periodStart.Add(24 * time.Hour).Add(-time.Second)
+	_, _ = db.ExecContext(ctx, `
+		INSERT INTO quota_state (
+			id, workspace_id, policy_id, current_value,
+			period_start, period_end, last_event_at, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		uuid.NewV7().String(), auth.WorkspaceID, policyID,
+		1500,
+		periodStart.Format(time.RFC3339), periodEnd.Format(time.RFC3339),
+		now.Format(time.RFC3339),
+		now.Format(time.RFC3339), now.Format(time.RFC3339),
+	)
+	return nil
+}
+
+// ─── Inbox fixtures ──────────────────────────────────────────────────────────
+
+func seedApproval(ctx context.Context, db *sql.DB, auth authResponse, caseID, suffix string) (string, error) {
+	now := time.Now().UTC()
+	approvalID := uuid.NewV7().String()
+	expiresAt := now.Add(24 * time.Hour)
+
+	payload := fmt.Sprintf(`{"entity_type":"case","entity_id":%q,"action":"close_case"}`, caseID)
+
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO approval_request (
+			id, workspace_id, requested_by, approver_id,
+			action, resource_type, resource_id, payload,
+			reason, status, expires_at, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		approvalID, auth.WorkspaceID,
+		auth.UserID, auth.UserID,
+		"close_case", "case", caseID, payload,
+		"E2E wedge seed approval "+suffix,
+		"pending",
+		expiresAt.Format(time.RFC3339),
+		now.Format(time.RFC3339), now.Format(time.RFC3339),
+	); err != nil {
+		return "", err
+	}
+	return approvalID, nil
+}
+
+// ─── Auth helpers ─────────────────────────────────────────────────────────────
 
 func loginOrRegister(ctx context.Context, apiURL string) (authResponse, error) {
 	auth, err := requestAuth(ctx, apiURL, "/auth/login", map[string]string{
@@ -522,9 +493,8 @@ func requestAuth(ctx context.Context, apiURL, path string, payload map[string]st
 	}
 
 	var auth authResponse
-	unmarshalErr := json.Unmarshal(raw, &auth)
-	if unmarshalErr != nil {
-		return authResponse{}, unmarshalErr
+	if err := json.Unmarshal(raw, &auth); err != nil {
+		return authResponse{}, err
 	}
 	return auth, nil
 }
@@ -542,8 +512,8 @@ func asRequestError(err error, target *requestError) bool {
 }
 
 func envOr(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
 	return fallback
 }
