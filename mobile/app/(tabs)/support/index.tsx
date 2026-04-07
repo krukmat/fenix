@@ -38,7 +38,7 @@ function InboxBadge({ router, colors }: { router: ReturnType<typeof useRouter>; 
     <TouchableOpacity
       testID="support-inbox-badge"
       style={[styles.inboxBadge, { backgroundColor: colors.primary }]}
-      onPress={() => router.push('/inbox')}
+      onPress={() => router.push('/inbox' as any)}
     >
       <Text style={styles.inboxBadgeText}>{count > 99 ? '99+' : count} pending</Text>
     </TouchableOpacity>
@@ -53,7 +53,7 @@ export function renderSupportCaseItem(
   return (
     <TouchableOpacity
       style={[styles.caseItem, { backgroundColor: colors.surface }]}
-      onPress={() => router.push(`/support/${item.id}`)}
+      onPress={() => router.push(`/support/${item.id}` as any)}
       testID={`support-cases-list-item-${index}`}
     >
       <View style={styles.caseHeader}>

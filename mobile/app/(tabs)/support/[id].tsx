@@ -119,7 +119,7 @@ function AccountSection({
       <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Account</Text>
       <TouchableOpacity
         style={[styles.card, { backgroundColor: colors.surface }]}
-        onPress={() => router.push(`/sales/${accountId}`)}
+        onPress={() => router.push(`/sales/${accountId}` as any)}
       >
         <Text style={{ color: colors.onSurface, fontWeight: '500' }}>{accountName || 'View Account'}</Text>
       </TouchableOpacity>
@@ -215,7 +215,7 @@ export default function SupportCaseDetailScreen() {
           <Button
             mode="outlined"
             testID="support-copilot-button"
-            onPress={() => router.push({ pathname: `/support/${caseData.id}/copilot`, params: { entity_type: 'case', entity_id: caseData.id } })}
+            onPress={() => router.push({ pathname: `/support/${caseData.id}/copilot` as any, params: { entity_type: 'case', entity_id: caseData.id } })}
           >
             Open Copilot
           </Button>
