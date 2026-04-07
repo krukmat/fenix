@@ -99,9 +99,16 @@ func main() {
 	seeded.Credentials.Email = testEmail
 	seeded.Credentials.Password = testPassword
 
-	if err := json.NewEncoder(os.Stdout).Encode(seeded); err != nil {
+	err = json.NewEncoder(os.Stdout).Encode(seeded)
+	if err != nil {
 		fail(err)
 	}
+}
+
+type wedgeRunIDs struct {
+	completedID string
+	handoffID   string
+	deniedID    string
 }
 
 func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutput, error) {
@@ -128,7 +135,23 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 	}
 
 	// W6-T3: wedge runs — completed, handed-off, denied-by-policy
-	completedRunID, err := seedRun(ctx, db, auth, runParams{
+	runs, err := seedWedgeRuns(ctx, db, auth, caseID, suffix)
+	if err != nil {
+		return nil, err
+	}
+
+	approvalID, err := seedGovernanceAndApproval(ctx, db, auth, runs.completedID, caseID, suffix)
+	if err != nil {
+		return nil, fmt.Errorf("seedApproval: %w", err)
+	}
+
+	return buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSubject, runs, approvalID), nil
+}
+
+// seedWedgeRuns seeds the three wedge-relevant run statuses (completed, handed-off, denied).
+// W6-T3: extracted to keep seedFixtures within funlen limit.
+func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, suffix string) (wedgeRunIDs, error) {
+	completedID, err := seedRun(ctx, db, auth, runParams{
 		entityType: "case",
 		entityID:   caseID,
 		suffix:     suffix + "_completed",
@@ -139,55 +162,43 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		cost:       0.05,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("seedCompletedRun: %w", err)
+		return wedgeRunIDs{}, fmt.Errorf("seedCompletedRun: %w", err)
 	}
 
-	handoffRunID, err := seedRun(ctx, db, auth, runParams{
-		entityType:    "case",
-		entityID:      caseID,
-		suffix:        suffix + "_handoff",
-		status:        "handed_off",
-		agentType:     "support",
-		agentName:     "Support Agent",
-		latencyMs:     800,
-		cost:          0.03,
+	handoffID, err := seedRun(ctx, db, auth, runParams{
+		entityType:       "case",
+		entityID:         caseID,
+		suffix:           suffix + "_handoff",
+		status:           "handed_off",
+		agentType:        "support",
+		agentName:        "Support Agent",
+		latencyMs:        800,
+		cost:             0.03,
 		abstentionReason: "Escalated to human — insufficient confidence",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("seedHandoffRun: %w", err)
+		return wedgeRunIDs{}, fmt.Errorf("seedHandoffRun: %w", err)
 	}
 
-	deniedRunID, err := seedRun(ctx, db, auth, runParams{
-		entityType:       "case",
-		entityID:         caseID,
-		suffix:           suffix + "_denied",
-		status:           "denied_by_policy",
-		agentType:        "support",
-		agentName:        "Support Agent",
-		latencyMs:        300,
-		cost:             0.01,
-		rejectionReason:  "Policy: external email requires manager approval",
+	deniedID, err := seedRun(ctx, db, auth, runParams{
+		entityType:      "case",
+		entityID:        caseID,
+		suffix:          suffix + "_denied",
+		status:          "denied_by_policy",
+		agentType:       "support",
+		agentName:       "Support Agent",
+		latencyMs:       300,
+		cost:            0.01,
+		rejectionReason: "Policy: external email requires manager approval",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("seedDeniedRun: %w", err)
+		return wedgeRunIDs{}, fmt.Errorf("seedDeniedRun: %w", err)
 	}
 
-	// W6-T3: usage events for governance screen
-	if err := seedUsageEvents(ctx, db, auth, completedRunID); err != nil {
-		return nil, fmt.Errorf("seedUsageEvents: %w", err)
-	}
+	return wedgeRunIDs{completedID: completedID, handoffID: handoffID, deniedID: deniedID}, nil
+}
 
-	// W6-T3: quota policy + state for governance screen
-	if err := seedQuotaPolicy(ctx, db, auth); err != nil {
-		return nil, fmt.Errorf("seedQuotaPolicy: %w", err)
-	}
-
-	// W6-T3: pending approval for inbox
-	approvalID, err := seedApproval(ctx, db, auth, caseID, suffix)
-	if err != nil {
-		return nil, fmt.Errorf("seedApproval: %w", err)
-	}
-
+func buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSubject string, runs wedgeRunIDs, approvalID string) *seedOutput {
 	out := &seedOutput{}
 	out.Account.ID = accountID
 	out.Contact.ID = contactID
@@ -195,11 +206,11 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 	out.Deal.ID = dealID
 	out.Case.ID = caseID
 	out.Case.Subject = caseSubject
-	out.AgentRuns.CompletedID = completedRunID
-	out.AgentRuns.HandoffID = handoffRunID
-	out.AgentRuns.DeniedByPolicyID = deniedRunID
+	out.AgentRuns.CompletedID = runs.completedID
+	out.AgentRuns.HandoffID = runs.handoffID
+	out.AgentRuns.DeniedByPolicyID = runs.deniedID
 	out.Inbox.ApprovalID = approvalID
-	return out, nil
+	return out
 }
 
 // ─── CRM fixtures ────────────────────────────────────────────────────────────
@@ -286,6 +297,22 @@ func seedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 		return "", "", err
 	}
 	return ct.ID, subject, nil
+}
+
+// seedGovernanceAndApproval seeds usage events, quota policy, and inbox approval in one call.
+// W6-T3: extracted to reduce seedFixtures cognitive complexity below gocognit threshold.
+func seedGovernanceAndApproval(ctx context.Context, db *sql.DB, auth authResponse, runID, caseID, suffix string) (string, error) {
+	if err := seedUsageEvents(ctx, db, auth, runID); err != nil {
+		return "", fmt.Errorf("seedUsageEvents: %w", err)
+	}
+	if err := seedQuotaPolicy(ctx, db, auth); err != nil {
+		return "", fmt.Errorf("seedQuotaPolicy: %w", err)
+	}
+	approvalID, err := seedApproval(ctx, db, auth, caseID, suffix)
+	if err != nil {
+		return "", fmt.Errorf("seedApproval: %w", err)
+	}
+	return approvalID, nil
 }
 
 // ─── Agent run fixtures ───────────────────────────────────────────────────────
@@ -493,7 +520,8 @@ func requestAuth(ctx context.Context, apiURL, path string, payload map[string]st
 	}
 
 	var auth authResponse
-	if err := json.Unmarshal(raw, &auth); err != nil {
+	err = json.Unmarshal(raw, &auth)
+	if err != nil {
 		return authResponse{}, err
 	}
 	return auth, nil
