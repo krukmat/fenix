@@ -11,7 +11,7 @@
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { InternalAxiosRequestConfig } from 'axios';
-import { apiClient, authApi, crmApi, agentApi, signalApi, workflowApi, approvalApi, copilotApi } from '../../src/services/api';
+import { apiClient, authApi, crmApi, agentApi, signalApi, approvalApi, copilotApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
 
 const mockLogout = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
@@ -197,29 +197,25 @@ describe('api.ts', () => {
       });
     });
 
-    it('agentApi filtered run helpers should pass entity, workflow and status filters', async () => {
+    it('agentApi filtered run helpers should pass entity and status filters', async () => {
       const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValue({ data: { data: [] } } as never);
 
-      await agentApi.getRuns('ws-1', { page: 2, limit: 10 }, { status: 'delegated', workflow_id: 'wf-1' });
+      await agentApi.getRuns('ws-1', { page: 2, limit: 10 }, { status: 'delegated' });
       await agentApi.getRunsByEntity('ws-1', 'case', 'case-1', { page: 3, limit: 5 }, { status: 'rejected' });
-      await agentApi.getRunsByWorkflow('ws-1', 'wf-2', { page: 4, limit: 6 }, { entity_type: 'deal', entity_id: 'deal-7' });
-      await agentApi.getRunsByStatus('ws-1', 'accepted', { page: 5, limit: 7 }, { workflow_id: 'wf-3' });
+      await agentApi.getRunsByStatus('ws-1', 'accepted', { page: 5, limit: 7 }, { entity_type: 'case' });
 
       expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/agents/runs', {
-        params: { workspace_id: 'ws-1', page: 2, limit: 10, status: 'delegated', workflow_id: 'wf-1' },
+        params: { workspace_id: 'ws-1', page: 2, limit: 10, status: 'delegated' },
       });
       expect(getSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/agents/runs', {
         params: { workspace_id: 'ws-1', page: 3, limit: 5, status: 'rejected', entity_type: 'case', entity_id: 'case-1' },
       });
       expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/api/v1/agents/runs', {
-        params: { workspace_id: 'ws-1', page: 4, limit: 6, entity_type: 'deal', entity_id: 'deal-7', workflow_id: 'wf-2' },
-      });
-      expect(getSpy).toHaveBeenNthCalledWith(4, '/bff/api/v1/agents/runs', {
-        params: { workspace_id: 'ws-1', page: 5, limit: 7, workflow_id: 'wf-3', status: 'accepted' },
+        params: { workspace_id: 'ws-1', page: 5, limit: 7, entity_type: 'case', status: 'accepted' },
       });
     });
 
-    // --- Mobile P1.1: signalApi, workflowApi, approvalApi, copilotApi ---
+    // --- Mobile P1.1: signalApi, approvalApi, copilotApi ---
 
     describe('signalApi', () => {
       it('getSignals should call GET /bff/api/v1/signals with workspace_id and pagination defaults', async () => {
@@ -309,177 +305,6 @@ describe('api.ts', () => {
         expect(result).toEqual({ id: 'sig-1', status: 'dismissed' });
       });
 
-    });
-
-    describe('workflowApi', () => {
-      it('getWorkflows should call GET /bff/api/v1/workflows with workspace_id and pagination defaults', async () => {
-        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: [] } as never);
-
-        await workflowApi.getWorkflows('ws-1');
-
-        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/workflows', {
-          params: { workspace_id: 'ws-1', page: 1, limit: 50 },
-        });
-      });
-
-      it('getWorkflows should respect custom pagination', async () => {
-        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: [] } as never);
-
-        await workflowApi.getWorkflows('ws-1', undefined, { page: 2, limit: 10 });
-
-        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/workflows', {
-          params: { workspace_id: 'ws-1', page: 2, limit: 10 },
-        });
-      });
-
-      it('getWorkflows should pass status filter', async () => {
-        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: [] } as never);
-
-        await workflowApi.getWorkflows('ws-1', { status: 'active' });
-
-        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/workflows', {
-          params: { workspace_id: 'ws-1', page: 1, limit: 50, status: 'active' },
-        });
-      });
-
-      it('getWorkflows should return empty array when no workflows exist', async () => {
-        jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: [] } as never);
-
-        const result = await workflowApi.getWorkflows('ws-1');
-
-        expect(result).toEqual([]);
-      });
-
-      it('getWorkflows uses default page when only limit is provided', async () => {
-        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: [] } as never);
-
-        await workflowApi.getWorkflows('ws-1', undefined, { limit: 10 });
-
-        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/workflows', {
-          params: { workspace_id: 'ws-1', page: 1, limit: 10 },
-        });
-      });
-
-      it('getWorkflows uses default limit when only page is provided', async () => {
-        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: [] } as never);
-
-        await workflowApi.getWorkflows('ws-1', undefined, { page: 3 });
-
-        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/workflows', {
-          params: { workspace_id: 'ws-1', page: 3, limit: 50 },
-        });
-      });
-
-      it('getWorkflow should call GET /bff/api/v1/workflows/{id}', async () => {
-        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: { id: 'wf-1' } } as never);
-
-        const result = await workflowApi.getWorkflow('wf-1');
-
-        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1');
-        expect(result).toEqual({ id: 'wf-1' });
-      });
-
-      it('create should call POST /bff/api/v1/workflows', async () => {
-        const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValueOnce({ data: { id: 'wf-new' } } as never);
-
-        const result = await workflowApi.create({
-          name: 'Lead Qualifier',
-          description: 'Draft workflow',
-          dsl_source: 'ON lead.created',
-          spec_source: 'spec text',
-        });
-
-        expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/workflows', {
-          name: 'Lead Qualifier',
-          description: 'Draft workflow',
-          dsl_source: 'ON lead.created',
-          spec_source: 'spec text',
-        });
-        expect(result).toEqual({ id: 'wf-new' });
-      });
-
-      it('update should call PUT /bff/api/v1/workflows/{id}', async () => {
-        const putSpy = jest.spyOn(apiClient, 'put').mockResolvedValueOnce({ data: { id: 'wf-1', description: 'updated' } } as never);
-
-        const result = await workflowApi.update('wf-1', {
-          agent_definition_id: 'agent-7',
-          description: 'updated',
-          dsl_source: 'ON lead.updated',
-        });
-
-        expect(putSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1', {
-          agent_definition_id: 'agent-7',
-          description: 'updated',
-          dsl_source: 'ON lead.updated',
-        });
-        expect(result).toEqual({ id: 'wf-1', description: 'updated' });
-      });
-
-      it('getVersions should call GET /bff/api/v1/workflows/{id}/versions', async () => {
-        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: [{ id: 'wf-1', version: 1 }] } as never);
-
-        const result = await workflowApi.getVersions('wf-1');
-
-        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1/versions');
-        expect(result).toEqual([{ id: 'wf-1', version: 1 }]);
-      });
-
-      it('newVersion should call POST /bff/api/v1/workflows/{id}/new-version', async () => {
-        const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValueOnce({ data: { id: 'wf-2', version: 2 } } as never);
-
-        const result = await workflowApi.newVersion('wf-1');
-
-        expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1/new-version');
-        expect(result).toEqual({ id: 'wf-2', version: 2 });
-      });
-
-      it('rollback should call PUT /bff/api/v1/workflows/{id}/rollback', async () => {
-        const putSpy = jest.spyOn(apiClient, 'put').mockResolvedValueOnce({ data: { id: 'wf-0', status: 'active' } } as never);
-
-        const result = await workflowApi.rollback('wf-0');
-
-        expect(putSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-0/rollback');
-        expect(result).toEqual({ id: 'wf-0', status: 'active' });
-      });
-
-
-      it('activateWorkflow should call PUT /bff/api/v1/workflows/{id}/activate', async () => {
-        const putSpy = jest.spyOn(apiClient, 'put').mockResolvedValueOnce({ data: { id: 'wf-1', status: 'active' } } as never);
-
-        const result = await workflowApi.activateWorkflow('wf-1');
-
-        expect(putSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1/activate');
-        expect(result).toEqual({ id: 'wf-1', status: 'active' });
-      });
-
-
-      it('executeWorkflow should call POST /bff/api/v1/workflows/{id}/execute', async () => {
-        const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValueOnce({ data: { run_id: 'run-1' } } as never);
-
-        const result = await workflowApi.executeWorkflow('wf-1');
-
-        expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1/execute');
-        expect(result).toEqual({ run_id: 'run-1' });
-      });
-
-
-      it('verifyWorkflow should call POST /bff/api/v1/workflows/{id}/verify with passed: true', async () => {
-        const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValueOnce({ data: { passed: true } } as never);
-
-        const result = await workflowApi.verifyWorkflow('wf-1');
-
-        expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1/verify');
-        expect(result).toEqual({ passed: true });
-      });
-
-      it('verifyWorkflow should return passed: false with violations list', async () => {
-        const violations = [{ check: 'CHECK1', message: 'missing ON event', line: 1 }];
-        jest.spyOn(apiClient, 'post').mockResolvedValueOnce({ data: { passed: false, violations } } as never);
-
-        const result = await workflowApi.verifyWorkflow('wf-invalid');
-
-        expect(result).toEqual({ passed: false, violations });
-      });
     });
 
     describe('approvalApi', () => {

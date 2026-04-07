@@ -22,42 +22,6 @@ export interface Signal {
   updated_at: string;
 }
 
-export type WorkflowStatus = 'draft' | 'testing' | 'active' | 'archived';
-
-export interface Workflow {
-  id: string;
-  workspace_id: string;
-  agent_definition_id?: string;
-  parent_version_id?: string;
-  name: string;
-  description?: string;
-  dsl_source: string;
-  spec_source?: string;
-  version: number;
-  status: WorkflowStatus;
-  created_by_user_id?: string;
-  archived_at?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export type WorkflowVersion = Workflow;
-
-export interface CreateWorkflowInput {
-  agent_definition_id?: string;
-  name: string;
-  description?: string;
-  dsl_source: string;
-  spec_source?: string;
-}
-
-export interface UpdateWorkflowInput {
-  agent_definition_id?: string;
-  description?: string;
-  dsl_source: string;
-  spec_source?: string;
-}
-
 // W1-T1: normalized public outcome set — used in all user-facing lists and badges
 export type AgentRunPublicStatus =
   | 'completed'
@@ -102,7 +66,6 @@ export interface AgentRun {
   totalCost?: number;
   latencyMs?: number;
   traceId?: string;
-  workflow_id?: string;
   entity_type?: string;
   entity_id?: string;
   // W1-T1: only present when status == 'denied_by_policy'

@@ -1,5 +1,5 @@
 // Task 4.2 — FR-300: Axios API Client hacia BFF
-// Task Mobile P1.1 — FR-300, UC-A4/A5/A7: signalApi, workflowApi, approvalApi, copilotApi extensions
+// W6-T1: removed workflowApi and workflow types (wedge cleanup)
 //
 // This file is the public API surface for the services layer.
 // Implementation is split across api.client.ts, api.types.ts, api.agents.ts, api.secondary.ts
@@ -13,11 +13,6 @@ export { apiClient, BFF_URL } from './api.client';
 export type {
   SignalStatus,
   Signal,
-  WorkflowStatus,
-  Workflow,
-  WorkflowVersion,
-  CreateWorkflowInput,
-  UpdateWorkflowInput,
   // W1-T1: frozen public type set
   AgentRunPublicStatus,
   AgentRunRuntimeStatus,
@@ -45,7 +40,7 @@ export type {
 
 // Re-export secondary APIs
 export { agentApi, salesBriefApi } from './api.agents';
-export { signalApi, workflowApi, toolApi, approvalApi, inboxApi, governanceApi } from './api.secondary';
+export { signalApi, toolApi, approvalApi, inboxApi, governanceApi } from './api.secondary';
 
 // Auth API
 export const authApi = {

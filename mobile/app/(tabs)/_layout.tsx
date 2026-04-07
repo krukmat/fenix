@@ -81,8 +81,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="deals/index" options={{ href: null }} />
       <Tabs.Screen name="cases/index" options={{ href: null }} />
       <Tabs.Screen name="copilot/index" options={{ href: null }} />
-      <Tabs.Screen name="workflows/index" options={{ href: null }} />
-      <Tabs.Screen name="crm/index" options={{ href: null }} />
+<Tabs.Screen name="crm/index" options={{ href: null }} />
     </Tabs>
   );
 }

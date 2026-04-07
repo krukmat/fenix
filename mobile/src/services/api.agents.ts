@@ -8,7 +8,7 @@ export const agentApi = {
   getRuns: async (
     workspaceId: string,
     pagination?: { page?: number; limit?: number },
-    filters?: { status?: AgentRunPublicStatus; entity_type?: string; entity_id?: string; workflow_id?: string }
+    filters?: { status?: AgentRunPublicStatus; entity_type?: string; entity_id?: string }
   ) => {
     const response = await apiClient.get('/bff/api/v1/agents/runs', {
       params: {
@@ -26,7 +26,7 @@ export const agentApi = {
     entityType: string,
     entityId: string,
     pagination?: { page?: number; limit?: number },
-    filters?: { status?: AgentRunPublicStatus; workflow_id?: string }
+    filters?: { status?: AgentRunPublicStatus }
   ) => {
     return agentApi.getRuns(workspaceId, pagination, {
       ...filters,
@@ -35,24 +35,12 @@ export const agentApi = {
     });
   },
 
-  getRunsByWorkflow: async (
-    workspaceId: string,
-    workflowId: string,
-    pagination?: { page?: number; limit?: number },
-    filters?: { status?: AgentRunPublicStatus; entity_type?: string; entity_id?: string }
-  ) => {
-    return agentApi.getRuns(workspaceId, pagination, {
-      ...filters,
-      workflow_id: workflowId,
-    });
-  },
-
   // W1-T1: filter by normalized public status
   getRunsByStatus: async (
     workspaceId: string,
     status: AgentRunPublicStatus,
     pagination?: { page?: number; limit?: number },
-    filters?: { entity_type?: string; entity_id?: string; workflow_id?: string }
+    filters?: { entity_type?: string; entity_id?: string }
   ) => {
     return agentApi.getRuns(workspaceId, pagination, {
       ...filters,
