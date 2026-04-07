@@ -89,7 +89,7 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
     expect(visibleNames).toContain('governance/index');
   });
 
-  it('keeps legacy home and agents screens registered but hidden (href: null)', () => {
+  it('keeps legacy redirect shims registered but hidden (href: null)', () => {
     render(React.createElement(TabsLayout));
 
     type ScreenCall = [{ name: string; options?: { href?: null | string } }];
@@ -100,7 +100,10 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
       .map((p) => p.name);
 
     expect(hiddenNames).toContain('home/index');
-    expect(hiddenNames).toContain('agents/index');
+    expect(hiddenNames).toContain('accounts/index');
+    expect(hiddenNames).toContain('cases/index');
+    expect(hiddenNames).not.toContain('agents/index');
+    expect(hiddenNames).not.toContain('crm/index');
   });
 
   it('redirects to login when unauthenticated', () => {

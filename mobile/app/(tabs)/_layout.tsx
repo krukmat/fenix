@@ -73,15 +73,12 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* ── Legacy routes — hidden from tab bar, still navigable (W2-T2/W2-T3) ── */}
+      {/* ── Legacy redirect shims — hidden from tab bar (W2-T2/W6-T2) ── */}
       <Tabs.Screen name="home/index" options={{ href: null, title: 'Home' }} />
-      <Tabs.Screen name="agents/index" options={{ href: null, title: 'Agents' }} />
       <Tabs.Screen name="accounts/index" options={{ href: null }} />
-      <Tabs.Screen name="contacts/index" options={{ href: null }} />
       <Tabs.Screen name="deals/index" options={{ href: null }} />
       <Tabs.Screen name="cases/index" options={{ href: null }} />
       <Tabs.Screen name="copilot/index" options={{ href: null }} />
-<Tabs.Screen name="crm/index" options={{ href: null }} />
     </Tabs>
   );
 }
