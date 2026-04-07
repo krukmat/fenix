@@ -14,8 +14,11 @@ jest.mock('../../../../src/components/copilot', () => {
   const React = require('react');
   const { View } = require('react-native');
   return {
-    CopilotPanel: ({ testIDPrefix, entityType, entityId }: { testIDPrefix: string; entityType: string; entityId: string }) =>
-      React.createElement(View, { testID: `${testIDPrefix}-panel`, accessibilityLabel: `${entityType}:${entityId}` }),
+    CopilotPanel: ({ initialContext }: { initialContext?: { entityType?: string; entityId?: string } }) =>
+      React.createElement(View, {
+        testID: 'support-copilot-panel',
+        accessibilityLabel: `${initialContext?.entityType ?? ''}:${initialContext?.entityId ?? ''}`,
+      }),
   };
 });
 

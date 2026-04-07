@@ -122,7 +122,7 @@ function AccountSection({
 function ActiveRunBadge({ caseId, colors }: { caseId: string; colors: ThemeColors }) {
   const { data } = useAgentRuns({ status: 'awaiting_approval' });
   const runs = (data?.pages ?? []).flatMap((p: { data?: unknown[] }) => (p.data ?? []) as Array<{ id: string; status: string }>);
-  const active = runs.find((r) => r.id.includes(caseId) || runs.length > 0);
+  const active = runs.find((r: { id: string; status: string }) => r.id.includes(caseId) || runs.length > 0);
   if (!active) return null;
   return (
     <View style={[styles.card, { backgroundColor: colors.surface }]} testID="support-active-run-status">

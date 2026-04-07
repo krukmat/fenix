@@ -16,9 +16,7 @@ export default function SupportCopilotScreen() {
       <Stack.Screen options={{ title: 'Support Copilot' }} />
       <View style={styles.container}>
         <CopilotPanel
-          testIDPrefix="support-copilot"
-          entityType={entityType}
-          entityId={entityId}
+          initialContext={{ entityType, entityId }}
         />
       </View>
     </>
