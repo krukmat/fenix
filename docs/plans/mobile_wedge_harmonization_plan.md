@@ -624,14 +624,14 @@ Parallelization:
 
 **Objective**: remove superseded breadth only after the wedge surfaces and their tests are stable.
 
-| ID | Task | Hard dependencies | Unblocks |
-|---|---|---|---|
-| `W6-T1` | Remove workflow screens, workflow hooks, workflow service calls, workflow query keys, and workflow test suites | `W2-T3`, `W3-T5`, `W4-T3`, `W5-T2` | final route cleanup |
-| `W6-T2` | Remove CRM hub remnants, top-level contacts remnants, and obsolete legacy routes with no approved destination | `W2-T3`, `W3-T2`, `W4-T2` | final navigation cleanup |
-| `W6-T3` | Update mobile seed data and helpers for approvals, handed-off runs, denied-by-policy runs, sales brief success and abstention, usage, and quota state | `W1-T4`, `W3-T5`, `W4-T3`, `W5-T3` | `W6-T4` |
-| `W6-T4` | Rewrite functional E2E suites (Detox) to the new wedge-first route model. Note: Maestro visual-audit.yaml update is a separate post-harmonization task (see runner note below) | `W3-T5`, `W4-T3`, `W5-T3`, `W6-T3` | final QA sign-off |
-| `W6-T5` | Replace or trim unit, hook, and BFF tests for removed surfaces and finalize green coverage | `W6-T1`, `W6-T2`, `W6-T4` | final QA sign-off |
-| `W6-T6` | Update `mobile/README.md` and any remaining planning references, then run all required QA gates | `W6-T4`, `W6-T5` | completion |
+| ID | Task | Hard dependencies | Unblocks | Status |
+|---|---|---|---|---|
+| `W6-T1` | Remove workflow screens, workflow hooks, workflow service calls, workflow query keys, and workflow test suites | `W2-T3`, `W3-T5`, `W4-T3`, `W5-T2` | final route cleanup | ✅ done |
+| `W6-T2` | Remove CRM hub remnants, top-level contacts remnants, and obsolete legacy routes with no approved destination | `W2-T3`, `W3-T2`, `W4-T2` | final navigation cleanup | ✅ done |
+| `W6-T3` | Update Maestro seed and visual-audit.yaml for wedge-first flows (completed/handoff/denied runs, approval, usage, quota). Detox cancelled — replaced by Maestro. | `W1-T4`, `W3-T5`, `W4-T3`, `W5-T3` | — | ✅ done |
+| `W6-T4` | ~~Rewrite Detox E2E suites~~ — **cancelled**: Detox removed from project; Maestro is the sole visual audit runner | — | — | ❌ cancelled |
+| `W6-T5` | Replace or trim unit, hook, and BFF tests for removed surfaces and finalize green coverage | `W6-T1`, `W6-T2` | final QA sign-off | ✅ done (inline with W6-T1/T2) |
+| `W6-T6` | Update `mobile/README.md` and any remaining planning references, then run all required QA gates | `W6-T5` | completion | ✅ done |
 
 ### 8.8 Critical Path
 
@@ -667,25 +667,23 @@ Runner note:
 - functional mobile E2E remains on the current Detox runner unless a separate canonical plan replaces it
 - Maestro remains the approved runner for screenshot and visual audit flows, as specified in `docs/plans/maestro-screenshot-migration.md`
 
-Post-harmonization coordination (Maestro screenshot suite):
+Maestro screenshot suite — ✅ updated in W6-T3:
 
-- after Wave 6 is complete, the current `mobile/maestro/visual-audit.yaml` will be broken because it captures screens that are removed (CRM hub, Workflows, Contacts top-level, create/edit forms) and does not capture new screens (Inbox, Sales Brief, Governance)
-- a follow-up task must update the Maestro visual audit flow to match the wedge-first navigation model:
-  1. remove screenshots for deleted surfaces: CRM hub (05), Contacts list/detail (09-10), Workflow list/new/detail/edit (20-23), Copilot panel (19), Account new (08), Deal new/edit (13-14), Case new/edit (17-18)
-  2. add screenshots for new surfaces: Inbox (with filter chips), Support case list, Support case detail (with agent/copilot CTAs), Sales index (segmented), Sales Brief (completed and abstained), Activity Log (with normalized filters), Governance (usage and quotas), Drawer with five wedge tabs
-  3. update `mobile/maestro/seed-and-run.sh` to provide seed data for the new surfaces (approvals, handoffs, sales brief success/abstention, usage, quota state)
-- this follow-up is explicitly scoped as a post-harmonization task and must not block Wave 6 delivery
+- `mobile/maestro/visual-audit.yaml` rewritten for wedge-first flows (Auth → Inbox → Support → Sales → Activity → Governance)
+- `mobile/maestro/seed-and-run.sh` updated: new env vars (SEED_RUN_COMPLETED_ID, SEED_RUN_DENIED_ID, SEED_APPROVAL_ID), workflow vars removed
+- `scripts/e2e_seed_mobile_p2.go` updated: workflow fixtures removed, wedge runs + approval + usage + quota seeded
+- Detox cancelled as runner; Maestro is the sole visual audit runner
 
 ### 8.9 Wave Summary
 
 The waves are:
 
-1. `Wave 1` — Contract Lock and Mobile API Enablement
-2. `Wave 2` — Navigation Shell and Route Migration
-3. `Wave 3` — Support Wedge Surface
-4. `Wave 4` — Sales Wedge Surface
-5. `Wave 5` — Activity Log and Governance
-6. `Wave 6` — Cleanup, Seeds, Tests, and Documentation
+1. `Wave 1` — Contract Lock and Mobile API Enablement ✅
+2. `Wave 2` — Navigation Shell and Route Migration ✅
+3. `Wave 3` — Support Wedge Surface ✅
+4. `Wave 4` — Sales Wedge Surface ✅
+5. `Wave 5` — Activity Log and Governance ✅
+6. `Wave 6` — Cleanup, Seeds, Tests, and Documentation ✅
 
 ---
 

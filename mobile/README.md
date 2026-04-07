@@ -2,31 +2,35 @@
 
 Aplicación mobile basada en Expo/React Native para consumir el BFF de FenixCRM.
 
+## Arquitectura de navegación (wedge-first)
+
+La app expone exactamente 5 tabs visibles:
+
+| Tab | Ruta | Descripción |
+|-----|------|-------------|
+| Inbox | `/inbox` | Approvals pendientes, handoffs, signals |
+| Support | `/support` | Casos → detalle → copilot → trigger agent |
+| Sales | `/sales` | Accounts/Deals segmentados → detalle → sales brief |
+| Activity | `/activity` | Log de runs con filter chips por public status |
+| Governance | `/governance` | Usage events + quota states |
+
+Las rutas legacy (`/home`, `/accounts`, `/deals`, `/cases`, `/copilot`) permanecen como redirects ocultos hacia sus destinos wedge.
+
 ## Requisitos
 
 - Node.js 18+
 - npm 9+
-- Android Studio + Android SDK (API 35, NDK 26+) — para E2E tests
 - Expo CLI: `npm install -g expo-cli eas-cli`
-- Detox CLI: `npm install -g detox-cli` — para E2E tests
+- Android Studio + Android SDK (API 35) — para Maestro visual audit
 
 ## Desarrollo local
 
-Instalar dependencias:
-
 ```bash
 npm install
-```
-
-Arrancar app:
-
-```bash
 npm run start
 ```
 
 ## Quality Gates (local)
-
-Comandos principales:
 
 ```bash
 npm run typecheck
@@ -35,49 +39,63 @@ npm run quality:arch
 npm run test:coverage
 ```
 
-Pipeline agregado:
+Pipeline completo:
 
 ```bash
 npm run quality
 ```
 
-## E2E Tests (Detox)
+## Visual Audit (Maestro)
 
-Los tests E2E validan flujos críticos de usuario en un emulador Android real.
+El audit visual valida los flujos wedge-first en un emulador Android real con datos deterministas.
 
 ### Prerrequisitos
 
 1. Android Studio con AVD configurado (Pixel 6 API 35 recomendado)
 2. Emulador Android corriendo (`adb devices` debe mostrar un dispositivo)
-3. Backend Go corriendo en `localhost:8080`
-4. BFF corriendo en `localhost:3000`
+3. Maestro CLI instalado: `curl -Ls "https://get.maestro.mobile.dev" | bash`
+4. Backend Go corriendo en `localhost:8080`
+5. BFF corriendo en `localhost:3000`
 
-### Ejecutar tests E2E
+### Ejecutar
 
 ```bash
-# 1. Construir APK de prueba
+# Construir APK debug
 npm run e2e:build
 
-# 2. Ejecutar tests E2E
-npm run e2e:test
+# Sembrar datos + correr flows Maestro
+bash maestro/seed-and-run.sh
 ```
 
-### Suites E2E disponibles
+El script:
+1. Registra/loguea el usuario de prueba (`e2e@fenixcrm.test`)
+2. Crea fixtures via Go directo a SQLite: account, contact, deal, case, runs wedge (completed/handoff/denied), approval, usage events, quota policy
+3. Instala la APK en el emulador
+4. Corre `maestro/visual-audit.yaml` y guarda screenshots en `artifacts/screenshots/`
 
-| Archivo | Flujo validado |
-|---------|----------------|
-| `e2e/auth.e2e.ts` | Login → Register → Accounts list → Logout |
-| `e2e/accounts.e2e.ts` | Accounts list → Detail → Timeline → Agent Activity |
-| `e2e/deals.e2e.ts` | Deal detail → Agent Activity section → navegación a run detail |
-| `e2e/cases.e2e.ts` | Case detail → Agent Activity section → navegación a run detail |
-| `e2e/workflows.e2e.ts` | Workflows list → Create draft → Edit → Version actions |
-| `e2e/copilot.e2e.ts` | Cases list → Case detail → Copilot panel → SSE response → Evidence cards |
-| `e2e/copilot-uc-s1.e2e.ts` | Account detail → Copilot button → panel visible; Deal detail → Copilot button → panel visible (UC-S1) |
-| `e2e/agent-runs.e2e.ts` | Activity Log → Trigger agent → Run detail → Rejected run smoke |
+### Flujos cubiertos por el audit
 
-### testIDs requeridos
-
-Los tests E2E dependen de `testID` props en los componentes. Ver `docs/tasks/task_4.8.md` para la lista completa de testIDs usados.
+| Screenshot | Flujo |
+|------------|-------|
+| `01_auth_login` | Pantalla de login |
+| `02_auth_register` | Pantalla de registro |
+| `03_inbox` | Inbox con approvals |
+| `04_inbox_approval_detail` | Approval card |
+| `05_support_list` | Lista de casos |
+| `06_support_case_detail` | Detalle de caso |
+| `07_support_copilot` | Copilot panel desde caso |
+| `08_sales_accounts_tab` | Tab Accounts |
+| `09_sales_account_detail` | Detalle de account |
+| `10_sales_brief` | Sales Brief |
+| `11_sales_deals_tab` | Tab Deals |
+| `12_sales_deal_detail` | Detalle de deal |
+| `13_activity_all` | Activity Log — todos |
+| `14_activity_filter_completed` | Filter chip: Completed |
+| `15_activity_run_detail_completed` | Run detail — completed |
+| `16_activity_filter_denied` | Filter chip: Failed/Denied |
+| `17_activity_run_detail_denied` | Run detail — denied by policy |
+| `18_governance` | Governance — usage + quota |
+| `19_governance_quota` | Quota state con barra de progreso |
 
 ## Definición de Done para PR (DoD)
 
@@ -101,13 +119,8 @@ Estado actual de referencia (logic coverage global):
 - lines: **35**
 - functions: **20**
 
-Subida sugerida:
-
-1. subir 10–15 puntos por sprint en statements/lines si no hay flakiness;
-2. subir branches/functions de forma más conservadora;
-3. nunca bajar thresholds salvo incidente documentado.
-
 ## Notas
 
 - `quality:arch` ejecuta `mobile/scripts/quality-check.mjs`.
 - Los checks arquitectónicos están orientados a prevenir regresiones tempranas en PRs.
+- El directorio `e2e/` contiene los helpers de seed para el audit Maestro.
