@@ -574,13 +574,15 @@ Parallelization:
 
 **Objective**: make support the primary mobile wedge.
 
-| ID | Task | Hard dependencies | Unblocks |
-|---|---|---|---|
-| `W3-T1` | Create the `Support` case list route and move case browsing under it | `W2-T1`, `W2-T2` | `W3-T2`, support E2E |
-| `W3-T2` | Create the `Support` case detail route and migrate case detail behavior into the new route family | `W3-T1` | `W3-T3`, `W3-T4`, `W3-T5` |
-| `W3-T3` | Implement deterministic support-agent resolution and support-agent trigger flow | `W1-T6`, `W3-T2` | support run E2E, activity validation |
-| `W3-T4` | Implement contextual support copilot route under support surfaces | `W3-T2` | support copilot E2E |
-| `W3-T5` | Connect inbox approvals, handoffs, and signals into support navigation and support detail refresh paths | `W1-T2`, `W1-T3`, `W3-T2` | inbox E2E, support approval E2E, support handoff E2E |
+> Wave 3 status: ✅ COMPLETED (W3-T1 through W3-T5)
+
+| ID | Task | Hard dependencies | Unblocks | Status |
+|---|---|---|---|---|
+| `W3-T1` | Create the `Support` case list route and move case browsing under it | `W2-T1`, `W2-T2` | `W3-T2`, support E2E | ✅ done |
+| `W3-T2` | Create the `Support` case detail route and migrate case detail behavior into the new route family | `W3-T1` | `W3-T3`, `W3-T4`, `W3-T5` | ✅ done |
+| `W3-T3` | Implement deterministic support-agent resolution and support-agent trigger flow | `W1-T6`, `W3-T2` | support run E2E, activity validation | ✅ done |
+| `W3-T4` | Implement contextual support copilot route under support surfaces | `W3-T2` | support copilot E2E | ✅ done |
+| `W3-T5` | Connect inbox approvals, handoffs, and signals into support navigation and support detail refresh paths | `W1-T2`, `W1-T3`, `W3-T2` | inbox E2E, support approval E2E, support handoff E2E | ✅ done |
 
 Parallelization:
 
