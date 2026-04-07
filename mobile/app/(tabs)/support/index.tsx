@@ -6,6 +6,7 @@ import { useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { CRMListScreen } from '../../../src/components/crm';
 import { useCases } from '../../../src/hooks/useCRM';
+import { wedgeHref } from '../../../src/utils/navigation';
 import { useInbox } from '../../../src/hooks/useWedge';
 import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import type { ThemeColors } from '../../../src/theme/types';
@@ -38,7 +39,7 @@ function InboxBadge({ router, colors }: { router: ReturnType<typeof useRouter>; 
     <TouchableOpacity
       testID="support-inbox-badge"
       style={[styles.inboxBadge, { backgroundColor: colors.primary }]}
-      onPress={() => router.push('/inbox' as any)}
+      onPress={() => router.push(wedgeHref('/inbox'))}
     >
       <Text style={styles.inboxBadgeText}>{count > 99 ? '99+' : count} pending</Text>
     </TouchableOpacity>
@@ -53,7 +54,7 @@ export function renderSupportCaseItem(
   return (
     <TouchableOpacity
       style={[styles.caseItem, { backgroundColor: colors.surface }]}
-      onPress={() => router.push(`/support/${item.id}` as any)}
+      onPress={() => router.push(wedgeHref(`/support/${item.id}`))}
       testID={`support-cases-list-item-${index}`}
     >
       <View style={styles.caseHeader}>

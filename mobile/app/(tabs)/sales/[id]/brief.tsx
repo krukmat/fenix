@@ -23,71 +23,72 @@ interface BriefData {
   recommendations?: string[];
 }
 
+function BriefLoading({ colors }: { colors: ThemeColors }) {
+  return (
+    <View style={[styles.centered, { backgroundColor: colors.background }]} testID="sales-brief-loading">
+      <ActivityIndicator size="large" color={colors.primary} />
+      <Text style={{ color: colors.onSurfaceVariant, marginTop: 12 }}>Generating brief...</Text>
+    </View>
+  );
+}
+
+function BriefError({ colors, message }: { colors: ThemeColors; message: string }) {
+  return (
+    <View style={[styles.centered, { backgroundColor: colors.background }]} testID="sales-brief-error">
+      <Text style={{ color: colors.error, fontSize: 16 }}>{message}</Text>
+    </View>
+  );
+}
+
+function BriefContent({ brief, colors }: { brief: BriefData; colors: ThemeColors }) {
+  return (
+    <ScrollView testID="sales-brief-screen" style={[styles.container, { backgroundColor: colors.background }]}>
+      {brief.summary ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Summary</Text>
+          <View style={[styles.card, { backgroundColor: colors.surface }]} testID="sales-brief-summary">
+            <Text style={{ color: colors.onSurface }}>{brief.summary}</Text>
+          </View>
+        </View>
+      ) : null}
+      {brief.recommendations && brief.recommendations.length > 0 ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Recommendations</Text>
+          {brief.recommendations.map((rec, i) => (
+            <View key={i} style={[styles.recItem, { backgroundColor: colors.surface }]} testID={`sales-brief-rec-${i}`}>
+              <Text style={{ color: colors.onSurface }}>{rec}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </ScrollView>
+  );
+}
+
+function resolveEntityId(params: { id: string | string[]; entity_id?: string }): string {
+  const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
+  if (params.entity_id) return params.entity_id;
+  return rawId.startsWith('deal-') ? rawId.slice(5) : rawId;
+}
+
 export default function SalesBriefScreen() {
   const colors = useColors();
-  const params = useLocalSearchParams<{
-    id: string | string[];
-    entity_type?: string;
-    entity_id?: string;
-  }>();
-  const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const params = useLocalSearchParams<{ id: string | string[]; entity_type?: string; entity_id?: string }>();
   const entityType = params.entity_type ?? 'account';
-  // entity_id from params; fallback to stripping "deal-" prefix or using rawId
-  const entityId = params.entity_id ?? (rawId.startsWith('deal-') ? rawId.slice(5) : rawId);
+  const entityId = resolveEntityId(params);
 
   const { data, isLoading, error } = useSalesBrief(entityType, entityId, true);
   const brief = data as BriefData | null | undefined;
 
-  if (isLoading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="sales-brief-loading">
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ color: colors.onSurfaceVariant, marginTop: 12 }}>Generating brief...</Text>
-      </View>
-    );
-  }
-
+  if (isLoading) return <BriefLoading colors={colors} />;
   if (error || !brief) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="sales-brief-error">
-        <Text style={{ color: colors.error, fontSize: 16 }}>
-          {(error as Error | null)?.message || 'Brief unavailable'}
-        </Text>
-      </View>
-    );
+    return <BriefError colors={colors} message={(error as Error | null)?.message ?? 'Brief unavailable'} />;
   }
 
   return (
     <>
       <Stack.Screen options={{ title: 'Sales Brief' }} />
-      <ScrollView
-        testID="sales-brief-screen"
-        style={[styles.container, { backgroundColor: colors.background }]}
-      >
-        {brief.summary && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Summary</Text>
-            <View style={[styles.card, { backgroundColor: colors.surface }]} testID="sales-brief-summary">
-              <Text style={{ color: colors.onSurface }}>{brief.summary}</Text>
-            </View>
-          </View>
-        )}
-
-        {brief.recommendations && brief.recommendations.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Recommendations</Text>
-            {brief.recommendations.map((rec, i) => (
-              <View
-                key={i}
-                style={[styles.recItem, { backgroundColor: colors.surface }]}
-                testID={`sales-brief-rec-${i}`}
-              >
-                <Text style={{ color: colors.onSurface }}>{rec}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
+      <BriefContent brief={brief} colors={colors} />
     </>
   );
 }

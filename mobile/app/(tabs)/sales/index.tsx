@@ -12,6 +12,7 @@ import {
 import { useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useAccounts, useDeals } from '../../../src/hooks/useCRM';
+import { wedgeHref } from '../../../src/utils/navigation';
 import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import type { ThemeColors } from '../../../src/theme/types';
 
@@ -154,7 +155,7 @@ function AccountsTab({ colors, router }: { colors: ThemeColors; router: ReturnTy
           item={item}
           index={index}
           colors={colors}
-          onPress={() => router.push(`/sales/${item.id}` as any)}
+          onPress={() => router.push(wedgeHref(`/sales/${item.id}`))}
         />
       )}
       contentContainerStyle={styles.listContent}
@@ -198,7 +199,7 @@ function DealsTab({ colors, router }: { colors: ThemeColors; router: ReturnType<
           item={item}
           index={index}
           colors={colors}
-          onPress={() => router.push(`/sales/deal-${item.id}` as any)}
+          onPress={() => router.push(wedgeHref(`/sales/deal-${item.id}`))}
         />
       )}
       contentContainerStyle={styles.listContent}

@@ -1,13 +1,7 @@
 // Sales wedge — account detail (W4-T2)
 // Read-only: no edit button. Actions: Sales Brief + Copilot.
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useTheme, Button } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CRMDetailHeader } from '../../../src/components/crm';
@@ -15,6 +9,7 @@ import { AgentActivitySection } from '../../../src/components/agents/AgentActivi
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import { useAccount } from '../../../src/hooks/useCRM';
+import { wedgeHrefObject } from '../../../src/utils/navigation';
 import type { ThemeColors } from '../../../src/theme/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -23,7 +18,6 @@ interface AccountDetailData {
   id: string;
   name: string;
   industry?: string;
-  website?: string;
   phone?: string;
   owner?: string;
   activeSignalCount?: number;
@@ -31,15 +25,14 @@ interface AccountDetailData {
 
 type R = Record<string, unknown>;
 
-function s(o: R | null | undefined, key: string): string | undefined {
-  return o?.[key] as string | undefined;
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function useColors(): ThemeColors {
-  const theme = useTheme();
-  return theme.colors as ThemeColors;
+  return useTheme().colors as ThemeColors;
+}
+
+function s(o: R | null | undefined, key: string): string | undefined {
+  return o?.[key] as string | undefined;
 }
 
 function parseAccountPayload(data: unknown): AccountDetailData | undefined {
@@ -52,7 +45,6 @@ function parseAccountPayload(data: unknown): AccountDetailData | undefined {
     id: String(acct.id),
     name: s(acct, 'name') ?? 'Unknown Account',
     industry: s(acct, 'industry'),
-    website: s(acct, 'website'),
     phone: s(acct, 'phone'),
     owner: s(acct, 'owner'),
     activeSignalCount: typeof signalCount === 'number' ? signalCount : 0,
@@ -67,6 +59,36 @@ function getMetadata(a: AccountDetailData) {
   ];
 }
 
+// ─── Content ─────────────────────────────────────────────────────────────────
+
+function AccountDetailContent({ account, colors, router }: {
+  account: AccountDetailData;
+  colors: ThemeColors;
+  router: ReturnType<typeof useRouter>;
+}) {
+  return (
+    <ScrollView testID="sales-account-detail-screen" style={[styles.container, { backgroundColor: colors.background }]}>
+      <CRMDetailHeader title={account.name} subtitle={account.industry} metadata={getMetadata(account)} testIDPrefix="sales-account-detail" />
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Signals</Text>
+        <SignalCountBadge count={account.activeSignalCount} testID="sales-account-signal-badge" />
+      </View>
+      <View style={styles.section}>
+        <Button mode="contained" testID="sales-brief-button" style={styles.actionButton}
+          onPress={() => router.push(wedgeHrefObject(`/sales/${account.id}/brief`, { entity_type: 'account', entity_id: account.id }))}>
+          Sales Brief
+        </Button>
+        <Button mode="outlined" testID="sales-copilot-button"
+          onPress={() => router.push(wedgeHrefObject(`/sales/${account.id}/copilot`, { entity_type: 'account', entity_id: account.id }))}>
+          Open Copilot
+        </Button>
+      </View>
+      <AgentActivitySection entityType="account" entityId={account.id} testIDPrefix="sales-account-detail" />
+      <EntitySignalsSection entityType="account" entityId={account.id} testIDPrefix="sales-account-detail" />
+    </ScrollView>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function SalesAccountDetailScreen() {
@@ -79,86 +101,23 @@ export default function SalesAccountDetailScreen() {
 
   if (isLoading) {
     return (
-      <View
-        style={[styles.centered, { backgroundColor: colors.background }]}
-        testID="sales-account-detail-loading"
-      >
+      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="sales-account-detail-loading">
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={{ color: colors.onSurfaceVariant, marginTop: 12 }}>Loading account...</Text>
       </View>
     );
   }
-
   if (error || !accountData) {
     return (
-      <View
-        style={[styles.centered, { backgroundColor: colors.background }]}
-        testID="sales-account-detail-error"
-      >
+      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="sales-account-detail-error">
         <Text style={{ color: colors.error, fontSize: 16 }}>{error?.message || 'Account not found'}</Text>
       </View>
     );
   }
-
   return (
     <>
       <Stack.Screen options={{ title: accountData.name }} />
-      <ScrollView
-        testID="sales-account-detail-screen"
-        style={[styles.container, { backgroundColor: colors.background }]}
-      >
-        <CRMDetailHeader
-          title={accountData.name}
-          subtitle={accountData.industry}
-          metadata={getMetadata(accountData)}
-          testIDPrefix="sales-account-detail"
-        />
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Signals</Text>
-          <SignalCountBadge count={accountData.activeSignalCount} testID="sales-account-signal-badge" />
-        </View>
-
-        {/* Actions — W4-T3: brief / W4-T4: copilot */}
-        <View style={styles.section}>
-          <Button
-            mode="contained"
-            testID="sales-brief-button"
-            style={styles.actionButton}
-            onPress={() =>
-              router.push({
-                pathname: `/sales/${accountData.id}/brief` as any,
-                params: { entity_type: 'account', entity_id: accountData.id },
-              })
-            }
-          >
-            Sales Brief
-          </Button>
-          <Button
-            mode="outlined"
-            testID="sales-copilot-button"
-            onPress={() =>
-              router.push({
-                pathname: `/sales/${accountData.id}/copilot` as any,
-                params: { entity_type: 'account', entity_id: accountData.id },
-              })
-            }
-          >
-            Open Copilot
-          </Button>
-        </View>
-
-        <AgentActivitySection
-          entityType="account"
-          entityId={accountData.id}
-          testIDPrefix="sales-account-detail"
-        />
-        <EntitySignalsSection
-          entityType="account"
-          entityId={accountData.id}
-          testIDPrefix="sales-account-detail"
-        />
-      </ScrollView>
+      <AccountDetailContent account={accountData} colors={colors} router={router} />
     </>
   );
 }

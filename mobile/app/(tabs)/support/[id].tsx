@@ -10,6 +10,7 @@ import { useCase } from '../../../src/hooks/useCRM';
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import { useTriggerSupportAgent, useAgentRuns } from '../../../src/hooks/useWedge';
+import { wedgeHref, wedgeHrefObject } from '../../../src/utils/navigation';
 import type { ThemeColors } from '../../../src/theme/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -119,7 +120,7 @@ function AccountSection({
       <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Account</Text>
       <TouchableOpacity
         style={[styles.card, { backgroundColor: colors.surface }]}
-        onPress={() => router.push(`/sales/${accountId}` as any)}
+        onPress={() => router.push(wedgeHref(`/sales/${accountId}`))}
       >
         <Text style={{ color: colors.onSurface, fontWeight: '500' }}>{accountName || 'View Account'}</Text>
       </TouchableOpacity>
@@ -215,7 +216,7 @@ export default function SupportCaseDetailScreen() {
           <Button
             mode="outlined"
             testID="support-copilot-button"
-            onPress={() => router.push({ pathname: `/support/${caseData.id}/copilot` as any, params: { entity_type: 'case', entity_id: caseData.id } })}
+            onPress={() => router.push(wedgeHrefObject(`/support/${caseData.id}/copilot`, { entity_type: 'case', entity_id: caseData.id }))}
           >
             Open Copilot
           </Button>
