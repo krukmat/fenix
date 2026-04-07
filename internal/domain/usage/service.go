@@ -187,6 +187,43 @@ func (s *Service) UpsertState(ctx context.Context, input UpsertStateInput) (*Sta
 	return s.GetState(ctx, input.WorkspaceID, input.QuotaPolicyID, input.PeriodStart.UTC(), input.PeriodEnd.UTC())
 }
 
+// ListActivePolicies returns all active quota policies for a workspace.
+// W1-T4: used by governance summary to enumerate policies without requiring the caller to know IDs.
+func (s *Service) ListActivePolicies(ctx context.Context, workspaceID string) ([]*Policy, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, workspace_id, policy_type, scope_type, scope_id, metric_name,
+		       limit_value, reset_period, enforcement_mode, is_active, created_at, updated_at
+		FROM quota_policy
+		WHERE workspace_id = ? AND is_active = 1
+		ORDER BY created_at ASC
+	`, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	policies := make([]*Policy, 0)
+	for rows.Next() {
+		var p Policy
+		var scopeID sql.NullString
+		if scanErr := rows.Scan(
+			&p.ID, &p.WorkspaceID, &p.PolicyType, &p.ScopeType, &scopeID,
+			&p.MetricName, &p.LimitValue, &p.ResetPeriod, &p.EnforcementMode,
+			&p.IsActive, &p.CreatedAt, &p.UpdatedAt,
+		); scanErr != nil {
+			return nil, scanErr
+		}
+		if scopeID.Valid {
+			p.ScopeID = &scopeID.String
+		}
+		policies = append(policies, &p)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, rowsErr
+	}
+	return policies, nil
+}
+
 func (s *Service) GetState(ctx context.Context, workspaceID, quotaPolicyID string, periodStart, periodEnd time.Time) (*State, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, workspace_id, quota_policy_id, current_value, period_start,

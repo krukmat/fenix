@@ -4,7 +4,7 @@ import {
   approvalApi,
   signalApi,
   workflowApi,
-  type AgentRunStatus,
+  type AgentRunPublicStatus,
   type CreateWorkflowInput,
   type SignalStatus,
   type UpdateWorkflowInput,
@@ -29,12 +29,12 @@ export const agentSpecQueryKeys = {
     workspaceId: string,
     entityType: string,
     entityId: string,
-    filters?: { status?: AgentRunStatus; workflow_id?: string }
+    filters?: { status?: AgentRunPublicStatus; workflow_id?: string }
   ) => ['agent-runs', workspaceId, 'entity', entityType, entityId, filters ?? {}] as const,
   agentRunsByWorkflow: (
     workspaceId: string,
     workflowId: string,
-    filters?: { status?: AgentRunStatus; entity_type?: string; entity_id?: string }
+    filters?: { status?: AgentRunPublicStatus; entity_type?: string; entity_id?: string }
   ) => ['agent-runs', workspaceId, 'workflow', workflowId, filters ?? {}] as const,
   pendingApprovals: (workspaceId: string) => ['pending-approvals', workspaceId] as const,
   handoffPackage: (runId: string) => ['handoff-package', runId] as const,
@@ -228,7 +228,7 @@ export function useExecuteWorkflow() {
 export function useAgentRunsByEntity(
   entityType: string,
   entityId: string,
-  filters?: { status?: AgentRunStatus; workflow_id?: string }
+  filters?: { status?: AgentRunPublicStatus; workflow_id?: string }
 ) {
   const workspaceId = useWorkspaceId();
 
@@ -252,7 +252,7 @@ export function useAgentRunsByEntity(
 
 export function useAgentRunsByWorkflow(
   workflowId: string,
-  filters?: { status?: AgentRunStatus; entity_type?: string; entity_id?: string }
+  filters?: { status?: AgentRunPublicStatus; entity_type?: string; entity_id?: string }
 ) {
   const workspaceId = useWorkspaceId();
 
@@ -293,7 +293,8 @@ export function useDecideApproval() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, decision }: { id: string; decision: { decision: 'approve' | 'deny'; reason?: string } }) =>
+    // W1-T1: 'deny' replaced by 'reject' per normalized approval contract
+    mutationFn: ({ id, decision }: { id: string; decision: { decision: 'approve' | 'reject'; reason?: string } }) =>
       approvalApi.decideApproval(id, decision),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: agentSpecQueryKeys.pendingApprovals(workspaceId ?? '') });

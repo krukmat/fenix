@@ -268,6 +268,9 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		})
 		r.Get("/usage", usageHandler.ListUsage)
 		r.Get("/quota-state", usageHandler.GetQuotaState)
+		// W1-T4: governance summary — enriched quota states + recent usage for mobile Governance screen
+		governanceHandler := handlers.NewGovernanceHandler(usageService)
+		r.Get("/governance/summary", governanceHandler.GetGovernanceSummary)
 
 		knowledgeIngestHandler := handlers.NewKnowledgeIngestHandler(ingestSvc)
 		knowledgeSearchHandler := handlers.NewKnowledgeSearchHandler(searchSvc)

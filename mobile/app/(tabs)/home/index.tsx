@@ -49,7 +49,8 @@ export default function HomeScreen() {
 
   const handleDeny = useCallback(
     (id: string, reason: string) => {
-      decideMutation.mutate({ id, decision: { decision: 'deny', reason } });
+      // W1-T1: 'deny' replaced by 'reject' per normalized approval contract
+      decideMutation.mutate({ id, decision: { decision: 'reject', reason } });
     },
     [decideMutation]
   );

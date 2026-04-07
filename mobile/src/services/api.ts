@@ -18,18 +18,34 @@ export type {
   WorkflowVersion,
   CreateWorkflowInput,
   UpdateWorkflowInput,
-  AgentRunStatus,
+  // W1-T1: frozen public type set
+  AgentRunPublicStatus,
+  AgentRunRuntimeStatus,
+  AgentRunStatus, // legacy alias — migrate to AgentRunPublicStatus
   AgentRun,
   AgentRunListResponse,
   AgentRunResponse,
   ApprovalStatus,
+  ApprovalDecision,
   ApprovalRequest,
   HandoffPackage,
+  EvidenceSource,
+  EvidencePack,
+  SalesBriefOutcome,
+  SalesBrief,
+  UsageEvent,
+  QuotaStateItem,
+  GovernanceSummary,
+  InboxItem,
+  InboxApprovalItem,
+  InboxHandoffItem,
+  InboxSignalItem,
+  InboxResponse,
 } from './api.types';
 
 // Re-export secondary APIs
-export { agentApi } from './api.agents';
-export { signalApi, workflowApi, toolApi, approvalApi } from './api.secondary';
+export { agentApi, salesBriefApi } from './api.agents';
+export { signalApi, workflowApi, toolApi, approvalApi, inboxApi, governanceApi } from './api.secondary';
 
 // Auth API
 export const authApi = {

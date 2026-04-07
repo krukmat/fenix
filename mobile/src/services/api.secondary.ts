@@ -9,6 +9,8 @@ import type {
   CreateWorkflowInput,
   UpdateWorkflowInput,
   ApprovalRequest,
+  GovernanceSummary,
+  InboxResponse,
 } from './api.types';
 
 // Signal API
@@ -108,6 +110,7 @@ export const toolApi = {
 };
 
 // Approval API
+// W1-T1: decisions use 'approve'/'reject' only — 'deny' is legacy and must not be sent
 export const approvalApi = {
   getPendingApprovals: async (workspaceId: string) => {
     const response = await apiClient.get('/bff/api/v1/approvals', {
@@ -116,8 +119,40 @@ export const approvalApi = {
     return response.data as ApprovalRequest[];
   },
 
-  decideApproval: async (id: string, decision: { decision: 'approve' | 'deny'; reason?: string }) => {
+  // W1-T1: BFF alias routes POST /approvals/{id}/approve and /reject map to this handler
+  approve: async (id: string, reason?: string) => {
+    const response = await apiClient.post(`/bff/api/v1/approvals/${id}/approve`, { reason });
+    return response.data;
+  },
+
+  reject: async (id: string, reason?: string) => {
+    const response = await apiClient.post(`/bff/api/v1/approvals/${id}/reject`, { reason });
+    return response.data;
+  },
+
+  // Legacy — kept for backwards compat while old screens are rewritten; do not use in new code
+  decideApproval: async (id: string, decision: { decision: 'approve' | 'reject'; reason?: string }) => {
     const response = await apiClient.put(`/bff/api/v1/approvals/${id}`, decision);
     return response.data;
+  },
+};
+
+// W1-T1: Inbox API — BFF aggregation route for approvals, handoffs, and signals
+export const inboxApi = {
+  getInbox: async (workspaceId: string) => {
+    const response = await apiClient.get('/bff/api/v1/mobile/inbox', {
+      params: { workspace_id: workspaceId },
+    });
+    return response.data as InboxResponse;
+  },
+};
+
+// W1-T1: Governance API — BFF proxy for GET /api/v1/governance/summary
+export const governanceApi = {
+  getSummary: async (workspaceId: string) => {
+    const response = await apiClient.get('/bff/api/v1/governance/summary', {
+      params: { workspace_id: workspaceId },
+    });
+    return response.data as GovernanceSummary;
   },
 };

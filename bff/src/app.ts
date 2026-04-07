@@ -12,6 +12,10 @@ import authRouter from './routes/auth';
 import proxyRouter from './routes/proxy';
 import copilotRouter from './routes/copilot';
 import metricsRouter, { incRequests } from './routes/metrics';
+// W1-T2: approval alias routes (approve/reject)
+import approvalsRouter from './routes/approvals';
+// W1-T3: inbox aggregation route
+import inboxRouter from './routes/inbox';
 
 const app = express();
 
@@ -39,6 +43,13 @@ app.use('/bff/health', healthRouter);
 app.use('/bff/metrics', metricsRouter);
 app.use('/bff/auth', authRouter);
 app.use('/bff/copilot', copilotRouter);
+
+// W1-T2: approval alias routes — must be registered BEFORE the transparent proxy
+// so /bff/api/v1/approvals/:id/approve and /reject are handled here, not proxied
+app.use('/bff/api/v1/approvals', approvalsRouter);
+
+// W1-T3: inbox aggregation — before transparent proxy
+app.use('/bff/api/v1/mobile/inbox', inboxRouter);
 
 // Transparent proxy for all other /bff/api/v1/* calls
 app.use('/bff/api/v1', proxyRouter);

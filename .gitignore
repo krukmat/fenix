@@ -37,6 +37,8 @@ agent.test.exe
 docs/plans/*
 !docs/plans/fenixcrm_strategic_repositioning_spec.md
 !docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md
+!docs/plans/mobile_wedge_harmonization_plan.md
+!docs/plans/maestro-screenshot-migration.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/
