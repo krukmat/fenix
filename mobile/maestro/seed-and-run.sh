@@ -13,6 +13,7 @@ FLOW_FILE="${SCRIPT_DIR}/visual-audit.yaml"
 OUTPUT_DIR="${MOBILE_DIR}/artifacts/screenshots"
 ADB_BIN="${ANDROID_HOME:+${ANDROID_HOME}/platform-tools/}adb"
 MAESTRO_BIN="${MAESTRO_BIN:-maestro}"
+SEED_FILE=""
 
 export PATH="${PATH}:${HOME}/.maestro/bin"
 export MAESTRO_CLI_NO_ANALYTICS=1
@@ -25,6 +26,12 @@ log() {
 die() {
   printf '[screenshots] ERROR: %s\n' "$*" >&2
   exit 1
+}
+
+cleanup() {
+  if [[ -n "${SEED_FILE}" ]]; then
+    rm -f "${SEED_FILE}"
+  fi
 }
 
 need_cmd() {
@@ -144,19 +151,18 @@ main() {
   unlock_device
   ensure_app_installed
 
-  local seed_file
-  seed_file="$(mktemp)"
-  trap 'rm -f "${seed_file}"' EXIT
+  SEED_FILE="$(mktemp)"
+  trap cleanup EXIT
 
   log 'Seeding deterministic mobile fixtures...'
   (
     cd "${REPO_ROOT}"
     go run ./scripts/e2e_seed_mobile_p2.go
-  ) >"${seed_file}"
+  ) >"${SEED_FILE}"
 
   while IFS='=' read -r key value; do
     export "${key}=${value}"
-  done < <(seed_to_env_lines "${seed_file}")
+  done < <(seed_to_env_lines "${SEED_FILE}")
 
   print_seed_summary
 

@@ -276,6 +276,44 @@ See: `docs/ci.md`
 
 ---
 
+## Visual Demo Screenshots
+
+FenixCRM is designed around a governed AI operating model: work queues, approvals, handoff, grounded briefs, and visible governance. The current demo gallery highlights those surfaces directly.
+
+### Login
+
+![Login screen](mobile/artifacts/screenshots/screenshots/01_auth_login.png)
+
+### Inbox
+
+![Inbox](mobile/artifacts/screenshots/screenshots/02_inbox.png)
+
+### Human Approval In The Flow
+
+![Inbox approval inline](mobile/artifacts/screenshots/screenshots/06_inbox_approval_inline.png)
+
+### Agent Handoff
+
+![Inbox handoff](mobile/artifacts/screenshots/screenshots/07_inbox_handoff.png)
+
+### Support Case Detail
+
+![Support case detail](mobile/artifacts/screenshots/screenshots/03_support_case_detail.png)
+
+### Sales Brief
+
+![Sales brief](mobile/artifacts/screenshots/screenshots/04_sales_brief.png)
+
+### Activity Trace
+
+![Denied-by-policy activity trace](mobile/artifacts/screenshots/screenshots/08_activity_run_detail_denied.png)
+
+### Governance
+
+![Governance overview](mobile/artifacts/screenshots/screenshots/05_governance.png)
+
+---
+
 ## Recommended Documentation
 
 To understand the current system:

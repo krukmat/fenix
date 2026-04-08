@@ -47,7 +47,7 @@ npm run quality
 
 ## Visual Audit (Maestro)
 
-El audit visual valida los flujos wedge-first en un emulador Android real con datos deterministas.
+El audit visual usa Maestro sobre un emulador Android real con datos deterministas. El detalle del baseline visual activo se documenta en el `README` raíz del repositorio.
 
 ### Prerrequisitos
 
@@ -69,33 +69,9 @@ bash maestro/seed-and-run.sh
 
 El script:
 1. Registra/loguea el usuario de prueba (`e2e@fenixcrm.test`)
-2. Crea fixtures via Go directo a SQLite: account, contact, deal, case, runs wedge (completed/handoff/denied), approval, usage events, quota policy
+2. Crea fixtures via Go directo a SQLite
 3. Instala la APK en el emulador
 4. Corre `maestro/visual-audit.yaml` y guarda screenshots en `artifacts/screenshots/`
-
-### Flujos cubiertos por el audit
-
-| Screenshot | Flujo |
-|------------|-------|
-| `01_auth_login` | Pantalla de login |
-| `02_auth_register` | Pantalla de registro |
-| `03_inbox` | Inbox con approvals |
-| `04_inbox_approval_detail` | Approval card |
-| `05_support_list` | Lista de casos |
-| `06_support_case_detail` | Detalle de caso |
-| `07_support_copilot` | Copilot panel desde caso |
-| `08_sales_accounts_tab` | Tab Accounts |
-| `09_sales_account_detail` | Detalle de account |
-| `10_sales_brief` | Sales Brief |
-| `11_sales_deals_tab` | Tab Deals |
-| `12_sales_deal_detail` | Detalle de deal |
-| `13_activity_all` | Activity Log — todos |
-| `14_activity_filter_completed` | Filter chip: Completed |
-| `15_activity_run_detail_completed` | Run detail — completed |
-| `16_activity_filter_denied` | Filter chip: Failed/Denied |
-| `17_activity_run_detail_denied` | Run detail — denied by policy |
-| `18_governance` | Governance — usage + quota |
-| `19_governance_quota` | Quota state con barra de progreso |
 
 ## Definición de Done para PR (DoD)
 
