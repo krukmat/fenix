@@ -17,13 +17,15 @@ interface RunDetail {
   agent_name: string;
   status: AgentRunPublicStatus;
   runtime_status?: AgentRunRuntimeStatus;
+  entity_type?: string;
+  entity_id?: string;
   triggered_by?: string;
   trigger_type?: string;
   inputs?: Record<string, unknown>;
   evidence_retrieved?: { source_id: string; score: number; snippet: string }[];
   reasoning_trace?: string[];
   tool_calls?: { tool_name: string; params: Record<string, unknown>; result: Record<string, unknown>; latency_ms: number }[];
-  output?: string;
+  output?: unknown;
   audit_events?: { actor_id: string; action: string; timestamp: string; outcome: string }[];
   latency_ms?: number;
   cost_euros?: number;
@@ -55,6 +57,16 @@ function getPublicStatusColor(status: AgentRunPublicStatus): string {
 function formatMs(ms?: number): string {
   if (!ms) return '—';
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatOutput(output: unknown): string {
+  if (output === null || output === undefined) return 'No output';
+  if (typeof output === 'string') return output;
+  try {
+    return JSON.stringify(output, null, 2);
+  } catch {
+    return String(output);
+  }
 }
 
 // ─── Section components ───────────────────────────────────────────────────────
@@ -125,7 +137,11 @@ function RunDetailContent({ run, usage, colors }: { run: RunDetail; usage: Usage
   return (
     <ScrollView testID="activity-run-detail-screen" style={[styles.container, { backgroundColor: colors.background }]}>
       {run.status === 'handed_off' && (
-        <HandoffBanner runId={run.id} testIDPrefix="activity-detail-handoff" />
+        <HandoffBanner
+          runId={run.id}
+          caseId={run.entity_type === 'case' ? run.entity_id : undefined}
+          testIDPrefix="activity-detail-handoff"
+        />
       )}
 
       {/* Public status — primary */}
@@ -168,7 +184,7 @@ function RunDetailContent({ run, usage, colors }: { run: RunDetail; usage: Usage
       <View style={styles.section} testID="activity-detail-output">
         <SectionHeader title="Output" colors={colors} />
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <Text style={{ color: colors.onSurface }}>{run.output ?? 'No output'}</Text>
+          <Text style={{ color: colors.onSurface }}>{formatOutput(run.output)}</Text>
         </View>
       </View>
 

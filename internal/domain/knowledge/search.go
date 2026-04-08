@@ -44,6 +44,12 @@ type SearchResults struct {
 	Query string
 }
 
+type rrfDocInfo struct {
+	title   string
+	snippet string
+	method  EvidenceMethod
+}
+
 // SearchService implements hybrid search (Task 2.5).
 type SearchService struct {
 	db  *sql.DB
@@ -162,6 +168,8 @@ func (s *SearchService) bm25Search(ctx context.Context, query, wsID string, limi
 type vectorRow struct {
 	id              string // embedding_document.id
 	knowledgeItemID string
+	title           string
+	snippet         string
 	similarity      float32 // cosine similarity [0, 1]
 }
 
@@ -174,12 +182,14 @@ func (s *SearchService) vectorSearch(ctx context.Context, wsID string, queryVec 
 	}
 
 	const vectorQuery = `
-		SELECT v.id, ed.knowledge_item_id,
+		SELECT v.id, ed.knowledge_item_id, ki.title, ed.chunk_text,
 		       cosine_similarity_json(v.embedding, ?) AS similarity
 		FROM vec_embedding v
 		JOIN embedding_document ed ON v.id = ed.id
+		JOIN knowledge_item ki ON ki.id = ed.knowledge_item_id
 		WHERE ed.workspace_id = ?
 		  AND ed.embedding_status = 'embedded'
+		  AND ki.deleted_at IS NULL
 		  AND json_valid(v.embedding)
 		  AND json_array_length(v.embedding) = json_array_length(?)
 		ORDER BY similarity DESC, ed.knowledge_item_id ASC
@@ -194,7 +204,13 @@ func (s *SearchService) vectorSearch(ctx context.Context, wsID string, queryVec 
 	results := make([]vectorRow, 0, limit)
 	for rows.Next() {
 		var result vectorRow
-		if scanErr := rows.Scan(&result.id, &result.knowledgeItemID, &result.similarity); scanErr != nil {
+		if scanErr := rows.Scan(
+			&result.id,
+			&result.knowledgeItemID,
+			&result.title,
+			&result.snippet,
+			&result.similarity,
+		); scanErr != nil {
 			return nil, fmt.Errorf("vectorSearch scan: %w", scanErr)
 		}
 		results = append(results, result)
@@ -208,31 +224,19 @@ func (s *SearchService) vectorSearch(ctx context.Context, wsID string, queryVec 
 // rrfMerge combines BM25 and vector results via Reciprocal Rank Fusion (k=60).
 // Documents present in both lists get a higher combined score (hybrid method).
 func rrfMerge(bm25Results []bm25Row, vecResults []vectorRow, limit int) []SearchResult {
-	type docInfo struct {
-		title   string
-		snippet string
-		method  EvidenceMethod
-	}
-
 	scores := make(map[string]float64)
-	docs := make(map[string]docInfo)
+	docs := make(map[string]rrfDocInfo)
 
 	// BM25 ranks contribute to RRF score
 	for rank, r := range bm25Results {
 		scores[r.id] += 1.0 / float64(rrfK+rank+1)
-		docs[r.id] = docInfo{title: r.title, snippet: r.snippet, method: EvidenceMethodBM25}
+		docs[r.id] = rrfDocInfo{title: r.title, snippet: r.snippet, method: EvidenceMethodBM25}
 	}
 
 	// Vector ranks contribute to RRF score (keyed by knowledge_item_id for dedup)
 	for rank, r := range vecResults {
 		scores[r.knowledgeItemID] += 1.0 / float64(rrfK+rank+1)
-		if existing, ok := docs[r.knowledgeItemID]; ok {
-			// already in BM25 → upgrade method to hybrid
-			existing.method = EvidenceMethodHybrid
-			docs[r.knowledgeItemID] = existing
-		} else {
-			docs[r.knowledgeItemID] = docInfo{method: EvidenceMethodVector}
-		}
+		docs[r.knowledgeItemID] = mergeVectorDocInfo(docs[r.knowledgeItemID], r)
 	}
 
 	type ranked struct {
@@ -258,6 +262,25 @@ func rrfMerge(bm25Results []bm25Row, vecResults []vectorRow, limit int) []Search
 		})
 	}
 	return results
+}
+
+func mergeVectorDocInfo(existing rrfDocInfo, result vectorRow) rrfDocInfo {
+	if existing.method == "" {
+		return rrfDocInfo{
+			title:   result.title,
+			snippet: result.snippet,
+			method:  EvidenceMethodVector,
+		}
+	}
+
+	existing.method = EvidenceMethodHybrid
+	if existing.title == "" {
+		existing.title = result.title
+	}
+	if existing.snippet == "" {
+		existing.snippet = result.snippet
+	}
+	return existing
 }
 
 // cosineSimilarity computes cosine similarity between two float32 vectors.

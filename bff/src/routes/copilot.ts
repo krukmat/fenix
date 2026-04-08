@@ -2,6 +2,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import axios from 'axios';
 import { config } from '../config';
+import { createGoClient } from '../services/goClient';
 
 const router = Router();
 
@@ -47,6 +48,17 @@ router.post('/chat', async (req: BffRequest, res: Response, next: NextFunction):
       // Client disconnected — destroy Go stream
       stream.destroy();
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /bff/api/v1/copilot/sales-brief → JSON relay to Go POST /api/v1/copilot/sales-brief
+router.post('/sales-brief', async (req: BffRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const client = createGoClient(req.bearerToken);
+    const goRes = await client.post('/api/v1/copilot/sales-brief', req.body);
+    res.status(200).json((goRes.data as { data?: unknown }).data ?? goRes.data);
   } catch (err) {
     next(err);
   }

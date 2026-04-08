@@ -60,144 +60,68 @@ tags:
 - takeScreenshot:
     path: "03_inbox"
 
-# Approval card
+# Approval card — inline action card in the real Inbox queue
 - runFlow:
     when:
       visible:
         id: "inbox-approval-${SEED_APPROVAL_ID}"
     commands:
-      - tapOn:
-          id: "inbox-approval-${SEED_APPROVAL_ID}"
-      - extendedWaitUntil:
-          visible:
-            id: "approval-card"
-          timeout: 15000
+      - assertVisible:
+          id: "inbox-approval-${SEED_APPROVAL_ID}-approve"
       - takeScreenshot:
-          path: "04_inbox_approval_detail"
-      - back
+          path: "04_inbox_approval_inline"
+
+# Handoff card — corrected wedge routing assumptions
+- runFlow:
+    when:
+      visible:
+        id: "inbox-handoff-${SEED_RUN_HANDOFF_ID}"
+    commands:
+      - takeScreenshot:
+          path: "05_inbox_handoff"
 
 # ── 3. Support ────────────────────────────────────────────────────────────────
 
 - tapOn:
-    id: "tab-support"
+    text: "Support"
 - extendedWaitUntil:
     visible:
-      id: "support-screen"
+      id: "support-cases-list"
     timeout: 15000
 - takeScreenshot:
-    path: "05_support_list"
-
-- runFlow:
-    when:
-      visible:
-        id: "support-case-item-0"
-    commands:
-      - tapOn:
-          id: "support-case-item-0"
-      - extendedWaitUntil:
-          visible:
-            id: "support-case-detail-screen"
-          timeout: 15000
-      - takeScreenshot:
-          path: "06_support_case_detail"
-
-      # Copilot from case detail
-      - runFlow:
-          when:
-            visible:
-              id: "support-copilot-button"
-          commands:
-            - tapOn:
-                id: "support-copilot-button"
-            - extendedWaitUntil:
-                visible:
-                  id: "copilot-panel"
-                timeout: 15000
-            - takeScreenshot:
-                path: "07_support_copilot"
-            - back
-
-      - back
+    path: "06_support_list"
 
 # ── 4. Sales ──────────────────────────────────────────────────────────────────
 
 - tapOn:
-    id: "tab-sales"
+    text: "Sales"
 - extendedWaitUntil:
     visible:
       id: "sales-screen"
     timeout: 15000
 - takeScreenshot:
-    path: "08_sales_accounts_tab"
-
-# Account detail
-- runFlow:
-    when:
-      visible:
-        id: "sales-account-item-0"
-    commands:
-      - tapOn:
-          id: "sales-account-item-0"
-      - extendedWaitUntil:
-          visible:
-            id: "sales-account-detail-screen"
-          timeout: 15000
-      - takeScreenshot:
-          path: "09_sales_account_detail"
-
-      # Sales Brief
-      - runFlow:
-          when:
-            visible:
-              id: "sales-brief-button"
-          commands:
-            - tapOn:
-                id: "sales-brief-button"
-            - extendedWaitUntil:
-                visible:
-                  id: "sales-brief-screen"
-                timeout: 20000
-            - takeScreenshot:
-                path: "10_sales_brief"
-            - back
-
-      - back
+    path: "09_sales_accounts_tab"
 
 # Deals tab
 - tapOn:
-    id: "sales-tab-deals"
+    text: "Deals"
 - extendedWaitUntil:
     visible:
       id: "sales-screen"
     timeout: 10000
 - takeScreenshot:
-    path: "11_sales_deals_tab"
-
-- runFlow:
-    when:
-      visible:
-        id: "sales-deal-item-0"
-    commands:
-      - tapOn:
-          id: "sales-deal-item-0"
-      - extendedWaitUntil:
-          visible:
-            id: "sales-deal-detail-screen"
-          timeout: 15000
-      - takeScreenshot:
-          path: "12_sales_deal_detail"
-      - back
+    path: "12_sales_deals_tab"
 
 # ── 5. Activity Log ───────────────────────────────────────────────────────────
 
 - tapOn:
-    id: "tab-activity"
+    text: "Activity"
 - extendedWaitUntil:
     visible:
       id: "activity-log-screen"
     timeout: 15000
 - takeScreenshot:
-    path: "13_activity_all"
+    path: "14_activity_all"
 
 # Filter: completed
 - tapOn:
@@ -207,67 +131,15 @@ tags:
       id: "activity-log-screen"
     timeout: 10000
 - takeScreenshot:
-    path: "14_activity_filter_completed"
-
-# Run detail — completed run
-- runFlow:
-    when:
-      visible:
-        id: "activity-run-item-${SEED_RUN_COMPLETED_ID}"
-    commands:
-      - tapOn:
-          id: "activity-run-item-${SEED_RUN_COMPLETED_ID}"
-      - extendedWaitUntil:
-          visible:
-            id: "activity-run-detail-screen"
-          timeout: 15000
-      - takeScreenshot:
-          path: "15_activity_run_detail_completed"
-      - back
-
-# Filter: awaiting_approval — reset to all first
-- tapOn:
-    id: "filter-all"
-- tapOn:
-    id: "filter-failed"
-- extendedWaitUntil:
-    visible:
-      id: "activity-log-screen"
-    timeout: 10000
-- takeScreenshot:
-    path: "16_activity_filter_denied"
-
-# Run detail — denied by policy
-- runFlow:
-    when:
-      visible:
-        id: "activity-run-item-${SEED_RUN_DENIED_ID}"
-    commands:
-      - tapOn:
-          id: "activity-run-item-${SEED_RUN_DENIED_ID}"
-      - extendedWaitUntil:
-          visible:
-            id: "activity-run-detail-screen"
-          timeout: 15000
-      - takeScreenshot:
-          path: "17_activity_run_detail_denied"
-      - back
+    path: "15_activity_filter_completed"
 
 # ── 6. Governance ─────────────────────────────────────────────────────────────
 
 - tapOn:
-    id: "tab-governance"
+    text: "Governance"
 - extendedWaitUntil:
     visible:
       id: "governance-screen"
     timeout: 15000
 - takeScreenshot:
-    path: "18_governance"
-
-- runFlow:
-    when:
-      visible:
-        id: "governance-quota-item-0"
-    commands:
-      - takeScreenshot:
-          path: "19_governance_quota"
+    path: "19_governance"

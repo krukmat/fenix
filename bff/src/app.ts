@@ -44,6 +44,9 @@ app.use('/bff/metrics', metricsRouter);
 app.use('/bff/auth', authRouter);
 app.use('/bff/copilot', copilotRouter);
 
+// F4-T2: JSON copilot routes that must bypass the transparent proxy
+app.use('/bff/api/v1/copilot', copilotRouter);
+
 // W1-T2: approval alias routes — must be registered BEFORE the transparent proxy
 // so /bff/api/v1/approvals/:id/approve and /reject are handled here, not proxied
 app.use('/bff/api/v1/approvals', approvalsRouter);

@@ -378,7 +378,7 @@ describe('InboxScreen', () => {
     mockUseInbox.mockReturnValue(makeInboxState({ handoffs: [dealHandoff] }));
     renderInbox();
     fireEvent.press(screen.getByTestId('inbox-handoff-run-4'));
-    expect(mockPush).toHaveBeenCalledWith('/sales/deal-deal-1');
+    expect(mockPush).toHaveBeenCalledWith('/sales/deals/deal-1');
   });
 
   it('falls back to activity detail when handoff lacks entity context', () => {

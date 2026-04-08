@@ -226,6 +226,12 @@ func TestSearchService_Vector_ReturnsRelevantDocs(t *testing.T) {
 	if len(results.Items) == 0 {
 		t.Fatal("expected at least 1 result for vector search")
 	}
+	if got := results.Items[0].Title; got == "" {
+		t.Fatal("expected vector search result to include title")
+	}
+	if got := results.Items[0].Snippet; got == "" {
+		t.Fatal("expected vector search result to include snippet")
+	}
 }
 
 func TestSearchService_Hybrid_CombinesBothMethods(t *testing.T) {

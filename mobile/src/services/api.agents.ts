@@ -75,9 +75,11 @@ export const agentApi = {
   },
 
   // Task Mobile P1.8 — FR-232/UC-A7: handoff package for escalated runs
-  getHandoff: async (runId: string) => {
-    const response = await apiClient.get(`/bff/api/v1/agents/runs/${runId}/handoff`);
-    return response.data as HandoffPackage;
+  getHandoff: async (runId: string, caseId?: string) => {
+    const response = await apiClient.get(`/bff/api/v1/agents/runs/${runId}/handoff`, {
+      params: caseId ? { case_id: caseId } : undefined,
+    });
+    return ((response.data as { data?: HandoffPackage }).data ?? response.data) as HandoffPackage;
   },
 
   // W1-T1: per-run usage events for activity detail diagnostics
@@ -93,8 +95,8 @@ export const agentApi = {
 export const salesBriefApi = {
   getSalesBrief: async (entityType: string, entityId: string) => {
     const response = await apiClient.post('/bff/api/v1/copilot/sales-brief', {
-      entity_type: entityType,
-      entity_id: entityId,
+      entityType,
+      entityId,
     });
     return response.data as SalesBrief;
   },

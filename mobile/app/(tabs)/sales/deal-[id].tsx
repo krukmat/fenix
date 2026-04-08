@@ -140,7 +140,8 @@ export default function SalesDealDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
-  const dealId = rawId.startsWith('deal-') ? rawId.slice(5) : rawId;
+  const dealId = rawId.startsWith('deal-deal-') ? rawId.slice(5) : rawId;
+  const dealRouteId = `deal-${dealId}`;
   const { data, isLoading, error } = useDeal(dealId);
   const dealData = parseDealPayload(data);
 
@@ -174,11 +175,11 @@ export default function SalesDealDetailScreen() {
         <DealAccountSection accountId={dealData.accountId} accountName={dealData.accountName} router={router} colors={colors} />
         <View style={styles.section}>
           <Button mode="contained" testID="sales-deal-brief-button" style={styles.actionButton}
-            onPress={() => router.push(wedgeHrefObject(`/sales/${rawId}/brief`, { entity_type: 'deal', entity_id: dealData.id }))}>
+            onPress={() => router.push(wedgeHrefObject(`/sales/${dealRouteId}/brief`, { entity_type: 'deal', entity_id: dealData.id }))}>
             Sales Brief
           </Button>
           <Button mode="outlined" testID="sales-deal-copilot-button"
-            onPress={() => router.push(wedgeHrefObject(`/sales/${rawId}/copilot`, { entity_type: 'deal', entity_id: dealData.id }))}>
+            onPress={() => router.push(wedgeHrefObject(`/sales/${dealRouteId}/copilot`, { entity_type: 'deal', entity_id: dealData.id }))}>
             Open Copilot
           </Button>
         </View>

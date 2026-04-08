@@ -27,8 +27,8 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.OllamaModel != "nomic-embed-text" {
 		t.Errorf("expected OllamaModel 'nomic-embed-text', got %q", cfg.OllamaModel)
 	}
-	if cfg.OllamaChatModel != "llama3.2:3b" {
-		t.Errorf("expected OllamaChatModel 'llama3.2:3b', got %q", cfg.OllamaChatModel)
+	if cfg.OllamaChatModel != "gemma4:e4b" {
+		t.Errorf("expected OllamaChatModel 'gemma4:e4b', got %q", cfg.OllamaChatModel)
 	}
 	// Split provider defaults: ChatProvider falls back to LLMProvider ("ollama").
 	if cfg.ChatProvider != "ollama" {

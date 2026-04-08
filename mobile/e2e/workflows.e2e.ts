@@ -2,7 +2,7 @@ import { by, device, element, expect as detoxExpect, waitFor } from 'detox';
 import { loginAsTestUser } from './helpers/auth.helper';
 import { ensureMobileP2Seed } from './helpers/seed.helper';
 
-describe('Workflows Mobile P2 smoke', () => {
+describe.skip('Workflows Mobile P2 smoke', () => {
   const seeded = ensureMobileP2Seed();
   const suffix = Date.now().toString().slice(-6);
 

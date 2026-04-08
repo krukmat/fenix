@@ -18,7 +18,7 @@ module.exports = {
       type: 'android.apk',
       binaryPath: 'android/app/build/outputs/apk/debug/app-debug.apk',
       build: 'cp .env.e2e .env && npx expo prebuild --platform android --clean && cd android && ./gradlew assembleDebug assembleAndroidTest -DtestBuildType=debug --init-script ../init.gradle',
-      reversePorts: [3000, 8080], // BFF on 3000, Go backend on 8080
+      reversePorts: [3000, 8080, 8081], // BFF on 3000, Go backend on 8080, Metro on 8081
     },
   },
   devices: {

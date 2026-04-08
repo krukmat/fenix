@@ -283,6 +283,40 @@ func TestGetHandoffPackage_ContainsAllContext(t *testing.T) {
 	}
 }
 
+func TestGetHandoffPackage_FallsBackToCaseIDFromRunContext(t *testing.T) {
+	svc, db := newHandoffSvc(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	const wsID = "ws-handoff-fallback"
+	const runID = "run-handoff-fallback"
+	const agentDefID = "agent-handoff-fallback"
+	const caseID = "case-handoff-fallback"
+
+	insertHandoffTestAgentDef(t, db, agentDefID, wsID)
+	insertHandoffTestRun(t, db, runID, wsID, agentDefID)
+	insertHandoffTestCase(t, db, caseID, wsID)
+	insertHandoffTestEvidence(t, db, wsID)
+
+	_, err := db.ExecContext(ctx, `
+		UPDATE agent_run
+		SET trigger_context = '{"source":"support-agent","entity_type":"case","entity_id":"case-handoff-fallback"}'
+		WHERE id = ? AND workspace_id = ?
+	`, runID, wsID)
+	if err != nil {
+		t.Fatalf("update trigger_context: %v", err)
+	}
+
+	pkg, err := svc.GetHandoffPackage(ctx, wsID, runID, "")
+	if err != nil {
+		t.Fatalf("GetHandoffPackage fallback: %v", err)
+	}
+
+	if pkg.CaseID != caseID {
+		t.Errorf("CaseID: got %q, want %q", pkg.CaseID, caseID)
+	}
+}
+
 // TestGetHandoffPackage_UsesPersistedReason verifies GetHandoffPackage returns the
 // same reason persisted by InitiateHandoff when no explicit reason is provided.
 // Traces: FR-232

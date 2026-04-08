@@ -31,7 +31,7 @@ export function resolveWedgeHandoffDestination(
     return `/sales/${entityId}`;
   }
   if (entityType === 'deal') {
-    return `/sales/deal-${entityId}`;
+    return `/sales/deals/${entityId}`;
   }
   return `/activity/${runId}`;
 }

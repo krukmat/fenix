@@ -23,7 +23,7 @@ export const agentSpecQueryKeys = {
     filters?: { status?: AgentRunPublicStatus }
   ) => ['agent-runs', workspaceId, 'entity', entityType, entityId, filters ?? {}] as const,
   pendingApprovals: (workspaceId: string) => ['pending-approvals', workspaceId] as const,
-  handoffPackage: (runId: string) => ['handoff-package', runId] as const,
+  handoffPackage: (runId: string, caseId?: string) => ['handoff-package', runId, caseId ?? ''] as const,
 };
 
 function useWorkspaceId(): string | null {
@@ -129,10 +129,10 @@ export function useDecideApproval() {
   });
 }
 
-export function useHandoffPackage(runId: string | undefined, enabled: boolean) {
+export function useHandoffPackage(runId: string | undefined, caseId: string | undefined, enabled: boolean) {
   return useQuery({
-    queryKey: agentSpecQueryKeys.handoffPackage(runId ?? ''),
-    queryFn: () => agentApi.getHandoff(runId!),
+    queryKey: agentSpecQueryKeys.handoffPackage(runId ?? '', caseId),
+    queryFn: () => agentApi.getHandoff(runId!, caseId),
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     retry: 1,

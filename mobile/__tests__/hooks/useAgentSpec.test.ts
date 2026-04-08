@@ -137,10 +137,11 @@ describe('useAgentSpec hooks', () => {
     });
 
     it('keeps handoff query behavior stable', () => {
-      expect(agentSpecQueryKeys.handoffPackage('run-1')).toEqual(['handoff-package', 'run-1']);
-      useHandoffPackage('run-1', true);
+      expect(agentSpecQueryKeys.handoffPackage('run-1')).toEqual(['handoff-package', 'run-1', '']);
+      expect(agentSpecQueryKeys.handoffPackage('run-1', 'case-1')).toEqual(['handoff-package', 'run-1', 'case-1']);
+      useHandoffPackage('run-1', 'case-1', true);
       expect(mockUseQuery).toHaveBeenCalledWith(
-        expect.objectContaining({ queryKey: ['handoff-package', 'run-1'], enabled: true, staleTime: 60_000 })
+        expect.objectContaining({ queryKey: ['handoff-package', 'run-1', 'case-1'], enabled: true, staleTime: 60_000 })
       );
     });
   });

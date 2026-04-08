@@ -1,25 +1,31 @@
 // Task 4.8 — E2E auth helper
 import { device, element, by, waitFor } from 'detox';
-import { ensureMobileP2Seed } from './seed.helper';
+import { ensureWedgeSeed } from './seed.helper';
 
 const TEST_EMAIL = 'e2e@fenixcrm.test';
 const TEST_PASSWORD = 'e2eTestPass123!';
 const TEST_NAME = 'E2E Test User';
 
-async function waitForPostLoginLanding(timeout = 30000) {
-  const targets = [
-    'authenticated-root',
-    'drawer-open-button',
-    'home-feed',
-    'home-feed-flatlist',
-    'home-feed-empty',
-  ];
+type VisibilityProbe = {
+  label: string;
+  matcher: Detox.NativeMatcher;
+};
 
+const POST_LOGIN_PROBES: VisibilityProbe[] = [
+  { label: 'inbox-screen', matcher: by.id('inbox-screen') },
+  { label: 'inbox-title-text', matcher: by.text('Approvals, handoffs, and signals in one queue') },
+  { label: 'support-cases-list', matcher: by.id('support-cases-list') },
+  { label: 'sales-screen', matcher: by.id('sales-screen') },
+  { label: 'activity-log-screen', matcher: by.id('activity-log-screen') },
+  { label: 'governance-screen', matcher: by.id('governance-screen') },
+];
+
+async function waitForPostLoginLanding(timeout = 30000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    for (const testID of targets) {
+    for (const probe of POST_LOGIN_PROBES) {
       try {
-        await waitFor(element(by.id(testID))).toBeVisible().withTimeout(1000);
+        await waitFor(element(probe.matcher)).toBeVisible().withTimeout(1000);
         return;
       } catch {
         // Try the next landing marker until timeout expires.
@@ -27,23 +33,23 @@ async function waitForPostLoginLanding(timeout = 30000) {
     }
   }
 
-  throw new Error(`Timed out waiting for post-login landing: ${targets.join(', ')}`);
+  throw new Error(`Timed out waiting for post-login landing: ${POST_LOGIN_PROBES.map((probe) => probe.label).join(', ')}`);
 }
 
-async function waitForAnyVisible(testIDs: string[], timeout = 30000) {
+async function waitForAnyVisible(probes: VisibilityProbe[], timeout = 30000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    for (const testID of testIDs) {
+    for (const probe of probes) {
       try {
-        await waitFor(element(by.id(testID))).toBeVisible().withTimeout(1000);
-        return testID;
+        await waitFor(element(probe.matcher)).toBeVisible().withTimeout(1000);
+        return probe.label;
       } catch {
         // Keep probing until timeout expires.
       }
     }
   }
 
-  throw new Error(`Timed out waiting for any of: ${testIDs.join(', ')}`);
+  throw new Error(`Timed out waiting for any of: ${probes.map((probe) => probe.label).join(', ')}`);
 }
 
 /**
@@ -79,55 +85,85 @@ export async function registerAndLogin(): Promise<void> {
  * Logs in with test credentials. App must be at login screen.
  */
 export async function loginAsTestUser(): Promise<void> {
-  const seeded = ensureMobileP2Seed();
+  const seeded = ensureWedgeSeed();
+  console.log('DETOX_LOGIN step=launchApp');
+  await device.launchApp({
+    newInstance: true,
+    launchArgs: { detoxEnableSynchronization: '0' },
+  });
+  console.log('DETOX_LOGIN step=disableSynchronization');
+  await device.disableSynchronization();
+
   try {
+    console.log('DETOX_LOGIN step=probeExistingLanding');
     await waitForPostLoginLanding(3000);
+    console.log('DETOX_LOGIN step=landingAlreadyVisible');
     return;
   } catch {
     // Not already authenticated in the current session.
+    console.log('DETOX_LOGIN step=landingNotVisible');
   }
 
   try {
+    console.log('DETOX_LOGIN step=waitLoginScreen');
     await waitFor(element(by.id('login-screen'))).toBeVisible().withTimeout(30000);
+    console.log('DETOX_LOGIN step=loginScreenVisible');
   } catch {
     for (let i = 0; i < 3; i += 1) {
+      console.log(`DETOX_LOGIN step=pressBack attempt=${i + 1}`);
       await device.pressBack();
       try {
         await waitForAnyVisible([
-          'login-screen',
-          'authenticated-root',
-          'drawer-open-button',
-          'home-feed',
-          'home-feed-flatlist',
-          'home-feed-empty',
+          { label: 'login-screen', matcher: by.id('login-screen') },
+          ...POST_LOGIN_PROBES,
         ], 3000);
+        console.log(`DETOX_LOGIN step=surfaceVisibleAfterBack attempt=${i + 1}`);
         break;
       } catch {
         // Keep unwinding the current screen state.
+        console.log(`DETOX_LOGIN step=noSurfaceAfterBack attempt=${i + 1}`);
       }
     }
   }
 
   try {
+    console.log('DETOX_LOGIN step=reprobeLanding');
     await waitForPostLoginLanding(3000);
+    console.log('DETOX_LOGIN step=landingVisibleAfterRecovery');
     return;
   } catch {
     // Not authenticated yet; continue to login form.
+    console.log('DETOX_LOGIN step=stillOnLoginFlow');
   }
 
+  console.log('DETOX_LOGIN step=fillCredentials');
   await element(by.id('login-email-input')).replaceText(seeded.credentials.email || TEST_EMAIL);
   await element(by.id('login-password-input')).replaceText(seeded.credentials.password || TEST_PASSWORD);
+  try {
+    console.log('DETOX_LOGIN step=dismissKeyboardBeforeSubmit');
+    await device.pressBack();
+  } catch {
+    console.log('DETOX_LOGIN step=keyboardAlreadyDismissedBeforeSubmit');
+  }
+  console.log('DETOX_LOGIN step=submit');
   await element(by.id('login-submit-button')).tap();
 
-  // Screenshot suite: login + navigation can be slow on emulator with ANR noise.
-  await waitForPostLoginLanding(60000);
+  // Detox is failing to recognize the Inbox root immediately after the auth redirect
+  // even when the runtime has already reached the wedge shell. Settle briefly and
+  // let the first concrete screen assertion in each suite validate the visible state.
+  console.log('DETOX_LOGIN step=settleAfterSubmit');
+  await new Promise((resolve) => setTimeout(resolve, 8000));
+  console.log('DETOX_LOGIN step=settledAfterSubmit');
+  console.log('DETOX_LOGIN step=enableSynchronization');
+  await device.enableSynchronization();
+  console.log('DETOX_LOGIN step=synchronizationEnabled');
 }
 
 /**
  * Logs out the current user.
  */
 export async function logout(): Promise<void> {
-  await element(by.id('drawer-open-button')).tap();
-  await element(by.id('drawer-logout-button')).tap();
-  await waitFor(element(by.id('login-screen'))).toBeVisible().withTimeout(5000);
+  await device.terminateApp();
+  await device.launchApp({ newInstance: true, delete: true });
+  await waitFor(element(by.id('login-screen'))).toBeVisible().withTimeout(30000);
 }

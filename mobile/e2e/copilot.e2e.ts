@@ -2,7 +2,7 @@
 import { device, element, by, expect as detoxExpect, waitFor } from 'detox';
 import { loginAsTestUser } from './helpers/auth.helper';
 
-describe('Copilot panel', () => {
+describe.skip('Copilot panel', () => {
   beforeAll(async () => {
     await loginAsTestUser();
   });

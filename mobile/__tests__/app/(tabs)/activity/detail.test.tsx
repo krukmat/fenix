@@ -12,6 +12,7 @@ jest.mock('expo-router', () => ({
 
 const mockUseAgentRun = jest.fn();
 const mockUseRunUsage = jest.fn();
+const mockHandoffBanner = jest.fn();
 jest.mock('../../../../src/hooks/useCRM', () => ({
   useAgentRun: () => mockUseAgentRun(),
 }));
@@ -32,8 +33,10 @@ jest.mock('../../../../src/components/agents/HandoffBanner', () => {
   const mockReact = require('react');
   const { View } = require('react-native');
   return {
-    HandoffBanner: ({ testIDPrefix }: { testIDPrefix: string }) =>
-      mockReact.createElement(View, { testID: `${testIDPrefix}-banner` }),
+    HandoffBanner: ({ runId, caseId, testIDPrefix }: { runId: string; caseId?: string; testIDPrefix: string }) => {
+      mockHandoffBanner({ runId, caseId, testIDPrefix });
+      return mockReact.createElement(View, { testID: `${testIDPrefix}-banner`, accessibilityLabel: runId });
+    },
   };
 });
 
@@ -116,6 +119,29 @@ describe('Activity log detail screen', () => {
     expect(screen.getByTestId('activity-detail-output')).toBeTruthy();
   });
 
+  it('renders object output payloads without crashing', () => {
+    mockUseAgentRun.mockReturnValue({
+      data: {
+        data: {
+          ...fullRun.data,
+          status: 'handed_off',
+          output: {
+            agent_name: 'Support Agent',
+            entity_type: 'case',
+            entity_id: 'case-1',
+            rejection_reason: '',
+          },
+        },
+      },
+      isLoading: false,
+      error: null,
+    });
+    const { default: Screen } = require('../../../../app/(tabs)/activity/[id]');
+    render(React.createElement(Screen));
+    expect(screen.getByTestId('activity-detail-output')).toBeTruthy();
+    expect(screen.getByText(/"entity_type": "case"/)).toBeTruthy();
+  });
+
   it('renders per-run usage section', () => {
     const { default: Screen } = require('../../../../app/(tabs)/activity/[id]');
     render(React.createElement(Screen));
@@ -146,6 +172,18 @@ describe('Activity log detail screen', () => {
     const { default: Screen } = require('../../../../app/(tabs)/activity/[id]');
     render(React.createElement(Screen));
     expect(screen.getByTestId('activity-detail-handoff-banner')).toBeTruthy();
+    expect(screen.getByTestId('activity-detail-handoff-banner').props.accessibilityLabel).toBe('run-1');
+    expect(mockHandoffBanner).toHaveBeenCalledWith({
+      runId: 'run-1',
+      caseId: undefined,
+      testIDPrefix: 'activity-detail-handoff',
+    });
+  });
+
+  it('does not render handoff banner when run is not handed_off', () => {
+    const { default: Screen } = require('../../../../app/(tabs)/activity/[id]');
+    render(React.createElement(Screen));
+    expect(screen.queryByTestId('activity-detail-handoff-banner')).toBeNull();
   });
 
   it('shows loading state', () => {

@@ -22,6 +22,8 @@ var ErrHandoffCaseNotFound = errors.New("case not found for handoff")
 // topicHandoff is the event bus topic published when a handoff is initiated.
 const topicHandoff = "agent.handoff"
 const handoffContractVersion = "v1"
+const handoffPayloadEntityTypeKey = "entity_type"
+const handoffPayloadEntityIDKey = "entity_id"
 
 // CaseServiceInterface allows HandoffService to load and update cases
 // without creating a circular import between domain/agent and domain/crm.
@@ -124,6 +126,7 @@ func (s *HandoffService) GetHandoffPackage(ctx context.Context, workspaceID, run
 		return nil, err
 	}
 
+	caseID = resolveHandoffCaseID(run, caseID)
 	cs, err := s.caseService.Get(ctx, workspaceID, caseID)
 	if err != nil {
 		return nil, ErrHandoffCaseNotFound
@@ -205,6 +208,54 @@ func nullableHandoffReason(reason string) any {
 		return nil
 	}
 	return reason
+}
+
+func resolveHandoffCaseID(run *Run, requestedCaseID string) string {
+	if strings.TrimSpace(requestedCaseID) != "" {
+		return requestedCaseID
+	}
+
+	for _, payload := range []json.RawMessage{run.TriggerContext, run.Output, run.Inputs} {
+		caseID := extractCaseIDFromPayload(payload)
+		if caseID != "" {
+			return caseID
+		}
+	}
+
+	return ""
+}
+
+func extractCaseIDFromPayload(payload json.RawMessage) string {
+	if len(payload) == 0 {
+		return ""
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		return ""
+	}
+
+	if caseID := firstNonEmptyString(decoded, "case_id", "caseId"); caseID != "" {
+		return caseID
+	}
+
+	entityType := firstNonEmptyString(decoded, handoffPayloadEntityTypeKey, "entityType")
+	entityID := firstNonEmptyString(decoded, handoffPayloadEntityIDKey, "entityId")
+	if strings.TrimSpace(entityType) == bridgeEntityCase && strings.TrimSpace(entityID) != "" {
+		return entityID
+	}
+
+	return ""
+}
+
+func firstNonEmptyString(decoded map[string]any, keys ...string) string {
+	for _, key := range keys {
+		value, ok := decoded[key].(string)
+		if ok && strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // buildHandoffPackage assembles a HandoffPackage from a Run and a CaseTicket.

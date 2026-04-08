@@ -2,8 +2,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { config } from '../config';
 
-// Default timeout for Go API calls
-const GO_TIMEOUT_MS = 5000;
+// Copilot and agent endpoints can take materially longer than CRUD calls when a local LLM is involved.
+const GO_TIMEOUT_MS = 120000;
 const GO_HEALTH_TIMEOUT_MS = 2000;
 
 export function createGoClient(token?: string): AxiosInstance {

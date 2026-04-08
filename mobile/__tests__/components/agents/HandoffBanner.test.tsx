@@ -115,7 +115,7 @@ describe('HandoffBanner', () => {
     });
     const { getByTestId } = render(<HandoffBanner runId="run-1" />);
     fireEvent.press(getByTestId('handoff-banner-accept'));
-    expect(mockPush).toHaveBeenCalledWith('/sales/deal-deal-1');
+    expect(mockPush).toHaveBeenCalledWith('/sales/deals/deal-1');
   });
 
   it('navigates to activity detail when entity context is absent', () => {
@@ -140,10 +140,24 @@ describe('HandoffBanner', () => {
     expect(mockPush).toHaveBeenCalledWith('/activity/run-1');
   });
 
+  it('never routes handoffs into legacy crm or top-level copilot families', () => {
+    mockUseHandoffPackage.mockReturnValue({ data: baseHandoff, isLoading: false });
+    const { getByTestId } = render(<HandoffBanner runId="run-1" />);
+    fireEvent.press(getByTestId('handoff-banner-accept'));
+    expect(mockPush).not.toHaveBeenCalledWith(expect.stringMatching(/\/\(tabs\)\/crm\//));
+    expect(mockPush).not.toHaveBeenCalledWith(expect.stringMatching(/\/\(tabs\)\/copilot/));
+  });
+
   it('calls useHandoffPackage with runId and enabled=true', () => {
     mockUseHandoffPackage.mockReturnValue({ data: null, isLoading: false });
     render(<HandoffBanner runId="run-42" />);
-    expect(mockUseHandoffPackage).toHaveBeenCalledWith('run-42', true);
+    expect(mockUseHandoffPackage).toHaveBeenCalledWith('run-42', undefined, true);
+  });
+
+  it('passes caseId through to the handoff query when provided', () => {
+    mockUseHandoffPackage.mockReturnValue({ data: null, isLoading: false });
+    render(<HandoffBanner runId="run-42" caseId="case-42" />);
+    expect(mockUseHandoffPackage).toHaveBeenCalledWith('run-42', 'case-42', true);
   });
 
   it('uses custom testIDPrefix', () => {

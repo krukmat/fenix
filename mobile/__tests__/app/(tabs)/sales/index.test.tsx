@@ -104,11 +104,11 @@ describe('Sales index screen', () => {
     expect(screen.getByTestId('sales-deal-item-1')).toBeTruthy();
   });
 
-  it('navigates to /sales/deal-[id] when a deal is pressed', () => {
+  it('navigates to /sales/deals/[id] when a deal is pressed', () => {
     render(React.createElement(SalesScreen));
     fireEvent.press(screen.getByTestId('sales-tab-deals'));
     fireEvent.press(screen.getByTestId('sales-deal-item-0'));
-    expect(mockPush).toHaveBeenCalledWith('/sales/deal-deal-1');
+    expect(mockPush).toHaveBeenCalledWith('/sales/deals/deal-1');
   });
 
   it('shows loading indicator for accounts while fetching', () => {

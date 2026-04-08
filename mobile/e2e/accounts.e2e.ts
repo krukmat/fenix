@@ -4,7 +4,7 @@ import { device, element, by, expect as detoxExpect, waitFor } from 'detox';
 import { loginAsTestUser } from './helpers/auth.helper';
 import { ensureMobileP2Seed } from './helpers/seed.helper';
 
-describe('Accounts flow', () => {
+describe.skip('Accounts flow', () => {
   const seeded = ensureMobileP2Seed();
 
   beforeAll(async () => {

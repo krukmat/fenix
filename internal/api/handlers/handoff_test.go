@@ -149,6 +149,60 @@ func TestHandoffHandler_GetHandoffPackage_Success(t *testing.T) {
 	}
 }
 
+func TestHandoffHandler_GetHandoffPackage_FallsBackToRunCaseContext(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID, ownerID := setupWorkspaceAndOwner(t, db)
+	cs := crm.NewCaseService(db)
+	bus := eventbus.New()
+	svc := agent.NewHandoffService(db, cs, bus)
+	h := NewHandoffHandler(svc)
+
+	ctx := context.Background()
+	const agentDefID = "agent-h-get-fallback"
+	const runID = "run-h-get-fallback"
+	const caseID = "case-h-get-fallback"
+	_, _ = db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES (?, ?, 'Test Agent', 'support', 'active')`, agentDefID, wsID)
+	_, _ = db.ExecContext(ctx, `
+		INSERT INTO agent_run (
+			id, workspace_id, agent_definition_id, trigger_type, status,
+			trigger_context, retrieval_queries, retrieved_evidence_ids, reasoning_trace, tool_calls,
+			output, abstention_reason, started_at, created_at
+		) VALUES (?, ?, ?, 'manual', 'escalated', '{"entity_type":"case","entity_id":"case-h-get-fallback"}', '[]', '[]', '[]', '[]', '{"summary":"Need human follow-up"}', 'insufficient evidence', datetime('now'), datetime('now'))
+	`, runID, wsID, agentDefID)
+	_, _ = db.ExecContext(ctx, `
+		INSERT INTO case_ticket (id, workspace_id, owner_id, subject, priority, status, created_at, updated_at)
+		VALUES (?, ?, ?, 'Fallback Case', 'medium', 'open', datetime('now'), datetime('now'))
+	`, caseID, wsID, ownerID)
+
+	r := chi.NewRouter()
+	r.Get("/agents/runs/{id}/handoff", h.GetHandoffPackage)
+
+	req := httptest.NewRequest(http.MethodGet, "/agents/runs/"+runID+"/handoff", nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	data, ok := resp["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected 'data' object in response, got: %v", resp)
+	}
+	if data["caseId"] != caseID {
+		t.Errorf("caseId: got %v, want %s", data["caseId"], caseID)
+	}
+}
+
 // ── POST /agents/runs/{id}/handoff ───────────────────────────────────────────
 
 // TestHandoffHandler_InitiateHandoff_MissingWorkspace returns 401.

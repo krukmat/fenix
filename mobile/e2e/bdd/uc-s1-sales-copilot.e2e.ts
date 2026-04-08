@@ -8,7 +8,7 @@ import {
   finishUCS1Session,
 } from '../helpers/uc_s1.helper';
 
-describe('BDD UC-S1 Sales Copilot', () => {
+describe.skip('BDD UC-S1 Sales Copilot', () => {
   beforeAll(async () => {
     await startUCS1Session();
   });

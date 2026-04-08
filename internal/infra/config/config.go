@@ -10,7 +10,7 @@ type Config struct {
 	LLMProvider     string // LLM_PROVIDER — default: "ollama"
 	OllamaBaseURL   string // OLLAMA_BASE_URL — default: "http://localhost:11434"
 	OllamaModel     string // OLLAMA_MODEL — default: "nomic-embed-text" (embed model, 768 dims)
-	OllamaChatModel string // OLLAMA_CHAT_MODEL — default: "llama3.2:3b"
+	OllamaChatModel string // OLLAMA_CHAT_MODEL — default: "gemma4:e4b"
 
 	// Split provider config — POC deployment readiness.
 	// ChatProvider selects the provider for chat/completions ("ollama"|"openai-compat").
@@ -60,7 +60,7 @@ func Load() Config {
 		LLMProvider:         llmProvider,
 		OllamaBaseURL:       envOr(envKeyOllamaBaseURL, "http://localhost:11434"),
 		OllamaModel:         envOr(envKeyOllamaModel, "nomic-embed-text"),
-		OllamaChatModel:     envOr(envKeyOllamaChatModel, "llama3.2:3b"),
+		OllamaChatModel:     envOr(envKeyOllamaChatModel, "gemma4:e4b"),
 		ChatProvider:        chatProvider,
 		EmbedProvider:       envOr(envKeyEmbedProvider, defaultProviderOllama),
 		OpenAICompatBaseURL: envOr(envKeyOpenAICompatBaseURL, ""),

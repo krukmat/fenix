@@ -30,7 +30,7 @@ type OllamaProvider struct {
 	httpClient *http.Client
 }
 
-// NewOllamaProvider creates an OllamaProvider with a 30s default timeout.
+// NewOllamaProvider creates an OllamaProvider with a longer default timeout for local chat inference.
 // embedModel is used for Embed(); chatModel is used for ChatCompletion().
 // UAT fix: routes.go was passing the embed model for both — causing 404 on /api/chat.
 func NewOllamaProvider(baseURL, embedModel, chatModel string) *OllamaProvider {
@@ -39,7 +39,7 @@ func NewOllamaProvider(baseURL, embedModel, chatModel string) *OllamaProvider {
 		model:     embedModel,
 		chatModel: chatModel,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 120 * time.Second,
 		},
 	}
 }

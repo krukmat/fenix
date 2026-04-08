@@ -42,6 +42,7 @@ export default function TabsLayout() {
           title: 'Inbox',
           tabBarBadge: inboxBadge,
           tabBarIcon: () => null,
+          tabBarButtonTestID: 'tab-inbox',
         }}
       />
       <Tabs.Screen
@@ -49,6 +50,7 @@ export default function TabsLayout() {
         options={{
           title: 'Support',
           tabBarIcon: () => null,
+          tabBarButtonTestID: 'tab-support',
         }}
       />
       <Tabs.Screen
@@ -56,6 +58,7 @@ export default function TabsLayout() {
         options={{
           title: 'Sales',
           tabBarIcon: () => null,
+          tabBarButtonTestID: 'tab-sales',
         }}
       />
       <Tabs.Screen
@@ -63,6 +66,7 @@ export default function TabsLayout() {
         options={{
           title: 'Activity',
           tabBarIcon: () => null,
+          tabBarButtonTestID: 'tab-activity',
         }}
       />
       <Tabs.Screen
@@ -70,6 +74,7 @@ export default function TabsLayout() {
         options={{
           title: 'Governance',
           tabBarIcon: () => null,
+          tabBarButtonTestID: 'tab-governance',
         }}
       />
 

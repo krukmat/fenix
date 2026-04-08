@@ -11,7 +11,16 @@
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { InternalAxiosRequestConfig } from 'axios';
-import { apiClient, authApi, crmApi, agentApi, signalApi, approvalApi, copilotApi } from '../../src/services/api';
+import {
+  apiClient,
+  authApi,
+  crmApi,
+  agentApi,
+  signalApi,
+  approvalApi,
+  copilotApi,
+  salesBriefApi,
+} from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
 
 const mockLogout = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
@@ -398,6 +407,22 @@ describe('api.ts', () => {
         expect(result).toEqual({ summary: 'text' });
       });
 
+    });
+
+    describe('salesBriefApi', () => {
+      it('getSalesBrief should call POST /bff/api/v1/copilot/sales-brief with camelCase entity fields', async () => {
+        const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValueOnce({
+          data: { outcome: 'completed', summary: 'Healthy pipeline' },
+        } as never);
+
+        const result = await salesBriefApi.getSalesBrief('account', 'acc-1');
+
+        expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/copilot/sales-brief', {
+          entityType: 'account',
+          entityId: 'acc-1',
+        });
+        expect(result).toEqual({ outcome: 'completed', summary: 'Healthy pipeline' });
+      });
     });
   });
 });

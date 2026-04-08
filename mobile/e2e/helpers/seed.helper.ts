@@ -26,9 +26,16 @@ export type WedgeSeed = {
     completedId: string;
     handoffId: string;
     deniedByPolicyId: string;
+    rejectedId: string;
+    caseRejectedId: string;
+    dealRejectedId: string;
   };
   inbox: {
     approvalId: string;
+  };
+  workflows: {
+    activeId: string;
+    archivedId: string;
   };
 };
 
@@ -48,6 +55,25 @@ export function ensureWedgeSeed(): WedgeSeed {
     },
   });
 
-  cachedSeed = JSON.parse(stdout) as WedgeSeed;
+  const parsed = JSON.parse(stdout) as Omit<WedgeSeed, 'workflows'> & {
+    agentRuns: Omit<WedgeSeed['agentRuns'], 'rejectedId' | 'caseRejectedId' | 'dealRejectedId'>;
+  };
+
+  cachedSeed = {
+    ...parsed,
+    agentRuns: {
+      ...parsed.agentRuns,
+      rejectedId: parsed.agentRuns.deniedByPolicyId,
+      caseRejectedId: parsed.agentRuns.deniedByPolicyId,
+      dealRejectedId: parsed.agentRuns.deniedByPolicyId,
+    },
+    workflows: {
+      activeId: '',
+      archivedId: '',
+    },
+  };
   return cachedSeed;
 }
+
+// Backward-compatible alias while the legacy Detox suite is being retired.
+export const ensureMobileP2Seed = ensureWedgeSeed;

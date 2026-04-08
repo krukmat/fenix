@@ -163,6 +163,7 @@ main() {
   log 'Preparing emulator networking...'
   adb_cmd reverse tcp:3000 tcp:3000 >/dev/null
   adb_cmd reverse tcp:8080 tcp:8080 >/dev/null
+  adb_cmd reverse tcp:8081 tcp:8081 >/dev/null
 
   log 'Resetting app state and pre-warming React Native...'
   adb_cmd logcat -c >/dev/null 2>&1 || true

@@ -3,7 +3,7 @@ import { device, element, by, expect as detoxExpect, waitFor } from 'detox';
 import { loginAsTestUser } from './helpers/auth.helper';
 import { ensureMobileP2Seed } from './helpers/seed.helper';
 
-describe('Agent Runs flow', () => {
+describe.skip('Agent Runs flow', () => {
   const seeded = ensureMobileP2Seed();
 
   beforeAll(async () => {

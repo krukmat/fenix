@@ -64,7 +64,22 @@ describe('Support inbox connections', () => {
 
   it('shows pending inbox badge when inbox has approvals or handoffs', () => {
     mockUseInbox.mockReturnValue({
-      data: { approvals: [{ id: 'a1' }], handoffs: [{ run_id: 'r1' }], signals: [] },
+      data: {
+        approvals: [{ id: 'a1' }],
+        handoffs: [{
+          run_id: 'r1',
+          handoff: {
+            run_id: 'r1',
+            reason: 'Needs review',
+            conversation_context: 'billing exception',
+            evidence_count: 2,
+            entity_type: 'case',
+            entity_id: 'case-1',
+            created_at: '2026-04-08T10:00:00Z',
+          },
+        }],
+        signals: [],
+      },
       isLoading: false,
     });
     const { default: Screen } = require('../../../../app/(tabs)/support/index');
@@ -91,5 +106,19 @@ describe('Support inbox connections', () => {
     render(React.createElement(Screen));
     fireEvent.press(screen.getByTestId('support-inbox-badge'));
     expect(mockPush).toHaveBeenCalledWith('/inbox');
+  });
+
+  it('does not show pending inbox badge when inbox only has signals', () => {
+    mockUseInbox.mockReturnValue({
+      data: {
+        approvals: [],
+        handoffs: [],
+        signals: [{ id: 'sig-1', signal_type: 'churn_risk' }],
+      },
+      isLoading: false,
+    });
+    const { default: Screen } = require('../../../../app/(tabs)/support/index');
+    render(React.createElement(Screen));
+    expect(screen.queryByTestId('support-inbox-badge')).toBeNull();
   });
 });

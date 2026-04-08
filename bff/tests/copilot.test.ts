@@ -21,6 +21,9 @@ import axios from 'axios';
 const mockAxios = axios as jest.Mocked<typeof axios>;
 
 import app from '../src/app';
+import { createGoClient } from '../src/services/goClient';
+
+const mockCreateGoClient = createGoClient as jest.MockedFunction<typeof createGoClient>;
 
 describe('POST /bff/copilot/chat (SSE relay)', () => {
   beforeEach(() => {
@@ -69,5 +72,41 @@ describe('POST /bff/copilot/chat (SSE relay)', () => {
       expect(fullBody).toContain('data: {"type":"token","content":"Hello"}');
       done();
     }).catch(done);
+  });
+});
+
+describe('POST /bff/api/v1/copilot/sales-brief', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('bypasses the transparent proxy, relays to Go, and unwraps the data envelope', async () => {
+    const post = jest.fn().mockResolvedValue({
+      data: {
+        data: {
+          outcome: 'completed',
+          summary: 'Healthy pipeline',
+        },
+      },
+      status: 200,
+    });
+
+    mockCreateGoClient.mockReturnValue({ post } as unknown as ReturnType<typeof createGoClient>);
+
+    const res = await request(app)
+      .post('/bff/api/v1/copilot/sales-brief')
+      .set('Authorization', 'Bearer brief-token')
+      .send({ entityType: 'account', entityId: 'acc-1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      outcome: 'completed',
+      summary: 'Healthy pipeline',
+    });
+    expect(post).toHaveBeenCalledWith('/api/v1/copilot/sales-brief', {
+      entityType: 'account',
+      entityId: 'acc-1',
+    });
+    expect(proxyStub).not.toHaveBeenCalled();
   });
 });

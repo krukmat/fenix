@@ -9,12 +9,13 @@ import { resolveWedgeHandoffDestination, wedgeHref } from '../../utils/navigatio
 
 interface HandoffBannerProps {
   runId: string;
+  caseId?: string;
   testIDPrefix?: string;
 }
 
-export function HandoffBanner({ runId, testIDPrefix = 'handoff-banner' }: HandoffBannerProps) {
+export function HandoffBanner({ runId, caseId, testIDPrefix = 'handoff-banner' }: HandoffBannerProps) {
   const router = useRouter();
-  const { data: handoff, isLoading } = useHandoffPackage(runId, true);
+  const { data: handoff, isLoading } = useHandoffPackage(runId, caseId, true);
 
   if (isLoading) {
     return (

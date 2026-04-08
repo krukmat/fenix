@@ -137,4 +137,10 @@ describe('Support agent trigger flow', () => {
     render(React.createElement(Screen));
     expect(screen.queryByTestId('support-active-run-status')).toBeNull();
   });
+
+  it('queries agent runs using the normalized awaiting_approval status filter', () => {
+    const { default: Screen } = require('../../../../app/(tabs)/support/[id]');
+    render(React.createElement(Screen));
+    expect(mockUseAgentRuns).toHaveBeenCalledWith({ status: 'awaiting_approval' });
+  });
 });

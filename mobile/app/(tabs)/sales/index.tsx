@@ -199,7 +199,7 @@ function DealsTab({ colors, router }: { colors: ThemeColors; router: ReturnType<
           item={item}
           index={index}
           colors={colors}
-          onPress={() => router.push(wedgeHref(`/sales/deal-${item.id}`))}
+          onPress={() => router.push(wedgeHref(`/sales/deals/${item.id}`))}
         />
       )}
       contentContainerStyle={styles.listContent}
