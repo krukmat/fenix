@@ -16,6 +16,8 @@ primary_refs:
 > **Audience**: Product, Architecture, Mobile, BFF, API implementation agents
 > **Primary references**: `docs/plans/fenixcrm_strategic_repositioning_spec.md`, `docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md`, `docs/decisions/ADR-022-mobile-deprioritized-for-wedge.md`
 > **Precedence rule**: this document is the canonical execution plan for mobile, BFF, and the minimum Go API changes required to harmonize the mobile surface with the approved wedge. If older mobile plans conflict with this document, this document takes precedence for `mobile/`, `bff/`, and the supporting mobile-facing API layer.
+> **Review update (2026-04-08)**: implementation audit found the harmonization is only partially implemented. See `docs/mobile_wedge_harmonization_audit.md` for the audited runtime state and the remaining gaps.
+> **Follow-up execution plan (2026-04-08)**: remaining work is now sequenced in `docs/plans/mobile_wedge_harmonization_followup_plan.md`, which is the child plan for closing the audited gaps while preserving this document as the parent source of truth.
 
 ---
 
@@ -677,6 +679,11 @@ Maestro screenshot suite — ✅ updated in W6-T3:
 ### 8.9 Wave Summary
 
 The waves are:
+
+Audit note:
+
+- the completion markers below reflect claimed delivery during implementation
+- audited runtime parity on 2026-04-08 remains partial; see `docs/mobile_wedge_harmonization_audit.md`
 
 1. `Wave 1` — Contract Lock and Mobile API Enablement ✅
 2. `Wave 2` — Navigation Shell and Route Migration ✅

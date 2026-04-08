@@ -1,0 +1,15 @@
+active: true
+derived: false
+header: ''
+level: 2
+links:
+- FR_001: 969-Z1zNqXKxJjrUhMoNrYBoRG0_PiEtOJUytAYAyQY=
+normative: true
+bdd:
+  feature: features/uc-s1-sales-copilot.feature
+  scenario: Launch Sales Copilot from deal detail with grounded context
+  stack: mobile
+ref: internal/api/handlers/deal_test.go
+reviewed: 6LDzLzjMGXpUL_IgjSMZPKIkTb3DqrNS9H1wH0BuzX8=
+text: |
+  TST047: Deal API list/create/update contract coverage (handler-level).

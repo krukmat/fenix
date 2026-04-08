@@ -1,6 +1,6 @@
 ---
 title: FenixCRM — Project Status Dashboard
-last_updated: 2026-04-06
+last_updated: 2026-04-08
 tags: [dashboard]
 ---
 
@@ -92,6 +92,8 @@ SORT date DESC
 ## Referencias rápidas
 
 - [[plans/fenixcrm_strategic_repositioning_implementation_plan|Strategic Repositioning Implementation Plan]]
+- [[mobile_wedge_harmonization_audit|Mobile Wedge Harmonization Audit]]
+- [[plans/mobile_wedge_harmonization_followup_plan|Mobile Wedge Harmonization Follow-up Plan]]
 - [[wedge-demo-uat-summary|Wedge Demo and UAT Bundle]]
 - [[implementation-plan|Implementation Plan]]
 - [[architecture|Architecture]]
