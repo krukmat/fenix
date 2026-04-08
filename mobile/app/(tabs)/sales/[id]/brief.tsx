@@ -61,74 +61,79 @@ function BriefContent({ brief, colors }: { brief: SalesBrief; colors: ThemeColor
   const evidenceSummary = `${brief.evidencePack.source_count} sources · ${brief.evidencePack.confidence} confidence`;
 
   return (
-    <ScrollView testID="sales-brief-screen" style={[styles.container, { backgroundColor: colors.background }]}>
-      <BriefCard title="Outcome" colors={colors} testID="sales-brief-outcome">
-        <Text style={{ color: colors.onSurface }}>{brief.outcome}</Text>
-      </BriefCard>
-
-      <BriefCard title="Confidence" colors={colors} testID="sales-brief-confidence">
-        <Text style={{ color: colors.onSurface }}>{brief.confidence}</Text>
-      </BriefCard>
-
-      {brief.summary ? (
-        <BriefCard title="Summary" colors={colors} testID="sales-brief-summary">
-          <Text style={{ color: colors.onSurface }}>{brief.summary}</Text>
+    <View testID="sales-brief-screen" style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView testID="sales-brief-scroll" style={styles.container}>
+        <BriefCard title="Outcome" colors={colors} testID="sales-brief-outcome">
+          <Text style={{ color: colors.onSurface }}>{brief.outcome}</Text>
         </BriefCard>
-      ) : null}
 
-      {brief.risks && brief.risks.length > 0 ? (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Risks</Text>
-          <View testID="sales-brief-risks">
-            {brief.risks.map((risk, i) => (
-              <View key={i} style={[styles.recItem, { backgroundColor: colors.surface }]} testID={`sales-brief-risk-${i}`}>
-                <Text style={{ color: colors.onSurface }}>{risk}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      ) : null}
-
-      {brief.nextBestActions && brief.nextBestActions.length > 0 ? (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Next Best Actions</Text>
-          <View testID="sales-brief-next-best-actions">
-            {brief.nextBestActions.map((action, i) => (
-              <View key={i} style={[styles.recItem, { backgroundColor: colors.surface }]} testID={`sales-brief-next-best-action-${i}`}>
-                <Text style={{ color: colors.onSurface }}>{action}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      ) : null}
-
-      {brief.abstentionReason ? (
-        <BriefCard title="Abstention Reason" colors={colors} testID="sales-brief-abstention-reason">
-          <Text style={{ color: colors.onSurface }}>{brief.abstentionReason}</Text>
+        <BriefCard title="Confidence" colors={colors} testID="sales-brief-confidence">
+          <Text style={{ color: colors.onSurface }}>{brief.confidence}</Text>
         </BriefCard>
-      ) : null}
 
-      <BriefCard title="Evidence Pack" colors={colors} testID="sales-brief-evidence-pack">
-        <Text style={{ color: colors.onSurface }} testID="sales-brief-evidence-summary">
-          {evidenceSummary}
-        </Text>
-        <Text style={{ color: colors.onSurfaceVariant, marginTop: 8 }} testID="sales-brief-evidence-query">
-          Query: {brief.evidencePack.query}
-        </Text>
-        <Text style={{ color: colors.onSurfaceVariant, marginTop: 4 }} testID="sales-brief-evidence-methods">
-          Methods: {brief.evidencePack.retrieval_methods_used.join(', ') || 'none'}
-        </Text>
-        {brief.evidencePack.warnings.length > 0 ? (
-          <View style={styles.warningBlock} testID="sales-brief-evidence-warnings">
-            {brief.evidencePack.warnings.map((warning, i) => (
-              <Text key={i} style={{ color: colors.onSurface }} testID={`sales-brief-evidence-warning-${i}`}>
-                {warning}
-              </Text>
-            ))}
+        {brief.summary ? (
+          <BriefCard title="Summary" colors={colors} testID="sales-brief-summary">
+            <Text style={{ color: colors.onSurface }}>{brief.summary}</Text>
+          </BriefCard>
+        ) : null}
+
+        {brief.risks && brief.risks.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Risks</Text>
+            <View testID="sales-brief-risks">
+              {brief.risks.map((risk, i) => (
+                <View key={i} style={[styles.recItem, { backgroundColor: colors.surface }]} testID={`sales-brief-risk-${i}`}>
+                  <Text style={{ color: colors.onSurface }}>{risk}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         ) : null}
-      </BriefCard>
-    </ScrollView>
+
+        {brief.nextBestActions && brief.nextBestActions.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Next Best Actions</Text>
+            <View testID="sales-brief-next-best-actions">
+              {brief.nextBestActions.map((action, i) => (
+                <View key={i} style={[styles.recItem, { backgroundColor: colors.surface }]} testID={`sales-brief-next-best-action-${i}`}>
+                  <Text style={{ color: colors.onSurface }}>{action.title}</Text>
+                  {action.description ? (
+                    <Text style={{ color: colors.onSurfaceVariant, marginTop: 4 }}>{action.description}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {brief.abstentionReason ? (
+          <BriefCard title="Abstention Reason" colors={colors} testID="sales-brief-abstention-reason">
+            <Text style={{ color: colors.onSurface }}>{brief.abstentionReason}</Text>
+          </BriefCard>
+        ) : null}
+
+        <BriefCard title="Evidence Pack" colors={colors} testID="sales-brief-evidence-pack">
+          <Text style={{ color: colors.onSurface }} testID="sales-brief-evidence-summary">
+            {evidenceSummary}
+          </Text>
+          <Text style={{ color: colors.onSurfaceVariant, marginTop: 8 }} testID="sales-brief-evidence-query">
+            Query: {brief.evidencePack.query}
+          </Text>
+          <Text style={{ color: colors.onSurfaceVariant, marginTop: 4 }} testID="sales-brief-evidence-methods">
+            Methods: {brief.evidencePack.retrieval_methods_used.join(', ') || 'none'}
+          </Text>
+          {brief.evidencePack.warnings.length > 0 ? (
+            <View style={styles.warningBlock} testID="sales-brief-evidence-warnings">
+              {brief.evidencePack.warnings.map((warning, i) => (
+                <Text key={i} style={{ color: colors.onSurface }} testID={`sales-brief-evidence-warning-${i}`}>
+                  {warning}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </BriefCard>
+      </ScrollView>
+    </View>
   );
 }
 

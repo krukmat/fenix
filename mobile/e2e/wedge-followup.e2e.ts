@@ -63,7 +63,10 @@ describe('Wedge follow-up functional smoke', () => {
     await detoxExpect(element(by.id('sales-brief-outcome'))).toBeVisible();
     await detoxExpect(element(by.text('completed'))).toBeVisible();
     await detoxExpect(element(by.id('sales-brief-next-best-actions'))).toBeVisible();
-    await detoxExpect(element(by.id('sales-brief-evidence-pack'))).toBeVisible();
+    await waitFor(element(by.id('sales-brief-evidence-pack')))
+      .toBeVisible()
+      .whileElement(by.id('sales-brief-scroll'))
+      .scroll(300, 'down');
   });
 
   it('shows the denied activity detail and governance trace surfaces', async () => {

@@ -18,6 +18,7 @@ import {
   agentApi,
   signalApi,
   approvalApi,
+  inboxApi,
   copilotApi,
   salesBriefApi,
 } from '../../src/services/api';
@@ -206,6 +207,32 @@ describe('api.ts', () => {
       });
     });
 
+    it('agentApi.getHandoff should normalize handoff payloads with case context fields', async () => {
+      const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+        data: {
+          data: {
+            runId: 'run-1',
+            reason: 'Escalated to human',
+            caseId: 'case-1',
+            triggerContext: { entity_type: 'case', entity_id: 'case-1' },
+            evidencePack: { source_count: 2 },
+            startedAt: '2026-04-08T10:00:00Z',
+          },
+        },
+      } as never);
+
+      const result = await agentApi.getHandoff('run-1');
+
+      expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/agents/runs/run-1/handoff', { params: undefined });
+      expect(result).toMatchObject({
+        run_id: 'run-1',
+        entity_type: 'case',
+        entity_id: 'case-1',
+        evidence_count: 2,
+        caseId: 'case-1',
+      });
+    });
+
     it('agentApi filtered run helpers should pass entity and status filters', async () => {
       const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValue({ data: { data: [] } } as never);
 
@@ -221,6 +248,41 @@ describe('api.ts', () => {
       });
       expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/api/v1/agents/runs', {
         params: { workspace_id: 'ws-1', page: 5, limit: 7, entity_type: 'case', status: 'accepted' },
+      });
+    });
+
+    it('inboxApi.getInbox should normalize nested handoff payloads', async () => {
+      jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+        data: {
+          approvals: [],
+          handoffs: [
+            {
+              run_id: 'run-1',
+              handoff: {
+                data: {
+                  runId: 'run-1',
+                  reason: 'Escalated to human',
+                  finalOutput: { entity_type: 'deal', entity_id: 'deal-1' },
+                  evidencePack: { source_count: 1 },
+                  completedAt: '2026-04-08T10:00:00Z',
+                },
+              },
+            },
+          ],
+          signals: [],
+        },
+      } as never);
+
+      const result = await inboxApi.getInbox('ws-1');
+
+      expect(result.handoffs[0]).toMatchObject({
+        run_id: 'run-1',
+        handoff: {
+          run_id: 'run-1',
+          entity_type: 'deal',
+          entity_id: 'deal-1',
+          evidence_count: 1,
+        },
       });
     });
 
@@ -412,7 +474,16 @@ describe('api.ts', () => {
     describe('salesBriefApi', () => {
       it('getSalesBrief should call POST /bff/api/v1/copilot/sales-brief with camelCase entity fields', async () => {
         const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValueOnce({
-          data: { outcome: 'completed', summary: 'Healthy pipeline' },
+          data: {
+            outcome: 'completed',
+            summary: 'Healthy pipeline',
+            nextBestActions: [{
+              title: 'Update deal',
+              description: 'Capture the latest procurement status.',
+              tool: 'update_deal',
+              params: { deal_id: 'deal-1' },
+            }],
+          },
         } as never);
 
         const result = await salesBriefApi.getSalesBrief('account', 'acc-1');
@@ -421,7 +492,16 @@ describe('api.ts', () => {
           entityType: 'account',
           entityId: 'acc-1',
         });
-        expect(result).toEqual({ outcome: 'completed', summary: 'Healthy pipeline' });
+        expect(result).toEqual({
+          outcome: 'completed',
+          summary: 'Healthy pipeline',
+          nextBestActions: [{
+            title: 'Update deal',
+            description: 'Capture the latest procurement status.',
+            tool: 'update_deal',
+            params: { deal_id: 'deal-1' },
+          }],
+        });
       });
     });
   });

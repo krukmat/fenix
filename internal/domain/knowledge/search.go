@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
@@ -26,6 +27,8 @@ const (
 type SearchInput struct {
 	Query       string
 	WorkspaceID string
+	EntityType  string
+	EntityID    string
 	Limit       int // 0 → defaultLimit, capped at maxLimit
 }
 
@@ -72,6 +75,7 @@ func NewSearchService(db *sql.DB, provider llm.LLMProvider) *SearchService {
 // Task 2.5 audit: switched from sequential to parallel execution.
 func (s *SearchService) HybridSearch(ctx context.Context, input SearchInput) (*SearchResults, error) {
 	limit := resolveLimit(input.Limit)
+	entityType, entityID := resolveEntityScope(input.Query, input.EntityType, input.EntityID)
 
 	var (
 		bm25Results []bm25Row
@@ -86,7 +90,7 @@ func (s *SearchService) HybridSearch(ctx context.Context, input SearchInput) (*S
 	// Goroutine 1: BM25 search via FTS5 (always available, no LLM required)
 	go func() {
 		defer wg.Done()
-		res, err := s.bm25Search(ctx, input.Query, input.WorkspaceID, limit)
+		res, err := s.bm25Search(ctx, input.Query, input.WorkspaceID, entityType, entityID, limit)
 		mu.Lock()
 		bm25Results, bm25Err = res, err
 		mu.Unlock()
@@ -95,7 +99,7 @@ func (s *SearchService) HybridSearch(ctx context.Context, input SearchInput) (*S
 	// Goroutine 2: vector search — degrade gracefully if LLM embed fails
 	go func() {
 		defer wg.Done()
-		vecResults = s.vectorSearchWithFallback(ctx, input.Query, input.WorkspaceID, limit)
+		vecResults = s.vectorSearchWithFallback(ctx, input.Query, input.WorkspaceID, entityType, entityID, limit)
 	}()
 
 	wg.Wait()
@@ -108,14 +112,36 @@ func (s *SearchService) HybridSearch(ctx context.Context, input SearchInput) (*S
 	return &SearchResults{Items: items, Query: input.Query}, nil
 }
 
+func resolveEntityScope(query, entityType, entityID string) (string, string) {
+	entityType = strings.TrimSpace(entityType)
+	entityID = strings.TrimSpace(entityID)
+	if entityType != "" || entityID != "" {
+		return entityType, entityID
+	}
+
+	for _, token := range strings.Fields(query) {
+		entityType = assignScopeValue(entityType, token, "entity_type:")
+		entityID = assignScopeValue(entityID, token, "entity_id:")
+	}
+
+	return entityType, entityID
+}
+
+func assignScopeValue(currentValue, token, prefix string) string {
+	if currentValue != "" || !strings.HasPrefix(token, prefix) {
+		return currentValue
+	}
+	return strings.TrimSpace(strings.TrimPrefix(token, prefix))
+}
+
 // vectorSearchWithFallback embeds the query and runs vector search.
 // Returns empty slice on LLM failure (caller falls back to BM25-only).
-func (s *SearchService) vectorSearchWithFallback(ctx context.Context, query, wsID string, limit int) []vectorRow {
+func (s *SearchService) vectorSearchWithFallback(ctx context.Context, query, wsID, entityType, entityID string, limit int) []vectorRow {
 	resp, err := s.llm.Embed(ctx, llm.EmbedRequest{Texts: []string{query}})
 	if err != nil || len(resp.Embeddings) == 0 {
 		return nil // graceful degradation
 	}
-	results, err := s.vectorSearch(ctx, wsID, resp.Embeddings[0], limit)
+	results, err := s.vectorSearch(ctx, wsID, entityType, entityID, resp.Embeddings[0], limit)
 	if err != nil {
 		return nil // graceful degradation
 	}
@@ -133,7 +159,7 @@ type bm25Row struct {
 // bm25Search executes FTS5 MATCH and returns results ordered by BM25 score.
 // Note: FTS5 bm25() returns negative values (lower = better match).
 // Raw SQL used because sqlc does not support CREATE VIRTUAL TABLE fts5 syntax.
-func (s *SearchService) bm25Search(ctx context.Context, query, wsID string, limit int) ([]bm25Row, error) {
+func (s *SearchService) bm25Search(ctx context.Context, query, wsID, entityType, entityID string, limit int) ([]bm25Row, error) {
 	const ftsQuery = `
 		SELECT ki.id, ki.title,
 		       snippet(knowledge_item_fts, 2, '', '', '...', 32) AS snippet,
@@ -143,10 +169,12 @@ func (s *SearchService) bm25Search(ctx context.Context, query, wsID string, limi
 		WHERE knowledge_item_fts MATCH ?
 		  AND knowledge_item_fts.workspace_id = ?
 		  AND ki.deleted_at IS NULL
+		  AND (? = '' OR ki.entity_type = ?)
+		  AND (? = '' OR ki.entity_id = ?)
 		ORDER BY bm25(knowledge_item_fts)
 		LIMIT ?`
 
-	rows, err := s.db.QueryContext(ctx, ftsQuery, query, wsID, limit)
+	rows, err := s.db.QueryContext(ctx, ftsQuery, query, wsID, entityType, entityType, entityID, entityID, limit)
 	if err != nil {
 		// FTS5 MATCH with invalid syntax returns an error — treat as no results
 		return nil, nil //nolint:nilerr
@@ -175,7 +203,7 @@ type vectorRow struct {
 
 // vectorSearch executes similarity ranking inside SQLite using the persisted
 // vector store. This removes the previous Go-side full scan over all vectors.
-func (s *SearchService) vectorSearch(ctx context.Context, wsID string, queryVec []float32, limit int) ([]vectorRow, error) {
+func (s *SearchService) vectorSearch(ctx context.Context, wsID, entityType, entityID string, queryVec []float32, limit int) ([]vectorRow, error) {
 	queryJSON, err := encodeEmbedding(queryVec)
 	if err != nil {
 		return nil, fmt.Errorf("vectorSearch encode query: %w", err)
@@ -190,12 +218,14 @@ func (s *SearchService) vectorSearch(ctx context.Context, wsID string, queryVec 
 		WHERE ed.workspace_id = ?
 		  AND ed.embedding_status = 'embedded'
 		  AND ki.deleted_at IS NULL
+		  AND (? = '' OR ki.entity_type = ?)
+		  AND (? = '' OR ki.entity_id = ?)
 		  AND json_valid(v.embedding)
 		  AND json_array_length(v.embedding) = json_array_length(?)
 		ORDER BY similarity DESC, ed.knowledge_item_id ASC
 		LIMIT ?`
 
-	rows, err := s.db.QueryContext(ctx, vectorQuery, queryJSON, wsID, queryJSON, limit)
+	rows, err := s.db.QueryContext(ctx, vectorQuery, queryJSON, wsID, entityType, entityType, entityID, entityID, queryJSON, limit)
 	if err != nil {
 		return nil, fmt.Errorf("vectorSearch query: %w", err)
 	}

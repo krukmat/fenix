@@ -26,8 +26,8 @@ func DefaultConfig() Config {
 		Host:         "0.0.0.0",
 		Port:         8080,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		WriteTimeout: 2 * time.Minute,
+		IdleTimeout:  2 * time.Minute,
 	}
 }
 

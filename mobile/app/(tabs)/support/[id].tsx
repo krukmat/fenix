@@ -172,56 +172,58 @@ export default function SupportCaseDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ title: caseData.subject || 'Case' }} />
-      <ScrollView
+      <View
         testID="support-case-detail-screen"
         style={[styles.container, { backgroundColor: colors.background }]}
       >
-        <View style={[styles.priorityBanner, { backgroundColor: getPriorityColor(caseData.priority) }]}>
-          <Text style={styles.priorityText}>PRIORITY: {caseData.priority.toUpperCase()}</Text>
-        </View>
+        <ScrollView style={styles.container}>
+          <View style={[styles.priorityBanner, { backgroundColor: getPriorityColor(caseData.priority) }]}>
+            <Text style={styles.priorityText}>PRIORITY: {caseData.priority.toUpperCase()}</Text>
+          </View>
 
-        <CRMDetailHeader
-          title={caseData.subject || 'No Subject'}
-          subtitle={caseData.description}
-          metadata={getMetadata(caseData)}
-          testIDPrefix="support-case-detail"
-        />
+          <CRMDetailHeader
+            title={caseData.subject || 'No Subject'}
+            subtitle={caseData.description}
+            metadata={getMetadata(caseData)}
+            testIDPrefix="support-case-detail"
+          />
 
-        <SlaSection slaDeadline={caseData.slaDeadline} colors={colors} />
-        <HandoffSection handoffStatus={caseData.handoffStatus} colors={colors} />
-        <AccountSection accountId={caseData.accountId} accountName={caseData.accountName} router={router} colors={colors} />
+          <SlaSection slaDeadline={caseData.slaDeadline} colors={colors} />
+          <HandoffSection handoffStatus={caseData.handoffStatus} colors={colors} />
+          <AccountSection accountId={caseData.accountId} accountName={caseData.accountName} router={router} colors={colors} />
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Signals</Text>
-          <SignalCountBadge count={caseData.activeSignalCount} testID="support-case-signal-badge" />
-        </View>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Signals</Text>
+            <SignalCountBadge count={caseData.activeSignalCount} testID="support-case-signal-badge" />
+          </View>
 
-        {/* Agent trigger — W3-T3 */}
-        <View style={styles.section}>
-          <Button
-            mode="contained"
-            testID="support-trigger-agent-button"
-            disabled={triggerAgent.isPending}
-            onPress={() => triggerAgent.mutate({ entityType: 'case', entityId: caseData.id })}
-          >
-            {triggerAgent.isPending ? 'Running…' : 'Run Support Agent'}
-          </Button>
-          <ActiveRunBadge caseId={caseData.id} colors={colors} />
-        </View>
+          {/* Agent trigger — W3-T3 */}
+          <View style={styles.section}>
+            <Button
+              mode="contained"
+              testID="support-trigger-agent-button"
+              disabled={triggerAgent.isPending}
+              onPress={() => triggerAgent.mutate({ entityType: 'case', entityId: caseData.id })}
+            >
+              {triggerAgent.isPending ? 'Running…' : 'Run Support Agent'}
+            </Button>
+            <ActiveRunBadge caseId={caseData.id} colors={colors} />
+          </View>
 
-        <AgentActivitySection entityType="case" entityId={caseData.id} testIDPrefix="support-case-agent-activity" />
-        <EntitySignalsSection entityType="case" entityId={caseData.id} testIDPrefix="support-case-signals" />
+          <AgentActivitySection entityType="case" entityId={caseData.id} testIDPrefix="support-case-agent-activity" />
+          <EntitySignalsSection entityType="case" entityId={caseData.id} testIDPrefix="support-case-signals" />
 
-        <View style={styles.section}>
-          <Button
-            mode="outlined"
-            testID="support-copilot-button"
-            onPress={() => router.push(wedgeHrefObject(`/support/${caseData.id}/copilot`, { entity_type: 'case', entity_id: caseData.id }))}
-          >
-            Open Copilot
-          </Button>
-        </View>
-      </ScrollView>
+          <View style={styles.section}>
+            <Button
+              mode="outlined"
+              testID="support-copilot-button"
+              onPress={() => router.push(wedgeHrefObject(`/support/${caseData.id}/copilot`, { entity_type: 'case', entity_id: caseData.id }))}
+            >
+              Open Copilot
+            </Button>
+          </View>
+        </ScrollView>
+      </View>
     </>
   );
 }

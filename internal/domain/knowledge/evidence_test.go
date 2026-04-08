@@ -306,6 +306,69 @@ func TestEvidencePackService_Build_Basic(t *testing.T) {
 	}
 }
 
+func TestEvidencePackService_Build_ScopesResultsToEntity(t *testing.T) {
+	db := evidenceSetupTestDB(t)
+	defer db.Close()
+
+	stub := newStubEmbedder(3)
+	wsID := evidenceCreateWorkspace(t, db)
+
+	bus := eventbus.New()
+	ingest := NewIngestService(db, bus)
+	embedder := NewEmbedderService(db, stub)
+	searchSvc := NewSearchService(db, stub)
+	evidenceSvc := NewEvidencePackService(db, searchSvc, DefaultEvidenceConfig())
+
+	accountItem := evidenceIngestAndEmbedEntityDoc(
+		t, ingest, embedder, wsID,
+		"Account renewal note",
+		"entity_type:account entity_id:acc_1 renewal status and next steps",
+		"account", "acc_1",
+	)
+	_ = evidenceIngestAndEmbedEntityDoc(
+		t, ingest, embedder, wsID,
+		"Deal procurement note",
+		"entity_type:deal entity_id:deal_1 procurement blocker and next steps",
+		"deal", "deal_1",
+	)
+
+	pack, err := evidenceSvc.BuildEvidencePack(context.Background(), BuildEvidencePackInput{
+		Query:       "entity_type:account entity_id:acc_1 latest updates timeline next steps",
+		WorkspaceID: wsID,
+		EntityType:  "account",
+		EntityID:    "acc_1",
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("BuildEvidencePack failed: %v", err)
+	}
+	if len(pack.Sources) == 0 {
+		t.Fatal("expected at least one source for scoped account evidence")
+	}
+	for _, source := range pack.Sources {
+		if source.KnowledgeItemID != accountItem.ID {
+			t.Fatalf("expected only account-scoped evidence, got knowledge_item_id=%s", source.KnowledgeItemID)
+		}
+	}
+
+	derivedPack, err := evidenceSvc.BuildEvidencePack(context.Background(), BuildEvidencePackInput{
+		Query:       "entity_type:account entity_id:acc_1 latest updates timeline next steps",
+		WorkspaceID: wsID,
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("BuildEvidencePack with derived entity scope failed: %v", err)
+	}
+	if len(derivedPack.Sources) == 0 {
+		t.Fatal("expected derived entity scope to keep account evidence")
+	}
+	for _, source := range derivedPack.Sources {
+		if source.KnowledgeItemID != accountItem.ID {
+			t.Fatalf("expected derived scope to exclude non-account evidence, got knowledge_item_id=%s", source.KnowledgeItemID)
+		}
+	}
+}
+
 func TestEvidencePackService_TopKLimit(t *testing.T) {
 	db := evidenceSetupTestDB(t)
 	defer db.Close()
@@ -611,6 +674,31 @@ func evidenceIngestAndEmbedDoc(t *testing.T, ingest *IngestService, embedder *Em
 		SourceType:  SourceTypeDocument,
 		Title:       title,
 		RawContent:  content,
+	})
+	if err != nil {
+		t.Fatalf("ingest failed for %q: %v", title, err)
+	}
+	if err := embedder.EmbedChunks(context.Background(), item.ID, wsID); err != nil {
+		t.Fatalf("EmbedChunks failed for %q: %v", title, err)
+	}
+	return item
+}
+
+func evidenceIngestAndEmbedEntityDoc(
+	t *testing.T,
+	ingest *IngestService,
+	embedder *EmbedderService,
+	wsID, title, content, entityType, entityID string,
+) *KnowledgeItem {
+	t.Helper()
+
+	item, err := ingest.Ingest(context.Background(), CreateKnowledgeItemInput{
+		WorkspaceID: wsID,
+		SourceType:  SourceTypeDocument,
+		Title:       title,
+		RawContent:  content,
+		EntityType:  &entityType,
+		EntityID:    &entityID,
 	})
 	if err != nil {
 		t.Fatalf("ingest failed for %q: %v", title, err)

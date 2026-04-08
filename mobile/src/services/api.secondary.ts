@@ -1,11 +1,11 @@
 // Signal, Tool and Approval APIs — extracted from api.ts to keep it under 300 lines
 import { apiClient } from './api.client';
+import { normalizeInboxResponse } from './api.handoff';
 import type {
   Signal,
   SignalStatus,
   ApprovalRequest,
   GovernanceSummary,
-  InboxResponse,
 } from './api.types';
 
 // Signal API
@@ -74,7 +74,7 @@ export const inboxApi = {
     const response = await apiClient.get('/bff/api/v1/mobile/inbox', {
       params: { workspace_id: workspaceId },
     });
-    return response.data as InboxResponse;
+    return normalizeInboxResponse(response.data);
   },
 };
 

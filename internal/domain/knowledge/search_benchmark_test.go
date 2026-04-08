@@ -27,7 +27,7 @@ func BenchmarkVectorSearch_SQLite(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := svc.vectorSearch(context.Background(), wsID, queryVec, 10); err != nil {
+		if _, err := svc.vectorSearch(context.Background(), wsID, "", "", queryVec, 10); err != nil {
 			b.Fatalf("vectorSearch: %v", err)
 		}
 	}

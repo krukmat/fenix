@@ -5,6 +5,20 @@
 // scattering `as any` casts across screens.
 import type { Href } from 'expo-router';
 
+type HandoffEntitySource = {
+  caseId?: string;
+  entity_type?: string;
+  entity_id?: string;
+  triggerContext?: {
+    entity_type?: string;
+    entity_id?: string;
+  };
+  finalOutput?: {
+    entity_type?: string;
+    entity_id?: string;
+  };
+};
+
 /** Cast a string path to Href for Expo Router push/replace calls on dynamic routes. */
 export function wedgeHref(path: string): Href {
   return path as Href;
@@ -34,4 +48,33 @@ export function resolveWedgeHandoffDestination(
     return `/sales/deals/${entityId}`;
   }
   return `/activity/${runId}`;
+}
+
+export function resolveHandoffEntityContext(handoff: HandoffEntitySource): {
+  entityType?: string;
+  entityId?: string;
+} {
+  const directEntity = { entityType: handoff.entity_type, entityId: handoff.entity_id };
+  const triggerEntity = toHandoffEntityContext(handoff.triggerContext);
+  const finalEntity = toHandoffEntityContext(handoff.finalOutput);
+  const fallbackEntity = handoff.caseId ? { entityType: 'case', entityId: handoff.caseId } : {};
+  const entityType = directEntity.entityType ?? triggerEntity.entityType ?? finalEntity.entityType ?? fallbackEntity.entityType;
+  const entityId = directEntity.entityId ?? triggerEntity.entityId ?? finalEntity.entityId ?? fallbackEntity.entityId;
+
+  return { entityType, entityId };
+}
+
+function toHandoffEntityContext(source?: { entity_type?: string; entity_id?: string }) {
+  return {
+    entityType: source?.entity_type,
+    entityId: source?.entity_id,
+  };
+}
+
+export function resolveWedgeHandoffPackageDestination(
+  handoff: HandoffEntitySource,
+  runId: string,
+): string {
+  const { entityType, entityId } = resolveHandoffEntityContext(handoff);
+  return resolveWedgeHandoffDestination(entityType, entityId, runId);
 }

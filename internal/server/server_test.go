@@ -20,11 +20,11 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.ReadTimeout != 15*time.Second {
 		t.Fatalf("ReadTimeout = %v; want %v", cfg.ReadTimeout, 15*time.Second)
 	}
-	if cfg.WriteTimeout != 15*time.Second {
-		t.Fatalf("WriteTimeout = %v; want %v", cfg.WriteTimeout, 15*time.Second)
+	if cfg.WriteTimeout != 2*time.Minute {
+		t.Fatalf("WriteTimeout = %v; want %v", cfg.WriteTimeout, 2*time.Minute)
 	}
-	if cfg.IdleTimeout != 60*time.Second {
-		t.Fatalf("IdleTimeout = %v; want %v", cfg.IdleTimeout, 60*time.Second)
+	if cfg.IdleTimeout != 2*time.Minute {
+		t.Fatalf("IdleTimeout = %v; want %v", cfg.IdleTimeout, 2*time.Minute)
 	}
 }
 

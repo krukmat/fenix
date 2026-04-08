@@ -121,6 +121,15 @@ export interface HandoffPackage {
   entity_type?: string;
   entity_id?: string;
   created_at: string;
+  caseId?: string;
+  triggerContext?: {
+    entity_type?: string;
+    entity_id?: string;
+  };
+  finalOutput?: {
+    entity_type?: string;
+    entity_id?: string;
+  };
 }
 
 // W1-T1: Evidence source item within an evidence pack
@@ -149,6 +158,15 @@ export interface EvidencePack {
 // W1-T1: Sales Brief contract — frozen for POST /api/v1/copilot/sales-brief
 export type SalesBriefOutcome = 'completed' | 'abstained';
 
+export interface SalesBriefAction {
+  title: string;
+  description: string;
+  tool: string;
+  params: Record<string, unknown>;
+  confidence_score?: number;
+  confidence_level?: 'high' | 'medium' | 'low';
+}
+
 export interface SalesBrief {
   outcome: SalesBriefOutcome;
   entityType: string;
@@ -156,7 +174,7 @@ export interface SalesBrief {
   // present when outcome == 'completed'
   summary?: string;
   risks?: string[];
-  nextBestActions?: string[];
+  nextBestActions?: SalesBriefAction[];
   // present when outcome == 'abstained'
   abstentionReason?: string;
   confidence: 'high' | 'medium' | 'low';

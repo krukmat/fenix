@@ -34,6 +34,7 @@ const (
 	entityTypeLead        string          = "lead"
 	entityTypeAccount     string          = "account"
 	entityTypeDeal        string          = "deal"
+	paramCaseID           string          = "case_id"
 	promptLabelEntityType string          = "Entity type: "
 	promptLabelEntityID   string          = "\nEntity id: "
 	promptLabelEvidence   string          = "\n\nEvidence:\n"
@@ -145,6 +146,8 @@ func (s *ActionService) prepareSuggestActionsContext(ctx context.Context, in Sug
 	pack, err := s.evidence.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
 		Query:       buildEntityEvidenceQuery(in.EntityType, in.EntityID),
 		WorkspaceID: in.WorkspaceID,
+		EntityType:  in.EntityType,
+		EntityID:    in.EntityID,
 		Limit:       10,
 	})
 	if err != nil {
@@ -188,6 +191,7 @@ func (s *ActionService) generateSuggestedActions(
 	}
 
 	actions = normalizeActions(actions, 3)
+	actions = normalizeActionsWithContext(actions, entityType, entityID)
 	if len(actions) == 0 {
 		return nil, suggestActionsMetrics{}, errSuggestedActionsParseFail
 	}
@@ -231,6 +235,8 @@ func (s *ActionService) Summarize(ctx context.Context, in SummarizeInput) (strin
 	pack, err := s.evidence.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
 		Query:       buildEntitySummaryQuery(in.EntityType, in.EntityID),
 		WorkspaceID: in.WorkspaceID,
+		EntityType:  in.EntityType,
+		EntityID:    in.EntityID,
 		Limit:       10,
 	})
 	if err != nil {
@@ -349,13 +355,8 @@ func (s *ActionService) generateSalesBrief(
 			{Role: "user", Content: buildSalesBriefPrompt(entityType, entityID, sources)},
 		},
 		Temperature: 0.1,
-		MaxTokens:   500,
+		MaxTokens:   160,
 	})
-	if err != nil {
-		return salesBriefPayload{}, salesBriefUsageRecord{}, err
-	}
-
-	payload, err := parseSalesBriefPayload(resp.Content)
 	if err != nil {
 		return salesBriefPayload{}, salesBriefUsageRecord{}, err
 	}
@@ -370,9 +371,17 @@ func (s *ActionService) generateSalesBrief(
 		record.modelName = &modelName
 	}
 
+	payload, err := parseSalesBriefPayload(resp.Content)
+	if err != nil {
+		payload = fallbackSalesBriefPayload(entityType, entityID, pack, sources)
+	}
+
 	payload.Risks = filterNonEmptyStrings(payload.Risks)
 	if payload.Summary == "" {
 		payload.Summary = fallbackSalesSummary(entityType, entityID, pack)
+	}
+	if len(payload.Risks) == 0 {
+		payload.Risks = fallbackSalesRisks(sources)
 	}
 	return payload, record, nil
 }
@@ -623,6 +632,58 @@ func normalizeActions(actions []SuggestedAction, limit int) []SuggestedAction {
 	return out
 }
 
+func normalizeActionsWithContext(actions []SuggestedAction, entityType, entityID string) []SuggestedAction {
+	out := make([]SuggestedAction, 0, len(actions))
+	for _, action := range actions {
+		action.Params = normalizeActionParams(action.Tool, action.Params, entityType, entityID)
+		out = append(out, action)
+	}
+	return out
+}
+
+func normalizeActionParams(toolName string, params map[string]any, entityType, entityID string) map[string]any {
+	if params == nil {
+		params = map[string]any{}
+	}
+
+	applyActionContextDefaults(toolName, params, entityType, entityID)
+
+	return params
+}
+
+func applyActionContextDefaults(toolName string, params map[string]any, entityType, entityID string) {
+	switch toolName {
+	case tool.BuiltinCreateTask:
+		assignStringParamIfMissing(params, "entity_type", entityType)
+		assignStringParamIfMissing(params, "entity_id", entityID)
+	case tool.BuiltinUpdateDeal:
+		assignEntityScopedParam(params, entityType, entityTypeDeal, "deal_id", entityID)
+	case tool.BuiltinUpdateCase:
+		assignEntityScopedParam(params, entityType, entityTypeCase, paramCaseID, entityID)
+	case tool.BuiltinSendReply:
+		assignEntityScopedParam(params, entityType, entityTypeCase, paramCaseID, entityID)
+	}
+}
+
+func assignEntityScopedParam(params map[string]any, actualEntityType, expectedEntityType, key, value string) {
+	if actualEntityType != expectedEntityType {
+		return
+	}
+	assignStringParamIfMissing(params, key, value)
+}
+
+func assignStringParamIfMissing(params map[string]any, key, value string) {
+	if strings.TrimSpace(value) == "" {
+		return
+	}
+	if existing, ok := params[key]; ok {
+		if asString, castOK := existing.(string); castOK && strings.TrimSpace(asString) != "" {
+			return
+		}
+	}
+	params[key] = value
+}
+
 func parseSalesBriefPayload(raw string) (salesBriefPayload, error) {
 	candidates := extractJSONCandidates(raw)
 	for _, candidate := range candidates {
@@ -804,6 +865,62 @@ func scoreToConfidenceLevel(score float64) ConfidenceLevel {
 
 func fallbackSalesSummary(entityType, entityID string, pack *knowledge.EvidencePack) string {
 	return fmt.Sprintf("Grounded %s summary ready for %s with %d evidence sources.", entityType, entityID, len(pack.Sources))
+}
+
+func fallbackSalesBriefPayload(entityType, entityID string, pack *knowledge.EvidencePack, sources []knowledge.Evidence) salesBriefPayload {
+	return salesBriefPayload{
+		Summary: fallbackSalesSummary(entityType, entityID, pack),
+		Risks:   fallbackSalesRisks(sources),
+	}
+}
+
+func fallbackSalesRisks(sources []knowledge.Evidence) []string {
+	risks := make([]string, 0, len(sources))
+	for _, source := range sources {
+		risks = append(risks, extractFallbackRisks(source)...)
+	}
+
+	return dedupeStrings(risks)
+}
+
+func extractFallbackRisks(source knowledge.Evidence) []string {
+	if source.Snippet == nil {
+		return nil
+	}
+
+	section := extractRiskSection(strings.TrimSpace(*source.Snippet))
+	if section == "" {
+		return nil
+	}
+
+	return splitRiskCandidates(section)
+}
+
+func extractRiskSection(snippet string) string {
+	lower := strings.ToLower(snippet)
+	start := strings.Index(lower, "risks:")
+	if start < 0 {
+		return ""
+	}
+
+	section := strings.TrimSpace(snippet[start+len("risks:"):])
+	if end := strings.Index(strings.ToLower(section), "next steps:"); end >= 0 {
+		section = strings.TrimSpace(section[:end])
+	}
+	section = strings.ReplaceAll(section, "\n- ", "\n")
+	return strings.ReplaceAll(section, " - ", "\n")
+}
+
+func splitRiskCandidates(section string) []string {
+	risks := make([]string, 0)
+	for _, candidate := range strings.Split(section, "\n") {
+		candidate = strings.Trim(candidate, " \t-")
+		if candidate == "" {
+			continue
+		}
+		risks = append(risks, candidate)
+	}
+	return risks
 }
 
 func filterNonEmptyStrings(values []string) []string {

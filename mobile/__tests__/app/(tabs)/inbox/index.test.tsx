@@ -148,6 +148,21 @@ const fallbackHandoff = {
   },
 };
 
+const caseContextOnlyHandoff = {
+  run_id: 'run-6',
+  handoff: {
+    ...handoff.handoff,
+    run_id: 'run-6',
+    entity_type: undefined,
+    entity_id: undefined,
+    caseId: 'case-ctx-1',
+    triggerContext: {
+      entity_type: 'case',
+      entity_id: 'case-ctx-1',
+    },
+  },
+};
+
 const signal = {
   id: 'sig-1',
   workspace_id: 'ws-1',
@@ -396,6 +411,13 @@ describe('InboxScreen', () => {
     fireEvent.press(screen.getByTestId('inbox-handoff-run-5'));
     expect(mockPush).not.toHaveBeenCalledWith(expect.stringMatching(/\/\(tabs\)\/crm\//));
     expect(mockPush).not.toHaveBeenCalledWith(expect.stringMatching(/\/\(tabs\)\/copilot/));
+  });
+
+  it('navigates handoffs using triggerContext/caseId when top-level entity fields are absent', () => {
+    mockUseInbox.mockReturnValue(makeInboxState({ handoffs: [caseContextOnlyHandoff] }));
+    renderInbox();
+    fireEvent.press(screen.getByTestId('inbox-handoff-run-6'));
+    expect(mockPush).toHaveBeenCalledWith('/support/case-ctx-1');
   });
 
   it('opens signal detail from inbox signal items', () => {

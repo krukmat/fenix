@@ -205,5 +205,7 @@ type CreateEvidenceInput struct {
 type BuildEvidencePackInput struct {
 	Query       string
 	WorkspaceID string
+	EntityType  string
+	EntityID    string
 	Limit       int // 0 uses default (10), capped at 50
 }

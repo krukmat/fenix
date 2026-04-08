@@ -108,6 +108,22 @@ describe('HandoffBanner', () => {
     expect(mockPush).toHaveBeenCalledWith('/support/case-1');
   });
 
+  it('navigates to support when the handoff package only exposes case context fields', () => {
+    mockUseHandoffPackage.mockReturnValue({
+      data: {
+        ...baseHandoff,
+        entity_type: undefined,
+        entity_id: undefined,
+        caseId: 'case-ctx-1',
+        triggerContext: { entity_type: 'case', entity_id: 'case-ctx-1' },
+      },
+      isLoading: false,
+    });
+    const { getByTestId } = render(<HandoffBanner runId="run-1" />);
+    fireEvent.press(getByTestId('handoff-banner-accept'));
+    expect(mockPush).toHaveBeenCalledWith('/support/case-ctx-1');
+  });
+
   it('navigates to sales deal detail when the handoff entity is a deal', () => {
     mockUseHandoffPackage.mockReturnValue({
       data: { ...baseHandoff, entity_type: 'deal', entity_id: 'deal-1' },

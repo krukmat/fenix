@@ -27,6 +27,7 @@ export type {
   EvidenceSource,
   EvidencePack,
   SalesBriefOutcome,
+  SalesBriefAction,
   SalesBrief,
   UsageEvent,
   QuotaStateItem,

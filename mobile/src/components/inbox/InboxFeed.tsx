@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useRouter } from 'expo-router';
 import { ApprovalCard } from '../approvals/ApprovalCard';
 import { SignalCard } from '../signals/SignalCard';
-import { resolveWedgeHandoffDestination, wedgeHref, wedgeHrefObject } from '../../utils/navigation';
+import { resolveHandoffEntityContext, resolveWedgeHandoffPackageDestination, wedgeHref, wedgeHrefObject } from '../../utils/navigation';
 import type { ApprovalRequest, HandoffPackage, Signal } from '../../services/api';
 
 export type InboxFilter = 'all' | 'approval' | 'handoff' | 'signal';
@@ -96,13 +96,15 @@ function HandoffCard({
   runId: string;
   onPress: () => void;
 }) {
+  const { entityType, entityId } = resolveHandoffEntityContext(handoff);
+
   return (
     <Pressable style={styles.handoffCard} onPress={onPress} testID={`inbox-handoff-${runId}`}>
       <Text style={styles.handoffEyebrow}>Handoff</Text>
       <Text style={styles.handoffReason} testID={`inbox-handoff-${runId}-reason`}>{handoff.reason}</Text>
-      {handoff.entity_type && handoff.entity_id ? (
+      {entityType && entityId ? (
         <Text style={styles.handoffMeta} testID={`inbox-handoff-${runId}-entity`}>
-          {handoff.entity_type} · {handoff.entity_id}
+          {entityType} · {entityId}
         </Text>
       ) : null}
       <Text style={styles.handoffMeta} testID={`inbox-handoff-${runId}-evidence`}>
@@ -161,9 +163,7 @@ export function InboxBody({
             <HandoffCard
               handoff={item.handoff}
               runId={item.runId}
-              onPress={() => router.push(wedgeHref(
-                resolveWedgeHandoffDestination(item.handoff.entity_type, item.handoff.entity_id, item.runId),
-              ))}
+              onPress={() => router.push(wedgeHref(resolveWedgeHandoffPackageDestination(item.handoff, item.runId)))}
             />
           ) : null}
           {item.type === 'signal' ? (

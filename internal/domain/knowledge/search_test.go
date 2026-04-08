@@ -413,7 +413,7 @@ func TestSearchService_BM25_InvalidFTSSyntax(t *testing.T) {
 	svc := NewSearchService(db, stub)
 
 	// FTS5 interprets empty string as syntax error — triggers the //nolint:nilerr path
-	results, err := svc.bm25Search(context.Background(), "\"\"\"invalid fts5\"\"\"", wsID, 10)
+	results, err := svc.bm25Search(context.Background(), "\"\"\"invalid fts5\"\"\"", wsID, "", "", 10)
 	// bm25Search treats FTS5 errors as no results (graceful degradation)
 	if err != nil {
 		t.Fatalf("bm25Search should degrade gracefully on FTS5 syntax error, got: %v", err)

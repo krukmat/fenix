@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
@@ -150,6 +151,7 @@ func handleCopilotEntityAction[T any](
 
 	resp, err := action(r.Context(), common)
 	if err != nil {
+		log.Printf("%s: %v", errorMsg, err)
 		writeError(w, http.StatusInternalServerError, errorMsg)
 		return
 	}

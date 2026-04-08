@@ -165,7 +165,7 @@ func TestSuggestActions_FiltersMissingReplyBody(t *testing.T) {
 			Confidence: knowledge.ConfidenceHigh,
 		}},
 		&llmStub{resp: `{"actions":[
-			{"title":"Enviar respuesta","description":"Sin body","tool":"send_reply","params":{"case_id":"c1"}}
+			{"title":"Enviar respuesta","description":"Sin body","tool":"send_reply","params":{}}
 		]}`},
 		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
 		&auditStub{},
@@ -292,8 +292,8 @@ func TestSalesBrief_CompletesForDealContext(t *testing.T) {
 			Confidence: knowledge.ConfidenceHigh,
 		}},
 		&llmStub{responses: []string{
-			`{"summary":"Deal summary","risks":["Procurement objection"]}`,
-			`{"actions":[{"title":"Actualizar deal","description":"Mover a negociacion","tool":"update_deal","params":{"deal_id":"d1","stage_id":"negotiation"}}]}`,
+			"```json\n{\"summary\":\"Deal summary\",\"risks\":[\"Procurement objection\"]}\n```",
+			"```json\n{\"actions\":[{\"title\":\"Actualizar deal\",\"description\":\"Mover a negociacion\",\"tool\":\"update_deal\",\"params\":{}},{\"title\":\"Crear seguimiento\",\"description\":\"Programar llamada\",\"tool\":\"create_task\",\"params\":{}}]}\n```",
 		}},
 		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
 		&auditStub{},
@@ -312,8 +312,17 @@ func TestSalesBrief_CompletesForDealContext(t *testing.T) {
 	if result.Outcome != "completed" {
 		t.Fatalf("expected completed, got %q", result.Outcome)
 	}
-	if result.Summary == "" || len(result.Risks) != 1 || len(result.NextBestActions) != 1 {
+	if result.Summary == "" || len(result.Risks) != 1 || len(result.NextBestActions) != 2 {
 		t.Fatalf("unexpected result: %+v", result)
+	}
+	if got := result.NextBestActions[0].Params["deal_id"]; got != "d1" {
+		t.Fatalf("expected normalized deal_id, got %#v", got)
+	}
+	if got := result.NextBestActions[1].Params["entity_type"]; got != "deal" {
+		t.Fatalf("expected normalized entity_type, got %#v", got)
+	}
+	if got := result.NextBestActions[1].Params["entity_id"]; got != "d1" {
+		t.Fatalf("expected normalized entity_id, got %#v", got)
 	}
 	if len(recorder.inputs) != 1 {
 		t.Fatalf("expected 1 usage event, got %d", len(recorder.inputs))
@@ -349,5 +358,48 @@ func TestSalesBrief_AbstainsWhenEvidenceIsInsufficient(t *testing.T) {
 	}
 	if llmSvc.call != 0 {
 		t.Fatalf("expected llm not to be called, got %d", llmSvc.call)
+	}
+}
+
+func TestSalesBrief_FallsBackWhenBriefResponseIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	snippet := "Latest updates timeline: budget approved. Risks: - Procurement review is blocked. - Pricing language needs revision. Next steps: - Send addendum today."
+	svc := NewActionService(
+		&evidenceStub{pack: &knowledge.EvidencePack{
+			Sources:    []knowledge.Evidence{{ID: "ev_1", Snippet: &snippet}},
+			Confidence: knowledge.ConfidenceHigh,
+		}},
+		&llmStub{responses: []string{
+			"",
+			`{"actions":[{"title":"Actualizar deal","description":"Registrar avance","tool":"update_deal","params":{}}]}`,
+		}},
+		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
+		&auditStub{},
+	)
+
+	result, err := svc.SalesBrief(context.Background(), SalesBriefInput{
+		WorkspaceID: "ws_1",
+		UserID:      "u_1",
+		EntityType:  "deal",
+		EntityID:    "d1",
+	})
+	if err != nil {
+		t.Fatalf("SalesBrief error: %v", err)
+	}
+	if result.Outcome != "completed" {
+		t.Fatalf("expected completed, got %q", result.Outcome)
+	}
+	if result.Summary == "" {
+		t.Fatal("expected fallback summary to be populated")
+	}
+	if len(result.Risks) != 2 {
+		t.Fatalf("expected fallback risks from evidence, got %+v", result.Risks)
+	}
+	if len(result.NextBestActions) != 1 {
+		t.Fatalf("expected normalized next best action, got %+v", result.NextBestActions)
+	}
+	if got := result.NextBestActions[0].Params["deal_id"]; got != "d1" {
+		t.Fatalf("expected normalized deal_id on fallback action, got %#v", got)
 	}
 }

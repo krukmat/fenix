@@ -95,6 +95,8 @@ func (s *EvidencePackService) BuildEvidencePack(ctx context.Context, input Build
 	searchRes, err := s.search.HybridSearch(ctx, SearchInput{
 		Query:       input.Query,
 		WorkspaceID: input.WorkspaceID,
+		EntityType:  input.EntityType,
+		EntityID:    input.EntityID,
 		Limit:       defaultEvidenceCandidateLimit,
 	})
 	if err != nil {

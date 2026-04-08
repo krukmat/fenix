@@ -41,7 +41,14 @@ describe('Sales brief route', () => {
     entityId: 'acc-1',
     summary: 'Strong Q1 pipeline',
     risks: ['Renewal timing is slipping'],
-    nextBestActions: ['Follow up on Acme'],
+    nextBestActions: [{
+      title: 'Follow up on Acme',
+      description: 'Book the procurement follow-up call.',
+      tool: 'create_task',
+      params: { entity_type: 'account', entity_id: 'acc-1' },
+      confidence_level: 'high',
+      confidence_score: 0.82,
+    }],
     confidence: 'high',
     evidencePack: {
       schema_version: 'v1',
@@ -113,6 +120,7 @@ describe('Sales brief route', () => {
     expect(screen.getByText('Strong Q1 pipeline')).toBeTruthy();
     expect(screen.getByText('Renewal timing is slipping')).toBeTruthy();
     expect(screen.getByText('Follow up on Acme')).toBeTruthy();
+    expect(screen.getByText('Book the procurement follow-up call.')).toBeTruthy();
     expect(screen.getByText('0 sources · high confidence')).toBeTruthy();
     expect(screen.getByText('Query: account brief')).toBeTruthy();
     expect(screen.getByText('Methods: crm')).toBeTruthy();
