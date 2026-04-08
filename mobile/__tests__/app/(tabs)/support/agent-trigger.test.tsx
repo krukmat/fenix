@@ -84,6 +84,8 @@ const makeRun = (status: string) => ({
   agent_name: 'Support Agent',
   status,
   runtime_status: 'running',
+  entity_type: 'case',
+  entity_id: 'case-1',
   started_at: '2026-04-07T10:00:00Z',
   latency_ms: 0,
   cost_euros: 0,
@@ -123,7 +125,7 @@ describe('Support agent trigger flow', () => {
   });
 
   it('shows active run status badge when a run is in progress', () => {
-    mockUseAgentRuns.mockReturnValue({ data: { pages: [{ data: [makeRun('awaiting_approval')] }] } });
+    mockUseAgentRuns.mockReturnValue({ data: { data: [makeRun('awaiting_approval')] } });
     const { default: Screen } = require('../../../../app/(tabs)/support/[id]');
     render(React.createElement(Screen));
     expect(screen.getByTestId('support-active-run-status')).toBeTruthy();

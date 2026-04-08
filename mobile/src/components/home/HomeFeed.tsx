@@ -18,7 +18,7 @@ interface HomeFeedProps {
   onRefresh: () => void;
   onDismissSignal: (id: string) => void;
   onApprove: (id: string) => void;
-  onDeny: (id: string, reason: string) => void;
+  onReject: (id: string, reason: string) => void;
   onSignalPress?: (signal: Signal) => void;
   pendingApprovalCount?: number;
   testIDPrefix?: string;
@@ -41,7 +41,7 @@ function chipLabel(f: FeedFilter, pendingApprovalCount: number): string {
 
 export function HomeFeed({
   signals, approvals, loadingSignals, loadingApprovals, onRefresh,
-  onDismissSignal, onApprove, onDeny, onSignalPress,
+  onDismissSignal, onApprove, onReject, onSignalPress,
   pendingApprovalCount = 0, testIDPrefix = 'home-feed',
 }: HomeFeedProps) {
   const theme = useTheme();
@@ -58,11 +58,11 @@ export function HomeFeed({
         );
       }
       return (
-        <ApprovalCard approval={item.data} onApprove={onApprove} onDeny={onDeny}
+        <ApprovalCard approval={item.data} onApprove={onApprove} onReject={onReject}
           testIDPrefix={`${testIDPrefix}-approval-${item.data.id}`} />
       );
     },
-    [onDismissSignal, onSignalPress, onApprove, onDeny, testIDPrefix]
+    [onDismissSignal, onSignalPress, onApprove, onReject, testIDPrefix]
   );
 
   const ListHeader = (

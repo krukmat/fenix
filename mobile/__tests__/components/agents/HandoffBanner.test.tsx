@@ -95,10 +95,30 @@ describe('HandoffBanner', () => {
     mockUseHandoffPackage.mockReturnValue({ data: baseHandoff, isLoading: false });
     const { getByTestId } = render(<HandoffBanner runId="run-1" />);
     fireEvent.press(getByTestId('handoff-banner-accept'));
-    expect(mockPush).toHaveBeenCalledWith('/(tabs)/crm/accounts/acc-1');
+    expect(mockPush).toHaveBeenCalledWith('/sales/acc-1');
   });
 
-  it('navigates to copilot when entity context is absent', () => {
+  it('navigates to support when the handoff entity is a case', () => {
+    mockUseHandoffPackage.mockReturnValue({
+      data: { ...baseHandoff, entity_type: 'case', entity_id: 'case-1' },
+      isLoading: false,
+    });
+    const { getByTestId } = render(<HandoffBanner runId="run-1" />);
+    fireEvent.press(getByTestId('handoff-banner-accept'));
+    expect(mockPush).toHaveBeenCalledWith('/support/case-1');
+  });
+
+  it('navigates to sales deal detail when the handoff entity is a deal', () => {
+    mockUseHandoffPackage.mockReturnValue({
+      data: { ...baseHandoff, entity_type: 'deal', entity_id: 'deal-1' },
+      isLoading: false,
+    });
+    const { getByTestId } = render(<HandoffBanner runId="run-1" />);
+    fireEvent.press(getByTestId('handoff-banner-accept'));
+    expect(mockPush).toHaveBeenCalledWith('/sales/deal-deal-1');
+  });
+
+  it('navigates to activity detail when entity context is absent', () => {
     const noEntityHandoff: HandoffPackage = {
       ...baseHandoff,
       entity_type: undefined,
@@ -107,7 +127,17 @@ describe('HandoffBanner', () => {
     mockUseHandoffPackage.mockReturnValue({ data: noEntityHandoff, isLoading: false });
     const { getByTestId } = render(<HandoffBanner runId="run-1" />);
     fireEvent.press(getByTestId('handoff-banner-accept'));
-    expect(mockPush).toHaveBeenCalledWith('/(tabs)/copilot');
+    expect(mockPush).toHaveBeenCalledWith('/activity/run-1');
+  });
+
+  it('falls back to activity detail for unknown entity types', () => {
+    mockUseHandoffPackage.mockReturnValue({
+      data: { ...baseHandoff, entity_type: 'contact', entity_id: 'contact-1' },
+      isLoading: false,
+    });
+    const { getByTestId } = render(<HandoffBanner runId="run-1" />);
+    fireEvent.press(getByTestId('handoff-banner-accept'));
+    expect(mockPush).toHaveBeenCalledWith('/activity/run-1');
   });
 
   it('calls useHandoffPackage with runId and enabled=true', () => {

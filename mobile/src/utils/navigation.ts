@@ -14,3 +14,24 @@ export function wedgeHref(path: string): Href {
 export function wedgeHrefObject(pathname: string, params?: Record<string, string>): Href {
   return { pathname, params } as Href;
 }
+
+/** Resolve the wedge destination for a human handoff package. */
+export function resolveWedgeHandoffDestination(
+  entityType: string | undefined,
+  entityId: string | undefined,
+  runId: string,
+): string {
+  if (!entityType || !entityId) {
+    return `/activity/${runId}`;
+  }
+  if (entityType === 'case') {
+    return `/support/${entityId}`;
+  }
+  if (entityType === 'account') {
+    return `/sales/${entityId}`;
+  }
+  if (entityType === 'deal') {
+    return `/sales/deal-${entityId}`;
+  }
+  return `/activity/${runId}`;
+}

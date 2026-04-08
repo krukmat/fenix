@@ -5,6 +5,7 @@ import { View, StyleSheet } from 'react-native';
 import { Banner, Text, ActivityIndicator } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useHandoffPackage } from '../../hooks/useAgentSpec';
+import { resolveWedgeHandoffDestination, wedgeHref } from '../../utils/navigation';
 
 interface HandoffBannerProps {
   runId: string;
@@ -26,11 +27,7 @@ export function HandoffBanner({ runId, testIDPrefix = 'handoff-banner' }: Handof
   if (!handoff) return null;
 
   const handleAccept = () => {
-    if (handoff.entity_type && handoff.entity_id) {
-      router.push(`/(tabs)/crm/${handoff.entity_type}s/${handoff.entity_id}`);
-    } else {
-      router.push('/(tabs)/copilot');
-    }
+    router.push(wedgeHref(resolveWedgeHandoffDestination(handoff.entity_type, handoff.entity_id, runId)));
   };
 
   return (

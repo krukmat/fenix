@@ -1,4 +1,4 @@
-// ApprovalCard — countdown, approve/deny flow, expired state
+// ApprovalCard — countdown, approve/reject flow, expired state
 // FR-071 (Approvals), UC-A6: human approval decision
 
 
@@ -30,13 +30,13 @@ const baseApproval: ApprovalRequest = {
 
 function renderCard(props?: Partial<Parameters<typeof ApprovalCard>[0]>) {
   const onApprove = jest.fn();
-  const onDeny = jest.fn();
+  const onReject = jest.fn();
   const utils = render(
     <PaperProvider>
-      <ApprovalCard approval={baseApproval} onApprove={onApprove} onDeny={onDeny} {...props} />
+      <ApprovalCard approval={baseApproval} onApprove={onApprove} onReject={onReject} {...props} />
     </PaperProvider>
   );
-  return { ...utils, onApprove, onDeny };
+  return { ...utils, onApprove, onReject };
 }
 
 describe('ApprovalCard', () => {
@@ -63,7 +63,7 @@ describe('ApprovalCard', () => {
     });
     expect(getByTestId('approval-card-countdown').props.children).toBe('Expired');
     expect(queryByTestId('approval-card-approve')).toBeNull();
-    expect(queryByTestId('approval-card-deny')).toBeNull();
+    expect(queryByTestId('approval-card-reject')).toBeNull();
   });
 
   it('calls onApprove with approval id when approve is pressed', () => {
@@ -72,31 +72,31 @@ describe('ApprovalCard', () => {
     expect(onApprove).toHaveBeenCalledWith('apr-1');
   });
 
-  it('opens deny dialog when deny is pressed', () => {
+  it('opens reject dialog when reject is pressed', () => {
     const { getByTestId } = renderCard();
-    fireEvent.press(getByTestId('approval-card-deny'));
-    expect(getByTestId('approval-card-deny-dialog')).toBeTruthy();
+    fireEvent.press(getByTestId('approval-card-reject'));
+    expect(getByTestId('approval-card-reject-dialog')).toBeTruthy();
   });
 
   it('submit button is disabled when reason is empty', () => {
     const { getByTestId } = renderCard();
-    fireEvent.press(getByTestId('approval-card-deny'));
-    const submitBtn = getByTestId('approval-card-deny-submit');
+    fireEvent.press(getByTestId('approval-card-reject'));
+    const submitBtn = getByTestId('approval-card-reject-submit');
     expect(submitBtn.props.accessibilityState?.disabled).toBe(true);
   });
 
-  it('calls onDeny with id and trimmed reason when submitted', () => {
-    const { getByTestId, onDeny } = renderCard();
-    fireEvent.press(getByTestId('approval-card-deny'));
-    fireEvent.changeText(getByTestId('approval-card-deny-reason-input'), '  Not authorized  ');
-    fireEvent.press(getByTestId('approval-card-deny-submit'));
-    expect(onDeny).toHaveBeenCalledWith('apr-1', 'Not authorized');
+  it('calls onReject with id and trimmed reason when submitted', () => {
+    const { getByTestId, onReject } = renderCard();
+    fireEvent.press(getByTestId('approval-card-reject'));
+    fireEvent.changeText(getByTestId('approval-card-reject-reason-input'), '  Not authorized  ');
+    fireEvent.press(getByTestId('approval-card-reject-submit'));
+    expect(onReject).toHaveBeenCalledWith('apr-1', 'Not authorized');
   });
 
-  it('does not call onDeny when dialog is cancelled', () => {
-    const { getByTestId, onDeny } = renderCard();
-    fireEvent.press(getByTestId('approval-card-deny'));
-    fireEvent.press(getByTestId('approval-card-deny-cancel'));
-    expect(onDeny).not.toHaveBeenCalled();
+  it('does not call onReject when dialog is cancelled', () => {
+    const { getByTestId, onReject } = renderCard();
+    fireEvent.press(getByTestId('approval-card-reject'));
+    fireEvent.press(getByTestId('approval-card-reject-cancel'));
+    expect(onReject).not.toHaveBeenCalled();
   });
 });

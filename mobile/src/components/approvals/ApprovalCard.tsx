@@ -1,4 +1,4 @@
-// UC-A7/B6: Approval card with countdown, approve/deny, reason dialog
+// UC-A7/B6: Approval card with countdown, approve/reject, reason dialog
 // FR-071: approval request display
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -9,8 +9,9 @@ import type { ApprovalRequest } from '../../services/api';
 interface ApprovalCardProps {
   approval: ApprovalRequest;
   onApprove: (id: string) => void;
-  onDeny: (id: string, reason: string) => void;
+  onReject: (id: string, reason: string) => void;
   testIDPrefix?: string;
+  disabled?: boolean;
 }
 
 function formatCountdown(expiresAt: string): string {
@@ -23,7 +24,7 @@ function formatCountdown(expiresAt: string): string {
   return `${minutes}m`;
 }
 
-function DenyDialog({
+function RejectDialog({
   visible, reason, testIDPrefix, onChangeReason, onCancel, onSubmit,
 }: {
   visible: boolean;
@@ -35,25 +36,31 @@ function DenyDialog({
 }) {
   return (
     <Portal>
-      <Dialog visible={visible} onDismiss={onCancel} testID={`${testIDPrefix}-deny-dialog`}>
-        <Dialog.Title>Reason for denial</Dialog.Title>
+      <Dialog visible={visible} onDismiss={onCancel} testID={`${testIDPrefix}-reject-dialog`}>
+        <Dialog.Title>Reason for rejection</Dialog.Title>
         <Dialog.Content>
           <TextInput label="Reason (required)" value={reason} onChangeText={onChangeReason}
-            multiline numberOfLines={3} testID={`${testIDPrefix}-deny-reason-input`} />
+            multiline numberOfLines={3} testID={`${testIDPrefix}-reject-reason-input`} />
         </Dialog.Content>
         <Dialog.Actions>
-          <Button onPress={onCancel} testID={`${testIDPrefix}-deny-cancel`}>Cancel</Button>
-          <Button onPress={onSubmit} disabled={!reason.trim()} testID={`${testIDPrefix}-deny-submit`}>Deny</Button>
+          <Button onPress={onCancel} testID={`${testIDPrefix}-reject-cancel`}>Cancel</Button>
+          <Button onPress={onSubmit} disabled={!reason.trim()} testID={`${testIDPrefix}-reject-submit`}>Reject</Button>
         </Dialog.Actions>
       </Dialog>
     </Portal>
   );
 }
 
-export function ApprovalCard({ approval, onApprove, onDeny, testIDPrefix = 'approval-card' }: ApprovalCardProps) {
+export function ApprovalCard({
+  approval,
+  onApprove,
+  onReject,
+  testIDPrefix = 'approval-card',
+  disabled = false,
+}: ApprovalCardProps) {
   const theme = useTheme();
   const [countdown, setCountdown] = useState(() => formatCountdown(approval.expires_at));
-  const [denyDialogVisible, setDenyDialogVisible] = useState(false);
+  const [rejectDialogVisible, setRejectDialogVisible] = useState(false);
   const [reason, setReason] = useState('');
   const isExpired = countdown === 'Expired';
 
@@ -64,12 +71,12 @@ export function ApprovalCard({ approval, onApprove, onDeny, testIDPrefix = 'appr
 
   const handleApprove = useCallback(() => onApprove(approval.id), [approval.id, onApprove]);
 
-  const handleDenySubmit = useCallback(() => {
+  const handleRejectSubmit = useCallback(() => {
     if (!reason.trim()) return;
-    setDenyDialogVisible(false);
-    onDeny(approval.id, reason.trim());
+    setRejectDialogVisible(false);
+    onReject(approval.id, reason.trim());
     setReason('');
-  }, [approval.id, onDeny, reason]);
+  }, [approval.id, onReject, reason]);
 
   return (
     <>
@@ -98,17 +105,17 @@ export function ApprovalCard({ approval, onApprove, onDeny, testIDPrefix = 'appr
           )}
           {!isExpired && (
             <View style={styles.actions}>
-              <Button mode="contained" onPress={handleApprove} style={styles.approveBtn}
+              <Button mode="contained" onPress={handleApprove} style={styles.approveBtn} disabled={disabled}
                 testID={`${testIDPrefix}-approve`}>Approve</Button>
-              <Button mode="outlined" onPress={() => setDenyDialogVisible(true)}
-                testID={`${testIDPrefix}-deny`}>Deny</Button>
+              <Button mode="outlined" onPress={() => setRejectDialogVisible(true)} disabled={disabled}
+                testID={`${testIDPrefix}-reject`}>Reject</Button>
             </View>
           )}
         </Card.Content>
       </Card>
-      <DenyDialog visible={denyDialogVisible} reason={reason} testIDPrefix={testIDPrefix}
-        onChangeReason={setReason} onCancel={() => { setDenyDialogVisible(false); setReason(''); }}
-        onSubmit={handleDenySubmit} />
+      <RejectDialog visible={rejectDialogVisible} reason={reason} testIDPrefix={testIDPrefix}
+        onChangeReason={setReason} onCancel={() => { setRejectDialogVisible(false); setReason(''); }}
+        onSubmit={handleRejectSubmit} />
     </>
   );
 }

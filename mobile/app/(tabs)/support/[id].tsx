@@ -12,6 +12,7 @@ import { SignalCountBadge } from '../../../src/components/signals/SignalCountBad
 import { useTriggerSupportAgent, useAgentRuns } from '../../../src/hooks/useWedge';
 import { wedgeHref, wedgeHrefObject } from '../../../src/utils/navigation';
 import type { ThemeColors } from '../../../src/theme/types';
+import type { AgentRun } from '../../../src/services/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -130,9 +131,8 @@ function AccountSection({
 
 function ActiveRunBadge({ caseId, colors }: { caseId: string; colors: ThemeColors }) {
   const { data } = useAgentRuns({ status: 'awaiting_approval' });
-  type Run = { id: string; status: string };
-  const runs = (data?.pages ?? []).flatMap((p: { data?: unknown[] }) => (p.data ?? []) as Run[]);
-  const active = runs.find((r: Run) => r.id.includes(caseId) || runs.length > 0);
+  const runs = data?.data ?? [];
+  const active = runs.find((run: AgentRun) => run.entity_type === 'case' && run.entity_id === caseId) ?? runs[0];
   if (!active) return null;
   return (
     <View style={[styles.card, { backgroundColor: colors.surface }]} testID="support-active-run-status">

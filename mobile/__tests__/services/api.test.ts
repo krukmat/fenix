@@ -334,20 +334,20 @@ describe('api.ts', () => {
         expect(putSpy).toHaveBeenCalledWith('/bff/api/v1/approvals/apr-1', { decision: 'approve' });
       });
 
-      it('decideApproval should call PUT /bff/api/v1/approvals/{id} with deny decision and reason', async () => {
+      it('decideApproval should call PUT /bff/api/v1/approvals/{id} with reject decision and reason', async () => {
         const putSpy = jest.spyOn(apiClient, 'put').mockResolvedValueOnce({ data: { ok: true } } as never);
 
-        await approvalApi.decideApproval('apr-1', { decision: 'deny', reason: 'not needed' });
+        await approvalApi.decideApproval('apr-1', { decision: 'reject', reason: 'not needed' });
 
-        expect(putSpy).toHaveBeenCalledWith('/bff/api/v1/approvals/apr-1', { decision: 'deny', reason: 'not needed' });
+        expect(putSpy).toHaveBeenCalledWith('/bff/api/v1/approvals/apr-1', { decision: 'reject', reason: 'not needed' });
       });
 
       it('decideApproval should call PUT without reason when not provided', async () => {
         const putSpy = jest.spyOn(apiClient, 'put').mockResolvedValueOnce({ data: { ok: true } } as never);
 
-        await approvalApi.decideApproval('apr-1', { decision: 'deny' });
+        await approvalApi.decideApproval('apr-1', { decision: 'reject' });
 
-        expect(putSpy).toHaveBeenCalledWith('/bff/api/v1/approvals/apr-1', { decision: 'deny' });
+        expect(putSpy).toHaveBeenCalledWith('/bff/api/v1/approvals/apr-1', { decision: 'reject' });
       });
 
     });

@@ -46,7 +46,7 @@ const defaultProps = {
   onRefresh: jest.fn(),
   onDismissSignal: jest.fn(),
   onApprove: jest.fn(),
-  onDeny: jest.fn(),
+  onReject: jest.fn(),
 };
 
 function renderFeed(props?: Partial<typeof defaultProps>) {
