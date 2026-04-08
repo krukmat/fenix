@@ -68,7 +68,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.8'
+          go-version: '1.25.9'
           cache: true
 
       - name: Install gocyclo
@@ -114,7 +114,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.8'
+          go-version: '1.25.9'
           cache: true
 
       - name: Create venv and install Doorstop
@@ -156,7 +156,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.8'
+          go-version: '1.25.9'
           cache: true
 
       - name: Install golangci-lint
@@ -282,7 +282,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.8'
+          go-version: '1.25.9'
           cache: true
 
       - name: Run critical endpoint benchmarks
@@ -308,7 +308,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.8'
+          go-version: '1.25.9'
           cache: true
 
       - name: Run scheduled endpoint benchmarks
@@ -340,7 +340,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.8'
+          go-version: '1.25.9'
           cache: true
 
       - name: Create venv and install Schemathesis + Doorstop
