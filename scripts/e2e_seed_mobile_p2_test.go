@@ -3,10 +3,61 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 )
+
+// TestSeedOutputExposesAuthBlock guards the contract consumed by
+// mobile/maestro/seed-and-run.sh. The screenshot runner builds an
+// e2e-bootstrap deep link from seed.auth.{token,userId,workspaceId}, so the
+// JSON shape must not drift. See
+// docs/plans/maestro-screenshot-auth-bypass-plan.md.
+func TestSeedOutputExposesAuthBlock(t *testing.T) {
+	var out seedOutput
+	out.Credentials.Email = "seed@test.local"
+	out.Credentials.Password = "seed-password"
+	out.Auth.Token = "tok-abc.def.ghi"
+	out.Auth.UserID = "user-xyz"
+	out.Auth.WorkspaceID = "ws-xyz"
+
+	encoded, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("json.Marshal(seedOutput) error = %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal error = %v", err)
+	}
+
+	auth, ok := decoded["auth"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected seedOutput JSON to contain an 'auth' object, got: %s", string(encoded))
+	}
+	if auth["token"] != "tok-abc.def.ghi" {
+		t.Errorf("auth.token = %v, want tok-abc.def.ghi", auth["token"])
+	}
+	if auth["userId"] != "user-xyz" {
+		t.Errorf("auth.userId = %v, want user-xyz", auth["userId"])
+	}
+	if auth["workspaceId"] != "ws-xyz" {
+		t.Errorf("auth.workspaceId = %v, want ws-xyz", auth["workspaceId"])
+	}
+
+	// credentials must still be emitted for non-screenshot consumers of the seeder.
+	creds, ok := decoded["credentials"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected seedOutput JSON to contain a 'credentials' object, got: %s", string(encoded))
+	}
+	if creds["email"] != "seed@test.local" {
+		t.Errorf("credentials.email = %v, want seed@test.local", creds["email"])
+	}
+	if creds["password"] != "seed-password" {
+		t.Errorf("credentials.password = %v, want seed-password", creds["password"])
+	}
+}
 
 func TestSeedDealCreatesSupportingPipelineAndStage(t *testing.T) {
 	db := mustOpenScriptTestDB(t)

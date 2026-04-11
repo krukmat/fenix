@@ -1,3 +1,9 @@
+// docs/plans/maestro-screenshot-auth-bypass-plan.md — Task 2
+// Runtime-only governance gate: the route only accepts auth-injection params
+// when EXPO_PUBLIC_E2E_MODE === '1'. In any other build it immediately
+// redirects to /login without calling login() or mutating auth state.
+// This keeps production builds free of an unconditional auth-injection
+// surface, per the "Tools, not mutations" principle in CLAUDE.md.
 import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -23,6 +29,12 @@ export default function E2EBootstrapRoute() {
   useEffect(() => {
     if (hasBootstrapped.current) return;
     hasBootstrapped.current = true;
+
+    // Governance gate — must be evaluated before touching any params.
+    if (process.env.EXPO_PUBLIC_E2E_MODE !== '1') {
+      router.replace('/login');
+      return;
+    }
 
     const token = readParam(params.token);
     const userId = readParam(params.userId);

@@ -69,6 +69,15 @@ type seedOutput struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	} `json:"credentials"`
+	// Auth exposes the runtime session from loginOrRegister so the screenshot
+	// runner can bootstrap an authenticated session via the e2e-bootstrap deep
+	// link instead of driving the login UI. See
+	// docs/plans/maestro-screenshot-auth-bypass-plan.md.
+	Auth struct {
+		Token       string `json:"token"`
+		UserID      string `json:"userId"`
+		WorkspaceID string `json:"workspaceId"`
+	} `json:"auth"`
 	Account struct {
 		ID string `json:"id"`
 	} `json:"account"`
@@ -126,6 +135,10 @@ func main() {
 
 	seeded.Credentials.Email = testEmail
 	seeded.Credentials.Password = testPassword
+	// Expose auth session for the screenshot runner's e2e-bootstrap deep link.
+	seeded.Auth.Token = auth.Token
+	seeded.Auth.UserID = auth.UserID
+	seeded.Auth.WorkspaceID = auth.WorkspaceID
 
 	err = json.NewEncoder(os.Stdout).Encode(seeded)
 	if err != nil {

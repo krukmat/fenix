@@ -1,0 +1,117 @@
+# docs/plans/maestro-screenshot-auth-bypass-plan.md — Phase 2: Authenticated audit
+# Purpose: bootstrap an authenticated session via the e2e-bootstrap deep link
+# (composed by seed-and-run.sh as SEED_BOOTSTRAP_URL), then capture the
+# authenticated surface area. No inputText against login fields.
+#
+# Landing: /inbox (bypasses the /home → /inbox redirect hop).
+appId: com.fenixcrm.app
+name: Visual Audit - FenixCRM Authenticated Audit
+tags:
+  - screenshots
+  - visual-audit
+  - authenticated-audit
+
+---
+
+# ── 0. Bootstrap authenticated session via deep link ─────────────────────────
+
+- launchApp:
+    clearState: false
+    stopApp: true
+- openLink: ${SEED_BOOTSTRAP_URL}
+
+# ── 1. Inbox (landing) ────────────────────────────────────────────────────────
+
+- extendedWaitUntil:
+    visible:
+      id: "inbox-screen"
+    timeout: 120000
+- assertVisible:
+    id: "inbox-screen"
+- takeScreenshot:
+    path: "02_inbox"
+
+- runFlow:
+    when:
+      visible:
+        id: "inbox-approval-${SEED_APPROVAL_ID}"
+    commands:
+      - takeScreenshot:
+          path: "06_inbox_approval_inline"
+
+- runFlow:
+    when:
+      visible:
+        id: "inbox-handoff-${SEED_RUN_HANDOFF_ID}"
+    commands:
+      - takeScreenshot:
+          path: "07_inbox_handoff"
+
+# ── 2. Support ────────────────────────────────────────────────────────────────
+
+- tapOn:
+    id: "tab-support"
+- extendedWaitUntil:
+    visible:
+      id: "support-cases-list-item-0"
+    timeout: 20000
+- tapOn:
+    id: "support-cases-list-item-0"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: "support-case-detail-screen"
+    timeout: 20000
+- takeScreenshot:
+    path: "03_support_case_detail"
+
+# ── 3. Sales ──────────────────────────────────────────────────────────────────
+
+- tapOn:
+    id: "tab-sales"
+- extendedWaitUntil:
+    visible:
+      id: "sales-screen"
+    timeout: 20000
+- tapOn:
+    id: "sales-tab-deals"
+- extendedWaitUntil:
+    visible:
+      id: "sales-deal-item-0"
+    timeout: 20000
+- tapOn:
+    id: "sales-deal-item-0"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: "sales-deal-detail-screen"
+    timeout: 20000
+- tapOn:
+    id: "sales-deal-brief-button"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: "sales-brief-screen"
+    timeout: 30000
+- takeScreenshot:
+    path: "04_sales_brief"
+
+# ── 4. Activity (Denied Trace) ────────────────────────────────────────────────
+
+- openLink: "fenixcrm:///activity/${SEED_RUN_DENIED_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "activity-run-detail-screen"
+    timeout: 20000
+- takeScreenshot:
+    path: "08_activity_run_detail_denied"
+
+# ── 5. Governance ─────────────────────────────────────────────────────────────
+
+- openLink: "fenixcrm:///governance"
+- extendedWaitUntil:
+    visible:
+      id: "governance-screen"
+    timeout: 20000
+- takeScreenshot:
+    path: "05_governance"

@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 
+# docs/plans/maestro-screenshot-auth-bypass-plan.md
+#
+# Two-phase Maestro screenshot runner:
+#   Phase 1 — auth-surface.yaml        : cold launch + login-screen capture
+#   Phase 2 — authenticated-audit.yaml : deep-link bootstrap + authenticated captures
+#
+# Auth is injected via an e2e-bootstrap deep link composed from the seeder's
+# runtime session (seed.auth.{token,userId,workspaceId}). No login UI
+# interaction occurs in the screenshot critical path.
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,8 +19,10 @@ REPO_ROOT="$(cd -- "${MOBILE_DIR}/.." && pwd)"
 APP_ID="com.fenixcrm.app"
 APP_ACTIVITY="${APP_ID}/.MainActivity"
 DEBUG_APK="${MOBILE_DIR}/android/app/build/outputs/apk/debug/app-debug.apk"
-FLOW_FILE="${SCRIPT_DIR}/visual-audit.yaml"
+AUTH_SURFACE_FLOW="${SCRIPT_DIR}/auth-surface.yaml"
+AUTHED_AUDIT_FLOW="${SCRIPT_DIR}/authenticated-audit.yaml"
 OUTPUT_DIR="${MOBILE_DIR}/artifacts/screenshots"
+REPORTS_DIR="${MOBILE_DIR}/artifacts/maestro-reports"
 ADB_BIN="${ANDROID_HOME:+${ANDROID_HOME}/platform-tools/}adb"
 MAESTRO_BIN="${MAESTRO_BIN:-maestro}"
 SEED_FILE=""
@@ -94,8 +106,19 @@ unlock_device() {
   adb_shell input keyevent 82 >/dev/null 2>&1 || true
 }
 
+# url_encode: percent-encodes a single value using Node's encodeURIComponent.
+# Used for JWTs and ids that contain `.`, `+`, `/`, `=` which would otherwise
+# break the Android Intent URI parser when embedded in a deep link.
+url_encode() {
+  node -e 'process.stdout.write(encodeURIComponent(process.argv[1] || ""))' -- "$1"
+}
+
 seed_to_env_lines() {
-  # W6-T3: wedge-first seed mapping — workflows removed, wedge runs and inbox added
+  # Maps seed JSON into KEY=value lines for the shell.
+  # Screenshot auth bypass: exposes seed.auth.* as SEED_AUTH_TOKEN /
+  # SEED_USER_ID / SEED_WORKSPACE_ID so the runner can compose the
+  # e2e-bootstrap deep link. SEED_PASSWORD is NOT exported — login UI is
+  # removed from the screenshot critical path.
   local seed_file="$1"
   node - "${seed_file}" <<'NODE'
 const fs = require('fs');
@@ -103,7 +126,6 @@ const file = process.argv[2];
 const seed = JSON.parse(fs.readFileSync(file, 'utf8'));
 const pairs = {
   SEED_EMAIL:              seed.credentials?.email ?? '',
-  SEED_PASSWORD:           seed.credentials?.password ?? '',
   SEED_ACCOUNT_ID:         seed.account?.id ?? '',
   SEED_CONTACT_ID:         seed.contact?.id ?? '',
   SEED_CONTACT_EMAIL:      seed.contact?.email ?? '',
@@ -114,6 +136,9 @@ const pairs = {
   SEED_RUN_HANDOFF_ID:     seed.agentRuns?.handoffId ?? '',
   SEED_RUN_DENIED_ID:      seed.agentRuns?.deniedByPolicyId ?? '',
   SEED_APPROVAL_ID:        seed.inbox?.approvalId ?? '',
+  SEED_AUTH_TOKEN:         seed.auth?.token ?? '',
+  SEED_USER_ID:            seed.auth?.userId ?? '',
+  SEED_WORKSPACE_ID:       seed.auth?.workspaceId ?? '',
 };
 for (const [key, value] of Object.entries(pairs)) {
   process.stdout.write(`${key}=${String(value)}\n`);
@@ -121,12 +146,22 @@ for (const [key, value] of Object.entries(pairs)) {
 NODE
 }
 
+compose_bootstrap_url() {
+  # Hard-coded landing route. /inbox bypasses the /home → /inbox redirect hop.
+  local landing_route='/inbox'
+  local enc_token enc_user enc_workspace enc_redirect
+  enc_token="$(url_encode "${SEED_AUTH_TOKEN}")"
+  enc_user="$(url_encode "${SEED_USER_ID}")"
+  enc_workspace="$(url_encode "${SEED_WORKSPACE_ID}")"
+  enc_redirect="$(url_encode "${landing_route}")"
+  printf 'fenixcrm:///e2e-bootstrap?token=%s&userId=%s&workspaceId=%s&redirect=%s' \
+    "${enc_token}" "${enc_user}" "${enc_workspace}" "${enc_redirect}"
+}
 
 print_seed_summary() {
-  # W6-T3: wedge-first variables
+  # Secrets are NEVER printed. Token and password are redacted by design.
   log "Device: ${SERIAL}"
   log "SEED_EMAIL=${SEED_EMAIL}"
-  log "SEED_PASSWORD=[redacted]"
   log "SEED_ACCOUNT_ID=${SEED_ACCOUNT_ID}"
   log "SEED_CONTACT_ID=${SEED_CONTACT_ID}"
   log "SEED_DEAL_ID=${SEED_DEAL_ID}"
@@ -135,6 +170,39 @@ print_seed_summary() {
   log "SEED_RUN_HANDOFF_ID=${SEED_RUN_HANDOFF_ID}"
   log "SEED_RUN_DENIED_ID=${SEED_RUN_DENIED_ID}"
   log "SEED_APPROVAL_ID=${SEED_APPROVAL_ID}"
+  log "SEED_USER_ID=${SEED_USER_ID}"
+  log "SEED_WORKSPACE_ID=${SEED_WORKSPACE_ID}"
+  log "SEED_AUTH_TOKEN=[redacted len=${#SEED_AUTH_TOKEN}]"
+}
+
+run_maestro_flow() {
+  local flow="$1"
+  "${MAESTRO_BIN}" test \
+    --device "${SERIAL}" \
+    --test-output-dir "${REPORTS_DIR}" \
+    -e "SEED_EMAIL=${SEED_EMAIL}" \
+    -e "SEED_ACCOUNT_ID=${SEED_ACCOUNT_ID}" \
+    -e "SEED_CONTACT_ID=${SEED_CONTACT_ID}" \
+    -e "SEED_CONTACT_EMAIL=${SEED_CONTACT_EMAIL}" \
+    -e "SEED_DEAL_ID=${SEED_DEAL_ID}" \
+    -e "SEED_CASE_ID=${SEED_CASE_ID}" \
+    -e "SEED_CASE_SUBJECT=${SEED_CASE_SUBJECT}" \
+    -e "SEED_RUN_COMPLETED_ID=${SEED_RUN_COMPLETED_ID}" \
+    -e "SEED_RUN_HANDOFF_ID=${SEED_RUN_HANDOFF_ID}" \
+    -e "SEED_RUN_DENIED_ID=${SEED_RUN_DENIED_ID}" \
+    -e "SEED_APPROVAL_ID=${SEED_APPROVAL_ID}" \
+    -e "SEED_BOOTSTRAP_URL=${SEED_BOOTSTRAP_URL}" \
+    "${flow}"
+}
+
+copy_reports_screenshots() {
+  # Maestro writes PNGs under the test-output-dir. Collect any PNGs from the
+  # reports tree into the stable output dir so reviewers see only finished
+  # screenshots, not Maestro report artifacts.
+  find "${REPORTS_DIR}" -type f -name '*.png' -print0 2>/dev/null \
+    | while IFS= read -r -d '' file; do
+        cp -f "${file}" "${OUTPUT_DIR}/"
+      done
 }
 
 main() {
@@ -144,7 +212,8 @@ main() {
   need_cmd node
   need_cmd "${MAESTRO_BIN}"
   [[ -n "${SERIAL}" ]] || die 'No Android emulator/device connected.'
-  [[ -f "${FLOW_FILE}" ]] || die "Missing Maestro flow: ${FLOW_FILE}"
+  [[ -f "${AUTH_SURFACE_FLOW}" ]] || die "Missing Maestro flow: ${AUTH_SURFACE_FLOW}"
+  [[ -f "${AUTHED_AUDIT_FLOW}" ]] || die "Missing Maestro flow: ${AUTHED_AUDIT_FLOW}"
 
   wait_for_device
   wait_for_android_services
@@ -164,6 +233,13 @@ main() {
     export "${key}=${value}"
   done < <(seed_to_env_lines "${SEED_FILE}")
 
+  [[ -n "${SEED_AUTH_TOKEN}" ]] || die 'Seeder did not return auth.token — cannot bootstrap authenticated phase.'
+  [[ -n "${SEED_USER_ID}" ]]    || die 'Seeder did not return auth.userId.'
+  [[ -n "${SEED_WORKSPACE_ID}" ]] || die 'Seeder did not return auth.workspaceId.'
+
+  SEED_BOOTSTRAP_URL="$(compose_bootstrap_url)"
+  export SEED_BOOTSTRAP_URL
+
   print_seed_summary
 
   log 'Preparing emulator networking...'
@@ -177,28 +253,19 @@ main() {
   adb_shell am start -W -n "${APP_ACTIVITY}" >/dev/null || true
   wait_for_react_native_ready
 
-  rm -rf "${OUTPUT_DIR}"
-  mkdir -p "${OUTPUT_DIR}"
+  rm -rf "${OUTPUT_DIR}" "${REPORTS_DIR}"
+  mkdir -p "${OUTPUT_DIR}" "${REPORTS_DIR}"
 
-  log 'Running Maestro visual audit...'
-  "${MAESTRO_BIN}" test \
-    --device "${SERIAL}" \
-    --test-output-dir "${OUTPUT_DIR}" \
-    -e "SEED_EMAIL=${SEED_EMAIL}" \
-    -e "SEED_PASSWORD=${SEED_PASSWORD}" \
-    -e "SEED_ACCOUNT_ID=${SEED_ACCOUNT_ID}" \
-    -e "SEED_CONTACT_ID=${SEED_CONTACT_ID}" \
-    -e "SEED_CONTACT_EMAIL=${SEED_CONTACT_EMAIL}" \
-    -e "SEED_DEAL_ID=${SEED_DEAL_ID}" \
-    -e "SEED_CASE_ID=${SEED_CASE_ID}" \
-    -e "SEED_CASE_SUBJECT=${SEED_CASE_SUBJECT}" \
-    -e "SEED_RUN_COMPLETED_ID=${SEED_RUN_COMPLETED_ID}" \
-    -e "SEED_RUN_HANDOFF_ID=${SEED_RUN_HANDOFF_ID}" \
-    -e "SEED_RUN_DENIED_ID=${SEED_RUN_DENIED_ID}" \
-    -e "SEED_APPROVAL_ID=${SEED_APPROVAL_ID}" \
-    "${FLOW_FILE}"
+  log 'Phase 1/2: capturing auth surface...'
+  run_maestro_flow "${AUTH_SURFACE_FLOW}"
+
+  log 'Phase 2/2: capturing authenticated audit via e2e-bootstrap deep link...'
+  run_maestro_flow "${AUTHED_AUDIT_FLOW}"
+
+  copy_reports_screenshots
 
   log "Screenshots available in ${OUTPUT_DIR}"
+  log "Maestro reports available in ${REPORTS_DIR}"
 }
 
 main "$@"
