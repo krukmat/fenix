@@ -83,9 +83,9 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
       .map((p) => p.name);
 
     expect(visibleNames).toContain('inbox/index');
-    expect(visibleNames).toContain('support/index');
-    expect(visibleNames).toContain('sales/index');
-    expect(visibleNames).toContain('activity/index');
+    expect(visibleNames).toContain('support');
+    expect(visibleNames).toContain('sales');
+    expect(visibleNames).toContain('activity');
     expect(visibleNames).toContain('governance/index');
   });
 
@@ -101,9 +101,9 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
     expect(visibleTabs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: 'inbox/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-inbox', tabBarIcon: expect.any(Function) }) }),
-        expect.objectContaining({ name: 'support/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-support', tabBarIcon: expect.any(Function) }) }),
-        expect.objectContaining({ name: 'sales/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-sales', tabBarIcon: expect.any(Function) }) }),
-        expect.objectContaining({ name: 'activity/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-activity', tabBarIcon: expect.any(Function) }) }),
+        expect.objectContaining({ name: 'support', options: expect.objectContaining({ tabBarButtonTestID: 'tab-support', tabBarIcon: expect.any(Function) }) }),
+        expect.objectContaining({ name: 'sales', options: expect.objectContaining({ tabBarButtonTestID: 'tab-sales', tabBarIcon: expect.any(Function) }) }),
+        expect.objectContaining({ name: 'activity', options: expect.objectContaining({ tabBarButtonTestID: 'tab-activity', tabBarIcon: expect.any(Function) }) }),
         expect.objectContaining({ name: 'governance/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-governance', tabBarIcon: expect.any(Function) }) }),
       ])
     );
@@ -119,9 +119,9 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
       .filter((p) => p.options?.href === null)
       .map((p) => p.name);
 
-    expect(hiddenNames).toContain('home/index');
-    expect(hiddenNames).toContain('accounts/index');
-    expect(hiddenNames).toContain('cases/index');
+    expect(hiddenNames).toContain('home');
+    expect(hiddenNames).toContain('accounts');
+    expect(hiddenNames).toContain('cases');
     expect(hiddenNames).not.toContain('agents/index');
     expect(hiddenNames).not.toContain('crm/index');
   });
