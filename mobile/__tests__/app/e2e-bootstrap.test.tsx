@@ -65,8 +65,9 @@ function setParams(params: Record<string, string | string[] | undefined>) {
 }
 
 // Import the component AFTER the mocks are registered.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const E2EBootstrapRoute = require('../../app/e2e-bootstrap').default;
+// require is intentional: Jest hoists static imports before mock() calls,
+// so a top-level import would resolve before the mock registry is set up.
+const E2EBootstrapRoute = (require('../../app/e2e-bootstrap') as { default: React.ComponentType }).default;
 
 describe('e2e-bootstrap governance gate', () => {
   const originalE2EFlag = process.env.EXPO_PUBLIC_E2E_MODE;
