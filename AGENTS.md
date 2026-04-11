@@ -28,6 +28,13 @@ Preferred shortcut:
   - **Mobile changes** (`mobile/`, mobile scripts, `ci.yml`): runs `scripts/qa-mobile-prepush.sh` (typecheck, lint, arch, coverage)
 - There is no bypass. Fix the failing gate before pushing.
 
+## Reporting
+
+- Every substantive report to the user must include:
+  - `Complejidad: Baja | Media | Alta | Muy alta`
+  - `Tokens: ~N` (approximate estimate of the response/report size)
+- Apply this to progress updates and final summaries.
+
 ## Knowledge Management
 
 - Obsidian is the repository knowledge-management layer for project tracking docs, not a product feature.

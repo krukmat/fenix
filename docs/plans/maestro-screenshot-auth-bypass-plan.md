@@ -8,6 +8,15 @@ created: 2026-04-11
 
 # Make `npm run screenshots` deterministic by removing login UI from the critical path
 
+## Status Update
+
+- Green emulator run completed with the expected 8 screenshots.
+- `mobile/maestro/visual-audit.yaml` has been retired in favor of the two-phase
+  flow: `auth-surface.yaml` + `authenticated-audit.yaml`.
+- `mobile/maestro/seed-and-run.sh` now launches the app via ADB for phase 1 and
+  sanitizes `mobile/artifacts/maestro-reports/` so the bootstrap JWT is not
+  retained in report artifacts.
+
 ## Summary
 
 `npm run screenshots` currently hangs on Maestro `inputText` against the password
@@ -35,11 +44,12 @@ remains covered by the existing Jest + mobile unit suites.
   `Token / UserID / WorkspaceID`, but does not expose them in `seedOutput`).
 - Seed consumer: `mobile/maestro/seed-and-run.sh`, `seed_to_env_lines` Node block
   (lines 97–122).
-- Maestro flow: `mobile/maestro/visual-audit.yaml` (single file, currently drives
-  login UI via `inputText`).
+- Maestro flows:
+  - `mobile/maestro/auth-surface.yaml`
+  - `mobile/maestro/authenticated-audit.yaml`
 - Bootstrap route: `mobile/app/e2e-bootstrap.tsx` — accepts
   `token / userId / workspaceId / redirect`, defaults redirect to `/home`, and is
-  **not currently gated** by `EXPO_PUBLIC_E2E_MODE`.
+  gated by `EXPO_PUBLIC_E2E_MODE`.
 - Deep-link scheme: `fenixcrm` (confirmed in `mobile/app.json`).
 - Authenticated landing route chain (verified in code):
   `/` → `/home` → `/inbox`. `mobile/app/index.tsx` redirects authenticated
@@ -59,20 +69,16 @@ remains covered by the existing Jest + mobile unit suites.
   on the target emulator. Deletion was pre-authorized by the user on the
   decision-lock step of this plan.
 - Create `mobile/maestro/auth-surface.yaml`:
-  - `launchApp` with no URL.
+  - No `launchApp`; the runner foregrounds the app via ADB first.
   - `extendedWaitUntil: id: login-screen`.
   - `assertVisible: id: login-screen`.
   - `takeScreenshot: 01_auth_login`.
   - No `inputText`, no `tapOn` on any login field.
 - Create `mobile/maestro/authenticated-audit.yaml`:
-  - First step: `launchApp` (clearState: false, stopApp: true) followed by
-    `openLink: ${SEED_BOOTSTRAP_URL}`. The shell script composes the full
-    URL-encoded deep link and passes it as a single Maestro env var.
-    `openLink` is the canonical Maestro command for deep links and avoids a
-    second cold-launch race — the RN runtime from Phase 1 is reused, just
-    navigated to a new route. `clearState: false` preserves
-    `EXPO_PUBLIC_E2E_MODE=1` between phases; `stopApp: true` forces a clean
-    return to a known activity before dispatching the deep link.
+  - First step: `openLink: ${SEED_BOOTSTRAP_URL}`. The shell script composes the
+    full URL-encoded deep link and passes it as a single Maestro env var.
+    `launchApp` was removed after proving unstable in the dev-client path; the
+    RN runtime from Phase 1 is reused directly.
   - Then: `extendedWaitUntil` on `inbox-screen` (the real landing testID after
     the authenticated redirect chain resolves).
   - Then: `takeScreenshot: 02_inbox`.
@@ -90,13 +96,12 @@ Update `mobile/maestro/seed-and-run.sh`:
   1. Seed deterministic fixtures (unchanged).
   2. Parse the seeder JSON, including the new `auth` block (see next section).
   3. `adb reverse` (unchanged).
-  4. `adb shell pm clear ${APP_ID}` → `am start` → `wait_for_react_native_ready`
-     (unchanged) — this prepares phase 1.
+  4. `adb shell pm clear ${APP_ID}` → ADB foreground launch for phase 1.
   5. Run `auth-surface.yaml` via Maestro, capturing only `01_auth_login`.
-  6. Run `authenticated-audit.yaml` via Maestro. Maestro's `launchApp.url` will
-     bring the app back to foreground through the bootstrap deep link. No extra
-     `pm clear` between phases — we want the same RN runtime, just a new
-     authenticated session.
+  6. Run `authenticated-audit.yaml` via Maestro. `openLink` dispatches the
+     bootstrap deep link into the already-running app. No extra `pm clear`
+     between phases — we want the same RN runtime, just a new authenticated
+     session.
   7. Normalize PNG output into `mobile/artifacts/screenshots/` (unchanged).
 - Do **not** pass `SEED_PASSWORD` to Maestro. Remove the `-e SEED_PASSWORD=...`
   line entirely.

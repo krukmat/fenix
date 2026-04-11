@@ -231,7 +231,16 @@ export default function ActivityRunDetailScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: run.agent_name }} />
+      <Stack.Screen
+        options={{
+          title: 'Activity Run',
+          headerBackButtonDisplayMode: 'minimal',
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.primary,
+          headerTitleStyle: { color: colors.onSurface, fontSize: 18, fontWeight: '700' },
+        }}
+      />
       <RunDetailContent run={run} usage={usage} colors={colors} />
     </>
   );

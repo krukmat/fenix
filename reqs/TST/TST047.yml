@@ -1,14 +1,14 @@
 active: true
+bdd:
+  feature: features/uc-s1-sales-copilot.feature
+  scenario: Generate a grounded sales brief for an account
+  stack: go
 derived: false
 header: ''
 level: 2
 links:
 - FR_001: 969-Z1zNqXKxJjrUhMoNrYBoRG0_PiEtOJUytAYAyQY=
 normative: true
-bdd:
-  feature: features/uc-s1-sales-copilot.feature
-  scenario: Generate a grounded sales brief for an account
-  stack: go
 ref: internal/api/handlers/deal_test.go
 reviewed: 6LDzLzjMGXpUL_IgjSMZPKIkTb3DqrNS9H1wH0BuzX8=
 text: |

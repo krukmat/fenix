@@ -159,7 +159,16 @@ export default function SalesBriefScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Sales Brief' }} />
+      <Stack.Screen
+        options={{
+          title: 'Sales Brief',
+          headerBackButtonDisplayMode: 'minimal',
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.primary,
+          headerTitleStyle: { color: colors.onSurface, fontSize: 18, fontWeight: '700' },
+        }}
+      />
       <BriefContent brief={brief} colors={colors} />
     </>
   );

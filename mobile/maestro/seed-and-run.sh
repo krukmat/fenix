@@ -78,18 +78,6 @@ wait_for_android_services() {
   die "Android services are not ready on ${SERIAL}. Expected activity/package services."
 }
 
-wait_for_react_native_ready() {
-  local attempts=0
-  while (( attempts < 90 )); do
-    if adb_cmd logcat -d -s ReactNativeJS 2>/dev/null | grep -Fq 'Running "main"'; then
-      return 0
-    fi
-    sleep 2
-    attempts=$((attempts + 1))
-  done
-  die "React Native app did not report readiness within 180s."
-}
-
 ensure_app_installed() {
   local package_path
   package_path="$(adb_shell pm path "${APP_ID}" 2>/dev/null | tr -d '\r' || true)"
@@ -104,6 +92,12 @@ ensure_app_installed() {
 unlock_device() {
   adb_shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
   adb_shell input keyevent 82 >/dev/null 2>&1 || true
+}
+
+launch_app_via_adb() {
+  adb_shell monkey -p "${APP_ID}" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 \
+    || adb_shell am start -W -n "${APP_ACTIVITY}" >/dev/null 2>&1 \
+    || die "Unable to start ${APP_ID} via adb."
 }
 
 # url_encode: percent-encodes a single value using Node's encodeURIComponent.
@@ -205,6 +199,39 @@ copy_reports_screenshots() {
       done
 }
 
+sanitize_reports() {
+  local redacted_url='fenixcrm:///e2e-bootstrap?token=[redacted]&userId=[redacted]&workspaceId=[redacted]&redirect=%2Finbox'
+  REPORTS_DIR_ENV="${REPORTS_DIR}" \
+  SEED_BOOTSTRAP_URL_ENV="${SEED_BOOTSTRAP_URL}" \
+  REDACTED_URL_ENV="${redacted_url}" \
+  node <<'NODE'
+const fs = require('fs');
+const path = require('path');
+
+const root = process.env.REPORTS_DIR_ENV;
+const bootstrapUrl = process.env.SEED_BOOTSTRAP_URL_ENV;
+const redactedUrl = process.env.REDACTED_URL_ENV;
+
+function walk(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walk(full);
+      continue;
+    }
+    const content = fs.readFileSync(full, 'utf8');
+    let next = content.split(bootstrapUrl).join(redactedUrl);
+    next = next.replace(/token=eyJ[a-zA-Z0-9._-]*/g, 'token=[redacted]');
+    if (next !== content) {
+      fs.writeFileSync(full, next, 'utf8');
+    }
+  }
+}
+
+walk(root);
+NODE
+}
+
 main() {
   need_cmd "${ADB_BIN}"
   need_cmd curl
@@ -247,11 +274,10 @@ main() {
   adb_cmd reverse tcp:8080 tcp:8080 >/dev/null
   adb_cmd reverse tcp:8081 tcp:8081 >/dev/null
 
-  log 'Resetting app state and pre-warming React Native...'
+  log 'Resetting app state...'
   adb_cmd logcat -c >/dev/null 2>&1 || true
   adb_shell pm clear "${APP_ID}" >/dev/null
-  adb_shell am start -W -n "${APP_ACTIVITY}" >/dev/null || true
-  wait_for_react_native_ready
+  launch_app_via_adb
 
   rm -rf "${OUTPUT_DIR}" "${REPORTS_DIR}"
   mkdir -p "${OUTPUT_DIR}" "${REPORTS_DIR}"
@@ -262,6 +288,7 @@ main() {
   log 'Phase 2/2: capturing authenticated audit via e2e-bootstrap deep link...'
   run_maestro_flow "${AUTHED_AUDIT_FLOW}"
 
+  sanitize_reports
   copy_reports_screenshots
 
   log "Screenshots available in ${OUTPUT_DIR}"

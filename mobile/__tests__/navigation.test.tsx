@@ -89,6 +89,26 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
     expect(visibleNames).toContain('governance/index');
   });
 
+  it('assigns a real tab icon and stable testID to each visible wedge tab', () => {
+    render(React.createElement(TabsLayout));
+
+    type ScreenCall = [{ name: string; options?: { href?: null | string; tabBarButtonTestID?: string; tabBarIcon?: unknown } }];
+    const tabsScreen = getTabsScreenMock();
+    const visibleTabs = (tabsScreen.mock.calls as ScreenCall[])
+      .map(([p]) => p)
+      .filter((p) => p.options?.href !== null);
+
+    expect(visibleTabs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'inbox/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-inbox', tabBarIcon: expect.any(Function) }) }),
+        expect.objectContaining({ name: 'support/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-support', tabBarIcon: expect.any(Function) }) }),
+        expect.objectContaining({ name: 'sales/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-sales', tabBarIcon: expect.any(Function) }) }),
+        expect.objectContaining({ name: 'activity/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-activity', tabBarIcon: expect.any(Function) }) }),
+        expect.objectContaining({ name: 'governance/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-governance', tabBarIcon: expect.any(Function) }) }),
+      ])
+    );
+  });
+
   it('keeps legacy redirect shims registered but hidden (href: null)', () => {
     render(React.createElement(TabsLayout));
 
@@ -117,6 +137,27 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
     render(React.createElement(TabsLayout));
     expect(screen.getByTestId('redirect')).toBeTruthy();
   });
+});
+
+// ─── Tab bar overflow guard (mobile_tab_bar_overflow_fix_plan) ───────────────
+// Asserts that every feature folder containing dynamic routes has its own
+// _layout.tsx (Stack). Without it, expo-router leaks nested routes into the
+// parent Tabs navigator as ghost tabs, breaking the footer.
+
+describe('Tab bar overflow guard — feature folder layouts', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const tabsBase = path.join(__dirname, '..', 'app', '(tabs)');
+
+  const foldersRequiringLayout = ['sales', 'support', 'accounts', 'cases', 'deals'];
+
+  it.each(foldersRequiringLayout)(
+    '%s/ has a _layout.tsx to contain its dynamic routes',
+    (folder) => {
+      const layoutPath = path.join(tabsBase, folder, '_layout.tsx');
+      expect(fs.existsSync(layoutPath)).toBe(true);
+    },
+  );
 });
 
 // ─── Auth guard — condiciones de navegación ───────────────────────────────────

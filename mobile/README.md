@@ -47,7 +47,10 @@ npm run quality
 
 ## Visual Audit (Maestro)
 
-El audit visual usa Maestro sobre un emulador Android real con datos deterministas. El detalle del baseline visual activo se documenta en el `README` raíz del repositorio.
+El audit visual usa Maestro sobre un emulador Android real con datos deterministas.
+El runner activo es de dos fases:
+- `maestro/auth-surface.yaml`
+- `maestro/authenticated-audit.yaml`
 
 ### Prerrequisitos
 
@@ -64,14 +67,26 @@ El audit visual usa Maestro sobre un emulador Android real con datos determinist
 npm run e2e:build
 
 # Sembrar datos + correr flows Maestro
-bash maestro/seed-and-run.sh
+npm run screenshots
 ```
 
 El script:
 1. Registra/loguea el usuario de prueba (`e2e@fenixcrm.test`)
 2. Crea fixtures via Go directo a SQLite
 3. Instala la APK en el emulador
-4. Corre `maestro/visual-audit.yaml` y guarda screenshots en `artifacts/screenshots/`
+4. Abre la app por ADB, corre `maestro/auth-surface.yaml` y luego `maestro/authenticated-audit.yaml`
+5. Guarda screenshots finales en `artifacts/screenshots/`
+6. Guarda reportes Maestro saneados en `artifacts/maestro-reports/`
+
+Capturas esperadas:
+- `01_auth_login`
+- `02_inbox`
+- `03_support_case_detail`
+- `04_sales_brief`
+- `05_governance`
+- `06_inbox_approval_inline`
+- `07_inbox_handoff`
+- `08_activity_run_detail_denied`
 
 ## Definición de Done para PR (DoD)
 

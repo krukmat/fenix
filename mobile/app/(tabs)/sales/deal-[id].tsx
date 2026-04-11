@@ -164,7 +164,16 @@ export default function SalesDealDetailScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: dealData.title }} />
+      <Stack.Screen
+        options={{
+          title: 'Sales Deal',
+          headerBackButtonDisplayMode: 'minimal',
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.primary,
+          headerTitleStyle: { color: colors.onSurface, fontSize: 18, fontWeight: '700' },
+        }}
+      />
       <ScrollView testID="sales-deal-detail-screen" style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.statusBanner, { backgroundColor: getStatusColor(dealData.status) }]}>
           <Text style={styles.statusText}>STATUS: {dealData.status.toUpperCase()}</Text>

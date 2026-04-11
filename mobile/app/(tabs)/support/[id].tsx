@@ -141,6 +141,34 @@ function ActiveRunBadge({ caseId, colors }: { caseId: string; colors: ThemeColor
   );
 }
 
+function supportDetailHeaderOptions(colors: ThemeColors) {
+  return {
+    title: 'Support Case',
+    headerBackButtonDisplayMode: 'minimal' as const,
+    headerShadowVisible: false,
+    headerStyle: { backgroundColor: colors.background },
+    headerTintColor: colors.primary,
+    headerTitleStyle: { color: colors.onSurface, fontSize: 18, fontWeight: '700' as const },
+  };
+}
+
+function SupportCaseLoading({ colors }: { colors: ThemeColors }) {
+  return (
+    <View style={[styles.centered, { backgroundColor: colors.background }]} testID="support-case-detail-loading">
+      <ActivityIndicator size="large" color={colors.primary} />
+      <Text style={{ color: colors.onSurfaceVariant, marginTop: 12 }}>Loading case...</Text>
+    </View>
+  );
+}
+
+function SupportCaseError({ colors, message }: { colors: ThemeColors; message: string }) {
+  return (
+    <View style={[styles.centered, { backgroundColor: colors.background }]} testID="support-case-detail-error">
+      <Text style={{ color: colors.error, fontSize: 16 }}>{message}</Text>
+    </View>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function SupportCaseDetailScreen() {
@@ -152,26 +180,12 @@ export default function SupportCaseDetailScreen() {
   const caseData = parseCasePayload(data);
   const triggerAgent = useTriggerSupportAgent();
 
-  if (isLoading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="support-case-detail-loading">
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ color: colors.onSurfaceVariant, marginTop: 12 }}>Loading case...</Text>
-      </View>
-    );
-  }
-
-  if (error || !caseData) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="support-case-detail-error">
-        <Text style={{ color: colors.error, fontSize: 16 }}>{error?.message || 'Case not found'}</Text>
-      </View>
-    );
-  }
+  if (isLoading) return <SupportCaseLoading colors={colors} />;
+  if (error || !caseData) return <SupportCaseError colors={colors} message={error?.message || 'Case not found'} />;
 
   return (
     <>
-      <Stack.Screen options={{ title: caseData.subject || 'Case' }} />
+      <Stack.Screen options={supportDetailHeaderOptions(colors)} />
       <View
         testID="support-case-detail-screen"
         style={[styles.container, { backgroundColor: colors.background }]}

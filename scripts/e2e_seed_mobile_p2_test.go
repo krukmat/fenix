@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
@@ -104,6 +106,66 @@ func TestSeedDealCreatesSupportingPipelineAndStage(t *testing.T) {
 	}
 	if stagePipelineID != pipelineID {
 		t.Fatalf("expected stage pipeline_id %q, got %q", pipelineID, stagePipelineID)
+	}
+}
+
+func TestLoginOrRegisterLogsInExistingUserToRecoverToken(t *testing.T) {
+	db := mustOpenScriptTestDB(t)
+	workspaceID := "ws-seed-test"
+	userID := "user-seed-test"
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES (?, ?, ?, datetime('now'), datetime('now'))
+	`, workspaceID, "Seed Test Workspace", "seed-test-workspace"); err != nil {
+		t.Fatalf("insert workspace: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO user_account (id, workspace_id, email, display_name, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 'active', datetime('now'), datetime('now'))
+	`, userID, workspaceID, testEmail, "Seed Test User"); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/login" {
+			t.Fatalf("unexpected path %q", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method %q", r.Method)
+		}
+
+		var req map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if req["email"] != testEmail {
+			t.Fatalf("email = %q, want %q", req["email"], testEmail)
+		}
+		if req["password"] != testPassword {
+			t.Fatalf("password = %q, want %q", req["password"], testPassword)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(authResponse{
+			Token:       "tok-existing-user",
+			UserID:      userID,
+			WorkspaceID: workspaceID,
+		})
+	}))
+	t.Cleanup(server.Close)
+
+	auth, err := loginOrRegister(context.Background(), server.URL, db)
+	if err != nil {
+		t.Fatalf("loginOrRegister() error = %v", err)
+	}
+	if auth.Token != "tok-existing-user" {
+		t.Fatalf("Token = %q, want tok-existing-user", auth.Token)
+	}
+	if auth.UserID != userID {
+		t.Fatalf("UserID = %q, want %q", auth.UserID, userID)
+	}
+	if auth.WorkspaceID != workspaceID {
+		t.Fatalf("WorkspaceID = %q, want %q", auth.WorkspaceID, workspaceID)
 	}
 }
 

@@ -15,9 +15,6 @@ tags:
 
 # ── 0. Bootstrap authenticated session via deep link ─────────────────────────
 
-- launchApp:
-    clearState: false
-    stopApp: true
 - openLink: ${SEED_BOOTSTRAP_URL}
 
 # ── 1. Inbox (landing) ────────────────────────────────────────────────────────

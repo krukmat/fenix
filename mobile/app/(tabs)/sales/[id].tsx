@@ -116,7 +116,16 @@ export default function SalesAccountDetailScreen() {
   }
   return (
     <>
-      <Stack.Screen options={{ title: accountData.name }} />
+      <Stack.Screen
+        options={{
+          title: 'Sales Account',
+          headerBackButtonDisplayMode: 'minimal',
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.primary,
+          headerTitleStyle: { color: colors.onSurface, fontSize: 18, fontWeight: '700' },
+        }}
+      />
       <AccountDetailContent account={accountData} colors={colors} router={router} />
     </>
   );

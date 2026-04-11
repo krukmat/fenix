@@ -644,15 +644,18 @@ func seedApproval(ctx context.Context, db *sql.DB, auth authResponse, caseID, su
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
 func loginOrRegister(ctx context.Context, apiURL string, db *sql.DB) (authResponse, error) {
-	auth, err := lookupExistingAuth(ctx, db, testEmail)
+	_, err := lookupExistingAuth(ctx, db, testEmail)
 	if err == nil {
-		return auth, nil
+		return requestAuth(ctx, apiURL, "/auth/login", map[string]string{
+			"email":    testEmail,
+			"password": testPassword,
+		})
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return authResponse{}, err
 	}
 
-	auth, err = requestAuth(ctx, apiURL, "/auth/register", map[string]string{
+	auth, err := requestAuth(ctx, apiURL, "/auth/register", map[string]string{
 		"email":         testEmail,
 		"password":      testPassword,
 		"displayName":   testDisplayName,

@@ -4,8 +4,11 @@
 
 import React from 'react';
 import { Tabs, Redirect } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useInbox } from '../../src/hooks/useWedge';
+import { brandColors } from '../../src/theme';
 
 // ─── Inbox badge ──────────────────────────────────────────────────────────────
 
@@ -14,6 +17,69 @@ function useInboxBadge(): number | undefined {
   if (!data) return undefined;
   const count = (data.approvals?.length ?? 0) + (data.handoffs?.length ?? 0);
   return count > 0 ? count : undefined;
+}
+
+type TabIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+const WEDGE_TAB_SCREENS: { name: string; title: string; icon: TabIconName; testID: string }[] = [
+  { name: 'inbox/index', title: 'Inbox', icon: 'inbox-outline', testID: 'tab-inbox' },
+  { name: 'support', title: 'Support', icon: 'lifebuoy', testID: 'tab-support' },
+  { name: 'sales', title: 'Sales', icon: 'chart-line', testID: 'tab-sales' },
+  { name: 'activity', title: 'Activity', icon: 'timeline-text-outline', testID: 'tab-activity' },
+  { name: 'governance/index', title: 'Governance', icon: 'shield-check-outline', testID: 'tab-governance' },
+];
+
+const TAB_SCREEN_OPTIONS = {
+  headerShown: true,
+  headerShadowVisible: false,
+  headerStyle: { backgroundColor: brandColors.background },
+  headerTintColor: brandColors.onBackground,
+  headerTitleAlign: 'left' as const,
+  headerTitleStyle: {
+    color: brandColors.onBackground,
+    fontSize: 22,
+    fontWeight: '700' as const,
+  },
+  tabBarActiveTintColor: brandColors.primary,
+  tabBarInactiveTintColor: brandColors.onSurfaceVariant,
+  tabBarShowLabel: true,
+  tabBarHideOnKeyboard: true,
+  tabBarStyle: {
+    backgroundColor: '#FFFFFF',
+    borderTopColor: '#DDE5F0',
+    borderTopWidth: 1,
+    height: 68,
+    paddingTop: 6,
+    paddingBottom: 8,
+    elevation: 10,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: -4 },
+    shadowRadius: 12,
+  },
+  tabBarLabelStyle: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    marginTop: 2,
+  },
+  tabBarItemStyle: {
+    paddingVertical: 2,
+  },
+  tabBarBadgeStyle: {
+    backgroundColor: '#D32F2F',
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700' as const,
+  },
+};
+
+function renderTabIcon(icon: TabIconName) {
+  function TabIcon({ color, size }: { color: string; size: number }) {
+    return <MaterialCommunityIcons name={icon} color={color} size={size} />;
+  }
+
+  TabIcon.displayName = `TabIcon(${icon})`;
+  return TabIcon;
 }
 
 // ─── Root layout ──────────────────────────────────────────────────────────────
@@ -27,62 +93,26 @@ export default function TabsLayout() {
   }
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: true,
-        tabBarActiveTintColor: '#E53935',
-        tabBarInactiveTintColor: '#757575',
-        tabBarStyle: { backgroundColor: '#FFFFFF' },
-      }}
-    >
+    <Tabs screenOptions={TAB_SCREEN_OPTIONS}>
       {/* ── Wedge tabs (visible) ── */}
-      <Tabs.Screen
-        name="inbox/index"
-        options={{
-          title: 'Inbox',
-          tabBarBadge: inboxBadge,
-          tabBarIcon: () => null,
-          tabBarButtonTestID: 'tab-inbox',
-        }}
-      />
-      <Tabs.Screen
-        name="support/index"
-        options={{
-          title: 'Support',
-          tabBarIcon: () => null,
-          tabBarButtonTestID: 'tab-support',
-        }}
-      />
-      <Tabs.Screen
-        name="sales/index"
-        options={{
-          title: 'Sales',
-          tabBarIcon: () => null,
-          tabBarButtonTestID: 'tab-sales',
-        }}
-      />
-      <Tabs.Screen
-        name="activity/index"
-        options={{
-          title: 'Activity',
-          tabBarIcon: () => null,
-          tabBarButtonTestID: 'tab-activity',
-        }}
-      />
-      <Tabs.Screen
-        name="governance/index"
-        options={{
-          title: 'Governance',
-          tabBarIcon: () => null,
-          tabBarButtonTestID: 'tab-governance',
-        }}
-      />
+      {WEDGE_TAB_SCREENS.map((screen) => (
+        <Tabs.Screen
+          key={screen.name}
+          name={screen.name}
+          options={{
+            title: screen.title,
+            tabBarIcon: renderTabIcon(screen.icon),
+            tabBarButtonTestID: screen.testID,
+            ...(screen.name === 'inbox/index' ? { tabBarBadge: inboxBadge } : {}),
+          }}
+        />
+      ))}
 
       {/* ── Legacy redirect shims — hidden from tab bar (W2-T2/W6-T2) ── */}
-      <Tabs.Screen name="home/index" options={{ href: null, title: 'Home' }} />
-      <Tabs.Screen name="accounts/index" options={{ href: null }} />
-      <Tabs.Screen name="deals/index" options={{ href: null }} />
-      <Tabs.Screen name="cases/index" options={{ href: null }} />
+      <Tabs.Screen name="home" options={{ href: null, title: 'Home' }} />
+      <Tabs.Screen name="accounts" options={{ href: null }} />
+      <Tabs.Screen name="deals" options={{ href: null }} />
+      <Tabs.Screen name="cases" options={{ href: null }} />
       <Tabs.Screen name="copilot/index" options={{ href: null }} />
     </Tabs>
   );

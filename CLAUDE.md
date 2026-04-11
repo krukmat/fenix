@@ -52,6 +52,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - If a required local QA gate cannot be executed, stop and report that explicitly before pushing.
 - Hooks must be installed with `make install-hooks` (see setup above).
 
+**Reporting (MANDATORY)**:
+- Every substantive report to the user must include:
+  - `Complejidad: Baja | Media | Alta | Muy alta`
+  - `Tokens: ~N` (approximate estimate of the response/report size)
+- Apply this to progress updates and final summaries.
+
 **Knowledge management / Obsidian rules (MANDATORY)**:
 - Obsidian is the repository knowledge-management layer for project tracking docs, not a product feature.
 - Maintain the doc vault proactively. If a task changes architecture, scope, roadmap, requirements, APIs, data model, operational rules, or delivery status, update the relevant Obsidian artifacts in the same turn without waiting for an explicit user request.

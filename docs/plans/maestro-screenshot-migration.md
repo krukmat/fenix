@@ -1,12 +1,25 @@
 ---
 name: Maestro Screenshot Migration
-status: pending-approval
+status: superseded
 owner: mobile
 supersedes: docs/plans/mobile-screenshot-audit.md, docs/plans/mobile-detox-activity-launch-timeout-fix.md
 created: 2026-04-06
 ---
 
 # Migrate Screenshot Suite from Detox to Maestro
+
+## Status Update
+
+This migration is complete, but the original single-flow design is no longer
+the current runner. The canonical screenshot flow is now:
+
+- `mobile/maestro/auth-surface.yaml`
+- `mobile/maestro/authenticated-audit.yaml`
+- `mobile/maestro/seed-and-run.sh`
+
+`mobile/maestro/visual-audit.yaml` has been retired. Final PNGs are written to
+`mobile/artifacts/screenshots/` and Maestro reports to
+`mobile/artifacts/maestro-reports/`.
 
 ## Problem
 
