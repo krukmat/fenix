@@ -40,7 +40,7 @@ function unwrapHandoffPayload(raw: unknown): UnknownRecord | null {
   return asRecord(outer?.data) ?? outer;
 }
 
-function pickFirstString(...values: Array<string | undefined>): string | undefined {
+function pickFirstString(...values: (string | undefined)[]): string | undefined {
   return values.find((value) => typeof value === 'string' && value.trim() !== '');
 }
 

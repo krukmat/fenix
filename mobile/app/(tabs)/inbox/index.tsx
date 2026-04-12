@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useApproveApproval, useInbox, useRejectApproval } from '../../../src/hooks/useWedge';
 import { InboxBody, InboxEmpty, InboxError, InboxLoading } from '../../../src/components/inbox/InboxFeed';
 import type { InboxFilter, InboxRenderableItem } from '../../../src/components/inbox/InboxFeed';
-import type { AgentRun, ApprovalRequest, HandoffPackage, Signal } from '../../../src/services/api';
+import type { AgentRun, ApprovalRequest, HandoffPackage, Signal, InboxResponse } from '../../../src/services/api';
 
 function toTimestamp(value: string | undefined): number {
   if (!value) return 0;
@@ -140,27 +140,52 @@ function useInboxScreenModel() {
     rejectApproval,
     () => inbox.refetch(),
   );
-  const approvals = inbox.data?.approvals ?? [];
-  const handoffs = inbox.data?.handoffs ?? [];
-  const signals = inbox.data?.signals ?? [];
-  const rejected = inbox.data?.rejected ?? [];
-  const allItems = normalizeItems(approvals, handoffs, signals, rejected);
-  const visibleItems = filterItems(allItems, filter);
-  const totalItems = allItems.length;
-  const screenState = resolveScreenState(inbox.isLoading, Boolean(inbox.error), totalItems);
+
+  const model = buildInboxModel(inbox.data, inbox.isLoading, inbox.error, filter);
 
   return {
-    screenState,
-    errorMessage: inbox.error?.message ?? 'Inbox unavailable',
+    screenState: model.screenState,
+    errorMessage: model.errorMessage,
     refetch: inbox.refetch,
     filter,
     setFilter,
-    visibleItems,
-    totalItems,
+    visibleItems: model.visibleItems,
+    totalItems: model.totalItems,
     actionError,
     handleApprove,
     handleReject,
     approvalsPending: approveApproval.isPending || rejectApproval.isPending,
+  };
+}
+
+// Extract items from response data
+function extractInboxItems(data: InboxResponse | undefined) {
+  return {
+    approvals: data?.approvals ?? [],
+    handoffs: data?.handoffs ?? [],
+    signals: data?.signals ?? [],
+    rejected: data?.rejected ?? [],
+  };
+}
+
+// Extracted to reduce complexity of useInboxScreenModel
+function buildInboxModel(
+  data: InboxResponse | undefined,
+  isLoading: boolean,
+  error: Error | null,
+  filter: InboxFilter,
+) {
+  const items = extractInboxItems(data);
+  const allItems = normalizeItems(items.approvals, items.handoffs, items.signals, items.rejected);
+  const visibleItems = filterItems(allItems, filter);
+  const totalItems = allItems.length;
+  const screenState = resolveScreenState(isLoading, Boolean(error), totalItems);
+
+  return {
+    screenState,
+    errorMessage: error?.message ?? 'Inbox unavailable',
+    visibleItems,
+    totalItems,
   };
 }
 
