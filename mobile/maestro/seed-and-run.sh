@@ -277,6 +277,12 @@ main() {
   adb_cmd reverse tcp:8080 tcp:8080 >/dev/null
   adb_cmd reverse tcp:8081 tcp:8081 >/dev/null
 
+  log 'Enabling BFF screenshot fixture mode (bypasses LLM for sales-brief)...'
+  curl -s -X POST http://localhost:3000/bff/api/v1/copilot/internal/screenshot-mode \
+    -H 'Content-Type: application/json' \
+    -d '{"enabled":true}' >/dev/null \
+    || log 'WARNING: could not enable screenshot mode — sales-brief will call LLM'
+
   log 'Resetting app state...'
   adb_cmd logcat -c >/dev/null 2>&1 || true
   adb_shell pm clear "${APP_ID}" >/dev/null
@@ -293,6 +299,11 @@ main() {
 
   sanitize_reports
   copy_reports_screenshots
+
+  log 'Disabling BFF screenshot fixture mode...'
+  curl -s -X POST http://localhost:3000/bff/api/v1/copilot/internal/screenshot-mode \
+    -H 'Content-Type: application/json' \
+    -d '{"enabled":false}' >/dev/null || true
 
   log "Screenshots available in ${OUTPUT_DIR}"
   log "Maestro reports available in ${REPORTS_DIR}"

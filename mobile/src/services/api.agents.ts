@@ -93,12 +93,14 @@ export const agentApi = {
 };
 
 // W1-T1: Sales Brief API — dedicated contract for POST /api/v1/copilot/sales-brief
+// LLM-backed endpoint: timeout extended to 90s to accommodate local Ollama latency (~35s observed)
 export const salesBriefApi = {
   getSalesBrief: async (entityType: string, entityId: string) => {
-    const response = await apiClient.post('/bff/api/v1/copilot/sales-brief', {
-      entityType,
-      entityId,
-    });
+    const response = await apiClient.post(
+      '/bff/api/v1/copilot/sales-brief',
+      { entityType, entityId },
+      { timeout: 90000 },
+    );
     return response.data as SalesBrief;
   },
 };

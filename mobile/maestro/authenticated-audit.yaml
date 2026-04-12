@@ -124,7 +124,7 @@ tags:
 - extendedWaitUntil:
     visible:
       id: "sales-brief-screen"
-    timeout: 30000
+    timeout: 120000
 - takeScreenshot:
     path: "04_sales_brief"
 

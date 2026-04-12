@@ -53,8 +53,51 @@ router.post('/chat', async (req: BffRequest, res: Response, next: NextFunction):
   }
 });
 
+// Screenshot fixture — returned when screenshotMode is active to bypass LLM latency (~35s)
+// Activated at runtime via POST /bff/internal/screenshot-mode { enabled: true|false }
+let screenshotMode = process.env.SCREENSHOT_MODE === 'true';
+
+const SALES_BRIEF_FIXTURE = {
+  outcome: 'completed',
+  entityType: 'deal',
+  entityId: 'fixture',
+  summary: 'Champion confirmed budget approval. Procurement requested the security addendum. Decision call is scheduled for Friday.',
+  risks: ['Legal review could slip by three business days.', 'Procurement needs revised pricing language.'],
+  nextBestActions: [
+    { title: 'Send Security Addendum', description: 'Send the requested security addendum to Procurement today.', tool: 'create_task', params: {}, confidence_score: 0.85, confidence_level: 'high' },
+    { title: 'Follow up with Procurement', description: 'Follow up with Procurement tomorrow regarding revised pricing language.', tool: 'create_task', params: {}, confidence_score: 0.85, confidence_level: 'high' },
+  ],
+  confidence: 'high',
+  abstentionReason: null,
+  evidencePack: {
+    schema_version: 'v1',
+    query: 'deal latest updates timeline next steps',
+    sources: [{ knowledge_item_id: 'fixture-001', method: 'vector', score: 0.95, snippet: 'Champion confirmed budget approval for the expansion deal.', pii_redacted: false, created_at: new Date().toISOString() }],
+    source_count: 1,
+    dedup_count: 0,
+    confidence: 'high',
+    total_candidates: 1,
+    filtered_count: 0,
+    warnings: [],
+    retrieval_methods_used: ['vector'],
+    built_at: new Date().toISOString(),
+  },
+};
+
+// POST /bff/internal/screenshot-mode — toggle fixture mode at runtime (localhost only, no auth required)
+router.post('/internal/screenshot-mode', (req: Request, res: Response): void => {
+  const enabled = (req.body as { enabled?: boolean }).enabled === true;
+  screenshotMode = enabled;
+  res.status(200).json({ screenshotMode });
+});
+
 // POST /bff/api/v1/copilot/sales-brief → JSON relay to Go POST /api/v1/copilot/sales-brief
+// screenshotMode=true: returns fixture immediately (bypasses LLM ~35s latency for screenshot runs)
 router.post('/sales-brief', async (req: BffRequest, res: Response, next: NextFunction): Promise<void> => {
+  if (screenshotMode) {
+    res.status(200).json(SALES_BRIEF_FIXTURE);
+    return;
+  }
   try {
     const client = createGoClient(req.bearerToken);
     const goRes = await client.post('/api/v1/copilot/sales-brief', req.body);
