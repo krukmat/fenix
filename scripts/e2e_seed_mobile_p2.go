@@ -100,6 +100,7 @@ type seedOutput struct {
 	} `json:"agentRuns"`
 	Inbox struct {
 		ApprovalID string `json:"approvalId"`
+		SignalID   string `json:"signalId"`
 	} `json:"inbox"`
 }
 
@@ -190,12 +191,12 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		return nil, err
 	}
 
-	approvalID, err := seedGovernanceAndApproval(ctx, db, auth, runs.completedID, dealID, caseID, suffix, baseNow)
+	approvalID, signalID, err := seedGovernanceAndApproval(ctx, db, auth, runs.completedID, dealID, caseID, suffix, baseNow)
 	if err != nil {
 		return nil, fmt.Errorf("seedApproval: %w", err)
 	}
 
-	return buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSubject, runs, approvalID), nil
+	return buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSubject, runs, approvalID, signalID), nil
 }
 
 func cleanupExistingFixtures(ctx context.Context, db *sql.DB, workspaceID string) error {
@@ -358,7 +359,7 @@ func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, s
 	}, nil
 }
 
-func buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSubject string, runs wedgeRunIDs, approvalID string) *seedOutput {
+func buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSubject string, runs wedgeRunIDs, approvalID, signalID string) *seedOutput {
 	out := &seedOutput{}
 	out.Account.ID = accountID
 	out.Contact.ID = contactID
@@ -374,6 +375,7 @@ func buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSub
 		out.AgentRuns.DeniedByPolicyID = runs.deniedIDs[0]
 	}
 	out.Inbox.ApprovalID = approvalID
+	out.Inbox.SignalID = signalID
 	return out
 }
 
@@ -512,27 +514,31 @@ func seedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 
 // seedGovernanceAndApproval seeds usage events, quota policy, and inbox approval in one call.
 // W6-T3: extracted to reduce seedFixtures cognitive complexity below gocognit threshold.
-func seedGovernanceAndApproval(ctx context.Context, db *sql.DB, auth authResponse, runID, dealID, caseID, suffix string, baseNow time.Time) (string, error) {
+func seedGovernanceAndApproval(ctx context.Context, db *sql.DB, auth authResponse, runID, dealID, caseID, suffix string, baseNow time.Time) (string, string, error) {
 	if err := seedUsageEvents(ctx, db, auth, runID); err != nil {
-		return "", fmt.Errorf("seedUsageEvents: %w", err)
+		return "", "", fmt.Errorf("seedUsageEvents: %w", err)
 	}
 	if err := seedQuotaPolicy(ctx, db, auth); err != nil {
-		return "", fmt.Errorf("seedQuotaPolicy: %w", err)
+		return "", "", fmt.Errorf("seedQuotaPolicy: %w", err)
 	}
 	if err := ensureSignalAccessRole(ctx, db, auth); err != nil {
-		return "", fmt.Errorf("ensureSignalAccessRole: %w", err)
+		return "", "", fmt.Errorf("ensureSignalAccessRole: %w", err)
 	}
-	if err := seedInboxSignals(ctx, db, auth, dealID, caseID, runID, suffix, baseNow); err != nil {
-		return "", fmt.Errorf("seedInboxSignals: %w", err)
+	signalIDs, err := seedInboxSignals(ctx, db, auth, dealID, caseID, runID, suffix, baseNow)
+	if err != nil {
+		return "", "", fmt.Errorf("seedInboxSignals: %w", err)
 	}
 	approvalIDs, err := seedInboxApprovals(ctx, db, auth, caseID, suffix, baseNow)
 	if err != nil {
-		return "", fmt.Errorf("seedApproval: %w", err)
+		return "", "", fmt.Errorf("seedApproval: %w", err)
 	}
 	if len(approvalIDs) == 0 {
-		return "", errors.New("seedApproval: expected at least one approval")
+		return "", "", errors.New("seedApproval: expected at least one approval")
 	}
-	return approvalIDs[0], nil
+	if len(signalIDs) == 0 {
+		return "", "", errors.New("seedInboxSignals: expected at least one signal")
+	}
+	return approvalIDs[0], signalIDs[0], nil
 }
 
 // ─── Agent run fixtures ───────────────────────────────────────────────────────
@@ -746,7 +752,7 @@ func seedInboxSignals(
 	auth authResponse,
 	dealID, caseID, runID, suffix string,
 	baseNow time.Time,
-) error {
+) ([]string, error) {
 	signals := []struct {
 		entityType string
 		entityID   string
@@ -773,13 +779,16 @@ func seedInboxSignals(
 		},
 	}
 
+	ids := make([]string, 0, len(signals))
 	for index, signal := range signals {
-		if err := seedSignal(ctx, db, auth, runID, suffix, index, signal.entityType, signal.entityID, signal.signalType, signal.summary, signal.confidence, signal.createdAt); err != nil {
-			return err
+		signalID, err := seedSignal(ctx, db, auth, runID, suffix, index, signal.entityType, signal.entityID, signal.signalType, signal.summary, signal.confidence, signal.createdAt)
+		if err != nil {
+			return nil, err
 		}
+		ids = append(ids, signalID)
 	}
 
-	return nil
+	return ids, nil
 }
 
 func seedSignal(
@@ -791,8 +800,9 @@ func seedSignal(
 	entityType, entityID, signalType, summary string,
 	confidence float64,
 	createdAt time.Time,
-) error {
+) (string, error) {
 	now := createdAt.UTC().Truncate(time.Second)
+	signalID := uuid.NewV7().String()
 	evidenceIDs := fmt.Sprintf(`["e2e-signal-%s-%d"]`, suffix, index+1)
 	metadata := fmt.Sprintf(`{"summary":%q,"label":"E2E inbox signal %d"}`, summary, index+1)
 
@@ -802,11 +812,14 @@ func seedSignal(
 			evidence_ids, source_type, source_id, metadata, status,
 			dismissed_by, dismissed_at, expires_at, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)`,
-		uuid.NewV7().String(), auth.WorkspaceID, entityType, entityID, signalType, confidence,
+		signalID, auth.WorkspaceID, entityType, entityID, signalType, confidence,
 		evidenceIDs, "agent_run", runID, metadata, "active",
 		now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
-	return err
+	if err != nil {
+		return "", err
+	}
+	return signalID, nil
 }
 
 func ensureSignalAccessRole(ctx context.Context, db *sql.DB, auth authResponse) error {

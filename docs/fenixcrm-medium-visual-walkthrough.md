@@ -33,19 +33,19 @@ Caption: The inbox as the operational center.
 
 This screen is the key to the whole product. Where a classic Salesforce experience often centers the user on records and dashboards, FenixCRM is more centered on the inbox. The question shifts from "what is in the pipeline?" to "what needs attention now?" Approvals, handoffs, signals, and policy rejections surface together, ordered as an operational queue rather than split by record type.
 
-[Insert image: mobile/artifacts/maestro-reports/screenshots/02_inbox.png]
-Caption: Approve or reject without leaving the inbox.
+[Insert image: mobile/artifacts/maestro-reports/screenshots/06_inbox_signal_detail.png]
+Caption: Signals open directly into contextual detail.
 
 ## 3. The system can propose, without deciding on its own
 
-The Approve and Reject buttons appear directly on each item in the inbox — no separate panel, no context switch. The system surfaces what needs a decision and puts the control in the same place where the work is visible. Deciding has low friction because the context is already there.
+Signals matter because they compress judgment into something reviewable. Instead of forcing the user to infer intent from scattered record changes, the product opens a detail surface with confidence, entity context, and evidence attached to the signal itself.
 
-[Insert image: mobile/artifacts/maestro-reports/screenshots/07_inbox_handoff.png]
-Caption: Handoff is part of the design, not an edge case.
+[Insert image: mobile/artifacts/maestro-reports/screenshots/07_inbox_request_detail.png]
+Caption: Requests can open directly into the working detail view.
 
 ## 4. Handoff is part of the flow
 
-Handoff matters for the same reason. Not every case should be resolved the same way, and the system should preserve continuity when work changes hands. The receiving person sees what was done, what was decided, and what context the previous agent had — not just the open ticket.
+The transition from inbox to request detail matters for the same reason. Work does not stop at triage; the user needs to move from the queue into the case with continuity preserved. What looked like an inbox item becomes a working surface with context intact.
 
 [Insert image: mobile/artifacts/maestro-reports/screenshots/03_support_case_detail.png]
 Caption: Support as operational context.

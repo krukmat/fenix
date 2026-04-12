@@ -46,21 +46,21 @@ This is where FenixCRM reads most clearly as a coordination layer: what matters 
 
 ![Inbox](../mobile/artifacts/screenshots/02_inbox.png)
 
-## 3. When the system proposes, without deciding on its own
+## 3. When the system surfaces a signal with evidence
 
-The third key image is not isolated on its own screen; it appears inside the flow. Inline approval communicates a simple idea: the system can push work forward, but there are moments when someone still has to validate the next step.
+The third key image shows a signal opened from the inbox into its own detail surface. That matters because the product is not only flagging that something changed; it is packaging confidence, entity context, and evidence into a reviewable object.
 
-That reduces friction without removing responsibility.
+That reduces guesswork without hiding the basis for the suggestion.
 
-![Inline approval](../mobile/artifacts/screenshots/06_inbox_approval_inline.png)
+![Signal detail](../mobile/artifacts/screenshots/06_inbox_signal_detail.png)
 
-## 4. When the case needs to be handed off
+## 4. When inbox items open into the real working surface
 
-Not everything is resolved with a suggestion or an automation. The handoff screen shows another important part of the product: knowing when to transfer the case.
+The next image shows the inbox leading directly into the request detail. That is important because the inbox is not a dead-end queue; it is the entry point into the work itself.
 
-Conceptually, that says a lot. FenixCRM is not trying to look all-knowing. It is trying to preserve continuity when a case needs a different level of attention.
+Conceptually, that says a lot. FenixCRM is not trying to trap people inside a dashboard. It is trying to preserve continuity from triage into execution.
 
-![Handoff](../mobile/artifacts/screenshots/07_inbox_handoff.png)
+![Request detail](../mobile/artifacts/screenshots/07_inbox_request_detail.png)
 
 ## 5. Support as context, not as an isolated ticket
 

@@ -2,8 +2,8 @@
 // FR-300 (Home), FR-071 (approvals badge)
 
 import React, { useState, useCallback } from 'react';
-import { View, FlatList, RefreshControl, StyleSheet } from 'react-native';
-import { Text, Chip, useTheme } from 'react-native-paper';
+import { View, FlatList, RefreshControl, StyleSheet, Pressable } from 'react-native';
+import { Text, useTheme } from 'react-native-paper';
 import { SignalCard } from '../signals/SignalCard';
 import { ApprovalCard } from '../approvals/ApprovalCard';
 import type { Signal, ApprovalRequest } from '../../services/api';
@@ -68,10 +68,16 @@ export function HomeFeed({
   const ListHeader = (
     <View style={styles.chipRow} testID={`${testIDPrefix}-chips`}>
       {(['all', 'signals', 'approvals'] as FeedFilter[]).map((f) => (
-        <Chip key={f} selected={filter === f} onPress={() => setFilter(f)}
-          style={styles.chip} testID={`${testIDPrefix}-chip-${f}`}>
-          {chipLabel(f, pendingApprovalCount)}
-        </Chip>
+        <Pressable
+          key={f}
+          onPress={() => setFilter(f)}
+          style={[styles.chip, filter === f ? styles.chipSelected : styles.chipIdle]}
+          testID={`${testIDPrefix}-chip-${f}`}
+        >
+          <Text style={[styles.chipText, filter === f ? styles.chipTextSelected : styles.chipTextIdle]}>
+            {chipLabel(f, pendingApprovalCount)}
+          </Text>
+        </Pressable>
       ))}
     </View>
   );
@@ -96,7 +102,12 @@ export function HomeFeed({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   chipRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
-  chip: { height: 32 },
+  chip: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1 },
+  chipSelected: { backgroundColor: '#111827', borderColor: '#111827' },
+  chipIdle: { backgroundColor: '#FFFFFF', borderColor: '#D1D5DB' },
+  chipText: { fontSize: 13, fontWeight: '600' },
+  chipTextSelected: { color: '#FFFFFF' },
+  chipTextIdle: { color: '#111827' },
   listContent: { paddingBottom: 24 },
   empty: { textAlign: 'center', marginTop: 48 },
 });

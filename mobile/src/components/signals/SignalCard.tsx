@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Card, Text, Chip, IconButton, Dialog, Portal, Button, useTheme } from 'react-native-paper';
+import { Card, Text, IconButton, Dialog, Portal, Button, useTheme } from 'react-native-paper';
 import type { Signal } from '../../services/api';
 
 interface SignalCardProps {
@@ -74,10 +74,11 @@ export function SignalCard({ signal, onDismiss, onPress, testIDPrefix = 'signal-
           <View style={styles.header}>
             <View style={styles.titleRow}>
               <Text variant="labelLarge" testID={`${testIDPrefix}-type`}>{signal.signal_type}</Text>
-              <Chip compact testID={`${testIDPrefix}-confidence`}
-                style={[styles.confidenceChip, { backgroundColor: color }]} textStyle={styles.confidenceText}>
-                {`${confidenceLabel(signal.confidence)} ${(signal.confidence * 100).toFixed(0)}%`}
-              </Chip>
+              <View testID={`${testIDPrefix}-confidence`} style={[styles.confidenceBadge, { backgroundColor: color }]}>
+                <Text style={styles.confidenceText}>
+                  {`${confidenceLabel(signal.confidence)} ${(signal.confidence * 100).toFixed(0)}%`}
+                </Text>
+              </View>
             </View>
             <IconButton icon="close" size={18} testID={`${testIDPrefix}-dismiss-btn`}
               onPress={() => setConfirmVisible(true)} />
@@ -105,8 +106,8 @@ const styles = StyleSheet.create({
   card: { marginBottom: 8, marginHorizontal: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   titleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  confidenceChip: { height: 24 },
-  confidenceText: { color: '#ffffff', fontSize: 11 },
+  confidenceBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  confidenceText: { color: '#ffffff', fontSize: 11, fontWeight: '700' },
   entity: { marginTop: 2, marginBottom: 4 },
   snippet: { marginBottom: 6 },
 });

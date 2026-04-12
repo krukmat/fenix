@@ -22,10 +22,11 @@ interface RegisterFormProps {
   onWorkspaceChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onSubmit: () => void;
-  onGoToLogin: () => void;
 }
 
 function RegisterForm(props: RegisterFormProps) {
+  const router = useRouter();
+
   return (
     <>
       <TextInput
@@ -87,7 +88,7 @@ function RegisterForm(props: RegisterFormProps) {
         Sign Up
       </Button>
 
-      <Button testID="go-to-login-link" mode="text" onPress={props.onGoToLogin} style={styles.linkButton}>
+      <Button testID="go-to-login-link" mode="text" onPress={() => router.push('/login')} style={styles.linkButton}>
         Already have an account? Sign in
       </Button>
     </>
@@ -95,7 +96,6 @@ function RegisterForm(props: RegisterFormProps) {
 }
 
 export default function RegisterScreen() {
-  const router = useRouter();
   const login = useAuthStore((state) => state.login);
   
   const [displayName, setDisplayName] = useState('');
@@ -123,9 +123,6 @@ export default function RegisterScreen() {
         userId: response.userId,
         workspaceId: response.workspaceId,
       });
-
-      // Navigate to main app
-      router.replace('/home');
     } catch (err) {
       console.error('Register error:', err);
       if (isAxiosError(err) && err.response?.status === 409) {
@@ -152,7 +149,6 @@ export default function RegisterScreen() {
         onWorkspaceChange={setWorkspaceName}
         onPasswordChange={setPassword}
         onSubmit={handleRegister}
-        onGoToLogin={() => router.push('/login')}
       />
     </AuthFormLayout>
   );

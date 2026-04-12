@@ -190,8 +190,8 @@ Consumer side — `mobile/maestro/seed-and-run.sh` `seed_to_env_lines`:
   - `governance-screen` (via `openLink` on `fenixcrm:///governance`)
 - Preserve the existing conditional captures for inbox inline surfaces when
   present:
-  - `06_inbox_approval_inline` (when `inbox-approval-${SEED_APPROVAL_ID}` visible)
-  - `07_inbox_handoff` (when `inbox-handoff-${SEED_RUN_HANDOFF_ID}` visible)
+  - `06_inbox_signal_detail` (when `inbox-signal-${SEED_SIGNAL_ID}` visible)
+  - `07_inbox_request_detail` (when `inbox-handoff-${SEED_RUN_HANDOFF_ID}` visible)
 
 ### Artifacts and documentation
 
@@ -260,8 +260,8 @@ Functional verification:
    - `03_support_case_detail`
    - `04_sales_brief`
    - `05_governance`
-   - `06_inbox_approval_inline` (when fixture present)
-   - `07_inbox_handoff` (when fixture present)
+   - `06_inbox_signal_detail` (when fixture present)
+   - `07_inbox_request_detail` (when fixture present)
    - `08_activity_run_detail_denied`
 
 Governance / safety verification:

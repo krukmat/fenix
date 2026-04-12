@@ -31,18 +31,53 @@ tags:
 - runFlow:
     when:
       visible:
-        id: "inbox-approval-${SEED_APPROVAL_ID}"
+        id: "inbox-signal-${SEED_SIGNAL_ID}"
     commands:
+      - tapOn:
+          id: "inbox-chip-signal"
+      - extendedWaitUntil:
+          visible:
+            id: "inbox-signal-${SEED_SIGNAL_ID}"
+          timeout: 10000
+      - tapOn:
+          id: "inbox-signal-${SEED_SIGNAL_ID}"
+      - extendedWaitUntil:
+          visible:
+            id: "signal-detail"
+          timeout: 20000
       - takeScreenshot:
-          path: "06_inbox_approval_inline"
+          path: "06_inbox_signal_detail"
+      - back
+      - extendedWaitUntil:
+          visible:
+            id: "inbox-screen"
+          timeout: 10000
 
 - runFlow:
     when:
       visible:
         id: "inbox-handoff-${SEED_RUN_HANDOFF_ID}"
     commands:
+      - tapOn:
+          id: "inbox-chip-handoff"
+      - extendedWaitUntil:
+          visible:
+            id: "inbox-handoff-${SEED_RUN_HANDOFF_ID}"
+          timeout: 10000
+      - tapOn:
+          id: "inbox-handoff-${SEED_RUN_HANDOFF_ID}"
+      - extendedWaitUntil:
+          visible:
+            id: "support-case-detail-screen"
+          timeout: 20000
       - takeScreenshot:
-          path: "07_inbox_handoff"
+          path: "07_inbox_request_detail"
+      - tapOn:
+          id: "tab-inbox"
+      - extendedWaitUntil:
+          visible:
+            id: "inbox-screen"
+          timeout: 10000
 
 # ── 2. Support ────────────────────────────────────────────────────────────────
 

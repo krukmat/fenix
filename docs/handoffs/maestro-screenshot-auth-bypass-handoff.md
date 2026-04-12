@@ -78,8 +78,8 @@ sanitized, and the legacy `visual-audit.yaml` flow has been retired.
 - Starts with `openLink: ${SEED_BOOTSTRAP_URL}`.
 - Waits for `inbox-screen`, captures `02_inbox.png`.
 - Reuses the original visual-audit.yaml capture steps for:
-  - `06_inbox_approval_inline` (conditional)
-  - `07_inbox_handoff` (conditional)
+  - `06_inbox_signal_detail` (conditional)
+  - `07_inbox_request_detail` (conditional)
   - `03_support_case_detail`
   - `04_sales_brief`
   - `08_activity_run_detail_denied` (via `openLink fenixcrm:///activity/...`)
@@ -212,7 +212,7 @@ unverified for the `e2e-bootstrap` route specifically.
 11. **End-to-end `npm run screenshots`** — still pending. Verify the 8 PNGs land
     deterministically:
     - `01_auth_login`, `02_inbox`, `03_support_case_detail`, `04_sales_brief`,
-      `05_governance`, `06_inbox_approval_inline`, `07_inbox_handoff`,
+      `05_governance`, `06_inbox_signal_detail`, `07_inbox_request_detail`,
       `08_activity_run_detail_denied`.
     Requires a booted Android emulator with the debug APK installed, plus a
     healthy backend on `:8080` and BFF on `:3000`.

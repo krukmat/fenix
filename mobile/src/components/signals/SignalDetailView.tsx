@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
-import { Text, Chip, Divider, useTheme } from 'react-native-paper';
+import { Text, Divider, useTheme } from 'react-native-paper';
 import { EvidenceCard } from '../copilot/EvidenceCard';
 import type { Signal } from '../../services/api';
 import type { EvidenceSource } from '../../services/sse';
@@ -51,14 +51,14 @@ export function SignalDetailView({ signal, testIDPrefix = 'signal-detail' }: Sig
         <Text variant="titleMedium" testID={`${testIDPrefix}-type`}>
           {signal.signal_type}
         </Text>
-        <Chip
-          compact
+        <View
           testID={`${testIDPrefix}-confidence`}
-          style={[styles.confidenceChip, { backgroundColor: color }]}
-          textStyle={styles.confidenceText}
+          style={[styles.confidenceBadge, { backgroundColor: color }]}
         >
-          {`${confidenceLabel(signal.confidence)} · ${(signal.confidence * 100).toFixed(0)}%`}
-        </Chip>
+          <Text style={styles.confidenceText}>
+            {`${confidenceLabel(signal.confidence)} · ${(signal.confidence * 100).toFixed(0)}%`}
+          </Text>
+        </View>
       </View>
 
       <Text
@@ -112,8 +112,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 4 },
-  confidenceChip: { height: 24 },
-  confidenceText: { color: '#ffffff', fontSize: 11 },
+  confidenceBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  confidenceText: { color: '#ffffff', fontSize: 11, fontWeight: '700' },
   divider: { marginVertical: 12 },
   summary: { marginBottom: 16 },
   sectionLabel: { marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },

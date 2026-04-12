@@ -130,6 +130,7 @@ const pairs = {
   SEED_RUN_HANDOFF_ID:     seed.agentRuns?.handoffId ?? '',
   SEED_RUN_DENIED_ID:      seed.agentRuns?.deniedByPolicyId ?? '',
   SEED_APPROVAL_ID:        seed.inbox?.approvalId ?? '',
+  SEED_SIGNAL_ID:          seed.inbox?.signalId ?? '',
   SEED_AUTH_TOKEN:         seed.auth?.token ?? '',
   SEED_USER_ID:            seed.auth?.userId ?? '',
   SEED_WORKSPACE_ID:       seed.auth?.workspaceId ?? '',
@@ -164,6 +165,7 @@ print_seed_summary() {
   log "SEED_RUN_HANDOFF_ID=${SEED_RUN_HANDOFF_ID}"
   log "SEED_RUN_DENIED_ID=${SEED_RUN_DENIED_ID}"
   log "SEED_APPROVAL_ID=${SEED_APPROVAL_ID}"
+  log "SEED_SIGNAL_ID=${SEED_SIGNAL_ID}"
   log "SEED_USER_ID=${SEED_USER_ID}"
   log "SEED_WORKSPACE_ID=${SEED_WORKSPACE_ID}"
   log "SEED_AUTH_TOKEN=[redacted len=${#SEED_AUTH_TOKEN}]"
@@ -185,6 +187,7 @@ run_maestro_flow() {
     -e "SEED_RUN_HANDOFF_ID=${SEED_RUN_HANDOFF_ID}" \
     -e "SEED_RUN_DENIED_ID=${SEED_RUN_DENIED_ID}" \
     -e "SEED_APPROVAL_ID=${SEED_APPROVAL_ID}" \
+    -e "SEED_SIGNAL_ID=${SEED_SIGNAL_ID}" \
     -e "SEED_BOOTSTRAP_URL=${SEED_BOOTSTRAP_URL}" \
     "${flow}"
 }

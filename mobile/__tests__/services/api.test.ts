@@ -327,6 +327,32 @@ describe('api.ts', () => {
         expect(result).toEqual([]);
       });
 
+      it('getSignals should normalize wrapped data payloads', async () => {
+        jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+          data: {
+            data: [{
+              id: 'sig-1',
+              workspace_id: 'ws-1',
+              entity_type: 'deal',
+              entity_id: 'deal-1',
+              signal_type: 'churn_risk',
+              confidence: 0.9,
+              evidence_ids: [],
+              source_type: 'agent',
+              source_id: 'src-1',
+              metadata: {},
+              status: 'active',
+              created_at: '2026-04-08T10:00:00Z',
+              updated_at: '2026-04-08T10:00:00Z',
+            }],
+          },
+        } as never);
+
+        const result = await signalApi.getSignals('ws-1', { entity_type: 'deal', entity_id: 'deal-1' });
+
+        expect(result).toEqual([expect.objectContaining({ id: 'sig-1', signal_type: 'churn_risk' })]);
+      });
+
       it('getSignals should pass only entity_type filter without entity_id', async () => {
         const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: [] } as never);
 

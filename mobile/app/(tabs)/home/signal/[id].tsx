@@ -59,13 +59,20 @@ function useSignalHandlers(id: string, signal: Signal | undefined) {
   return { handleDismiss, handleAskCopilot, dismissPending: dismissMutation.isPending };
 }
 
+function selectSignal(signals: Signal[] | undefined, id: string): Signal | undefined {
+  if (!Array.isArray(signals) || signals.length === 0) {
+    return undefined;
+  }
+  return signals.find((item) => item.id === id) ?? signals[0];
+}
+
 export default function SignalDetailScreen() {
   const theme = useTheme();
   const rawParams = useLocalSearchParams<Params>();
   const { id, entityType, entityId } = resolveParams(rawParams);
 
   const { data: signals, isLoading, error } = useSignalsByEntity(entityType || 'signal', entityId);
-  const signal = signals?.find((s) => s.id === id) ?? signals?.[0];
+  const signal = selectSignal(signals, id);
   const { handleDismiss, handleAskCopilot, dismissPending } = useSignalHandlers(id, signal);
 
   if (isLoading) {

@@ -8,6 +8,16 @@ import type {
   GovernanceSummary,
 } from './api.types';
 
+function normalizeSignalsResponse(data: unknown): Signal[] {
+  if (Array.isArray(data)) {
+    return data as Signal[];
+  }
+  if (Array.isArray((data as { data?: unknown[] } | null)?.data)) {
+    return (data as { data: Signal[] }).data;
+  }
+  return [];
+}
+
 // Signal API
 export const signalApi = {
   getSignals: async (
@@ -23,7 +33,7 @@ export const signalApi = {
         ...filters,
       },
     });
-    return response.data as Signal[];
+    return normalizeSignalsResponse(response.data);
   },
 
   dismissSignal: async (id: string) => {

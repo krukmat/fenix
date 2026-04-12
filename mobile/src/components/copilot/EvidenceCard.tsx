@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { TouchableOpacity, View, StyleSheet } from 'react-native';
-import { Card, Text, Chip } from 'react-native-paper';
+import { Card, Text } from 'react-native-paper';
 import type { EvidenceSource } from '../../services/sse';
 
 interface EvidenceCardProps {
@@ -34,7 +34,9 @@ export function EvidenceCard({ source, index, testIDPrefix = 'evidence' }: Evide
         <Card.Content>
           <View style={styles.header}>
             <Text variant="titleSmall">{collapsedTitle}</Text>
-            <Chip compact testID={`${testIDPrefix}-score`}>{source.score.toFixed(2)}</Chip>
+            <View testID={`${testIDPrefix}-score`} style={styles.scoreBadge}>
+              <Text style={styles.scoreBadgeText}>{source.score.toFixed(2)}</Text>
+            </View>
           </View>
           <Text variant="bodySmall" testID={`${testIDPrefix}-snippet`}>
             {expanded ? source.snippet : truncate(source.snippet)}
@@ -49,4 +51,18 @@ export function EvidenceCard({ source, index, testIDPrefix = 'evidence' }: Evide
 const styles = StyleSheet.create({
   card: { marginBottom: 8 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  scoreBadge: {
+    minWidth: 56,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DBEAFE',
+  },
+  scoreBadgeText: {
+    color: '#1E3A8A',
+    fontSize: 12,
+    fontWeight: '700',
+  },
 });
