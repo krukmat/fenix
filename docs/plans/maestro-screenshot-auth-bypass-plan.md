@@ -11,6 +11,9 @@ created: 2026-04-11
 ## Status Update
 
 - Green emulator run completed with the expected 8 screenshots.
+- The inbox screenshot seed now produces an interleaved mixed queue with 2 approvals,
+  2 handoffs, 2 active signals, and 2 rejected runs so `02_inbox` shows visible
+  variety without relying on scrolling.
 - `mobile/maestro/visual-audit.yaml` has been retired in favor of the two-phase
   flow: `auth-surface.yaml` + `authenticated-audit.yaml`.
 - `mobile/maestro/seed-and-run.sh` now launches the app via ADB for phase 1 and

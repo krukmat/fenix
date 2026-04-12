@@ -1,5 +1,5 @@
 // W1-T3 (mobile_wedge_harmonization_plan): BFF inbox aggregation route
-// GET /bff/api/v1/mobile/inbox → aggregates approvals + signals + handed-off runs
+// GET /bff/api/v1/mobile/inbox → aggregates approvals + signals + handed-off + rejected runs
 // Partial enrichment failure on handoffs does NOT fail the whole response.
 import { Router, Request, Response, NextFunction } from 'express';
 import { createGoClient } from '../services/goClient';
@@ -39,16 +39,18 @@ router.get('/', async (req: BffRequest, res: Response, next: NextFunction): Prom
       params.workspace_id = workspaceId;
     }
 
-    // Fetch approvals, signals, and handed-off runs in parallel
-    const [approvalsRes, signalsRes, handedOffRunsRes] = await Promise.all([
+    // Fetch approvals, signals, and wedge-relevant runs in parallel.
+    const [approvalsRes, signalsRes, handedOffRunsRes, rejectedRunsRes] = await Promise.all([
       client.get('/api/v1/approvals', { params }).catch(() => ({ data: { data: [] } })),
       client.get('/api/v1/signals', { params: { ...params, status: 'active' } }).catch(() => ({ data: [] })),
       client.get('/api/v1/agents/runs', { params: { ...params, status: 'handed_off', limit: 20 } }).catch(() => ({ data: { data: [] } })),
+      client.get('/api/v1/agents/runs', { params: { ...params, status: 'denied_by_policy', limit: 20 } }).catch(() => ({ data: { data: [] } })),
     ]);
 
     const approvals = (approvalsRes.data?.data ?? approvalsRes.data ?? []) as unknown[];
     const signals = Array.isArray(signalsRes.data) ? signalsRes.data : (signalsRes.data?.data ?? []) as unknown[];
     const handedOffRuns = ((handedOffRunsRes.data as AgentRunsResponse)?.data ?? []) as AgentRun[];
+    const rejected = ((rejectedRunsRes.data as AgentRunsResponse)?.data ?? []) as AgentRun[];
 
     // Enrich each handed-off run with its handoff package — skip failures individually
     const handoffs = (
@@ -66,7 +68,7 @@ router.get('/', async (req: BffRequest, res: Response, next: NextFunction): Prom
       )
     ).filter((item): item is NonNullable<typeof item> => item !== null);
 
-    res.json({ approvals, handoffs, signals });
+    res.json({ approvals, handoffs, signals, rejected });
   } catch (err) {
     next(err);
   }

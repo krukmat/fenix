@@ -28,7 +28,7 @@ export const wedgeQueryKeys = {
 
 // ─── Inbox ────────────────────────────────────────────────────────────────────
 
-/** Fetches unified inbox: approvals + handoffs + signals. Stale after 15s. */
+/** Fetches unified inbox: approvals + handoffs + signals + rejected runs. Stale after 15s. */
 export function useInbox() {
   const workspaceId = useWorkspaceId();
 

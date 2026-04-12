@@ -68,7 +68,7 @@ export const approvalApi = {
   },
 };
 
-// W1-T1: Inbox API — BFF aggregation route for approvals, handoffs, and signals
+// W1-T1: Inbox API — BFF aggregation route for approvals, handoffs, signals, and rejected runs
 export const inboxApi = {
   getInbox: async (workspaceId: string) => {
     const response = await apiClient.get('/bff/api/v1/mobile/inbox', {

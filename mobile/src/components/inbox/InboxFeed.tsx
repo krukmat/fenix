@@ -4,27 +4,29 @@ import { useRouter } from 'expo-router';
 import { ApprovalCard } from '../approvals/ApprovalCard';
 import { SignalCard } from '../signals/SignalCard';
 import { resolveHandoffEntityContext, resolveWedgeHandoffPackageDestination, wedgeHref, wedgeHrefObject } from '../../utils/navigation';
-import type { ApprovalRequest, HandoffPackage, Signal } from '../../services/api';
+import type { AgentRun, ApprovalRequest, HandoffPackage, Signal } from '../../services/api';
 
-export type InboxFilter = 'all' | 'approval' | 'handoff' | 'signal';
+export type InboxFilter = 'all' | 'approval' | 'handoff' | 'signal' | 'rejected';
 
 export type InboxRenderableItem =
   | { type: 'approval'; id: string; approval: ApprovalRequest }
   | { type: 'handoff'; id: string; runId: string; handoff: HandoffPackage }
-  | { type: 'signal'; id: string; signal: Signal };
+  | { type: 'signal'; id: string; signal: Signal }
+  | { type: 'rejected'; id: string; run: AgentRun };
 
 const FILTER_CHIPS: { key: InboxFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'approval', label: 'Approvals' },
   { key: 'handoff', label: 'Handoffs' },
   { key: 'signal', label: 'Signals' },
+  { key: 'rejected', label: 'Rejected' },
 ];
 
 function InboxHeader({ total, visible }: { total: number; visible: number }) {
   return (
     <View style={styles.header} testID="inbox-header">
       <Text style={styles.title}>Inbox</Text>
-      <Text style={styles.subtitle}>Approvals, handoffs, and signals in one queue</Text>
+      <Text style={styles.subtitle}>Approvals, handoffs, signals, and rejections in one queue</Text>
       <Text style={styles.count} testID="inbox-total-count">{total} items</Text>
       <Text style={styles.visibleCount} testID="inbox-visible-count">{visible} shown</Text>
     </View>
@@ -114,6 +116,25 @@ function HandoffCard({
   );
 }
 
+function RejectedCard({ run, onPress }: { run: AgentRun; onPress: () => void }) {
+  return (
+    <Pressable style={styles.rejectedCard} onPress={onPress} testID={`inbox-rejected-${run.id}`}>
+      <Text style={styles.rejectedEyebrow}>Rejected</Text>
+      <Text style={styles.rejectedReason} testID={`inbox-rejected-${run.id}-reason`}>
+        {run.rejection_reason ?? 'Policy blocked this run'}
+      </Text>
+      {run.entity_type && run.entity_id ? (
+        <Text style={styles.rejectedMeta} testID={`inbox-rejected-${run.id}-entity`}>
+          {run.entity_type} · {run.entity_id}
+        </Text>
+      ) : null}
+      <Text style={styles.rejectedMeta} testID={`inbox-rejected-${run.id}-status`}>
+        {run.status.replace(/_/g, ' ')}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function InboxBody({
   items,
   totalItems,
@@ -178,6 +199,12 @@ export function InboxBody({
               testIDPrefix={`inbox-signal-${item.signal.id}`}
             />
           ) : null}
+          {item.type === 'rejected' ? (
+            <RejectedCard
+              run={item.run}
+              onPress={() => router.push(wedgeHref(`/activity/${item.run.id}`))}
+            />
+          ) : null}
         </View>
       ))}
     </ScrollView>
@@ -227,4 +254,16 @@ const styles = StyleSheet.create({
   handoffEyebrow: { fontSize: 12, fontWeight: '700', color: '#92400E', textTransform: 'uppercase', marginBottom: 6 },
   handoffReason: { fontSize: 16, fontWeight: '600', color: '#111827', marginBottom: 6 },
   handoffMeta: { fontSize: 13, color: '#4B5563' },
+  rejectedCard: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  rejectedEyebrow: { fontSize: 12, fontWeight: '700', color: '#991B1B', textTransform: 'uppercase', marginBottom: 6 },
+  rejectedReason: { fontSize: 16, fontWeight: '600', color: '#111827', marginBottom: 6 },
+  rejectedMeta: { fontSize: 13, color: '#7F1D1D' },
 });

@@ -119,6 +119,7 @@ export function normalizeInboxResponse(raw: unknown): InboxResponse {
   const payload = asRecord(raw);
   const approvals = Array.isArray(payload?.approvals) ? payload.approvals : [];
   const signals = Array.isArray(payload?.signals) ? payload.signals : [];
+  const rejected = Array.isArray(payload?.rejected) ? payload.rejected : [];
   const rawHandoffs = Array.isArray(payload?.handoffs) ? payload.handoffs : [];
 
   const handoffs = rawHandoffs.map((item): InboxHandoffItem => {
@@ -135,5 +136,6 @@ export function normalizeInboxResponse(raw: unknown): InboxResponse {
     approvals: approvals as InboxResponse['approvals'],
     handoffs,
     signals: signals as InboxResponse['signals'],
+    rejected: rejected as InboxResponse['rejected'],
   };
 }

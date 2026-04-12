@@ -148,8 +148,8 @@ func main() {
 
 type wedgeRunIDs struct {
 	completedID string
-	handoffID   string
-	deniedID    string
+	handoffIDs  []string
+	deniedIDs   []string
 }
 
 func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutput, error) {
@@ -158,7 +158,8 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		return nil, fmt.Errorf("cleanupExistingFixtures: %w", err)
 	}
 
-	suffix := time.Now().UTC().Format("20060102T150405")
+	baseNow := time.Now().UTC().Truncate(time.Second)
+	suffix := baseNow.Format("20060102T150405")
 
 	accountID, err := seedAccount(ctx, db, auth, suffix)
 	if err != nil {
@@ -184,12 +185,12 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 	}
 
 	// W6-T3: wedge runs — completed, handed-off, denied-by-policy
-	runs, err := seedWedgeRuns(ctx, db, auth, caseID, suffix)
+	runs, err := seedWedgeRuns(ctx, db, auth, caseID, suffix, baseNow)
 	if err != nil {
 		return nil, err
 	}
 
-	approvalID, err := seedGovernanceAndApproval(ctx, db, auth, runs.completedID, caseID, suffix)
+	approvalID, err := seedGovernanceAndApproval(ctx, db, auth, runs.completedID, dealID, caseID, suffix, baseNow)
 	if err != nil {
 		return nil, fmt.Errorf("seedApproval: %w", err)
 	}
@@ -270,7 +271,7 @@ func cleanupWorkspaceTables(ctx context.Context, tx *sql.Tx, workspaceID string,
 
 // seedWedgeRuns seeds the three wedge-relevant run statuses (completed, handed-off, denied).
 // W6-T3: extracted to keep seedFixtures within funlen limit.
-func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, suffix string) (wedgeRunIDs, error) {
+func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, suffix string, baseNow time.Time) (wedgeRunIDs, error) {
 	completedID, err := seedRun(ctx, db, auth, runParams{
 		entityType: "case",
 		entityID:   caseID,
@@ -280,42 +281,81 @@ func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, s
 		agentName:  "Support Agent",
 		latencyMs:  1200,
 		cost:       0.05,
+		occurredAt: baseNow.Add(-55 * time.Minute),
 	})
 	if err != nil {
 		return wedgeRunIDs{}, fmt.Errorf("seedCompletedRun: %w", err)
 	}
 
-	handoffID, err := seedRun(ctx, db, auth, runParams{
+	handoffOlderID, err := seedRun(ctx, db, auth, runParams{
 		entityType:       "case",
 		entityID:         caseID,
-		suffix:           suffix + "_handoff",
+		suffix:           suffix + "_handoff_old",
 		status:           "handed_off",
 		agentType:        "support",
 		agentName:        "Support Agent",
 		latencyMs:        800,
 		cost:             0.03,
-		abstentionReason: "Escalated to human — insufficient confidence",
+		abstentionReason: "Escalated to billing lead after refund policy mismatch",
+		occurredAt:       baseNow.Add(-20 * time.Minute),
 	})
 	if err != nil {
 		return wedgeRunIDs{}, fmt.Errorf("seedHandoffRun: %w", err)
 	}
 
-	deniedID, err := seedRun(ctx, db, auth, runParams{
+	handoffLatestID, err := seedRun(ctx, db, auth, runParams{
+		entityType:       "case",
+		entityID:         caseID,
+		suffix:           suffix + "_handoff_new",
+		status:           "handed_off",
+		agentType:        "support",
+		agentName:        "Support Agent",
+		latencyMs:        730,
+		cost:             0.03,
+		abstentionReason: "Escalated to operations owner for contract exception",
+		occurredAt:       baseNow.Add(-10 * time.Minute),
+	})
+	if err != nil {
+		return wedgeRunIDs{}, fmt.Errorf("seedLatestHandoffRun: %w", err)
+	}
+
+	deniedOlderID, err := seedRun(ctx, db, auth, runParams{
 		entityType:      "case",
 		entityID:        caseID,
-		suffix:          suffix + "_denied",
+		suffix:          suffix + "_denied_old",
 		status:          "denied_by_policy",
 		agentType:       "support",
 		agentName:       "Support Agent",
 		latencyMs:       300,
 		cost:            0.01,
-		rejectionReason: "Policy: external email requires manager approval",
+		rejectionReason: "Policy blocked refund promise without finance approval",
+		occurredAt:      baseNow.Add(-18 * time.Minute),
 	})
 	if err != nil {
 		return wedgeRunIDs{}, fmt.Errorf("seedDeniedRun: %w", err)
 	}
 
-	return wedgeRunIDs{completedID: completedID, handoffID: handoffID, deniedID: deniedID}, nil
+	deniedLatestID, err := seedRun(ctx, db, auth, runParams{
+		entityType:      "case",
+		entityID:        caseID,
+		suffix:          suffix + "_denied_new",
+		status:          "denied_by_policy",
+		agentType:       "support",
+		agentName:       "Support Agent",
+		latencyMs:       280,
+		cost:            0.01,
+		rejectionReason: "Policy blocked outbound message with unverified pricing",
+		occurredAt:      baseNow.Add(-8 * time.Minute),
+	})
+	if err != nil {
+		return wedgeRunIDs{}, fmt.Errorf("seedLatestDeniedRun: %w", err)
+	}
+
+	return wedgeRunIDs{
+		completedID: completedID,
+		handoffIDs:  []string{handoffLatestID, handoffOlderID},
+		deniedIDs:   []string{deniedLatestID, deniedOlderID},
+	}, nil
 }
 
 func buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSubject string, runs wedgeRunIDs, approvalID string) *seedOutput {
@@ -327,8 +367,12 @@ func buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSub
 	out.Case.ID = caseID
 	out.Case.Subject = caseSubject
 	out.AgentRuns.CompletedID = runs.completedID
-	out.AgentRuns.HandoffID = runs.handoffID
-	out.AgentRuns.DeniedByPolicyID = runs.deniedID
+	if len(runs.handoffIDs) > 0 {
+		out.AgentRuns.HandoffID = runs.handoffIDs[0]
+	}
+	if len(runs.deniedIDs) > 0 {
+		out.AgentRuns.DeniedByPolicyID = runs.deniedIDs[0]
+	}
 	out.Inbox.ApprovalID = approvalID
 	return out
 }
@@ -468,18 +512,27 @@ func seedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 
 // seedGovernanceAndApproval seeds usage events, quota policy, and inbox approval in one call.
 // W6-T3: extracted to reduce seedFixtures cognitive complexity below gocognit threshold.
-func seedGovernanceAndApproval(ctx context.Context, db *sql.DB, auth authResponse, runID, caseID, suffix string) (string, error) {
+func seedGovernanceAndApproval(ctx context.Context, db *sql.DB, auth authResponse, runID, dealID, caseID, suffix string, baseNow time.Time) (string, error) {
 	if err := seedUsageEvents(ctx, db, auth, runID); err != nil {
 		return "", fmt.Errorf("seedUsageEvents: %w", err)
 	}
 	if err := seedQuotaPolicy(ctx, db, auth); err != nil {
 		return "", fmt.Errorf("seedQuotaPolicy: %w", err)
 	}
-	approvalID, err := seedApproval(ctx, db, auth, caseID, suffix)
+	if err := ensureSignalAccessRole(ctx, db, auth); err != nil {
+		return "", fmt.Errorf("ensureSignalAccessRole: %w", err)
+	}
+	if err := seedInboxSignals(ctx, db, auth, dealID, caseID, runID, suffix, baseNow); err != nil {
+		return "", fmt.Errorf("seedInboxSignals: %w", err)
+	}
+	approvalIDs, err := seedInboxApprovals(ctx, db, auth, caseID, suffix, baseNow)
 	if err != nil {
 		return "", fmt.Errorf("seedApproval: %w", err)
 	}
-	return approvalID, nil
+	if len(approvalIDs) == 0 {
+		return "", errors.New("seedApproval: expected at least one approval")
+	}
+	return approvalIDs[0], nil
 }
 
 // ─── Agent run fixtures ───────────────────────────────────────────────────────
@@ -495,12 +548,16 @@ type runParams struct {
 	cost             float64
 	abstentionReason string
 	rejectionReason  string
+	occurredAt       time.Time
 }
 
 func seedRun(ctx context.Context, db *sql.DB, auth authResponse, p runParams) (string, error) {
 	agentDefID := uuid.NewV7().String()
 	runID := uuid.NewV7().String()
-	now := time.Now().UTC()
+	now := p.occurredAt.UTC().Truncate(time.Second)
+	if now.IsZero() {
+		now = time.Now().UTC().Truncate(time.Second)
+	}
 
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO agent_definition (
@@ -615,12 +672,54 @@ func seedQuotaPolicy(ctx context.Context, db *sql.DB, auth authResponse) error {
 
 // ─── Inbox fixtures ──────────────────────────────────────────────────────────
 
-func seedApproval(ctx context.Context, db *sql.DB, auth authResponse, caseID, suffix string) (string, error) {
-	now := time.Now().UTC()
-	approvalID := uuid.NewV7().String()
-	expiresAt := now.Add(24 * time.Hour)
+func seedInboxApprovals(ctx context.Context, db *sql.DB, auth authResponse, caseID, suffix string, baseNow time.Time) ([]string, error) {
+	approvals := []struct {
+		action    string
+		reason    string
+		createdAt time.Time
+		expiresIn time.Duration
+	}{
+		{
+			action:    "close_case",
+			reason:    "Customer requested a billing exception before closure",
+			createdAt: baseNow.Add(-30 * time.Minute),
+			expiresIn: 2 * time.Hour,
+		},
+		{
+			action:    "send_external_email",
+			reason:    "Manager confirmation required before sending pricing terms",
+			createdAt: baseNow.Add(-6 * time.Minute),
+			expiresIn: 6 * time.Hour,
+		},
+	}
 
-	payload := fmt.Sprintf(`{"entity_type":"case","entity_id":%q,"action":"close_case"}`, caseID)
+	ids := make([]string, 0, len(approvals))
+	for index, approval := range approvals {
+		approvalID, err := seedApproval(ctx, db, auth, caseID, suffix, index, approval.action, approval.reason, approval.createdAt, approval.expiresIn)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, approvalID)
+	}
+
+	return ids, nil
+}
+
+func seedApproval(
+	ctx context.Context,
+	db *sql.DB,
+	auth authResponse,
+	caseID, suffix string,
+	index int,
+	action, reason string,
+	createdAt time.Time,
+	expiresIn time.Duration,
+) (string, error) {
+	now := createdAt.UTC().Truncate(time.Second)
+	approvalID := uuid.NewV7().String()
+	expiresAt := now.Add(expiresIn)
+
+	payload := fmt.Sprintf(`{"entity_type":"case","entity_id":%q,"action":%q}`, caseID, action)
 
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO approval_request (
@@ -630,8 +729,8 @@ func seedApproval(ctx context.Context, db *sql.DB, auth authResponse, caseID, su
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		approvalID, auth.WorkspaceID,
 		auth.UserID, auth.UserID,
-		"close_case", "case", caseID, payload,
-		"E2E wedge seed approval "+suffix,
+		action, "case", caseID, payload,
+		fmt.Sprintf("E2E wedge seed approval %s #%d: %s", suffix, index+1, reason),
 		"pending",
 		expiresAt.Format(time.RFC3339),
 		now.Format(time.RFC3339), now.Format(time.RFC3339),
@@ -639,6 +738,113 @@ func seedApproval(ctx context.Context, db *sql.DB, auth authResponse, caseID, su
 		return "", err
 	}
 	return approvalID, nil
+}
+
+func seedInboxSignals(
+	ctx context.Context,
+	db *sql.DB,
+	auth authResponse,
+	dealID, caseID, runID, suffix string,
+	baseNow time.Time,
+) error {
+	signals := []struct {
+		entityType string
+		entityID   string
+		signalType string
+		confidence float64
+		summary    string
+		createdAt  time.Time
+	}{
+		{
+			entityType: "deal",
+			entityID:   dealID,
+			signalType: "expansion_intent",
+			confidence: 0.94,
+			summary:    "Procurement asked for the security addendum and budget is already confirmed.",
+			createdAt:  baseNow.Add(-16 * time.Minute),
+		},
+		{
+			entityType: "case",
+			entityID:   caseID,
+			signalType: "escalation_risk",
+			confidence: 0.73,
+			summary:    "The customer has asked twice for a manual exception in the last hour.",
+			createdAt:  baseNow.Add(-4 * time.Minute),
+		},
+	}
+
+	for index, signal := range signals {
+		if err := seedSignal(ctx, db, auth, runID, suffix, index, signal.entityType, signal.entityID, signal.signalType, signal.summary, signal.confidence, signal.createdAt); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func seedSignal(
+	ctx context.Context,
+	db *sql.DB,
+	auth authResponse,
+	runID, suffix string,
+	index int,
+	entityType, entityID, signalType, summary string,
+	confidence float64,
+	createdAt time.Time,
+) error {
+	now := createdAt.UTC().Truncate(time.Second)
+	evidenceIDs := fmt.Sprintf(`["e2e-signal-%s-%d"]`, suffix, index+1)
+	metadata := fmt.Sprintf(`{"summary":%q,"label":"E2E inbox signal %d"}`, summary, index+1)
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO signal (
+			id, workspace_id, entity_type, entity_id, signal_type, confidence,
+			evidence_ids, source_type, source_id, metadata, status,
+			dismissed_by, dismissed_at, expires_at, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)`,
+		uuid.NewV7().String(), auth.WorkspaceID, entityType, entityID, signalType, confidence,
+		evidenceIDs, "agent_run", runID, metadata, "active",
+		now.Format(time.RFC3339), now.Format(time.RFC3339),
+	)
+	return err
+}
+
+func ensureSignalAccessRole(ctx context.Context, db *sql.DB, auth authResponse) error {
+	const roleName = "E2E Signal Access"
+	const permissions = `{"api":["signals.list","signals.dismiss"]}`
+
+	now := time.Now().UTC().Truncate(time.Second)
+	var roleID string
+	err := db.QueryRowContext(ctx, `
+		SELECT id
+		FROM role
+		WHERE workspace_id = ? AND name = ?
+		LIMIT 1
+	`, auth.WorkspaceID, roleName).Scan(&roleID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		roleID = uuid.NewV7().String()
+		if _, execErr := db.ExecContext(ctx, `
+			INSERT INTO role (
+				id, workspace_id, name, description, permissions, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?)
+		`,
+			roleID, auth.WorkspaceID, roleName,
+			"Grants signal list/dismiss for deterministic screenshot fixtures",
+			permissions,
+			now.Format(time.RFC3339), now.Format(time.RFC3339),
+		); execErr != nil {
+			return execErr
+		}
+	}
+
+	_, err = db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO user_role (id, user_id, role_id, created_at)
+		VALUES (?, ?, ?, ?)
+	`, uuid.NewV7().String(), auth.UserID, roleID, now.Format(time.RFC3339))
+	return err
 }
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────

@@ -36,6 +36,7 @@ export type {
   InboxApprovalItem,
   InboxHandoffItem,
   InboxSignalItem,
+  InboxRejectedItem,
   InboxResponse,
 } from './api.types';
 

@@ -236,10 +236,16 @@ export interface InboxSignalItem {
   signal: Signal;
 }
 
-export type InboxItem = InboxApprovalItem | InboxHandoffItem | InboxSignalItem;
+export interface InboxRejectedItem {
+  type: 'rejected';
+  run: AgentRun;
+}
+
+export type InboxItem = InboxApprovalItem | InboxHandoffItem | InboxSignalItem | InboxRejectedItem;
 
 export interface InboxResponse {
   approvals: ApprovalRequest[];
   handoffs: InboxHandoffItem[];
   signals: Signal[];
+  rejected: AgentRun[];
 }

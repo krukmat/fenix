@@ -21,6 +21,7 @@ import app from '../src/app';
 const sampleApproval = { id: 'appr-1', status: 'pending', action: 'send_email' };
 const sampleSignal = { id: 'sig-1', status: 'active', signal_type: 'deal_risk' };
 const sampleRun = { id: 'run-1', status: 'handed_off' };
+const sampleRejectedRun = { id: 'run-2', status: 'denied_by_policy', rejection_reason: 'Policy blocked external send' };
 const sampleHandoff = {
   run_id: 'run-1',
   reason: 'low confidence',
@@ -34,11 +35,16 @@ describe('GET /bff/api/v1/mobile/inbox', () => {
     jest.clearAllMocks();
   });
 
-  it('returns aggregated approvals, handoffs, and signals', async () => {
-    mockGoClient.get.mockImplementation((url: string) => {
+  it('returns aggregated approvals, handoffs, signals, and rejected runs', async () => {
+    mockGoClient.get.mockImplementation((url: string, options?: { params?: { status?: string } }) => {
       if (url === '/api/v1/approvals') return Promise.resolve({ data: { data: [sampleApproval] } });
       if (url === '/api/v1/signals') return Promise.resolve({ data: [sampleSignal] });
-      if (url === '/api/v1/agents/runs') return Promise.resolve({ data: { data: [sampleRun] } });
+      if (url === '/api/v1/agents/runs' && options?.params?.status === 'handed_off') {
+        return Promise.resolve({ data: { data: [sampleRun] } });
+      }
+      if (url === '/api/v1/agents/runs' && options?.params?.status === 'denied_by_policy') {
+        return Promise.resolve({ data: { data: [sampleRejectedRun] } });
+      }
       if (url === '/api/v1/agents/runs/run-1/handoff') return Promise.resolve({ data: sampleHandoff });
       return Promise.reject(new Error(`unexpected url: ${url}`));
     });
@@ -55,13 +61,20 @@ describe('GET /bff/api/v1/mobile/inbox', () => {
     expect(res.body.handoffs).toHaveLength(1);
     expect(res.body.handoffs[0].run_id).toBe('run-1');
     expect(res.body.handoffs[0].handoff.reason).toBe('low confidence');
+    expect(res.body.rejected).toHaveLength(1);
+    expect(res.body.rejected[0].id).toBe('run-2');
   });
 
   it('omits a handoff item when its enrichment fails — does not fail the whole response', async () => {
-    mockGoClient.get.mockImplementation((url: string) => {
+    mockGoClient.get.mockImplementation((url: string, options?: { params?: { status?: string } }) => {
       if (url === '/api/v1/approvals') return Promise.resolve({ data: { data: [] } });
       if (url === '/api/v1/signals') return Promise.resolve({ data: [] });
-      if (url === '/api/v1/agents/runs') return Promise.resolve({ data: { data: [sampleRun] } });
+      if (url === '/api/v1/agents/runs' && options?.params?.status === 'handed_off') {
+        return Promise.resolve({ data: { data: [sampleRun] } });
+      }
+      if (url === '/api/v1/agents/runs' && options?.params?.status === 'denied_by_policy') {
+        return Promise.resolve({ data: { data: [] } });
+      }
       if (url === '/api/v1/agents/runs/run-1/handoff') return Promise.reject(new Error('handoff not found'));
       return Promise.reject(new Error(`unexpected url: ${url}`));
     });
@@ -74,6 +87,7 @@ describe('GET /bff/api/v1/mobile/inbox', () => {
     expect(res.body.handoffs).toHaveLength(0);
     expect(res.body.approvals).toHaveLength(0);
     expect(res.body.signals).toHaveLength(0);
+    expect(res.body.rejected).toHaveLength(0);
   });
 
   it('returns empty arrays when Go calls fail', async () => {
@@ -87,5 +101,6 @@ describe('GET /bff/api/v1/mobile/inbox', () => {
     expect(res.body.approvals).toHaveLength(0);
     expect(res.body.signals).toHaveLength(0);
     expect(res.body.handoffs).toHaveLength(0);
+    expect(res.body.rejected).toHaveLength(0);
   });
 });

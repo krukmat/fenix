@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useApproveApproval, useInbox, useRejectApproval } from '../../../src/hooks/useWedge';
 import { InboxBody, InboxEmpty, InboxError, InboxLoading } from '../../../src/components/inbox/InboxFeed';
 import type { InboxFilter, InboxRenderableItem } from '../../../src/components/inbox/InboxFeed';
-import type { ApprovalRequest, HandoffPackage, Signal } from '../../../src/services/api';
+import type { AgentRun, ApprovalRequest, HandoffPackage, Signal } from '../../../src/services/api';
 
 function toTimestamp(value: string | undefined): number {
   if (!value) return 0;
@@ -33,21 +33,47 @@ function sortSignals(signals: Signal[]): Signal[] {
   });
 }
 
+function sortRejected(runs: AgentRun[]): AgentRun[] {
+  return [...runs].sort((left, right) => {
+    const completedDiff = toTimestamp(right.completedAt) - toTimestamp(left.completedAt);
+    if (completedDiff !== 0) return completedDiff;
+    return toTimestamp(right.createdAt) - toTimestamp(left.createdAt);
+  });
+}
+
+function interleaveItems(groups: InboxRenderableItem[][]): InboxRenderableItem[] {
+  const ordered: InboxRenderableItem[] = [];
+  const maxLength = Math.max(0, ...groups.map((group) => group.length));
+
+  for (let index = 0; index < maxLength; index += 1) {
+    for (const group of groups) {
+      const item = group[index];
+      if (item) {
+        ordered.push(item);
+      }
+    }
+  }
+
+  return ordered;
+}
+
 function normalizeItems(
   approvals: ApprovalRequest[],
   handoffs: { run_id: string; handoff: HandoffPackage }[],
   signals: Signal[],
+  rejected: AgentRun[],
 ): InboxRenderableItem[] {
-  return [
-    ...sortApprovals(approvals).map((approval) => ({ type: 'approval' as const, id: approval.id, approval })),
-    ...sortHandoffs(handoffs).map(({ run_id: runId, handoff }) => ({
+  return interleaveItems([
+    sortApprovals(approvals).map((approval) => ({ type: 'approval' as const, id: approval.id, approval })),
+    sortHandoffs(handoffs).map(({ run_id: runId, handoff }) => ({
       type: 'handoff' as const,
       id: runId,
       runId,
       handoff,
     })),
-    ...sortSignals(signals).map((signal) => ({ type: 'signal' as const, id: signal.id, signal })),
-  ];
+    sortSignals(signals).map((signal) => ({ type: 'signal' as const, id: signal.id, signal })),
+    sortRejected(rejected).map((run) => ({ type: 'rejected' as const, id: run.id, run })),
+  ]);
 }
 
 function filterItems(items: InboxRenderableItem[], filter: InboxFilter): InboxRenderableItem[] {
@@ -117,7 +143,8 @@ function useInboxScreenModel() {
   const approvals = inbox.data?.approvals ?? [];
   const handoffs = inbox.data?.handoffs ?? [];
   const signals = inbox.data?.signals ?? [];
-  const allItems = normalizeItems(approvals, handoffs, signals);
+  const rejected = inbox.data?.rejected ?? [];
+  const allItems = normalizeItems(approvals, handoffs, signals, rejected);
   const visibleItems = filterItems(allItems, filter);
   const totalItems = allItems.length;
   const screenState = resolveScreenState(inbox.isLoading, Boolean(inbox.error), totalItems);

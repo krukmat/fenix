@@ -31,7 +31,7 @@ Caption: The inbox as the operational center.
 
 ## 2. The inbox is the real center of gravity
 
-This screen is the key to the whole product. Where a classic Salesforce experience often centers the user on records and dashboards, FenixCRM is more centered on the inbox. The question shifts from "what is in the pipeline?" to "what needs attention now?" Cases, approvals, and pending handoffs surface together, ordered by urgency rather than by record type.
+This screen is the key to the whole product. Where a classic Salesforce experience often centers the user on records and dashboards, FenixCRM is more centered on the inbox. The question shifts from "what is in the pipeline?" to "what needs attention now?" Approvals, handoffs, signals, and policy rejections surface together, ordered as an operational queue rather than split by record type.
 
 [Insert image: mobile/artifacts/maestro-reports/screenshots/02_inbox.png]
 Caption: Approve or reject without leaving the inbox.

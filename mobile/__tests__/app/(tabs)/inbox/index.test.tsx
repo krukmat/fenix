@@ -188,16 +188,40 @@ const weakerSignal = {
   updated_at: '2026-04-08T12:00:00Z',
 };
 
+const rejectedRun = {
+  id: 'run-denied-1',
+  workspaceId: 'ws-1',
+  agentDefinitionId: 'agent-1',
+  triggerType: 'manual',
+  status: 'denied_by_policy',
+  entity_type: 'case',
+  entity_id: 'case-1',
+  rejection_reason: 'External send blocked by policy',
+  startedAt: '2026-04-08T10:00:00Z',
+  completedAt: '2026-04-08T10:05:00Z',
+  createdAt: '2026-04-08T10:00:00Z',
+};
+
+const newerRejectedRun = {
+  ...rejectedRun,
+  id: 'run-denied-2',
+  rejection_reason: 'Manager approval required',
+  completedAt: '2026-04-08T12:05:00Z',
+  createdAt: '2026-04-08T12:00:00Z',
+};
+
 function makeInboxState(data?: {
   approvals?: typeof approval[];
   handoffs?: typeof handoff[];
   signals?: typeof signal[];
+  rejected?: typeof rejectedRun[];
 }) {
   return {
     data: {
       approvals: data?.approvals ?? [],
       handoffs: data?.handoffs ?? [],
       signals: data?.signals ?? [],
+      rejected: data?.rejected ?? [],
     },
     isLoading: false,
     error: null,
@@ -254,21 +278,28 @@ describe('InboxScreen', () => {
     expect(screen.getByTestId('inbox-total-count').props.children).toContain(0);
   });
 
-  it('renders approvals, handoffs, and signals in one inbox feed', () => {
-    mockUseInbox.mockReturnValue(makeInboxState({ approvals: [approval], handoffs: [handoff], signals: [signal] }));
+  it('renders approvals, handoffs, signals, and rejected runs in one inbox feed', () => {
+    mockUseInbox.mockReturnValue(makeInboxState({
+      approvals: [approval],
+      handoffs: [handoff],
+      signals: [signal],
+      rejected: [rejectedRun],
+    }));
     renderInbox();
     expect(screen.getByTestId('inbox-approval-apr-1')).toBeTruthy();
     expect(screen.getByTestId('inbox-handoff-run-1')).toBeTruthy();
     expect(screen.getByTestId('inbox-signal-sig-1')).toBeTruthy();
-    expect(screen.getByTestId('inbox-total-count').props.children).toContain(3);
+    expect(screen.getByTestId('inbox-rejected-run-denied-1')).toBeTruthy();
+    expect(screen.getByTestId('inbox-total-count').props.children).toContain(4);
   });
 
-  it('renders the four inbox filter chips', () => {
+  it('renders the five inbox filter chips', () => {
     renderInbox();
     expect(screen.getByTestId('inbox-chip-all')).toBeTruthy();
     expect(screen.getByTestId('inbox-chip-approval')).toBeTruthy();
     expect(screen.getByTestId('inbox-chip-handoff')).toBeTruthy();
     expect(screen.getByTestId('inbox-chip-signal')).toBeTruthy();
+    expect(screen.getByTestId('inbox-chip-rejected')).toBeTruthy();
   });
 
   it('orders mixed inbox items deterministically following the parent plan', () => {
@@ -277,38 +308,58 @@ describe('InboxScreen', () => {
         approvals: [approvalLaterExpiry, approval],
         handoffs: [handoff, newerHandoff],
         signals: [weakerSignal, signal],
+        rejected: [rejectedRun, newerRejectedRun],
       },
     });
     renderInbox();
     expect(screen.getByTestId('inbox-item-0').props.accessibilityLabel).toBe('approval:apr-1');
-    expect(screen.getByTestId('inbox-item-1').props.accessibilityLabel).toBe('approval:apr-2');
-    expect(screen.getByTestId('inbox-item-2').props.accessibilityLabel).toBe('handoff:run-2');
-    expect(screen.getByTestId('inbox-item-3').props.accessibilityLabel).toBe('handoff:run-1');
-    expect(screen.getByTestId('inbox-item-4').props.accessibilityLabel).toBe('signal:sig-1');
-    expect(screen.getByTestId('inbox-item-5').props.accessibilityLabel).toBe('signal:sig-2');
+    expect(screen.getByTestId('inbox-item-1').props.accessibilityLabel).toBe('handoff:run-2');
+    expect(screen.getByTestId('inbox-item-2').props.accessibilityLabel).toBe('signal:sig-1');
+    expect(screen.getByTestId('inbox-item-3').props.accessibilityLabel).toBe('rejected:run-denied-2');
+    expect(screen.getByTestId('inbox-item-4').props.accessibilityLabel).toBe('approval:apr-2');
+    expect(screen.getByTestId('inbox-item-5').props.accessibilityLabel).toBe('handoff:run-1');
+    expect(screen.getByTestId('inbox-item-6').props.accessibilityLabel).toBe('signal:sig-2');
+    expect(screen.getByTestId('inbox-item-7').props.accessibilityLabel).toBe('rejected:run-denied-1');
   });
 
   it('filters the feed to approvals', () => {
-    mockUseInbox.mockReturnValue(makeInboxState({ approvals: [approval], handoffs: [handoff], signals: [signal] }));
+    mockUseInbox.mockReturnValue(makeInboxState({
+      approvals: [approval],
+      handoffs: [handoff],
+      signals: [signal],
+      rejected: [rejectedRun],
+    }));
     renderInbox();
     fireEvent.press(screen.getByTestId('inbox-chip-approval'));
     expect(screen.getByTestId('inbox-approval-apr-1')).toBeTruthy();
     expect(screen.queryByTestId('inbox-handoff-run-1')).toBeNull();
     expect(screen.queryByTestId('inbox-signal-sig-1')).toBeNull();
+    expect(screen.queryByTestId('inbox-rejected-run-denied-1')).toBeNull();
     expect(screen.getByTestId('inbox-visible-count').props.children).toContain(1);
   });
 
   it('filters the feed to handoffs', () => {
-    mockUseInbox.mockReturnValue(makeInboxState({ approvals: [approval], handoffs: [handoff], signals: [signal] }));
+    mockUseInbox.mockReturnValue(makeInboxState({
+      approvals: [approval],
+      handoffs: [handoff],
+      signals: [signal],
+      rejected: [rejectedRun],
+    }));
     renderInbox();
     fireEvent.press(screen.getByTestId('inbox-chip-handoff'));
     expect(screen.queryByTestId('inbox-approval-apr-1')).toBeNull();
     expect(screen.getByTestId('inbox-handoff-run-1')).toBeTruthy();
     expect(screen.queryByTestId('inbox-signal-sig-1')).toBeNull();
+    expect(screen.queryByTestId('inbox-rejected-run-denied-1')).toBeNull();
   });
 
   it('filters the feed to signals', () => {
-    mockUseInbox.mockReturnValue(makeInboxState({ approvals: [approval], handoffs: [handoff], signals: [signal] }));
+    mockUseInbox.mockReturnValue(makeInboxState({
+      approvals: [approval],
+      handoffs: [handoff],
+      signals: [signal],
+      rejected: [rejectedRun],
+    }));
     renderInbox();
     fireEvent.press(screen.getByTestId('inbox-chip-signal'));
     expect(screen.queryByTestId('inbox-approval-apr-1')).toBeNull();
@@ -316,15 +367,36 @@ describe('InboxScreen', () => {
     expect(screen.getByTestId('inbox-signal-sig-1')).toBeTruthy();
   });
 
+  it('filters the feed to rejected runs', () => {
+    mockUseInbox.mockReturnValue(makeInboxState({
+      approvals: [approval],
+      handoffs: [handoff],
+      signals: [signal],
+      rejected: [rejectedRun],
+    }));
+    renderInbox();
+    fireEvent.press(screen.getByTestId('inbox-chip-rejected'));
+    expect(screen.queryByTestId('inbox-approval-apr-1')).toBeNull();
+    expect(screen.queryByTestId('inbox-handoff-run-1')).toBeNull();
+    expect(screen.queryByTestId('inbox-signal-sig-1')).toBeNull();
+    expect(screen.getByTestId('inbox-rejected-run-denied-1')).toBeTruthy();
+  });
+
   it('returns to the full mixed feed when All is selected', () => {
-    mockUseInbox.mockReturnValue(makeInboxState({ approvals: [approval], handoffs: [handoff], signals: [signal] }));
+    mockUseInbox.mockReturnValue(makeInboxState({
+      approvals: [approval],
+      handoffs: [handoff],
+      signals: [signal],
+      rejected: [rejectedRun],
+    }));
     renderInbox();
     fireEvent.press(screen.getByTestId('inbox-chip-signal'));
     fireEvent.press(screen.getByTestId('inbox-chip-all'));
     expect(screen.getByTestId('inbox-approval-apr-1')).toBeTruthy();
     expect(screen.getByTestId('inbox-handoff-run-1')).toBeTruthy();
     expect(screen.getByTestId('inbox-signal-sig-1')).toBeTruthy();
-    expect(screen.getByTestId('inbox-visible-count').props.children).toContain(3);
+    expect(screen.getByTestId('inbox-rejected-run-denied-1')).toBeTruthy();
+    expect(screen.getByTestId('inbox-visible-count').props.children).toContain(4);
   });
 
   it('approves inbox approvals inline and refreshes the feed on success', () => {
@@ -428,5 +500,12 @@ describe('InboxScreen', () => {
       pathname: '/(tabs)/home/signal/[id]',
       params: { id: 'sig-1', entity_type: 'deal', entity_id: 'deal-1' },
     });
+  });
+
+  it('opens rejected items on the activity detail screen', () => {
+    mockUseInbox.mockReturnValue(makeInboxState({ rejected: [rejectedRun] }));
+    renderInbox();
+    fireEvent.press(screen.getByTestId('inbox-rejected-run-denied-1'));
+    expect(mockPush).toHaveBeenCalledWith('/activity/run-denied-1');
   });
 });
