@@ -517,7 +517,7 @@ describe('api.ts', () => {
         expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/copilot/sales-brief', {
           entityType: 'account',
           entityId: 'acc-1',
-        });
+        }, { timeout: 90000 });
         expect(result).toEqual({
           outcome: 'completed',
           summary: 'Healthy pipeline',
@@ -543,7 +543,7 @@ describe('api.ts', () => {
         expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/copilot/sales-brief', {
           entityType: 'deal',
           entityId: 'deal-1',
-        });
+        }, { timeout: 90000 });
 
         process.env.EXPO_PUBLIC_E2E_MODE = saved;
       });
