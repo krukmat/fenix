@@ -276,41 +276,77 @@ See: `docs/ci.md`
 
 ---
 
-## Visual Demo Screenshots
+## How It Works In Practice
 
-FenixCRM is designed around a governed AI operating model: work queues, approvals, handoff, grounded briefs, and visible governance. The current demo gallery highlights those surfaces directly.
+FenixCRM is not a classic system of record — it is an operational layer where context, decisions, execution, and governance are visible as a continuous loop.
 
-### Login
+![The governed loop: context → action → approval → trace → governance](docs/article-assets/diagram-11-governed-loop.png)
 
-![Login screen](mobile/artifacts/screenshots/screenshots/01_auth_login.png)
+Every event or case surfaces context. The system suggests an action. A human decides whether to approve or hand it off. Execution happens. Everything is traced. The eight screens below show each step of that loop in practice.
 
-### Inbox
+---
 
-![Inbox](mobile/artifacts/screenshots/screenshots/02_inbox.png)
+### 1. Entry — identity before automation
 
-### Human Approval In The Flow
+![Login screen](mobile/artifacts/maestro-reports/screenshots/01_auth_login.png)
 
-![Inbox approval inline](mobile/artifacts/screenshots/screenshots/06_inbox_approval_inline.png)
+Every action is scoped to who you are and what workspace you belong to. Accountability starts at the door.
 
-### Agent Handoff
+---
 
-![Inbox handoff](mobile/artifacts/screenshots/screenshots/07_inbox_handoff.png)
+### 2. Inbox — operational center of gravity
 
-### Support Case Detail
+![Inbox](mobile/artifacts/maestro-reports/screenshots/02_inbox.png)
 
-![Support case detail](mobile/artifacts/screenshots/screenshots/03_support_case_detail.png)
+The inbox is the core of the product. The question is not "what is in the pipeline?" but "what needs attention now?" Approvals, handoffs, signals, and policy rejections surface together as an operational queue.
 
-### Sales Brief
+---
 
-![Sales brief](mobile/artifacts/screenshots/screenshots/04_sales_brief.png)
+### 3. Signal — the system proposes, humans decide
 
-### Activity Trace
+![Signal detail](mobile/artifacts/maestro-reports/screenshots/06_inbox_signal_detail.png)
 
-![Denied-by-policy activity trace](mobile/artifacts/screenshots/screenshots/08_activity_run_detail_denied.png)
+Signals compress judgment into something reviewable. A detail surface opens with confidence level, entity context, and evidence attached to the signal itself.
 
-### Governance
+---
 
-![Governance overview](mobile/artifacts/screenshots/screenshots/05_governance.png)
+### 4. Support case — working surface, not a read-only record
+
+![Support case detail](mobile/artifacts/maestro-reports/screenshots/03_support_case_detail.png)
+
+The case view shows history, current state, what the AI retrieved, what actions are available, and what the case requires next.
+
+---
+
+### 5. Sales brief — judgment, not just pipeline visibility
+
+![Sales brief](mobile/artifacts/maestro-reports/screenshots/04_sales_brief.png)
+
+The brief surfaces account context, recent signals, and a suggested next action grounded in evidence — so reps start from a better position than raw data.
+
+---
+
+### 6. Denied trace — traceability matters most when something is stopped
+
+![Denied-by-policy activity trace](mobile/artifacts/maestro-reports/screenshots/08_activity_run_detail_denied.png)
+
+A system that only records successful actions is only half-observable. A stopped run is not a failure to hide — it is an outcome to inspect, with reasoning, the policy that applied, and the moment the decision was made.
+
+---
+
+### 7. Governance — inside the product, not bolted on
+
+![Governance overview](mobile/artifacts/maestro-reports/screenshots/05_governance.png)
+
+Policy enforcement, approval chains, and audit trails are visible from within the product — not accessible only to administrators in a separate tool.
+
+---
+
+![The main operating surfaces in FenixCRM](docs/article-assets/diagram-10-operating-surfaces.png)
+
+Each surface above is reachable from the inbox. The inbox is not one screen among many — it is the operational center from which everything else is reached.
+
+> Full article: [When CRM Begins to Operate, Not Just Record](https://medium.com/@iotforce/when-crm-begins-to-operate-not-just-record-84248b080ee7)
 
 ---
 
