@@ -13,7 +13,7 @@ function toTimestamp(value: string | undefined): number {
 
 function sortApprovals(approvals: ApprovalRequest[]): ApprovalRequest[] {
   return [...approvals].sort((left, right) => {
-    const expiresDiff = toTimestamp(left.expires_at) - toTimestamp(right.expires_at);
+    const expiresDiff = toTimestamp(left.expiresAt) - toTimestamp(right.expiresAt);
     if (expiresDiff !== 0) return expiresDiff;
     return toTimestamp(left.created_at) - toTimestamp(right.created_at);
   });

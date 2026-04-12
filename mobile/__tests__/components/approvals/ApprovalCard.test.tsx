@@ -23,7 +23,7 @@ const baseApproval: ApprovalRequest = {
   payload: {},
   reason: 'Customer requested follow-up',
   status: 'pending',
-  expires_at: futureExpiry,
+  expiresAt: futureExpiry,
   created_at: '2026-03-01T10:00:00Z',
   updated_at: '2026-03-01T10:00:00Z',
 };
@@ -59,7 +59,7 @@ describe('ApprovalCard', () => {
 
   it('shows Expired status and hides action buttons when past expiry', () => {
     const { getByTestId, queryByTestId } = renderCard({
-      approval: { ...baseApproval, expires_at: pastExpiry },
+      approval: { ...baseApproval, expiresAt: pastExpiry },
     });
     expect(getByTestId('approval-card-countdown').props.children).toBe('Expired');
     expect(queryByTestId('approval-card-approve')).toBeNull();

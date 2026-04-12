@@ -33,7 +33,7 @@ const approval: ApprovalRequest = {
   action: 'send_email',
   payload: {},
   status: 'pending',
-  expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+  expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
   created_at: '2026-03-01T10:00:00Z',
   updated_at: '2026-03-01T10:00:00Z',
 };

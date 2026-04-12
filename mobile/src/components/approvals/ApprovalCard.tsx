@@ -59,15 +59,15 @@ export function ApprovalCard({
   disabled = false,
 }: ApprovalCardProps) {
   const theme = useTheme();
-  const [countdown, setCountdown] = useState(() => formatCountdown(approval.expires_at));
+  const [countdown, setCountdown] = useState(() => formatCountdown(approval.expiresAt));
   const [rejectDialogVisible, setRejectDialogVisible] = useState(false);
   const [reason, setReason] = useState('');
   const isExpired = countdown === 'Expired';
 
   useEffect(() => {
-    const interval = setInterval(() => setCountdown(formatCountdown(approval.expires_at)), 60_000);
+    const interval = setInterval(() => setCountdown(formatCountdown(approval.expiresAt)), 60_000);
     return () => clearInterval(interval);
-  }, [approval.expires_at]);
+  }, [approval.expiresAt]);
 
   const handleApprove = useCallback(() => onApprove(approval.id), [approval.id, onApprove]);
 

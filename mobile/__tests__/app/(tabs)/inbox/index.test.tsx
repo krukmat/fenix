@@ -81,7 +81,7 @@ const approval = {
   action: 'send_email',
   payload: {},
   status: 'pending',
-  expires_at: '2026-04-09T10:00:00Z',
+  expiresAt: '2026-04-09T10:00:00Z',
   created_at: '2026-04-08T10:00:00Z',
   updated_at: '2026-04-08T10:00:00Z',
 };
@@ -90,7 +90,7 @@ const approvalLaterExpiry = {
   ...approval,
   id: 'apr-2',
   action: 'update_case',
-  expires_at: '2026-04-10T10:00:00Z',
+  expiresAt: '2026-04-10T10:00:00Z',
   created_at: '2026-04-08T11:00:00Z',
   updated_at: '2026-04-08T11:00:00Z',
 };

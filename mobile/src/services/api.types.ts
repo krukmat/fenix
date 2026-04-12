@@ -106,7 +106,7 @@ export interface ApprovalRequest {
   payload: Record<string, unknown>;
   reason?: string;
   status: ApprovalStatus;
-  expires_at: string;
+  expiresAt: string;
   decided_at?: string;
   created_at: string;
   updated_at: string;
