@@ -288,22 +288,25 @@ func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, s
 		return wedgeRunIDs{}, fmt.Errorf("seedCompletedRun: %w", err)
 	}
 
-	handoffOlderID, err := seedRun(ctx, db, auth, runParams{
-		entityType:       "case",
-		entityID:         caseID,
-		suffix:           suffix + "_handoff_old",
-		status:           "handed_off",
-		agentType:        "support",
-		agentName:        "Support Agent",
-		latencyMs:        800,
-		cost:             0.03,
-		abstentionReason: "Escalated to billing lead after refund policy mismatch",
-		occurredAt:       baseNow.Add(-20 * time.Minute),
-	})
+	handoffIDs, err := seedHandoffRuns(ctx, db, auth, caseID, suffix, baseNow)
 	if err != nil {
-		return wedgeRunIDs{}, fmt.Errorf("seedHandoffRun: %w", err)
+		return wedgeRunIDs{}, err
 	}
 
+	deniedIDs, err := seedDeniedRuns(ctx, db, auth, caseID, suffix, baseNow)
+	if err != nil {
+		return wedgeRunIDs{}, err
+	}
+
+	return wedgeRunIDs{
+		completedID: completedID,
+		handoffIDs:  handoffIDs,
+		deniedIDs:   deniedIDs,
+	}, nil
+}
+
+// seedHandoffRuns seeds two handed-off runs (latest first, then older).
+func seedHandoffRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, suffix string, baseNow time.Time) ([]string, error) {
 	handoffLatestID, err := seedRun(ctx, db, auth, runParams{
 		entityType:       "case",
 		entityID:         caseID,
@@ -317,7 +320,44 @@ func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, s
 		occurredAt:       baseNow.Add(-10 * time.Minute),
 	})
 	if err != nil {
-		return wedgeRunIDs{}, fmt.Errorf("seedLatestHandoffRun: %w", err)
+		return nil, fmt.Errorf("seedLatestHandoffRun: %w", err)
+	}
+
+	handoffOlderID, err := seedRun(ctx, db, auth, runParams{
+		entityType:       "case",
+		entityID:         caseID,
+		suffix:           suffix + "_handoff_old",
+		status:           "handed_off",
+		agentType:        "support",
+		agentName:        "Support Agent",
+		latencyMs:        800,
+		cost:             0.03,
+		abstentionReason: "Escalated to billing lead after refund policy mismatch",
+		occurredAt:       baseNow.Add(-20 * time.Minute),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("seedHandoffRun: %w", err)
+	}
+
+	return []string{handoffLatestID, handoffOlderID}, nil
+}
+
+// seedDeniedRuns seeds two denied-by-policy runs (latest first, then older).
+func seedDeniedRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, suffix string, baseNow time.Time) ([]string, error) {
+	deniedLatestID, err := seedRun(ctx, db, auth, runParams{
+		entityType:      "case",
+		entityID:        caseID,
+		suffix:          suffix + "_denied_new",
+		status:          "denied_by_policy",
+		agentType:       "support",
+		agentName:       "Support Agent",
+		latencyMs:       280,
+		cost:            0.01,
+		rejectionReason: "Policy blocked outbound message with unverified pricing",
+		occurredAt:      baseNow.Add(-8 * time.Minute),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("seedLatestDeniedRun: %w", err)
 	}
 
 	deniedOlderID, err := seedRun(ctx, db, auth, runParams{
@@ -333,30 +373,10 @@ func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, s
 		occurredAt:      baseNow.Add(-18 * time.Minute),
 	})
 	if err != nil {
-		return wedgeRunIDs{}, fmt.Errorf("seedDeniedRun: %w", err)
+		return nil, fmt.Errorf("seedDeniedRun: %w", err)
 	}
 
-	deniedLatestID, err := seedRun(ctx, db, auth, runParams{
-		entityType:      "case",
-		entityID:        caseID,
-		suffix:          suffix + "_denied_new",
-		status:          "denied_by_policy",
-		agentType:       "support",
-		agentName:       "Support Agent",
-		latencyMs:       280,
-		cost:            0.01,
-		rejectionReason: "Policy blocked outbound message with unverified pricing",
-		occurredAt:      baseNow.Add(-8 * time.Minute),
-	})
-	if err != nil {
-		return wedgeRunIDs{}, fmt.Errorf("seedLatestDeniedRun: %w", err)
-	}
-
-	return wedgeRunIDs{
-		completedID: completedID,
-		handoffIDs:  []string{handoffLatestID, handoffOlderID},
-		deniedIDs:   []string{deniedLatestID, deniedOlderID},
-	}, nil
+	return []string{deniedLatestID, deniedOlderID}, nil
 }
 
 func buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSubject string, runs wedgeRunIDs, approvalID, signalID string) *seedOutput {
