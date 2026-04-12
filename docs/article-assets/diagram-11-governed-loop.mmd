@@ -1,0 +1,9 @@
+flowchart TD
+    A[Event or case] --> B[Context]
+    B --> C[Suggested action]
+    C --> D{Needs human decision}
+    D -- Yes --> E[Approval or handoff]
+    D -- No --> F[Execution]
+    E --> F
+    F --> G[Trace]
+    G --> H[Governance]
