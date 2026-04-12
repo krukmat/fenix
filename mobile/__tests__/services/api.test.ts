@@ -503,6 +503,24 @@ describe('api.ts', () => {
           }],
         });
       });
+
+      it('always calls POST regardless of EXPO_PUBLIC_E2E_MODE env var', async () => {
+        const saved = process.env.EXPO_PUBLIC_E2E_MODE;
+        process.env.EXPO_PUBLIC_E2E_MODE = '1';
+
+        const postSpy = jest.spyOn(apiClient, 'post').mockResolvedValueOnce({
+          data: { outcome: 'completed', summary: 'test' },
+        } as never);
+
+        await salesBriefApi.getSalesBrief('deal', 'deal-1');
+
+        expect(postSpy).toHaveBeenCalledWith('/bff/api/v1/copilot/sales-brief', {
+          entityType: 'deal',
+          entityId: 'deal-1',
+        });
+
+        process.env.EXPO_PUBLIC_E2E_MODE = saved;
+      });
     });
   });
 });
