@@ -288,12 +288,42 @@ func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, s
 		return wedgeRunIDs{}, fmt.Errorf("seedCompletedRun: %w", err)
 	}
 
-	handoffIDs, err := seedHandoffRuns(ctx, db, auth, caseID, suffix, baseNow)
+	handoffIDs, err := seedPairedRuns(ctx, db, auth, []runParams{
+		{
+			entityType: "case", entityID: caseID, suffix: suffix + "_handoff_new",
+			status: "handed_off", agentType: "support", agentName: "Support Agent",
+			latencyMs: 730, cost: 0.03,
+			abstentionReason: "Escalated to operations owner for contract exception",
+			occurredAt:       baseNow.Add(-10 * time.Minute),
+		},
+		{
+			entityType: "case", entityID: caseID, suffix: suffix + "_handoff_old",
+			status: "handed_off", agentType: "support", agentName: "Support Agent",
+			latencyMs: 800, cost: 0.03,
+			abstentionReason: "Escalated to billing lead after refund policy mismatch",
+			occurredAt:       baseNow.Add(-20 * time.Minute),
+		},
+	})
 	if err != nil {
 		return wedgeRunIDs{}, err
 	}
 
-	deniedIDs, err := seedDeniedRuns(ctx, db, auth, caseID, suffix, baseNow)
+	deniedIDs, err := seedPairedRuns(ctx, db, auth, []runParams{
+		{
+			entityType: "case", entityID: caseID, suffix: suffix + "_denied_new",
+			status: "denied_by_policy", agentType: "support", agentName: "Support Agent",
+			latencyMs: 280, cost: 0.01,
+			rejectionReason: "Policy blocked outbound message with unverified pricing",
+			occurredAt:      baseNow.Add(-8 * time.Minute),
+		},
+		{
+			entityType: "case", entityID: caseID, suffix: suffix + "_denied_old",
+			status: "denied_by_policy", agentType: "support", agentName: "Support Agent",
+			latencyMs: 300, cost: 0.01,
+			rejectionReason: "Policy blocked refund promise without finance approval",
+			occurredAt:      baseNow.Add(-18 * time.Minute),
+		},
+	})
 	if err != nil {
 		return wedgeRunIDs{}, err
 	}
@@ -305,78 +335,17 @@ func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, s
 	}, nil
 }
 
-// seedHandoffRuns seeds two handed-off runs (latest first, then older).
-func seedHandoffRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, suffix string, baseNow time.Time) ([]string, error) {
-	handoffLatestID, err := seedRun(ctx, db, auth, runParams{
-		entityType:       "case",
-		entityID:         caseID,
-		suffix:           suffix + "_handoff_new",
-		status:           "handed_off",
-		agentType:        "support",
-		agentName:        "Support Agent",
-		latencyMs:        730,
-		cost:             0.03,
-		abstentionReason: "Escalated to operations owner for contract exception",
-		occurredAt:       baseNow.Add(-10 * time.Minute),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("seedLatestHandoffRun: %w", err)
+// seedPairedRuns seeds runs from the given params slice and returns their IDs in order.
+func seedPairedRuns(ctx context.Context, db *sql.DB, auth authResponse, params []runParams) ([]string, error) {
+	ids := make([]string, 0, len(params))
+	for i, p := range params {
+		id, err := seedRun(ctx, db, auth, p)
+		if err != nil {
+			return nil, fmt.Errorf("seedPairedRuns[%d]: %w", i, err)
+		}
+		ids = append(ids, id)
 	}
-
-	handoffOlderID, err := seedRun(ctx, db, auth, runParams{
-		entityType:       "case",
-		entityID:         caseID,
-		suffix:           suffix + "_handoff_old",
-		status:           "handed_off",
-		agentType:        "support",
-		agentName:        "Support Agent",
-		latencyMs:        800,
-		cost:             0.03,
-		abstentionReason: "Escalated to billing lead after refund policy mismatch",
-		occurredAt:       baseNow.Add(-20 * time.Minute),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("seedHandoffRun: %w", err)
-	}
-
-	return []string{handoffLatestID, handoffOlderID}, nil
-}
-
-// seedDeniedRuns seeds two denied-by-policy runs (latest first, then older).
-func seedDeniedRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, suffix string, baseNow time.Time) ([]string, error) {
-	deniedLatestID, err := seedRun(ctx, db, auth, runParams{
-		entityType:      "case",
-		entityID:        caseID,
-		suffix:          suffix + "_denied_new",
-		status:          "denied_by_policy",
-		agentType:       "support",
-		agentName:       "Support Agent",
-		latencyMs:       280,
-		cost:            0.01,
-		rejectionReason: "Policy blocked outbound message with unverified pricing",
-		occurredAt:      baseNow.Add(-8 * time.Minute),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("seedLatestDeniedRun: %w", err)
-	}
-
-	deniedOlderID, err := seedRun(ctx, db, auth, runParams{
-		entityType:      "case",
-		entityID:        caseID,
-		suffix:          suffix + "_denied_old",
-		status:          "denied_by_policy",
-		agentType:       "support",
-		agentName:       "Support Agent",
-		latencyMs:       300,
-		cost:            0.01,
-		rejectionReason: "Policy blocked refund promise without finance approval",
-		occurredAt:      baseNow.Add(-18 * time.Minute),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("seedDeniedRun: %w", err)
-	}
-
-	return []string{deniedLatestID, deniedOlderID}, nil
+	return ids, nil
 }
 
 func buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSubject string, runs wedgeRunIDs, approvalID, signalID string) *seedOutput {
