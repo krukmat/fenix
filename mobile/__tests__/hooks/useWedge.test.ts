@@ -9,6 +9,8 @@ import {
   useAgentRuns,
   useTriggerSupportAgent,
   useGovernanceSummary,
+  useAuditEvents,
+  useUsageEvents,
   wedgeQueryKeys,
 } from '../../src/hooks/useWedge';
 
@@ -42,7 +44,11 @@ jest.mock('../../src/services/api', () => ({
     triggerSupportRun: jest.fn(),
     getRunUsage: jest.fn(),
   },
-  governanceApi: { getSummary: jest.fn() },
+  governanceApi: {
+    getSummary: jest.fn(),
+    getAuditEvents: jest.fn(),
+    getUsageEvents: jest.fn(),
+  },
 }));
 
 const WORKSPACE_ID = 'ws-test-123';
@@ -67,6 +73,22 @@ describe('wedgeQueryKeys', () => {
   });
   it('governanceSummary key contains workspaceId', () => {
     expect(wedgeQueryKeys.governanceSummary('ws-1')).toEqual(['governance-summary', 'ws-1']);
+  });
+  it('auditEvents key contains workspaceId, filters and page', () => {
+    expect(wedgeQueryKeys.auditEvents('ws-1', { outcome: 'denied' }, 2)).toEqual([
+      'audit-events',
+      'ws-1',
+      { outcome: 'denied' },
+      2,
+    ]);
+  });
+  it('usageEvents key contains workspaceId, filters and page', () => {
+    expect(wedgeQueryKeys.usageEvents('ws-1', { run_id: 'run-1' }, 3)).toEqual([
+      'usage-events',
+      'ws-1',
+      { run_id: 'run-1' },
+      3,
+    ]);
   });
 });
 
@@ -174,6 +196,26 @@ describe('useGovernanceSummary', () => {
     useGovernanceSummary();
     const [opts] = mockUseQuery.mock.calls[0] as [{ queryKey: unknown[]; enabled: boolean }];
     expect(opts.queryKey).toEqual(wedgeQueryKeys.governanceSummary(WORKSPACE_ID));
+    expect(opts.enabled).toBe(true);
+  });
+});
+
+describe('useAuditEvents', () => {
+  it('calls useQuery with auditEvents queryKey', () => {
+    mockUseQuery.mockReturnValue({ data: null });
+    useAuditEvents({ outcome: 'success' }, 2);
+    const [opts] = mockUseQuery.mock.calls[0] as [{ queryKey: unknown[]; enabled: boolean }];
+    expect(opts.queryKey).toEqual(wedgeQueryKeys.auditEvents(WORKSPACE_ID, { outcome: 'success' }, 2));
+    expect(opts.enabled).toBe(true);
+  });
+});
+
+describe('useUsageEvents', () => {
+  it('calls useQuery with usageEvents queryKey', () => {
+    mockUseQuery.mockReturnValue({ data: null });
+    useUsageEvents({ run_id: 'run-1' }, 3);
+    const [opts] = mockUseQuery.mock.calls[0] as [{ queryKey: unknown[]; enabled: boolean }];
+    expect(opts.queryKey).toEqual(wedgeQueryKeys.usageEvents(WORKSPACE_ID, { run_id: 'run-1' }, 3));
     expect(opts.enabled).toBe(true);
   });
 });

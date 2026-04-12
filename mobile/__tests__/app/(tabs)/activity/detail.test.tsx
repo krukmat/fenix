@@ -1,11 +1,12 @@
 // Activity log detail screen tests — W5-T2
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
+const mockRouterPush = jest.fn();
 jest.mock('expo-router', () => ({
   __esModule: true,
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+  useRouter: () => ({ push: mockRouterPush, replace: jest.fn() }),
   useLocalSearchParams: () => ({ id: 'run-1' }),
   Stack: { Screen: jest.fn(() => null) },
 }));
@@ -40,6 +41,14 @@ jest.mock('../../../../src/components/agents/HandoffBanner', () => {
   };
 });
 
+jest.mock('../../../../src/components/governance/UsageDetailCard', () => ({
+  UsageDetailCard: ({ testIDPrefix }: { testIDPrefix: string }) => {
+    const React = require('react');
+    const { View } = require('react-native');
+    return React.createElement(View, { testID: `${testIDPrefix}-card` });
+  },
+}));
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const fullRun = {
@@ -65,7 +74,19 @@ const fullRun = {
 };
 
 const usageEvents = [
-  { id: 'u-1', run_id: 'run-1', metric_name: 'tokens', value: 1500, recorded_at: '2026-04-07T10:00:01Z' },
+  {
+    id: 'u-1',
+    workspaceId: 'ws-1',
+    actorType: 'agent',
+    runId: 'run-1',
+    toolName: 'create_task',
+    modelName: 'gpt-5.4',
+    inputUnits: 1500,
+    outputUnits: 120,
+    estimatedCost: 0.0134,
+    latencyMs: 842,
+    createdAt: '2026-04-07T10:00:01Z',
+  },
 ];
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -146,6 +167,14 @@ describe('Activity log detail screen', () => {
     const { default: Screen } = require('../../../../app/(tabs)/activity/[id]');
     render(React.createElement(Screen));
     expect(screen.getByTestId('activity-detail-usage')).toBeTruthy();
+    expect(screen.getByTestId('activity-usage-item-0-card')).toBeTruthy();
+  });
+
+  it('navigates to governance usage drilldown with run filter', () => {
+    const { default: Screen } = require('../../../../app/(tabs)/activity/[id]');
+    render(React.createElement(Screen));
+    fireEvent.press(screen.getByTestId('activity-view-full-usage'));
+    expect(mockRouterPush).toHaveBeenCalledWith('/governance/usage?run_id=run-1');
   });
 
   it('shows rejection reason section only when status is denied_by_policy', () => {

@@ -147,3 +147,23 @@ tags:
     timeout: 20000
 - takeScreenshot:
     path: "05_governance"
+
+# ── 6. Governance Audit Trail ────────────────────────────────────────────────
+
+- openLink: "fenixcrm:///governance/audit"
+- extendedWaitUntil:
+    visible:
+      id: "audit-screen"
+    timeout: 20000
+- takeScreenshot:
+    path: "09_governance_audit"
+
+# ── 7. Governance Usage Drilldown ────────────────────────────────────────────
+
+- openLink: "fenixcrm:///governance/usage"
+- extendedWaitUntil:
+    visible:
+      id: "usage-screen"
+    timeout: 20000
+- takeScreenshot:
+    path: "10_governance_usage"

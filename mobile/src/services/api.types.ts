@@ -184,17 +184,17 @@ export interface SalesBrief {
 // W1-T1: Usage event — single metered interaction record
 export interface UsageEvent {
   id: string;
-  workspace_id: string;
-  actor_id?: string;
-  actor_type?: string;
-  run_id?: string;
-  tool_name?: string;
-  model_name?: string;
-  input_units?: number;
-  output_units?: number;
-  estimated_cost?: number;
-  latency_ms?: number;
-  created_at: string;
+  workspaceId: string;
+  actorId?: string;
+  actorType?: string;
+  runId?: string;
+  toolName?: string;
+  modelName?: string;
+  inputUnits?: number;
+  outputUnits?: number;
+  estimatedCost?: number;
+  latencyMs?: number;
+  createdAt: string;
 }
 
 // W1-T1: Quota state item — enriched with policy metadata for mobile rendering
@@ -217,6 +217,53 @@ export interface QuotaStateItem {
 export interface GovernanceSummary {
   recentUsage: UsageEvent[];
   quotaStates: QuotaStateItem[];
+}
+
+export type AuditOutcome = 'success' | 'denied' | 'error';
+export type AuditActorType = 'user' | 'agent' | 'system';
+
+export interface AuditEvent {
+  id: string;
+  workspace_id: string;
+  actor_id: string;
+  actor_type: AuditActorType;
+  action: string;
+  entity_type?: string;
+  entity_id?: string;
+  details?: unknown;
+  outcome: AuditOutcome;
+  trace_id?: string;
+  ip_address?: string;
+  created_at: string;
+}
+
+export interface AuditFilters {
+  actor_id?: string;
+  entity_type?: string;
+  action?: string;
+  outcome?: AuditOutcome;
+  date_from?: string;
+  date_to?: string;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+}
+
+export interface UsageFilters {
+  run_id?: string;
+}
+
+export interface UsageCostSummary {
+  totalCost: number;
+  totalInputUnits: number;
+  totalOutputUnits: number;
+  eventCount: number;
 }
 
 // W1-T1: Inbox item types

@@ -2,7 +2,7 @@
 // W1-T1: uses AgentRunPublicStatus for public filters
 import { apiClient } from './api.client';
 import { normalizeHandoffPackage } from './api.handoff';
-import type { AgentRunPublicStatus, SalesBrief, UsageEvent } from './api.types';
+import type { AgentRunPublicStatus, PaginatedResponse, SalesBrief, UsageEvent } from './api.types';
 
 export const agentApi = {
   // W1-T1: status filter accepts public outcomes for user-facing lists
@@ -86,9 +86,9 @@ export const agentApi = {
   // W1-T1: per-run usage events for activity detail diagnostics
   getRunUsage: async (runId: string) => {
     const response = await apiClient.get(`/bff/api/v1/usage`, {
-      params: { run_id: runId },
+      params: { run_id: runId, limit: 100 },
     });
-    return response.data as UsageEvent[];
+    return (response.data as PaginatedResponse<UsageEvent>).data ?? [];
   },
 };
 

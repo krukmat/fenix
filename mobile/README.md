@@ -87,6 +87,8 @@ Capturas esperadas:
 - `06_inbox_signal_detail`
 - `07_inbox_request_detail`
 - `08_activity_run_detail_denied`
+- `09_governance_audit`
+- `10_governance_usage`
 
 ## Definición de Done para PR (DoD)
 

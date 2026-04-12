@@ -1,40 +1,15 @@
 // Governance — usage and quota visibility screen (W5-T3)
+// Wave 1 (governance_mobile_enhancement_plan): enriched UsageDetailCard, nav links to audit + usage screens.
 // Read-only: recent usage + quota states from governance/summary
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useTheme } from 'react-native-paper';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useGovernanceSummary } from '../../../src/hooks/useWedge';
+import { UsageDetailCard } from '../../../src/components/governance/UsageDetailCard';
+import { wedgeHref } from '../../../src/utils/navigation';
 import type { ThemeColors } from '../../../src/theme/types';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface UsageEvent {
-  id: string;
-  metric_name: string;
-  value: number;
-  recorded_at: string;
-  run_id?: string;
-}
-
-interface QuotaState {
-  policyId: string;
-  policyType: string;
-  metricName: string;
-  limitValue: number;
-  resetPeriod: string;
-  enforcementMode: string;
-  currentValue: number;
-  periodStart: string;
-  periodEnd: string;
-  lastEventAt?: string;
-  statePresent: boolean;
-}
-
-interface GovernanceSummary {
-  recentUsage: UsageEvent[];
-  quotaStates: QuotaState[];
-}
+import type { UsageEvent, QuotaStateItem, GovernanceSummary } from '../../../src/services/api.types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -48,15 +23,33 @@ function SectionHeader({ title, colors }: { title: string; colors: ThemeColors }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function UsageList({ events, colors }: { events: UsageEvent[]; colors: ThemeColors }) {
+function UsageList({
+  events,
+  colors,
+  onViewAll,
+}: {
+  events: UsageEvent[];
+  colors: ThemeColors;
+  onViewAll: () => void;
+}) {
   return (
     <View testID="governance-recent-usage">
-      <SectionHeader title="Recent Usage" colors={colors} />
+      <View style={styles.sectionHeaderRow}>
+        <SectionHeader title="Recent Usage" colors={colors} />
+        <TouchableOpacity
+          testID="governance-view-all-usage"
+          onPress={onViewAll}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.viewAllLink, { color: colors.primary }]}>View All</Text>
+        </TouchableOpacity>
+      </View>
       {events.map((e, i) => (
-        <View key={e.id} testID={`governance-usage-item-${i}`} style={[styles.row, { backgroundColor: colors.surface }]}>
-          <Text style={{ color: colors.onSurface }}>{e.metric_name}</Text>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>{e.value}</Text>
-        </View>
+        <UsageDetailCard
+          key={e.id}
+          event={e}
+          testIDPrefix={`governance-usage-item-${i}`}
+        />
       ))}
       {events.length === 0 && (
         <Text style={{ color: colors.onSurfaceVariant }}>No recent usage</Text>
@@ -65,7 +58,7 @@ function UsageList({ events, colors }: { events: UsageEvent[]; colors: ThemeColo
   );
 }
 
-function QuotaItem({ quota, index, colors }: { quota: QuotaState; index: number; colors: ThemeColors }) {
+function QuotaItem({ quota, index, colors }: { quota: QuotaStateItem; index: number; colors: ThemeColors }) {
   const pct = quota.limitValue > 0 ? Math.round((quota.currentValue / quota.limitValue) * 100) : 0;
   return (
     <View testID={`governance-quota-item-${index}`} style={[styles.quotaCard, { backgroundColor: colors.surface }]}>
@@ -86,7 +79,7 @@ function QuotaItem({ quota, index, colors }: { quota: QuotaState; index: number;
   );
 }
 
-function QuotaList({ states, colors }: { states: QuotaState[]; colors: ThemeColors }) {
+function QuotaList({ states, colors }: { states: QuotaStateItem[]; colors: ThemeColors }) {
   if (states.length === 0) {
     return (
       <View testID="governance-no-quota">
@@ -103,11 +96,31 @@ function QuotaList({ states, colors }: { states: QuotaState[]; colors: ThemeColo
 }
 
 function GovernanceContent({ summary, colors }: { summary: GovernanceSummary; colors: ThemeColors }) {
+  const router = useRouter();
+
   return (
     <ScrollView testID="governance-screen" style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.section}>
-        <UsageList events={summary.recentUsage} colors={colors} />
+        <UsageList
+          events={summary.recentUsage}
+          colors={colors}
+          onViewAll={() => router.push(wedgeHref('/governance/usage'))}
+        />
       </View>
+
+      {/* Audit Trail nav link — Wave 2 */}
+      <View style={[styles.section, styles.auditLinkSection]}>
+        <TouchableOpacity
+          testID="governance-audit-trail-link"
+          onPress={() => router.push(wedgeHref('/governance/audit'))}
+          style={[styles.auditLinkRow, { backgroundColor: colors.surface }]}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.auditLinkText, { color: colors.onSurface }]}>Audit Trail</Text>
+          <Text style={{ color: colors.onSurfaceVariant, fontSize: 16 }}>→</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.section}>
         <QuotaList states={summary.quotaStates} colors={colors} />
       </View>
@@ -152,7 +165,11 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   section: { padding: 16 },
   sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', padding: 12, borderRadius: 6, marginBottom: 6 },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  viewAllLink: { fontSize: 13, fontWeight: '600' },
+  auditLinkSection: { paddingTop: 0 },
+  auditLinkRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 8 },
+  auditLinkText: { fontSize: 15, fontWeight: '600' },
   quotaCard: { padding: 14, borderRadius: 8, marginBottom: 10 },
   quotaHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   quotaBar: { height: 6, borderRadius: 3, backgroundColor: '#E5E7EB', overflow: 'hidden' },

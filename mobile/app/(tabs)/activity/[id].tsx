@@ -1,13 +1,15 @@
 // Activity Log — run detail screen (W5-T2)
 // public status primary, runtime_status secondary diagnostics, evidence, audit, tool calls, output, per-run usage
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useTheme } from 'react-native-paper';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useAgentRun } from '../../../src/hooks/useCRM';
 import { useRunUsage } from '../../../src/hooks/useWedge';
 import { HandoffBanner } from '../../../src/components/agents/HandoffBanner';
-import type { AgentRunPublicStatus, AgentRunRuntimeStatus } from '../../../src/services/api.types';
+import { UsageDetailCard } from '../../../src/components/governance/UsageDetailCard';
+import { wedgeHref } from '../../../src/utils/navigation';
+import type { AgentRunPublicStatus, AgentRunRuntimeStatus, UsageEvent } from '../../../src/services/api.types';
 import type { ThemeColors } from '../../../src/theme/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -30,13 +32,6 @@ interface RunDetail {
   latency_ms?: number;
   cost_euros?: number;
   rejection_reason?: string;
-}
-
-interface UsageEvent {
-  id: string;
-  metric_name: string;
-  value: number;
-  recorded_at: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -117,15 +112,34 @@ function AuditSection({ events, colors }: { events: RunDetail['audit_events']; c
   );
 }
 
-function UsageSection({ events, colors }: { events: UsageEvent[] | undefined; colors: ThemeColors }) {
+function UsageSection({
+  events,
+  runId,
+  colors,
+  onViewFullUsage,
+}: {
+  events: UsageEvent[] | undefined;
+  runId: string;
+  colors: ThemeColors;
+  onViewFullUsage: () => void;
+}) {
   if (!events?.length) return <Text style={{ color: colors.onSurfaceVariant }}>No usage data</Text>;
   return (
     <>
-      {events.map((e, i) => (
-        <View key={i} style={[styles.usageRow, { backgroundColor: colors.surface }]}>
-          <Text style={{ color: colors.onSurface }}>{e.metric_name}</Text>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>{e.value}</Text>
-        </View>
+      <TouchableOpacity
+        testID="activity-view-full-usage"
+        style={[styles.viewFullUsageButton, { backgroundColor: colors.surface }]}
+        onPress={onViewFullUsage}
+      >
+        <Text style={{ color: colors.primary, fontWeight: '600' }}>View Full Usage</Text>
+        <Text style={{ color: colors.onSurfaceVariant }}>→</Text>
+      </TouchableOpacity>
+      {events.map((event, index) => (
+        <UsageDetailCard
+          key={`${runId}-${event.id}`}
+          event={event}
+          testIDPrefix={`activity-usage-item-${index}`}
+        />
       ))}
     </>
   );
@@ -133,7 +147,17 @@ function UsageSection({ events, colors }: { events: UsageEvent[] | undefined; co
 
 // ─── Detail content ───────────────────────────────────────────────────────────
 
-function RunDetailContent({ run, usage, colors }: { run: RunDetail; usage: UsageEvent[] | undefined; colors: ThemeColors }) {
+function RunDetailContent({
+  run,
+  usage,
+  colors,
+  onViewFullUsage,
+}: {
+  run: RunDetail;
+  usage: UsageEvent[] | undefined;
+  colors: ThemeColors;
+  onViewFullUsage: () => void;
+}) {
   return (
     <ScrollView testID="activity-run-detail-screen" style={[styles.container, { backgroundColor: colors.background }]}>
       {run.status === 'handed_off' && (
@@ -195,7 +219,7 @@ function RunDetailContent({ run, usage, colors }: { run: RunDetail; usage: Usage
 
       <View style={styles.section} testID="activity-detail-usage">
         <SectionHeader title="Run Usage" colors={colors} />
-        <UsageSection events={usage} colors={colors} />
+        <UsageSection events={usage} runId={run.id} colors={colors} onViewFullUsage={onViewFullUsage} />
       </View>
     </ScrollView>
   );
@@ -205,6 +229,7 @@ function RunDetailContent({ run, usage, colors }: { run: RunDetail; usage: Usage
 
 export default function ActivityRunDetailScreen() {
   const colors = useColors();
+  const router = useRouter();
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data, isLoading, error } = useAgentRun(id);
@@ -241,7 +266,12 @@ export default function ActivityRunDetailScreen() {
           headerTitleStyle: { color: colors.onSurface, fontSize: 18, fontWeight: '700' },
         }}
       />
-      <RunDetailContent run={run} usage={usage} colors={colors} />
+      <RunDetailContent
+        run={run}
+        usage={usage}
+        colors={colors}
+        onViewFullUsage={() => router.push(wedgeHref(`/governance/usage?run_id=${run.id}`))}
+      />
     </>
   );
 }
@@ -257,5 +287,12 @@ const styles = StyleSheet.create({
   section: { paddingHorizontal: 16, paddingBottom: 12 },
   sectionTitle: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   card: { padding: 12, borderRadius: 6, marginBottom: 6 },
-  usageRow: { flexDirection: 'row', justifyContent: 'space-between', padding: 10, borderRadius: 6, marginBottom: 4 },
+  viewFullUsageButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
 });

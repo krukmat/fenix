@@ -19,6 +19,7 @@ import {
   signalApi,
   approvalApi,
   inboxApi,
+  governanceApi,
   copilotApi,
   salesBriefApi,
 } from '../../src/services/api';
@@ -447,6 +448,64 @@ describe('api.ts', () => {
         expect(putSpy).toHaveBeenCalledWith('/bff/api/v1/approvals/apr-1', { decision: 'reject' });
       });
 
+    });
+
+    describe('governanceApi', () => {
+      it('getAuditEvents should call GET /bff/api/v1/audit/events with offset pagination', async () => {
+        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+          data: { data: [], meta: { total: 0, limit: 20, offset: 20 } },
+        } as never);
+
+        const result = await governanceApi.getAuditEvents('ws-1', { outcome: 'denied' }, { page: 2, limit: 20 });
+
+        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/audit/events', {
+          params: { workspace_id: 'ws-1', limit: 20, offset: 20, outcome: 'denied' },
+        });
+        expect(result).toEqual({ data: [], meta: { total: 0, limit: 20, offset: 20 } });
+      });
+
+      it('getAuditEventById should call GET /bff/api/v1/audit/events/{id}', async () => {
+        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+          data: { id: 'audit-1' },
+        } as never);
+
+        const result = await governanceApi.getAuditEventById('ws-1', 'audit-1');
+
+        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/audit/events/audit-1', {
+          params: { workspace_id: 'ws-1' },
+        });
+        expect(result).toEqual({ id: 'audit-1' });
+      });
+
+      it('getUsageEvents should translate page into a larger limit because /usage has no offset', async () => {
+        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+          data: { data: [], meta: { total: 0, limit: 40, offset: 0 } },
+        } as never);
+
+        const result = await governanceApi.getUsageEvents('ws-1', { run_id: 'run-1' }, { page: 2, limit: 20 });
+
+        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/usage', {
+          params: { workspace_id: 'ws-1', limit: 40, run_id: 'run-1' },
+        });
+        expect(result).toEqual({ data: [], meta: { total: 0, limit: 40, offset: 0 } });
+      });
+    });
+
+    describe('agentApi.getRunUsage', () => {
+      it('should unwrap paginated usage responses', async () => {
+        jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+          data: {
+            data: [{ id: 'u-1', workspaceId: 'ws-1', actorType: 'agent', inputUnits: 1, outputUnits: 2, estimatedCost: 0.1, createdAt: '2026-04-12T10:00:00Z' }],
+            meta: { total: 1, limit: 100, offset: 0 },
+          },
+        } as never);
+
+        const result = await agentApi.getRunUsage('run-1');
+
+        expect(result).toEqual([
+          expect.objectContaining({ id: 'u-1', workspaceId: 'ws-1', actorType: 'agent' }),
+        ]);
+      });
     });
 
     describe('copilotApi extensions', () => {

@@ -6,6 +6,11 @@ import type {
   SignalStatus,
   ApprovalRequest,
   GovernanceSummary,
+  AuditEvent,
+  AuditFilters,
+  PaginatedResponse,
+  UsageEvent,
+  UsageFilters,
 } from './api.types';
 
 function normalizeSignalsResponse(data: unknown): Signal[] {
@@ -95,5 +100,40 @@ export const governanceApi = {
       params: { workspace_id: workspaceId },
     });
     return response.data as GovernanceSummary;
+  },
+
+  getAuditEvents: async (
+    workspaceId: string,
+    filters?: AuditFilters,
+    pagination?: { page?: number; limit?: number }
+  ) => {
+    const limit = pagination?.limit ?? 20;
+    const offset = ((pagination?.page ?? 1) - 1) * limit;
+    const response = await apiClient.get('/bff/api/v1/audit/events', {
+      params: { workspace_id: workspaceId, limit, offset, ...filters },
+    });
+    return response.data as PaginatedResponse<AuditEvent>;
+  },
+
+  getAuditEventById: async (workspaceId: string, id: string) => {
+    const response = await apiClient.get(`/bff/api/v1/audit/events/${id}`, {
+      params: { workspace_id: workspaceId },
+    });
+    return response.data as AuditEvent;
+  },
+
+  getUsageEvents: async (
+    workspaceId: string,
+    filters?: UsageFilters,
+    pagination?: { page?: number; limit?: number }
+  ) => {
+    const page = pagination?.page ?? 1;
+    const pageSize = pagination?.limit ?? 20;
+    // /usage ignores offset, so loading "more" means requesting a larger limit.
+    const limit = page * pageSize;
+    const response = await apiClient.get('/bff/api/v1/usage', {
+      params: { workspace_id: workspaceId, limit, ...filters },
+    });
+    return response.data as PaginatedResponse<UsageEvent>;
   },
 };

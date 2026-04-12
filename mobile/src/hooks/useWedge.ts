@@ -8,6 +8,8 @@ import {
   agentApi,
   governanceApi,
   type AgentRunPublicStatus,
+  type AuditFilters,
+  type UsageFilters,
 } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
@@ -22,6 +24,10 @@ export const wedgeQueryKeys = {
   salesBrief: (entityType: string, entityId: string) => ['sales-brief', entityType, entityId] as const,
   runUsage: (runId: string) => ['run-usage', runId] as const,
   governanceSummary: (workspaceId: string) => ['governance-summary', workspaceId] as const,
+  auditEvents: (workspaceId: string, filters?: AuditFilters, page?: number) =>
+    ['audit-events', workspaceId, filters ?? {}, page ?? 1] as const,
+  usageEvents: (workspaceId: string, filters?: UsageFilters, page?: number) =>
+    ['usage-events', workspaceId, filters ?? {}, page ?? 1] as const,
   agentRuns: (workspaceId: string, filters?: { status?: AgentRunPublicStatus }) =>
     ['agent-runs', workspaceId, filters ?? {}] as const,
 };
@@ -153,6 +159,36 @@ export function useGovernanceSummary() {
   return useQuery({
     queryKey: wedgeQueryKeys.governanceSummary(workspaceId ?? ''),
     queryFn: () => governanceApi.getSummary(workspaceId!),
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    enabled: !!workspaceId,
+  });
+}
+
+/** Fetches paginated audit events with server-side filters. */
+export function useAuditEvents(filters?: AuditFilters, page = 1) {
+  const workspaceId = useWorkspaceId();
+
+  return useQuery({
+    queryKey: wedgeQueryKeys.auditEvents(workspaceId ?? '', filters, page),
+    queryFn: () => governanceApi.getAuditEvents(workspaceId!, filters, { page, limit: 20 }),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    enabled: !!workspaceId,
+  });
+}
+
+/** Fetches usage events for governance drilldown. "Page" increases requested limit because /usage has no offset. */
+export function useUsageEvents(filters?: UsageFilters, page = 1) {
+  const workspaceId = useWorkspaceId();
+
+  return useQuery({
+    queryKey: wedgeQueryKeys.usageEvents(workspaceId ?? '', filters, page),
+    queryFn: () => governanceApi.getUsageEvents(workspaceId!, filters, { page, limit: 20 }),
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     retry: 1,

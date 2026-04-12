@@ -1,12 +1,12 @@
 ---
 title: FenixCRM — FR & UC Implementation Status
-last_updated: 2026-04-06
+last_updated: 2026-04-12
 tags: [dashboard, status]
 ---
 
 # FenixCRM — FR & UC Implementation Status
 
-> Last updated: 2026-04-06
+> Last updated: 2026-04-12
 > Source of truth for current wedge priority: `docs/architecture.md` + `docs/plans/fenixcrm_strategic_repositioning_spec.md`
 > Source of truth for detailed requirement inventory: `docs/requirements.md` + BDD feature files in `features/`
 >
@@ -145,7 +145,7 @@ Source: `docs/tasks/task_uc_gap_closure.md`
 | Gap-1 | UC-S1 | Extend `suggest_actions.go` for Account/Deal (BE only responds to Case today) | ✅ done |
 | Gap-2 | UC-S1, UC-S3 | Add `get_deal` and `update_deal` to tool registry | ✅ done |
 | Gap-3 | UC-S1 | Copilot panel section on Account detail + Deal detail screens (Mobile) | ❌ pending |
-| Gap-4 | UC-G1 | Audit Log screen in mobile app + `/audit/events` API methods | ❌ pending |
+| Gap-4 | UC-G1 | Audit Log screen in mobile app + `/audit/events` API methods | ✅ done |
 
 ### P1 Gaps (next release)
 
