@@ -8,7 +8,6 @@ import { AgentActivitySection } from '../../../src/components/agents/AgentActivi
 import { CRMDetailHeader } from '../../../src/components/crm';
 import { useCase } from '../../../src/hooks/useCRM';
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
-import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import { useTriggerSupportAgent, useTriggerKBAgent, useAgentRuns } from '../../../src/hooks/useWedge';
 import { wedgeHref, wedgeHrefObject } from '../../../src/utils/navigation';
 import type { ThemeColors } from '../../../src/theme/types';
@@ -84,6 +83,14 @@ function parseCasePayload(data: unknown): CaseDetailData | undefined {
     accountName: s(acct, 'name'),
     activeSignalCount: typeof signalCount === 'number' ? signalCount : 0,
   };
+}
+
+function formatSignalSummary(activeSignalCount?: number): string | null {
+  if (!activeSignalCount || activeSignalCount <= 0) {
+    return null;
+  }
+
+  return activeSignalCount === 1 ? '1 active signal' : `${activeSignalCount} active signals`;
 }
 
 // ─── Section components ───────────────────────────────────────────────────────
@@ -249,8 +256,19 @@ export default function SupportCaseDetailScreen() {
           <AccountSection accountId={caseData.accountId} accountName={caseData.accountName} router={router} colors={colors} />
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Signals</Text>
-            <SignalCountBadge count={caseData.activeSignalCount} testID="support-case-signal-badge" />
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, styles.sectionTitleNoMargin, { color: colors.onSurface }]}>Signals</Text>
+              {formatSignalSummary(caseData.activeSignalCount) ? (
+                <View
+                  style={[styles.signalSummaryChip, { backgroundColor: colors.surface }]}
+                  testID="support-case-signal-summary"
+                >
+                  <Text style={[styles.signalSummaryText, { color: colors.error }]}>
+                    {formatSignalSummary(caseData.activeSignalCount)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
 
           <TriggerSection caseData={caseData} colors={colors} triggerAgent={triggerAgent} triggerKB={triggerKB} />
@@ -280,5 +298,16 @@ const styles = StyleSheet.create({
   priorityText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
   section: { padding: 16 },
   sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
+  sectionTitleNoMargin: { marginBottom: 0 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  signalSummaryChip: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  signalSummaryText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   card: { padding: 16, borderRadius: 8 },
 });
