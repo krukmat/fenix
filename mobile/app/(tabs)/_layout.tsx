@@ -26,7 +26,7 @@ const WEDGE_TAB_SCREENS: { name: string; title: string; icon: TabIconName; testI
   { name: 'support', title: 'Support', icon: 'lifebuoy', testID: 'tab-support' },
   { name: 'sales', title: 'Sales', icon: 'chart-line', testID: 'tab-sales' },
   { name: 'activity', title: 'Activity', icon: 'timeline-text-outline', testID: 'tab-activity' },
-  { name: 'governance/index', title: 'Governance', icon: 'shield-check-outline', testID: 'tab-governance' },
+  { name: 'governance', title: 'Governance', icon: 'shield-account-outline', testID: 'tab-governance' },
 ];
 
 const TAB_SCREEN_OPTIONS = {
@@ -73,15 +73,6 @@ const TAB_SCREEN_OPTIONS = {
   },
 };
 
-function renderTabIcon(icon: TabIconName) {
-  function TabIcon({ color, size }: { color: string; size: number }) {
-    return <MaterialCommunityIcons name={icon} color={color} size={size} />;
-  }
-
-  TabIcon.displayName = `TabIcon(${icon})`;
-  return TabIcon;
-}
-
 // ─── Root layout ──────────────────────────────────────────────────────────────
 
 export default function TabsLayout() {
@@ -101,7 +92,9 @@ export default function TabsLayout() {
           name={screen.name}
           options={{
             title: screen.title,
-            tabBarIcon: renderTabIcon(screen.icon),
+            tabBarIcon: ({ color, size }) => (
+              <MaterialCommunityIcons name={screen.icon} color={color} size={size} />
+            ),
             tabBarButtonTestID: screen.testID,
             ...(screen.name === 'inbox/index' ? { tabBarBadge: inboxBadge } : {}),
           }}

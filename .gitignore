@@ -57,3 +57,9 @@ docs/decisions/*
 docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md
 coverage.out
 fenix.db
+mobile/artifacts/maestro-reports/2026-04-13_081143/ai-(Visual Audit - FenixCRM Auth Surface).json
+mobile/artifacts/maestro-reports/2026-04-13_081143/ai-report-Visual Audit - FenixCRM Auth Surface.html
+mobile/artifacts/maestro-reports/2026-04-13_081143/commands-(auth-surface.yaml).json
+mobile/artifacts/maestro-reports/2026-04-13_081151/ai-(Visual Audit - FenixCRM Authenticated Audit).json
+mobile/artifacts/maestro-reports/2026-04-13_081151/ai-report-Visual Audit - FenixCRM Authenticated Audit.html
+mobile/artifacts/maestro-reports/2026-04-13_081151/commands-(authenticated-audit.yaml).json

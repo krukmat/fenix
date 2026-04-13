@@ -86,7 +86,7 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
     expect(visibleNames).toContain('support');
     expect(visibleNames).toContain('sales');
     expect(visibleNames).toContain('activity');
-    expect(visibleNames).toContain('governance/index');
+    expect(visibleNames).toContain('governance');
   });
 
   it('assigns a real tab icon and stable testID to each visible wedge tab', () => {
@@ -104,7 +104,7 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
         expect.objectContaining({ name: 'support', options: expect.objectContaining({ tabBarButtonTestID: 'tab-support', tabBarIcon: expect.any(Function) }) }),
         expect.objectContaining({ name: 'sales', options: expect.objectContaining({ tabBarButtonTestID: 'tab-sales', tabBarIcon: expect.any(Function) }) }),
         expect.objectContaining({ name: 'activity', options: expect.objectContaining({ tabBarButtonTestID: 'tab-activity', tabBarIcon: expect.any(Function) }) }),
-        expect.objectContaining({ name: 'governance/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-governance', tabBarIcon: expect.any(Function) }) }),
+        expect.objectContaining({ name: 'governance', options: expect.objectContaining({ tabBarButtonTestID: 'tab-governance', tabBarIcon: expect.any(Function) }) }),
       ])
     );
   });
