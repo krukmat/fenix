@@ -344,7 +344,7 @@ The governance surface is no longer a thin summary. Recent usage appears in prod
 
 ### 8. Audit trail — readable where work happens
 
-![Governance audit trail](mobile/artifacts/screenshots/09_governance_audit.png)
+![Governance audit trail](mobile/artifacts/maestro-reports/screenshots/09_governance_audit.png)
 
 Audit is not pushed into a separate admin console. On mobile, the user can inspect the stream of requests and decisions directly, filter outcomes, and understand how the system behaved while work is still in motion.
 
@@ -352,7 +352,7 @@ Audit is not pushed into a separate admin console. On mobile, the user can inspe
 
 ### 9. Usage drilldown — AI consumption as a product surface
 
-![Governance usage drilldown](mobile/artifacts/screenshots/10_governance_usage.png)
+![Governance usage drilldown](mobile/artifacts/maestro-reports/screenshots/10_governance_usage.png)
 
 Usage and cost are inspectable from the same governance area. Event count, input units, output units, and individual tool/model calls stay visible inside the product, which makes AI usage governable in product terms instead of only as backend telemetry.
 
