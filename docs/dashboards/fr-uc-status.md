@@ -113,11 +113,11 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 | UC | Title | Feature File | Go BDD | BFF BDD | Mobile BDD | Doorstop | Gaps |
 |----|-------|-------------|--------|---------|------------|----------|------|
 | UC-S1 | Sales Copilot | `uc-s1-sales-copilot.feature` + `uc-s1-sales-copilot-mobile-smoke.feature` | ✅ canonical backend | ⏳ | ⏳ smoke | ✅ UC_S1.yml | Mobile remains smoke-only, not canonical |
-| UC-S2 | Prospecting Agent | `uc-s2-prospecting-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_S2.yml | Mobile trigger implemented; mobile BDD still missing |
-| UC-S3 | Deal Risk Agent | `uc-s3-deal-risk-agent.feature` | 🔒 deferred | ⏳ | ❌ | ✅ UC_S3.yml | Mobile placeholder implemented; backend runner still deferred |
+| UC-S2 | Prospecting Agent | `uc-s2-prospecting-agent.feature` + `uc-s2-prospecting-agent-mobile.feature` | ✅ | ⏳ | ⏳ defined (runner blocked) | ✅ UC_S2.yml | Mobile trigger implemented; mobile feature coverage added, runner still blocked |
+| UC-S3 | Deal Risk Agent | `uc-s3-deal-risk-agent.feature` + `uc-s3-deal-risk-agent-mobile.feature` | 🔒 deferred | ⏳ | ⏳ defined (runner blocked) | ✅ UC_S3.yml | Mobile placeholder implemented; backend runner still deferred |
 | UC-C1 | Support Agent | `uc-c1-support-agent.feature` | ✅ canonical backend | ⏳ | ❌ | ✅ UC_C1.yml | — |
-| UC-K1 | KB Agent | `uc-k1-kb-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_K1.yml | Mobile KB trigger implemented; mobile BDD still missing |
-| UC-D1 | Data Insights Agent | `uc-d1-data-insights-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_D1.yml | Mobile Insights screen implemented; mobile BDD still missing |
+| UC-K1 | KB Agent | `uc-k1-kb-agent.feature` + `uc-k1-kb-agent-mobile.feature` | ✅ | ⏳ | ⏳ defined (runner blocked) | ✅ UC_K1.yml | Mobile KB trigger implemented; mobile feature coverage added, runner still blocked |
+| UC-D1 | Data Insights Agent | `uc-d1-data-insights-agent.feature` + `uc-d1-data-insights-agent-mobile.feature` | ✅ | ⏳ | ⏳ defined (runner blocked) | ✅ UC_D1.yml | Mobile Insights screen implemented; mobile feature coverage added, runner still blocked |
 | UC-G1 | Governance | `uc-g1-governance.feature` | ✅ canonical backend | ⏳ | ❌ | ✅ UC_G1.yml | Replay/rollback scenarios deferred |
 | UC-A1 | Agent Studio | `uc-a1-agent-studio.feature` | ⏳ baseline | ⏳ | ❌ | ✅ UC_A1.yml | Baseline/stub coverage only |
 | UC-A2 | Workflow Authoring | `uc-a2-workflow-authoring.feature` | ✅ | ⏳ | ❌ | ✅ UC_A2.yml | — |

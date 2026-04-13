@@ -32,7 +32,7 @@ Deal Risk Agent (UC-S3) backend is not yet implemented (Gap-5+6 pending). The pl
 - `features/uc-k1-kb-agent.feature` covers knowledge draft generation from a resolved support outcome with grounded evidence. Mobile can gate by `case.status === 'resolved'`, but the grounded-evidence precondition remains a backend responsibility and should not be duplicated as brittle client logic.
 - `features/uc-d1-data-insights-agent.feature` explicitly includes both successful analytical answers and safe rejection of unsupported conclusions. The mobile Insights screen must therefore navigate to the run detail for **all** outcomes, not assume a success-only happy path.
 - `features/uc-s3-deal-risk-agent.feature` remains tagged `@deferred`, which confirms the placeholder approach for Deal Risk is the correct integration point until the backend runner ships.
-- Today only `features/uc-s1-sales-copilot-mobile-smoke.feature` exists on the mobile side. Implementing this plan closes the mobile product gaps for UC-S2 / UC-K1 / UC-D1, but does **not** by itself make those UCs canonical in mobile BDD until dedicated mobile feature coverage is added.
+- Mobile feature coverage now exists for `UC-S2`, `UC-K1`, `UC-D1`, and the deferred `UC-S3` placeholder. The remaining BDD gap is runner execution in CI/local Android, not absence of mobile feature files.
 
 ---
 
