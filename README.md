@@ -282,7 +282,7 @@ FenixCRM is not a classic system of record — it is an operational layer where 
 
 ![The governed loop: context → action → approval → trace → governance](docs/article-assets/diagram-11-governed-loop.png)
 
-Every event or case surfaces context. The system suggests an action. A human decides whether to approve or hand it off. Execution happens. Everything is traced. The eight screens below show each step of that loop in practice.
+Every event or case surfaces context. The system suggests an action. A human decides whether to approve or hand it off. Execution happens. Everything is traced. The nine screens below show each step of that loop in practice.
 
 ---
 
@@ -338,13 +338,29 @@ A system that only records successful actions is only half-observable. A stopped
 
 ![Governance overview](mobile/artifacts/maestro-reports/screenshots/05_governance.png)
 
-Policy enforcement, approval chains, and audit trails are visible from within the product — not accessible only to administrators in a separate tool.
+The governance surface is no longer a thin summary. Recent usage appears in product terms with actor, tool, model, latency, timestamp, and cost, while quota state sits beside that activity so control and consumption can be read together.
+
+---
+
+### 8. Audit trail — readable where work happens
+
+![Governance audit trail](mobile/artifacts/screenshots/09_governance_audit.png)
+
+Audit is not pushed into a separate admin console. On mobile, the user can inspect the stream of requests and decisions directly, filter outcomes, and understand how the system behaved while work is still in motion.
+
+---
+
+### 9. Usage drilldown — AI consumption as a product surface
+
+![Governance usage drilldown](mobile/artifacts/screenshots/10_governance_usage.png)
+
+Usage and cost are inspectable from the same governance area. Event count, input units, output units, and individual tool/model calls stay visible inside the product, which makes AI usage governable in product terms instead of only as backend telemetry.
 
 ---
 
 ![The main operating surfaces in FenixCRM](docs/article-assets/diagram-10-operating-surfaces.png)
 
-Each surface above is reachable from the inbox. The inbox is not one screen among many — it is the operational center from which everything else is reached.
+Each surface above is reachable from the inbox. The inbox is not one screen among many — it is the operational center from which everything else is reached, including the governance summary, audit trail, and usage drilldown.
 
 > Full article: [When CRM Begins to Operate, Not Just Record](https://medium.com/@iotforce/when-crm-begins-to-operate-not-just-record-84248b080ee7)
 
