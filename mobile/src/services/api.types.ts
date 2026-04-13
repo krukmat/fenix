@@ -88,6 +88,12 @@ export interface AgentRunResponse {
   data: AgentRun;
 }
 
+export interface QueuedAgentTriggerResponse {
+  runId: string;
+  status: string;
+  agent: string;
+}
+
 // W1-T1: normalized approval state model — 'denied' is legacy, do not use in new code
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired' | 'cancelled';
 

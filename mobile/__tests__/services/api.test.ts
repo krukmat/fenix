@@ -138,25 +138,29 @@ describe('api.ts', () => {
       await crmApi.getAccounts('ws-1');
       await crmApi.getContacts('ws-1');
       await crmApi.getDeals('ws-1');
+      await crmApi.getLeads('ws-1');
       await crmApi.getCases('ws-1');
       await crmApi.getAccountFull('a1');
       await crmApi.getDealFull('d1');
       await crmApi.getCaseFull('c1');
       await crmApi.getContact('ct1');
+      await crmApi.getLead('lead-1');
 
       expect(getSpy).toHaveBeenNthCalledWith(1, '/bff/api/v1/accounts', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
       expect(getSpy).toHaveBeenNthCalledWith(2, '/bff/api/v1/contacts', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
       expect(getSpy).toHaveBeenNthCalledWith(3, '/bff/api/v1/deals', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
-      expect(getSpy).toHaveBeenNthCalledWith(4, '/bff/api/v1/cases', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
-      expect(getSpy).toHaveBeenNthCalledWith(5, '/bff/api/v1/accounts/a1');
-      expect(getSpy).toHaveBeenNthCalledWith(6, '/bff/api/v1/accounts/a1/contacts', undefined);
-      expect(getSpy).toHaveBeenNthCalledWith(7, '/bff/api/v1/deals', { params: { account_id: 'a1', limit: 50 } });
-      expect(getSpy).toHaveBeenNthCalledWith(8, '/bff/api/v1/timeline/account/a1', undefined);
-      expect(getSpy).toHaveBeenNthCalledWith(9, '/bff/api/v1/deals/d1');
-      expect(getSpy).toHaveBeenNthCalledWith(10, '/bff/api/v1/activities', { params: { deal_id: 'd1', limit: 50 } });
-      expect(getSpy).toHaveBeenNthCalledWith(11, '/bff/api/v1/cases/c1');
-      expect(getSpy).toHaveBeenNthCalledWith(12, '/bff/api/v1/activities', { params: { case_id: 'c1', limit: 50 } });
-      expect(getSpy).toHaveBeenNthCalledWith(13, '/bff/api/v1/contacts/ct1');
+      expect(getSpy).toHaveBeenNthCalledWith(4, '/bff/api/v1/leads', { params: { workspace_id: 'ws-1', limit: 50, offset: 0 } });
+      expect(getSpy).toHaveBeenNthCalledWith(5, '/bff/api/v1/cases', { params: { workspace_id: 'ws-1', page: 1, limit: 50 } });
+      expect(getSpy).toHaveBeenNthCalledWith(6, '/bff/api/v1/accounts/a1');
+      expect(getSpy).toHaveBeenNthCalledWith(7, '/bff/api/v1/accounts/a1/contacts', undefined);
+      expect(getSpy).toHaveBeenNthCalledWith(8, '/bff/api/v1/deals', { params: { account_id: 'a1', limit: 50 } });
+      expect(getSpy).toHaveBeenNthCalledWith(9, '/bff/api/v1/timeline/account/a1', undefined);
+      expect(getSpy).toHaveBeenNthCalledWith(10, '/bff/api/v1/deals/d1');
+      expect(getSpy).toHaveBeenNthCalledWith(11, '/bff/api/v1/activities', { params: { deal_id: 'd1', limit: 50 } });
+      expect(getSpy).toHaveBeenNthCalledWith(12, '/bff/api/v1/cases/c1');
+      expect(getSpy).toHaveBeenNthCalledWith(13, '/bff/api/v1/activities', { params: { case_id: 'c1', limit: 50 } });
+      expect(getSpy).toHaveBeenNthCalledWith(14, '/bff/api/v1/contacts/ct1');
+      expect(getSpy).toHaveBeenNthCalledWith(15, '/bff/api/v1/leads/lead-1');
     });
 
     it('crmApi deal/case mutations should call expected POST/PUT endpoints', async () => {

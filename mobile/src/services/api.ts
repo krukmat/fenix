@@ -23,6 +23,7 @@ export type {
   ApprovalStatus,
   ApprovalDecision,
   ApprovalRequest,
+  QueuedAgentTriggerResponse,
   HandoffPackage,
   EvidenceSource,
   EvidencePack,
@@ -115,6 +116,16 @@ export const crmApi = {
   getDeals: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
     const response = await apiClient.get('/bff/api/v1/deals', {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
+    });
+    return response.data;
+  },
+
+  getLeads: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
+    const page = pagination?.page ?? 1;
+    const limit = pagination?.limit ?? 50;
+    const offset = (page - 1) * limit;
+    const response = await apiClient.get('/bff/api/v1/leads', {
+      params: { workspace_id: workspaceId, limit, offset },
     });
     return response.data;
   },
@@ -255,6 +266,11 @@ export const crmApi = {
   // Contact (no aggregated endpoint)
   getContact: async (id: string) => {
     const response = await apiClient.get(`/bff/api/v1/contacts/${id}`);
+    return response.data;
+  },
+
+  getLead: async (id: string) => {
+    const response = await apiClient.get(`/bff/api/v1/leads/${id}`);
     return response.data;
   },
 };

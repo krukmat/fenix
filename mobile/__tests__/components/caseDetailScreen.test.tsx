@@ -17,6 +17,49 @@ const mockColors = {
 const mockRouter = {
   push: () => undefined,
 } as any;
+const mockTriggerKB = {
+  mutate: () => undefined,
+  isPending: false,
+};
+
+jest.mock('../../src/components/agents/AgentActivitySection', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    AgentActivitySection: ({ testIDPrefix }: { testIDPrefix: string }) =>
+      React.createElement(View, { testID: `${testIDPrefix}-section` }),
+  };
+});
+
+jest.mock('../../src/components/signals/EntitySignalsSection', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    EntitySignalsSection: ({ testIDPrefix }: { testIDPrefix: string }) =>
+      React.createElement(View, { testID: `${testIDPrefix}-section` }),
+  };
+});
+
+jest.mock('../../src/components/signals/SignalCountBadge', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    SignalCountBadge: ({ testID }: { testID: string }) => React.createElement(View, { testID }),
+  };
+});
+
+jest.mock('../../src/components/crm', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    CRMDetailHeader: ({ testIDPrefix }: { testIDPrefix: string }) =>
+      React.createElement(View, { testID: `${testIDPrefix}-header` }),
+  };
+});
+
+jest.mock('../../src/hooks/useWedge', () => ({
+  useTriggerKBAgent: () => ({ mutate: () => undefined, isPending: false }),
+}));
 
 describe('Cases detail — SLA and handoff section', () => {
   function collectTestIDs(node: unknown, acc: string[] = []): string[] {
@@ -47,7 +90,7 @@ describe('Cases detail — SLA and handoff section', () => {
       accountName: undefined,
     };
 
-    const element = renderCaseContent(caseData, mockColors, mockRouter);
+    const element = renderCaseContent(caseData, mockColors, mockRouter, mockTriggerKB);
     expect(collectTestIDs(element)).toContain('case-sla-deadline');
   });
 
@@ -63,7 +106,7 @@ describe('Cases detail — SLA and handoff section', () => {
       accountName: undefined,
     };
 
-    const element = renderCaseContent(caseData, mockColors, mockRouter);
+    const element = renderCaseContent(caseData, mockColors, mockRouter, mockTriggerKB);
     expect(collectTestIDs(element)).toContain('case-handoff-status');
   });
 
@@ -79,9 +122,41 @@ describe('Cases detail — SLA and handoff section', () => {
       accountName: undefined,
     };
 
-    const element = renderCaseContent(caseData, mockColors, mockRouter);
+    const element = renderCaseContent(caseData, mockColors, mockRouter, mockTriggerKB);
     const testIDs = collectTestIDs(element);
     expect(testIDs).not.toContain('case-sla-deadline');
     expect(testIDs).not.toContain('case-handoff-status');
+  });
+
+  it('shows KB trigger when case is resolved', () => {
+    const caseData = {
+      id: '4',
+      subject: 'Case D',
+      status: 'resolved',
+      priority: 'medium' as const,
+      slaDeadline: undefined,
+      handoffStatus: undefined,
+      accountId: undefined,
+      accountName: undefined,
+    };
+
+    const element = renderCaseContent(caseData, mockColors, mockRouter, mockTriggerKB);
+    expect(collectTestIDs(element)).toContain('kb-trigger-button');
+  });
+
+  it('does not show KB trigger when case is not resolved', () => {
+    const caseData = {
+      id: '5',
+      subject: 'Case E',
+      status: 'open',
+      priority: 'medium' as const,
+      slaDeadline: undefined,
+      handoffStatus: undefined,
+      accountId: undefined,
+      accountName: undefined,
+    };
+
+    const element = renderCaseContent(caseData, mockColors, mockRouter, mockTriggerKB);
+    expect(collectTestIDs(element)).not.toContain('kb-trigger-button');
   });
 });

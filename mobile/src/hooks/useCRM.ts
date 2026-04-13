@@ -15,6 +15,8 @@ export const queryKeys = {
   contact: (workspaceId: string, id: string) => ['contact', workspaceId, id] as const,
   deals: (workspaceId: string) => ['deals', workspaceId] as const,
   deal: (workspaceId: string, id: string) => ['deal', workspaceId, id] as const,
+  leads: (workspaceId: string) => ['leads', workspaceId] as const,
+  lead: (workspaceId: string, id: string) => ['lead', workspaceId, id] as const,
   cases: (workspaceId: string) => ['cases', workspaceId] as const,
   case: (workspaceId: string, id: string) => ['case', workspaceId, id] as const,
   agentRuns: (workspaceId: string) => ['agent-runs', workspaceId] as const,
@@ -115,6 +117,30 @@ export function useDeal(id: string) {
   return useQuery({
     queryKey: queryKeys.deal(workspaceId ?? '', id),
     queryFn: () => crmApi.getDealFull(id),
+    staleTime: 60_000,
+    enabled: !!workspaceId && !!id,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// Leads
+export function useLeads() {
+  const workspaceId = useWorkspaceId();
+
+  return useInfiniteWorkspaceList(
+    queryKeys.leads,
+    workspaceId,
+    (ws, page) => crmApi.getLeads(ws, { page, limit: PAGE_SIZE }),
+  );
+}
+
+export function useLead(id: string) {
+  const workspaceId = useWorkspaceId();
+
+  return useQuery({
+    queryKey: queryKeys.lead(workspaceId ?? '', id),
+    queryFn: () => crmApi.getLead(id),
     staleTime: 60_000,
     enabled: !!workspaceId && !!id,
     retry: 1,

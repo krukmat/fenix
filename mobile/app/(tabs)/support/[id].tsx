@@ -9,7 +9,7 @@ import { CRMDetailHeader } from '../../../src/components/crm';
 import { useCase } from '../../../src/hooks/useCRM';
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
-import { useTriggerSupportAgent, useAgentRuns } from '../../../src/hooks/useWedge';
+import { useTriggerSupportAgent, useTriggerKBAgent, useAgentRuns } from '../../../src/hooks/useWedge';
 import { wedgeHref, wedgeHrefObject } from '../../../src/utils/navigation';
 import type { ThemeColors } from '../../../src/theme/types';
 import type { AgentRun } from '../../../src/services/api';
@@ -141,6 +141,47 @@ function ActiveRunBadge({ caseId, colors }: { caseId: string; colors: ThemeColor
   );
 }
 
+function TriggerSection({
+  caseData,
+  colors,
+  triggerAgent,
+  triggerKB,
+}: {
+  caseData: CaseDetailData;
+  colors: ThemeColors;
+  triggerAgent: { mutate: (context: { entityType: string; entityId: string }) => void; isPending: boolean };
+  triggerKB: { mutate: (context: { caseId: string }) => void; isPending: boolean };
+}) {
+  return (
+    <>
+      <View style={styles.section}>
+        <Button
+          mode="contained"
+          testID="support-trigger-agent-button"
+          disabled={triggerAgent.isPending}
+          onPress={() => triggerAgent.mutate({ entityType: 'case', entityId: caseData.id })}
+        >
+          {triggerAgent.isPending ? 'Running…' : 'Run Support Agent'}
+        </Button>
+        <ActiveRunBadge caseId={caseData.id} colors={colors} />
+      </View>
+
+      {caseData.status === 'resolved' && (
+        <View style={styles.section}>
+          <Button
+            mode="outlined"
+            testID="kb-trigger-button"
+            disabled={triggerKB.isPending}
+            onPress={() => triggerKB.mutate({ caseId: caseData.id })}
+          >
+            {triggerKB.isPending ? 'Running...' : 'Generate KB Article'}
+          </Button>
+        </View>
+      )}
+    </>
+  );
+}
+
 function supportDetailHeaderOptions(colors: ThemeColors) {
   return {
     title: 'Support Case',
@@ -179,6 +220,7 @@ export default function SupportCaseDetailScreen() {
   const { data, isLoading, error } = useCase(id);
   const caseData = parseCasePayload(data);
   const triggerAgent = useTriggerSupportAgent();
+  const triggerKB = useTriggerKBAgent();
 
   if (isLoading) return <SupportCaseLoading colors={colors} />;
   if (error || !caseData) return <SupportCaseError colors={colors} message={error?.message || 'Case not found'} />;
@@ -211,18 +253,7 @@ export default function SupportCaseDetailScreen() {
             <SignalCountBadge count={caseData.activeSignalCount} testID="support-case-signal-badge" />
           </View>
 
-          {/* Agent trigger — W3-T3 */}
-          <View style={styles.section}>
-            <Button
-              mode="contained"
-              testID="support-trigger-agent-button"
-              disabled={triggerAgent.isPending}
-              onPress={() => triggerAgent.mutate({ entityType: 'case', entityId: caseData.id })}
-            >
-              {triggerAgent.isPending ? 'Running…' : 'Run Support Agent'}
-            </Button>
-            <ActiveRunBadge caseId={caseData.id} colors={colors} />
-          </View>
+          <TriggerSection caseData={caseData} colors={colors} triggerAgent={triggerAgent} triggerKB={triggerKB} />
 
           <AgentActivitySection entityType="case" entityId={caseData.id} testIDPrefix="support-case-agent-activity" />
           <EntitySignalsSection entityType="case" entityId={caseData.id} testIDPrefix="support-case-signals" />

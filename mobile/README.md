@@ -89,6 +89,10 @@ Capturas esperadas:
 - `08_activity_run_detail_denied`
 - `09_governance_audit`
 - `10_governance_usage`
+- `11_support_kb_trigger`
+- `12_sales_lead_prospecting`
+- `13_sales_deal_risk_placeholder`
+- `14_activity_insights`
 
 ## Definición de Done para PR (DoD)
 

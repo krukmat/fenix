@@ -6,7 +6,7 @@ import { useAgentRunsByEntity } from '../../hooks/useAgentSpec';
 import { formatLatency, getStatusColor, getStatusLabel } from '../../screens/agents/agentDetail.helpers';
 
 interface AgentActivitySectionProps {
-  entityType: 'account' | 'deal' | 'case';
+  entityType: 'account' | 'deal' | 'case' | 'lead';
   entityId: string;
   testIDPrefix?: string;
 }

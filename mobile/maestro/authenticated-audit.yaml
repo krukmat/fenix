@@ -97,6 +97,16 @@ tags:
 - takeScreenshot:
     path: "03_support_case_detail"
 
+- openLink: "fenixcrm:///support/${SEED_RESOLVED_CASE_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "support-case-detail-screen"
+    timeout: 20000
+- assertVisible:
+    id: "kb-trigger-button"
+- takeScreenshot:
+    path: "11_support_kb_trigger"
+
 # ── 3. Sales ──────────────────────────────────────────────────────────────────
 
 - tapOn:
@@ -128,6 +138,26 @@ tags:
 - takeScreenshot:
     path: "04_sales_brief"
 
+- openLink: "fenixcrm:///sales/leads/${SEED_LEAD_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "sales-lead-detail-screen"
+    timeout: 20000
+- assertVisible:
+    id: "prospecting-trigger-button"
+- takeScreenshot:
+    path: "12_sales_lead_prospecting"
+
+- openLink: "fenixcrm:///sales/deals/${SEED_DEAL_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "sales-deal-detail-screen"
+    timeout: 20000
+- assertVisible:
+    id: "deal-risk-trigger-button"
+- takeScreenshot:
+    path: "13_sales_deal_risk_placeholder"
+
 # ── 4. Activity (Denied Trace) ────────────────────────────────────────────────
 
 - openLink: "fenixcrm:///activity/${SEED_RUN_DENIED_ID}"
@@ -137,6 +167,15 @@ tags:
     timeout: 20000
 - takeScreenshot:
     path: "08_activity_run_detail_denied"
+
+- openLink: "fenixcrm:///activity/insights"
+- extendedWaitUntil:
+    visible:
+      id: "insights-screen"
+    timeout: 20000
+- waitForAnimationToEnd
+- takeScreenshot:
+    path: "14_activity_insights"
 
 # ── 5. Governance ─────────────────────────────────────────────────────────────
 

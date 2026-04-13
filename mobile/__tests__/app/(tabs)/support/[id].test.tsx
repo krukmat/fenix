@@ -20,6 +20,7 @@ jest.mock('../../../../src/hooks/useCRM', () => ({
 
 jest.mock('../../../../src/hooks/useWedge', () => ({
   useTriggerSupportAgent: () => ({ mutate: jest.fn(), isPending: false }),
+  useTriggerKBAgent: () => ({ mutate: jest.fn(), isPending: false }),
   useAgentRuns: () => ({ data: null }),
 }));
 

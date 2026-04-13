@@ -8,6 +8,9 @@ import {
   useRunUsage,
   useAgentRuns,
   useTriggerSupportAgent,
+  useTriggerProspectingAgent,
+  useTriggerKBAgent,
+  useTriggerInsightsAgent,
   useGovernanceSummary,
   useAuditEvents,
   useUsageEvents,
@@ -42,6 +45,9 @@ jest.mock('../../src/services/api', () => ({
   agentApi: {
     getRuns: jest.fn(),
     triggerSupportRun: jest.fn(),
+    triggerProspectingRun: jest.fn(),
+    triggerKBRun: jest.fn(),
+    triggerInsightsRun: jest.fn(),
     getRunUsage: jest.fn(),
   },
   governanceApi: {
@@ -182,6 +188,42 @@ describe('useTriggerSupportAgent', () => {
   it('invalidates agent runs on success', () => {
     mockUseMutation.mockReturnValue({ mutate: jest.fn() });
     useTriggerSupportAgent();
+    const [opts] = mockUseMutation.mock.calls[0] as [{ onSuccess: () => void }];
+    opts.onSuccess();
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: wedgeQueryKeys.agentRuns(WORKSPACE_ID),
+    });
+  });
+});
+
+describe('useTriggerProspectingAgent', () => {
+  it('invalidates agent runs on success', () => {
+    mockUseMutation.mockReturnValue({ mutate: jest.fn() });
+    useTriggerProspectingAgent();
+    const [opts] = mockUseMutation.mock.calls[0] as [{ onSuccess: () => void }];
+    opts.onSuccess();
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: wedgeQueryKeys.agentRuns(WORKSPACE_ID),
+    });
+  });
+});
+
+describe('useTriggerKBAgent', () => {
+  it('invalidates agent runs on success', () => {
+    mockUseMutation.mockReturnValue({ mutate: jest.fn() });
+    useTriggerKBAgent();
+    const [opts] = mockUseMutation.mock.calls[0] as [{ onSuccess: () => void }];
+    opts.onSuccess();
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: wedgeQueryKeys.agentRuns(WORKSPACE_ID),
+    });
+  });
+});
+
+describe('useTriggerInsightsAgent', () => {
+  it('invalidates agent runs on success', () => {
+    mockUseMutation.mockReturnValue({ mutate: jest.fn() });
+    useTriggerInsightsAgent();
     const [opts] = mockUseMutation.mock.calls[0] as [{ onSuccess: () => void }];
     opts.onSuccess();
     expect(mockInvalidateQueries).toHaveBeenCalledWith({

@@ -45,6 +45,7 @@ docs/plans/*
 !docs/plans/maestro-screenshot-auth-bypass-plan.md
 !docs/plans/remove_e2e_sales_brief_mock.md
 !docs/plans/governance_mobile_enhancement_plan.md
+!docs/plans/agent_triggers_mobile_plan.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/

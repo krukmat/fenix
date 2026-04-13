@@ -53,6 +53,7 @@ var cleanupWorkspaceQueries = map[string]string{
 	"case_ticket":        "DELETE FROM case_ticket WHERE workspace_id = ?",
 	cleanupTableDeal:     "DELETE FROM deal WHERE workspace_id = ?",
 	"contact":            "DELETE FROM contact WHERE workspace_id = ?",
+	"lead":               "DELETE FROM lead WHERE workspace_id = ?",
 	"account":            "DELETE FROM account WHERE workspace_id = ?",
 	"agent_definition":   "DELETE FROM agent_definition WHERE workspace_id = ?",
 }
@@ -85,6 +86,9 @@ type seedOutput struct {
 		ID    string `json:"id"`
 		Email string `json:"email"`
 	} `json:"contact"`
+	Lead struct {
+		ID string `json:"id"`
+	} `json:"lead"`
 	Deal struct {
 		ID string `json:"id"`
 	} `json:"deal"`
@@ -92,6 +96,10 @@ type seedOutput struct {
 		ID      string `json:"id"`
 		Subject string `json:"subject"`
 	} `json:"case"`
+	ResolvedCase struct {
+		ID      string `json:"id"`
+		Subject string `json:"subject"`
+	} `json:"resolvedCase"`
 	AgentRuns struct {
 		// W6-T3: wedge-relevant run statuses
 		CompletedID      string `json:"completedId"`
@@ -172,6 +180,11 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		return nil, fmt.Errorf("seedContact: %w", err)
 	}
 
+	leadID, err := seedLead(ctx, db, auth, contactID, accountID, suffix)
+	if err != nil {
+		return nil, fmt.Errorf("seedLead: %w", err)
+	}
+
 	dealID, err := seedDeal(ctx, db, auth, accountID, suffix)
 	if err != nil {
 		return nil, fmt.Errorf("seedDeal: %w", err)
@@ -183,6 +196,10 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 	caseID, caseSubject, err := seedCase(ctx, db, auth, accountID, suffix)
 	if err != nil {
 		return nil, fmt.Errorf("seedCase: %w", err)
+	}
+	resolvedCaseID, resolvedCaseSubject, err := seedResolvedCase(ctx, db, auth, accountID, suffix)
+	if err != nil {
+		return nil, fmt.Errorf("seedResolvedCase: %w", err)
 	}
 
 	// W6-T3: wedge runs — completed, handed-off, denied-by-policy
@@ -196,7 +213,7 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		return nil, fmt.Errorf("seedApproval: %w", err)
 	}
 
-	return buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSubject, runs, approvalID, signalID), nil
+	return buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, caseID, caseSubject, resolvedCaseID, resolvedCaseSubject, runs, approvalID, signalID), nil
 }
 
 func cleanupExistingFixtures(ctx context.Context, db *sql.DB, workspaceID string) error {
@@ -348,14 +365,17 @@ func seedPairedRuns(ctx context.Context, db *sql.DB, auth authResponse, params [
 	return ids, nil
 }
 
-func buildSeedOutput(accountID, contactID, contactEmail, dealID, caseID, caseSubject string, runs wedgeRunIDs, approvalID, signalID string) *seedOutput {
+func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, caseID, caseSubject, resolvedCaseID, resolvedCaseSubject string, runs wedgeRunIDs, approvalID, signalID string) *seedOutput {
 	out := &seedOutput{}
 	out.Account.ID = accountID
 	out.Contact.ID = contactID
 	out.Contact.Email = contactEmail
+	out.Lead.ID = leadID
 	out.Deal.ID = dealID
 	out.Case.ID = caseID
 	out.Case.Subject = caseSubject
+	out.ResolvedCase.ID = resolvedCaseID
+	out.ResolvedCase.Subject = resolvedCaseSubject
 	out.AgentRuns.CompletedID = runs.completedID
 	if len(runs.handoffIDs) > 0 {
 		out.AgentRuns.HandoffID = runs.handoffIDs[0]
@@ -399,6 +419,26 @@ func seedContact(ctx context.Context, db *sql.DB, auth authResponse, accountID, 
 		return "", "", err
 	}
 	return contact.ID, email, nil
+}
+
+func seedLead(ctx context.Context, db *sql.DB, auth authResponse, contactID, accountID, suffix string) (string, error) {
+	svc := crm.NewLeadService(db)
+	score := 88.0
+	metadata := fmt.Sprintf(`{"name":"E2E Lead %s","email":"e2e.lead.%s@fenixcrm.test","company":"E2E Wedge Account %s"}`, suffix, suffix, suffix)
+	lead, err := svc.Create(ctx, crm.CreateLeadInput{
+		WorkspaceID: auth.WorkspaceID,
+		ContactID:   contactID,
+		AccountID:   accountID,
+		Source:      "website",
+		Status:      "qualified",
+		OwnerID:     auth.UserID,
+		Score:       &score,
+		Metadata:    metadata,
+	})
+	if err != nil {
+		return "", err
+	}
+	return lead.ID, nil
 }
 
 func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
@@ -494,6 +534,23 @@ func seedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 		Subject:     subject,
 		Priority:    "medium",
 		Status:      "open",
+	})
+	if err != nil {
+		return "", "", err
+	}
+	return ct.ID, subject, nil
+}
+
+func seedResolvedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, string, error) {
+	svc := crm.NewCaseService(db)
+	subject := "E2E Resolved Case " + suffix
+	ct, err := svc.Create(ctx, crm.CreateCaseInput{
+		WorkspaceID: auth.WorkspaceID,
+		AccountID:   accountID,
+		OwnerID:     auth.UserID,
+		Subject:     subject,
+		Priority:    "medium",
+		Status:      "resolved",
 	})
 	if err != nil {
 		return "", "", err

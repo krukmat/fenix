@@ -63,4 +63,28 @@ describe('AgentActivitySection', () => {
 
     expect(queryByTestId('agent-activity-section')).toBeNull();
   });
+
+  it('accepts lead as an entity type and queries by that entity', () => {
+    mockUseAgentRunsByEntity.mockReturnValue({
+      data: {
+        pages: [
+          {
+            data: [
+              { id: 'run-lead-1', agent_name: 'Prospecting Agent', status: 'completed', started_at: '2026-04-13T10:00:00Z' },
+            ],
+          },
+        ],
+      },
+      isLoading: false,
+    });
+
+    const { getByText } = render(
+      <PaperProvider>
+        <AgentActivitySection entityType="lead" entityId="lead-1" />
+      </PaperProvider>
+    );
+
+    expect(mockUseAgentRunsByEntity).toHaveBeenCalledWith('lead', 'lead-1');
+    expect(getByText('Prospecting Agent')).toBeTruthy();
+  });
 });

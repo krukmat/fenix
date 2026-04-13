@@ -14,11 +14,12 @@ import { useRouter } from 'expo-router';
 import { useAccounts, useDeals } from '../../../src/hooks/useCRM';
 import { wedgeHref } from '../../../src/utils/navigation';
 import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
+import { LeadListTab } from '../../../src/components/sales/LeadListTab';
 import type { ThemeColors } from '../../../src/theme/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'accounts' | 'deals';
+type Tab = 'accounts' | 'deals' | 'leads';
 
 interface AccountItem {
   id: string;
@@ -70,6 +71,15 @@ function TabBar({ active, onSelect, colors }: { active: Tab; onSelect: (t: Tab) 
       >
         <Text style={[styles.tabText, { color: active === 'deals' ? colors.primary : colors.onSurfaceVariant }]}>
           Deals
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        testID="sales-tab-leads"
+        style={[styles.tab, active === 'leads' && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+        onPress={() => onSelect('leads')}
+      >
+        <Text style={[styles.tabText, { color: active === 'leads' ? colors.primary : colors.onSurfaceVariant }]}>
+          Leads
         </Text>
       </TouchableOpacity>
     </View>
@@ -219,11 +229,9 @@ export default function SalesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]} testID="sales-screen">
       <TabBar active={activeTab} onSelect={setActiveTab} colors={colors} />
-      {activeTab === 'accounts' ? (
-        <AccountsTab colors={colors} router={router} />
-      ) : (
-        <DealsTab colors={colors} router={router} />
-      )}
+      {activeTab === 'accounts' ? <AccountsTab colors={colors} router={router} /> : null}
+      {activeTab === 'deals' ? <DealsTab colors={colors} router={router} /> : null}
+      {activeTab === 'leads' ? <LeadListTab colors={colors} router={router} /> : null}
     </View>
   );
 }

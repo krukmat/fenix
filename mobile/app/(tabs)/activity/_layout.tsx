@@ -12,6 +12,7 @@ export default function ActivityLayout() {
       }}
     >
       <Stack.Screen name="index" />
+      <Stack.Screen name="insights" />
       <Stack.Screen name="[id]" options={{ title: 'Run Detail', headerShown: true }} />
     </Stack>
   );

@@ -150,6 +150,58 @@ export function useTriggerSupportAgent() {
   });
 }
 
+/** Triggers the prospecting agent for a lead. Invalidates agent runs on success. */
+export function useTriggerProspectingAgent() {
+  const workspaceId = useWorkspaceId();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ leadId, language }: { leadId: string; language?: string }) =>
+      agentApi.triggerProspectingRun({ lead_id: leadId, language }),
+    onSuccess: () => {
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: wedgeQueryKeys.agentRuns(workspaceId) });
+      }
+    },
+  });
+}
+
+/** Triggers the KB agent for a resolved case. Invalidates agent runs on success. */
+export function useTriggerKBAgent() {
+  const workspaceId = useWorkspaceId();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ caseId, language }: { caseId: string; language?: string }) =>
+      agentApi.triggerKBRun({ case_id: caseId, language }),
+    onSuccess: () => {
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: wedgeQueryKeys.agentRuns(workspaceId) });
+      }
+    },
+  });
+}
+
+/** Triggers the insights agent for an ad-hoc analytical query. Invalidates agent runs on success. */
+export function useTriggerInsightsAgent() {
+  const workspaceId = useWorkspaceId();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (context: {
+      query: string;
+      date_from?: string;
+      date_to?: string;
+      language?: string;
+    }) => agentApi.triggerInsightsRun(context),
+    onSuccess: () => {
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: wedgeQueryKeys.agentRuns(workspaceId) });
+      }
+    },
+  });
+}
+
 // ─── Governance ───────────────────────────────────────────────────────────────
 
 /** Fetches governance summary: recent usage + enriched quota states. Stale after 60s. */

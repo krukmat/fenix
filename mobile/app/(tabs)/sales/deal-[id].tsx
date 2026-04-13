@@ -192,6 +192,11 @@ export default function SalesDealDetailScreen() {
             Open Copilot
           </Button>
         </View>
+        <View style={styles.section}>
+          <Button mode="outlined" testID="deal-risk-trigger-button" disabled>
+            Analyze Deal Risk (Coming Soon)
+          </Button>
+        </View>
         <AgentActivitySection entityType="deal" entityId={dealData.id} testIDPrefix="sales-deal-detail" />
         <EntitySignalsSection entityType="deal" entityId={dealData.id} testIDPrefix="sales-deal-detail" />
       </ScrollView>

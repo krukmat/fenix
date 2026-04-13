@@ -2,7 +2,22 @@
 // W1-T1: uses AgentRunPublicStatus for public filters
 import { apiClient } from './api.client';
 import { normalizeHandoffPackage } from './api.handoff';
-import type { AgentRunPublicStatus, PaginatedResponse, SalesBrief, UsageEvent } from './api.types';
+import type {
+  AgentRunPublicStatus,
+  PaginatedResponse,
+  QueuedAgentTriggerResponse,
+  SalesBrief,
+  UsageEvent,
+} from './api.types';
+
+function normalizeQueuedTriggerResponse(data: unknown): QueuedAgentTriggerResponse {
+  const payload = (data ?? null) as Record<string, unknown> | null;
+  return {
+    runId: String(payload?.run_id ?? ''),
+    status: String(payload?.status ?? ''),
+    agent: String(payload?.agent ?? ''),
+  };
+}
 
 export const agentApi = {
   // W1-T1: status filter accepts public outcomes for user-facing lists
@@ -73,6 +88,26 @@ export const agentApi = {
   triggerSupportRun: async (context: { entity_type: string; entity_id: string }) => {
     const response = await apiClient.post('/bff/api/v1/agents/support/trigger', context);
     return response.data;
+  },
+
+  triggerProspectingRun: async (context: { lead_id: string; language?: string }) => {
+    const response = await apiClient.post('/bff/api/v1/agents/prospecting/trigger', context);
+    return normalizeQueuedTriggerResponse(response.data);
+  },
+
+  triggerKBRun: async (context: { case_id: string; language?: string }) => {
+    const response = await apiClient.post('/bff/api/v1/agents/kb/trigger', context);
+    return normalizeQueuedTriggerResponse(response.data);
+  },
+
+  triggerInsightsRun: async (context: {
+    query: string;
+    date_from?: string;
+    date_to?: string;
+    language?: string;
+  }) => {
+    const response = await apiClient.post('/bff/api/v1/agents/insights/trigger', context);
+    return normalizeQueuedTriggerResponse(response.data);
   },
 
   // Task Mobile P1.8 — FR-232/UC-A7: handoff package for escalated runs

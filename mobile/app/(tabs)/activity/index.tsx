@@ -117,6 +117,21 @@ function RunRow({ run, colors, onPress }: { run: RunItem; colors: ThemeColors; o
   );
 }
 
+function InsightsEntryCard({ colors, onPress }: { colors: ThemeColors; onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      testID="activity-insights-nav"
+      style={[styles.insightsCard, { backgroundColor: colors.surface }]}
+      onPress={onPress}
+    >
+      <Text style={[styles.insightsTitle, { color: colors.onSurface }]}>Insights Agent</Text>
+      <Text style={[styles.insightsSubtitle, { color: colors.onSurfaceVariant }]}>
+        Run ad-hoc analytical queries and inspect the grounded result in activity detail.
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ActivityLogScreen() {
@@ -140,6 +155,9 @@ export default function ActivityLogScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]} testID="activity-log-screen">
+      <View style={styles.topSection}>
+        <InsightsEntryCard colors={colors} onPress={() => router.push(wedgeHref('/activity/insights'))} />
+      </View>
       <FilterChips active={activeFilter} onSelect={setActiveFilter} colors={colors} />
       {runs.length === 0 ? (
         <View style={styles.centered} testID="activity-log-empty">
@@ -162,6 +180,10 @@ export default function ActivityLogScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  topSection: { padding: 16, paddingBottom: 0 },
+  insightsCard: { padding: 16, borderRadius: 10, elevation: 1 },
+  insightsTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  insightsSubtitle: { fontSize: 13, lineHeight: 18 },
   chipRow: { paddingHorizontal: 12, paddingVertical: 8, flexGrow: 0 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginRight: 8, backgroundColor: '#E5E7EB' },
   chipText: { fontSize: 13, fontWeight: '500' },

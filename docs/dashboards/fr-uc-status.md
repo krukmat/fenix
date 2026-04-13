@@ -1,12 +1,12 @@
 ---
 title: FenixCRM — FR & UC Implementation Status
-last_updated: 2026-04-12
+last_updated: 2026-04-13
 tags: [dashboard, status]
 ---
 
 # FenixCRM — FR & UC Implementation Status
 
-> Last updated: 2026-04-12
+> Last updated: 2026-04-13
 > Source of truth for current wedge priority: `docs/architecture.md` + `docs/plans/fenixcrm_strategic_repositioning_spec.md`
 > Source of truth for detailed requirement inventory: `docs/requirements.md` + BDD feature files in `features/`
 >
@@ -113,11 +113,11 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 | UC | Title | Feature File | Go BDD | BFF BDD | Mobile BDD | Doorstop | Gaps |
 |----|-------|-------------|--------|---------|------------|----------|------|
 | UC-S1 | Sales Copilot | `uc-s1-sales-copilot.feature` + `uc-s1-sales-copilot-mobile-smoke.feature` | ✅ canonical backend | ⏳ | ⏳ smoke | ✅ UC_S1.yml | Mobile remains smoke-only, not canonical |
-| UC-S2 | Prospecting Agent | `uc-s2-prospecting-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_S2.yml | Mobile trigger button |
-| UC-S3 | Deal Risk Agent | `uc-s3-deal-risk-agent.feature` | 🔒 deferred | ⏳ | ❌ | ✅ UC_S3.yml | deal_risk.go agent + mobile |
+| UC-S2 | Prospecting Agent | `uc-s2-prospecting-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_S2.yml | Mobile trigger implemented; mobile BDD still missing |
+| UC-S3 | Deal Risk Agent | `uc-s3-deal-risk-agent.feature` | 🔒 deferred | ⏳ | ❌ | ✅ UC_S3.yml | Mobile placeholder implemented; backend runner still deferred |
 | UC-C1 | Support Agent | `uc-c1-support-agent.feature` | ✅ canonical backend | ⏳ | ❌ | ✅ UC_C1.yml | — |
-| UC-K1 | KB Agent | `uc-k1-kb-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_K1.yml | Mobile KB trigger |
-| UC-D1 | Data Insights Agent | `uc-d1-data-insights-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_D1.yml | Mobile Insights screen |
+| UC-K1 | KB Agent | `uc-k1-kb-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_K1.yml | Mobile KB trigger implemented; mobile BDD still missing |
+| UC-D1 | Data Insights Agent | `uc-d1-data-insights-agent.feature` | ✅ | ⏳ | ❌ | ✅ UC_D1.yml | Mobile Insights screen implemented; mobile BDD still missing |
 | UC-G1 | Governance | `uc-g1-governance.feature` | ✅ canonical backend | ⏳ | ❌ | ✅ UC_G1.yml | Replay/rollback scenarios deferred |
 | UC-A1 | Agent Studio | `uc-a1-agent-studio.feature` | ⏳ baseline | ⏳ | ❌ | ✅ UC_A1.yml | Baseline/stub coverage only |
 | UC-A2 | Workflow Authoring | `uc-a2-workflow-authoring.feature` | ✅ | ⏳ | ❌ | ✅ UC_A2.yml | — |
@@ -153,8 +153,8 @@ Source: `docs/tasks/task_uc_gap_closure.md`
 |------|-----|-----|--------|
 | Gap-5 | UC-S3 | Implement `deal_risk.go` agent | ❌ pending |
 | Gap-6 | UC-S3 | Wire `deal_risk` runner adapter + registry + handler endpoint | ❌ pending |
-| Gap-7 | UC-S3, UC-S2 | Agent trigger buttons in Deal detail + Leads screen (Mobile) | ❌ pending |
-| Gap-8 | UC-K1, UC-D1 | KB search trigger + Data Insights screen (Mobile) | ❌ pending |
+| Gap-7 | UC-S3, UC-S2 | Agent trigger buttons in Deal detail + Leads screen (Mobile) | ⏳ partial (Prospecting done, Deal Risk placeholder done, backend runner pending) |
+| Gap-8 | UC-K1, UC-D1 | KB search trigger + Data Insights screen (Mobile) | ✅ done |
 
 ---
 

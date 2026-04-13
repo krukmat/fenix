@@ -8,6 +8,8 @@ import {
   useContact,
   useDeals,
   useDeal,
+  useLeads,
+  useLead,
   useCases,
   useCase,
   useCreateDeal,
@@ -45,6 +47,8 @@ jest.mock('../../src/services/api', () => ({
     getContact: jest.fn(),
     getDeals: jest.fn(),
     getDealFull: jest.fn(),
+    getLeads: jest.fn(),
+    getLead: jest.fn(),
     getCases: jest.fn(),
     getCaseFull: jest.fn(),
     createDeal: jest.fn(),
@@ -80,6 +84,8 @@ describe('useCRM hooks', () => {
       expect(queryKeys.contact('ws', 'id-2')).toEqual(['contact', 'ws', 'id-2']);
       expect(queryKeys.deals('ws')).toEqual(['deals', 'ws']);
       expect(queryKeys.deal('ws', 'id-3')).toEqual(['deal', 'ws', 'id-3']);
+      expect(queryKeys.leads('ws')).toEqual(['leads', 'ws']);
+      expect(queryKeys.lead('ws', 'id-lead')).toEqual(['lead', 'ws', 'id-lead']);
       expect(queryKeys.cases('ws')).toEqual(['cases', 'ws']);
       expect(queryKeys.case('ws', 'id-4')).toEqual(['case', 'ws', 'id-4']);
       expect(queryKeys.agentRuns('ws')).toEqual(['agent-runs', 'ws']);
@@ -134,6 +140,19 @@ describe('useCRM hooks', () => {
     expect(mockUseQuery).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ queryKey: ['deal', 'ws-1', 'd-1'], enabled: true })
+    );
+  });
+
+  it('useLeads/useLead should configure lead queries', () => {
+    useLeads();
+    useLead('l-1');
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['leads', 'ws-1'], enabled: true })
+    );
+    expect(mockUseQuery).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ queryKey: ['lead', 'ws-1', 'l-1'], enabled: true })
     );
   });
 

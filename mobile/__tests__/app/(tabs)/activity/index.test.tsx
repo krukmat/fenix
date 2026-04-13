@@ -80,6 +80,13 @@ describe('Activity log list screen', () => {
     expect(mockPush).toHaveBeenCalledWith('/activity/run-1');
   });
 
+  it('navigates to insights screen from the entry card', () => {
+    const { default: Screen } = require('../../../../app/(tabs)/activity/index');
+    render(React.createElement(Screen));
+    fireEvent.press(screen.getByTestId('activity-insights-nav'));
+    expect(mockPush).toHaveBeenCalledWith('/activity/insights');
+  });
+
   it('filters runs by status when a filter chip is pressed', () => {
     mockUseAgentRuns.mockImplementation((filters: { status?: string } | undefined) => {
       const all = [runA, runB, runC];

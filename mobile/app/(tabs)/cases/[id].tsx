@@ -9,6 +9,7 @@ import { CRMDetailHeader } from '../../../src/components/crm';
 import { useCase } from '../../../src/hooks/useCRM';
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
+import { useTriggerKBAgent } from '../../../src/hooks/useWedge';
 import type { ThemeColors } from '../../../src/theme/types';
 
 function useColors(): ThemeColors {
@@ -73,7 +74,12 @@ function renderAccountSection(accountId: string | undefined, accountName: string
 }
 
 // FIX-9: Export for tests
-export function renderCaseContent(caseData: CaseDetailData, colors: ThemeColors, router: ReturnType<typeof useRouter>) {
+export function renderCaseContent(
+  caseData: CaseDetailData,
+  colors: ThemeColors,
+  router: ReturnType<typeof useRouter>,
+  triggerKB: { mutate: (context: { caseId: string }) => void; isPending: boolean },
+) {
   const metadata = getMetadata(caseData);
   return (
     <>
@@ -96,6 +102,18 @@ export function renderCaseContent(caseData: CaseDetailData, colors: ThemeColors,
         <SignalCountBadge count={caseData.activeSignalCount} testID="case-detail-signal-badge" />
       </View>
       <AgentActivitySection entityType="case" entityId={caseData.id} testIDPrefix="case-agent-activity" />
+      {caseData.status === 'resolved' && (
+        <View style={styles.section}>
+          <Button
+            mode="outlined"
+            testID="kb-trigger-button"
+            disabled={triggerKB.isPending}
+            onPress={() => triggerKB.mutate({ caseId: caseData.id })}
+          >
+            {triggerKB.isPending ? 'Running...' : 'Generate KB Article'}
+          </Button>
+        </View>
+      )}
       <EntitySignalsSection entityType="case" entityId={caseData.id} testIDPrefix="case-signals" />
       <View style={styles.section}>
         <Button mode="contained" onPress={() => router.push(`/cases/edit/${caseData.id}`)} testID="case-edit-button">
@@ -158,9 +176,10 @@ export default function CaseDetailScreen() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data, isLoading, error } = useCase(id);
   const caseData = parseCasePayload(data);
+  const triggerKB = useTriggerKBAgent();
 
   // FIX-1: Removed useMemo wrapping JSX
-  const content = caseData ? renderCaseContent(caseData, colors, router) : null;
+  const content = caseData ? renderCaseContent(caseData, colors, router, triggerKB) : null;
 
   return (
     <>

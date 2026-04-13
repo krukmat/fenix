@@ -20,9 +20,11 @@ jest.mock('../../../../src/hooks/useCRM', () => ({
 }));
 
 const mockUseTriggerSupportAgent = jest.fn();
+const mockUseTriggerKBAgent = jest.fn();
 const mockUseAgentRuns = jest.fn();
 jest.mock('../../../../src/hooks/useWedge', () => ({
   useTriggerSupportAgent: () => mockUseTriggerSupportAgent(),
+  useTriggerKBAgent: () => mockUseTriggerKBAgent(),
   useAgentRuns: (...args: unknown[]) => mockUseAgentRuns(...args),
 }));
 
@@ -98,6 +100,7 @@ describe('Support agent trigger flow', () => {
     jest.clearAllMocks();
     mockUseCase.mockReturnValue({ data: casePayload, isLoading: false, error: null });
     mockUseTriggerSupportAgent.mockReturnValue({ mutate: jest.fn(), isPending: false });
+    mockUseTriggerKBAgent.mockReturnValue({ mutate: jest.fn(), isPending: false });
     mockUseAgentRuns.mockReturnValue({ data: null });
   });
 

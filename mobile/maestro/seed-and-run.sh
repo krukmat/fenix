@@ -123,9 +123,12 @@ const pairs = {
   SEED_ACCOUNT_ID:         seed.account?.id ?? '',
   SEED_CONTACT_ID:         seed.contact?.id ?? '',
   SEED_CONTACT_EMAIL:      seed.contact?.email ?? '',
+  SEED_LEAD_ID:            seed.lead?.id ?? '',
   SEED_DEAL_ID:            seed.deal?.id ?? '',
   SEED_CASE_ID:            seed.case?.id ?? '',
   SEED_CASE_SUBJECT:       seed.case?.subject ?? '',
+  SEED_RESOLVED_CASE_ID:   seed.resolvedCase?.id ?? '',
+  SEED_RESOLVED_CASE_SUBJECT: seed.resolvedCase?.subject ?? '',
   SEED_RUN_COMPLETED_ID:   seed.agentRuns?.completedId ?? '',
   SEED_RUN_HANDOFF_ID:     seed.agentRuns?.handoffId ?? '',
   SEED_RUN_DENIED_ID:      seed.agentRuns?.deniedByPolicyId ?? '',
@@ -160,7 +163,9 @@ print_seed_summary() {
   log "SEED_ACCOUNT_ID=${SEED_ACCOUNT_ID}"
   log "SEED_CONTACT_ID=${SEED_CONTACT_ID}"
   log "SEED_DEAL_ID=${SEED_DEAL_ID}"
+  log "SEED_LEAD_ID=${SEED_LEAD_ID}"
   log "SEED_CASE_ID=${SEED_CASE_ID}"
+  log "SEED_RESOLVED_CASE_ID=${SEED_RESOLVED_CASE_ID}"
   log "SEED_RUN_COMPLETED_ID=${SEED_RUN_COMPLETED_ID}"
   log "SEED_RUN_HANDOFF_ID=${SEED_RUN_HANDOFF_ID}"
   log "SEED_RUN_DENIED_ID=${SEED_RUN_DENIED_ID}"
@@ -180,9 +185,12 @@ run_maestro_flow() {
     -e "SEED_ACCOUNT_ID=${SEED_ACCOUNT_ID}" \
     -e "SEED_CONTACT_ID=${SEED_CONTACT_ID}" \
     -e "SEED_CONTACT_EMAIL=${SEED_CONTACT_EMAIL}" \
+    -e "SEED_LEAD_ID=${SEED_LEAD_ID}" \
     -e "SEED_DEAL_ID=${SEED_DEAL_ID}" \
     -e "SEED_CASE_ID=${SEED_CASE_ID}" \
     -e "SEED_CASE_SUBJECT=${SEED_CASE_SUBJECT}" \
+    -e "SEED_RESOLVED_CASE_ID=${SEED_RESOLVED_CASE_ID}" \
+    -e "SEED_RESOLVED_CASE_SUBJECT=${SEED_RESOLVED_CASE_SUBJECT}" \
     -e "SEED_RUN_COMPLETED_ID=${SEED_RUN_COMPLETED_ID}" \
     -e "SEED_RUN_HANDOFF_ID=${SEED_RUN_HANDOFF_ID}" \
     -e "SEED_RUN_DENIED_ID=${SEED_RUN_DENIED_ID}" \

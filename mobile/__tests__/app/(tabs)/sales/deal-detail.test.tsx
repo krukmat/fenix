@@ -30,8 +30,22 @@ jest.mock('react-native-paper', () => {
         error: '#B00020',
       },
     }),
-    Button: ({ children, onPress, testID }: { children: unknown; onPress: () => void; testID: string }) =>
-      mockReact.createElement(TouchableOpacity, { testID, onPress }, mockReact.createElement(Text, null, children)),
+    Button: ({
+      children,
+      onPress,
+      testID,
+      disabled,
+    }: {
+      children: unknown;
+      onPress: () => void;
+      testID: string;
+      disabled?: boolean;
+    }) =>
+      mockReact.createElement(
+        TouchableOpacity,
+        { testID, onPress, accessibilityState: { disabled: !!disabled } },
+        mockReact.createElement(Text, null, children),
+      ),
   };
 });
 
@@ -125,6 +139,14 @@ describe('Sales deal detail screen', () => {
     const { default: Screen } = require('../../../../app/(tabs)/sales/deal-[id]');
     render(React.createElement(Screen));
     expect(screen.getByTestId('sales-deal-brief-button')).toBeTruthy();
+  });
+
+  it('renders disabled Deal Risk placeholder button', () => {
+    const { default: Screen } = require('../../../../app/(tabs)/sales/deal-[id]');
+    render(React.createElement(Screen));
+    const button = screen.getByTestId('deal-risk-trigger-button');
+    expect(button).toBeTruthy();
+    expect(button.props.accessibilityState?.disabled).toBe(true);
   });
 
   it('navigates to deal brief when button pressed', () => {
