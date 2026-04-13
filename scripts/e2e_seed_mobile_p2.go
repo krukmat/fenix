@@ -161,6 +161,21 @@ type wedgeRunIDs struct {
 	deniedIDs   []string
 }
 
+type baseFixtureIDs struct {
+	accountID    string
+	contactID    string
+	contactEmail string
+	leadID       string
+	dealID       string
+}
+
+type caseFixtureIDs struct {
+	caseID              string
+	caseSubject         string
+	resolvedCaseID      string
+	resolvedCaseSubject string
+}
+
 func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutput, error) {
 	err := cleanupExistingFixtures(ctx, db, auth.WorkspaceID)
 	if err != nil {
@@ -170,50 +185,93 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 	baseNow := time.Now().UTC().Truncate(time.Second)
 	suffix := baseNow.Format("20060102T150405")
 
-	accountID, err := seedAccount(ctx, db, auth, suffix)
-	if err != nil {
-		return nil, fmt.Errorf("seedAccount: %w", err)
-	}
-
-	contactID, contactEmail, err := seedContact(ctx, db, auth, accountID, suffix)
-	if err != nil {
-		return nil, fmt.Errorf("seedContact: %w", err)
-	}
-
-	leadID, err := seedLead(ctx, db, auth, contactID, accountID, suffix)
-	if err != nil {
-		return nil, fmt.Errorf("seedLead: %w", err)
-	}
-
-	dealID, err := seedDeal(ctx, db, auth, accountID, suffix)
-	if err != nil {
-		return nil, fmt.Errorf("seedDeal: %w", err)
-	}
-	if seedKnowledgeErr := seedDealKnowledge(ctx, db, auth, dealID, suffix); seedKnowledgeErr != nil {
-		return nil, fmt.Errorf("seedDealKnowledge: %w", seedKnowledgeErr)
-	}
-
-	caseID, caseSubject, err := seedCase(ctx, db, auth, accountID, suffix)
-	if err != nil {
-		return nil, fmt.Errorf("seedCase: %w", err)
-	}
-	resolvedCaseID, resolvedCaseSubject, err := seedResolvedCase(ctx, db, auth, accountID, suffix)
-	if err != nil {
-		return nil, fmt.Errorf("seedResolvedCase: %w", err)
-	}
-
-	// W6-T3: wedge runs — completed, handed-off, denied-by-policy
-	runs, err := seedWedgeRuns(ctx, db, auth, caseID, suffix, baseNow)
+	baseFixtures, err := seedBaseFixtures(ctx, db, auth, suffix)
 	if err != nil {
 		return nil, err
 	}
 
-	approvalID, signalID, err := seedGovernanceAndApproval(ctx, db, auth, runs.completedID, dealID, caseID, suffix, baseNow)
+	caseFixtures, err := seedCaseFixtures(ctx, db, auth, baseFixtures.accountID, suffix)
+	if err != nil {
+		return nil, err
+	}
+
+	// W6-T3: wedge runs — completed, handed-off, denied-by-policy
+	runs, err := seedWedgeRuns(ctx, db, auth, caseFixtures.caseID, suffix, baseNow)
+	if err != nil {
+		return nil, err
+	}
+
+	approvalID, signalID, err := seedGovernanceAndApproval(ctx, db, auth, runs.completedID, baseFixtures.dealID, caseFixtures.caseID, suffix, baseNow)
 	if err != nil {
 		return nil, fmt.Errorf("seedApproval: %w", err)
 	}
 
-	return buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, caseID, caseSubject, resolvedCaseID, resolvedCaseSubject, runs, approvalID, signalID), nil
+	return buildSeedOutput(
+		baseFixtures.accountID,
+		baseFixtures.contactID,
+		baseFixtures.contactEmail,
+		baseFixtures.leadID,
+		baseFixtures.dealID,
+		caseFixtures.caseID,
+		caseFixtures.caseSubject,
+		caseFixtures.resolvedCaseID,
+		caseFixtures.resolvedCaseSubject,
+		runs,
+		approvalID,
+		signalID,
+	), nil
+}
+
+func seedBaseFixtures(ctx context.Context, db *sql.DB, auth authResponse, suffix string) (baseFixtureIDs, error) {
+	accountID, err := seedAccount(ctx, db, auth, suffix)
+	if err != nil {
+		return baseFixtureIDs{}, fmt.Errorf("seedAccount: %w", err)
+	}
+
+	contactID, contactEmail, err := seedContact(ctx, db, auth, accountID, suffix)
+	if err != nil {
+		return baseFixtureIDs{}, fmt.Errorf("seedContact: %w", err)
+	}
+
+	leadID, err := seedLead(ctx, db, auth, contactID, accountID, suffix)
+	if err != nil {
+		return baseFixtureIDs{}, fmt.Errorf("seedLead: %w", err)
+	}
+
+	dealID, err := seedDeal(ctx, db, auth, accountID, suffix)
+	if err != nil {
+		return baseFixtureIDs{}, fmt.Errorf("seedDeal: %w", err)
+	}
+	if seedKnowledgeErr := seedDealKnowledge(ctx, db, auth, dealID, suffix); seedKnowledgeErr != nil {
+		return baseFixtureIDs{}, fmt.Errorf("seedDealKnowledge: %w", seedKnowledgeErr)
+	}
+
+	return baseFixtureIDs{
+		accountID:    accountID,
+		contactID:    contactID,
+		contactEmail: contactEmail,
+		leadID:       leadID,
+		dealID:       dealID,
+	}, nil
+}
+
+func seedCaseFixtures(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (caseFixtureIDs, error) {
+	caseID, caseSubject, err := seedCase(ctx, db, auth, accountID, suffix)
+	if err != nil {
+		return caseFixtureIDs{}, fmt.Errorf("seedCase: %w", err)
+	}
+
+	resolvedCaseID, resolvedCaseSubject, err := seedResolvedCase(ctx, db, auth, accountID, suffix)
+	if err != nil {
+		return caseFixtureIDs{}, fmt.Errorf("seedResolvedCase: %w", err)
+	}
+
+	return caseFixtureIDs{
+		caseID:              caseID,
+		caseSubject:         caseSubject,
+		resolvedCaseID:      resolvedCaseID,
+		resolvedCaseSubject: resolvedCaseSubject,
+	}, nil
 }
 
 func cleanupExistingFixtures(ctx context.Context, db *sql.DB, workspaceID string) error {

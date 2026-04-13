@@ -24,7 +24,7 @@ CHANGED_FILES="$(git diff --name-only "$DIFF_RANGE" 2>/dev/null || true)"
 GO_CHANGED=0
 MOBILE_CHANGED=0
 
-if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(internal/|cmd/|pkg/|go\.mod$|go\.sum$|\.golangci\.yml$|Makefile$)'; then
+if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(internal/|cmd/|pkg/|scripts/.*\.go$|go\.mod$|go\.sum$|\.golangci\.yml$|Makefile$)'; then
   GO_CHANGED=1
 fi
 
