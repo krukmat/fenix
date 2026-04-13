@@ -110,6 +110,11 @@ export const agentApi = {
     return normalizeQueuedTriggerResponse(response.data);
   },
 
+  triggerDealRiskRun: async (context: { deal_id: string; language?: string }) => {
+    const response = await apiClient.post('/bff/api/v1/agents/deal-risk/trigger', context);
+    return normalizeQueuedTriggerResponse(response.data);
+  },
+
   // Task Mobile P1.8 — FR-232/UC-A7: handoff package for escalated runs
   getHandoff: async (runId: string, caseId?: string) => {
     const response = await apiClient.get(`/bff/api/v1/agents/runs/${runId}/handoff`, {

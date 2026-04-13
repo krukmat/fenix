@@ -148,7 +148,7 @@ tags:
 - takeScreenshot:
     path: "12_sales_lead_prospecting"
 
-- openLink: "fenixcrm:///sales/deals/${SEED_DEAL_ID}"
+- openLink: "fenixcrm:///sales/deals/${SEED_STALE_DEAL_ID}"
 - extendedWaitUntil:
     visible:
       id: "sales-deal-detail-screen"
@@ -156,7 +156,7 @@ tags:
 - assertVisible:
     id: "deal-risk-trigger-button"
 - takeScreenshot:
-    path: "13_sales_deal_risk_placeholder"
+    path: "13_sales_deal_risk_active"
 
 # ── 4. Activity (Denied Trace) ────────────────────────────────────────────────
 

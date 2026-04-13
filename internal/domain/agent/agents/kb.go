@@ -334,7 +334,8 @@ func (a *KBAgent) searchSimilarArticles(ctx context.Context, workspaceID, query 
 	if err != nil || results == nil || len(results.Items) == 0 {
 		return "", 0
 	}
-	return results.Items[0].KnowledgeItemID, results.Items[0].Score
+	top := results.Items[0]
+	return top.KnowledgeItemID, top.Score
 }
 
 func (a *KBAgent) updateKnowledgeArticle(ctx context.Context, articleID, subject, content string) (string, error) {

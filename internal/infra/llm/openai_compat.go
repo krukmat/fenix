@@ -123,9 +123,10 @@ func decodeChatResponse(respBody io.Reader) (*ChatResponse, error) {
 	if len(oaiResp.Choices) == 0 {
 		return nil, fmt.Errorf("openai-compat: empty choices in response")
 	}
+	choice := oaiResp.Choices[0]
 	return &ChatResponse{
-		Content:    oaiResp.Choices[0].Message.Content,
-		StopReason: oaiResp.Choices[0].FinishReason,
+		Content:    choice.Message.Content,
+		StopReason: choice.FinishReason,
 		Tokens:     oaiResp.Usage.TotalTokens,
 	}, nil
 }

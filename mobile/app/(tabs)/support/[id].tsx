@@ -152,12 +152,14 @@ function TriggerSection({
   caseData,
   colors,
   triggerAgent,
-  triggerKB,
+  triggerKBIsPending,
+  onTriggerKB,
 }: {
   caseData: CaseDetailData;
   colors: ThemeColors;
   triggerAgent: { mutate: (context: { entityType: string; entityId: string }) => void; isPending: boolean };
-  triggerKB: { mutate: (context: { caseId: string }) => void; isPending: boolean };
+  triggerKBIsPending: boolean;
+  onTriggerKB: () => void;
 }) {
   return (
     <>
@@ -178,10 +180,10 @@ function TriggerSection({
           <Button
             mode="outlined"
             testID="kb-trigger-button"
-            disabled={triggerKB.isPending}
-            onPress={() => triggerKB.mutate({ caseId: caseData.id })}
+            disabled={triggerKBIsPending}
+            onPress={onTriggerKB}
           >
-            {triggerKB.isPending ? 'Running...' : 'Generate KB Article'}
+            {triggerKBIsPending ? 'Running...' : 'Generate KB Article'}
           </Button>
         </View>
       )}
@@ -228,6 +230,16 @@ export default function SupportCaseDetailScreen() {
   const caseData = parseCasePayload(data);
   const triggerAgent = useTriggerSupportAgent();
   const triggerKB = useTriggerKBAgent();
+  const signalSummary = caseData ? formatSignalSummary(caseData.activeSignalCount) : null;
+
+  const handleKBTrigger = () => {
+    if (!caseData) return;
+    triggerKB.mutate({ caseId: caseData.id }, {
+      onSuccess: (result) => {
+        if (result?.runId) router.push(wedgeHref(`/activity/${result.runId}`));
+      },
+    });
+  };
 
   if (isLoading) return <SupportCaseLoading colors={colors} />;
   if (error || !caseData) return <SupportCaseError colors={colors} message={error?.message || 'Case not found'} />;
@@ -258,20 +270,20 @@ export default function SupportCaseDetailScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
               <Text style={[styles.sectionTitle, styles.sectionTitleNoMargin, { color: colors.onSurface }]}>Signals</Text>
-              {formatSignalSummary(caseData.activeSignalCount) ? (
+              {signalSummary ? (
                 <View
                   style={[styles.signalSummaryChip, { backgroundColor: colors.surface }]}
                   testID="support-case-signal-summary"
                 >
                   <Text style={[styles.signalSummaryText, { color: colors.error }]}>
-                    {formatSignalSummary(caseData.activeSignalCount)}
+                    {signalSummary}
                   </Text>
                 </View>
               ) : null}
             </View>
           </View>
 
-          <TriggerSection caseData={caseData} colors={colors} triggerAgent={triggerAgent} triggerKB={triggerKB} />
+          <TriggerSection caseData={caseData} colors={colors} triggerAgent={triggerAgent} triggerKBIsPending={triggerKB.isPending} onTriggerKB={handleKBTrigger} />
 
           <AgentActivitySection entityType="case" entityId={caseData.id} testIDPrefix="support-case-agent-activity" />
           <EntitySignalsSection entityType="case" entityId={caseData.id} testIDPrefix="support-case-signals" />

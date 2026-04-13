@@ -114,7 +114,7 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 |----|-------|-------------|--------|---------|------------|----------|------|
 | UC-S1 | Sales Copilot | `uc-s1-sales-copilot.feature` + `uc-s1-sales-copilot-mobile-smoke.feature` | ✅ canonical backend | ⏳ | ⏳ smoke | ✅ UC_S1.yml | Mobile remains smoke-only, not canonical |
 | UC-S2 | Prospecting Agent | `uc-s2-prospecting-agent.feature` + `uc-s2-prospecting-agent-mobile.feature` | ✅ | ⏳ | ⏳ defined (runner blocked) | ✅ UC_S2.yml | Mobile trigger implemented; mobile feature coverage added, runner still blocked |
-| UC-S3 | Deal Risk Agent | `uc-s3-deal-risk-agent.feature` + `uc-s3-deal-risk-agent-mobile.feature` | 🔒 deferred | ⏳ | ⏳ defined (runner blocked) | ✅ UC_S3.yml | Mobile placeholder implemented; backend runner still deferred |
+| UC-S3 | Deal Risk Agent | `uc-s3-deal-risk-agent.feature` + `uc-s3-deal-risk-agent-mobile.feature` | ✅ canonical backend | ⏳ | ⏳ active trigger flow defined | ✅ UC_S3.yml | Backend runner and mobile trigger are active; Maestro flow now targets a stale seeded deal |
 | UC-C1 | Support Agent | `uc-c1-support-agent.feature` | ✅ canonical backend | ⏳ | ❌ | ✅ UC_C1.yml | — |
 | UC-K1 | KB Agent | `uc-k1-kb-agent.feature` + `uc-k1-kb-agent-mobile.feature` | ✅ | ⏳ | ⏳ defined (runner blocked) | ✅ UC_K1.yml | Mobile KB trigger implemented; mobile feature coverage added, runner still blocked |
 | UC-D1 | Data Insights Agent | `uc-d1-data-insights-agent.feature` + `uc-d1-data-insights-agent-mobile.feature` | ✅ | ⏳ | ⏳ defined (runner blocked) | ✅ UC_D1.yml | Mobile Insights screen implemented; mobile feature coverage added, runner still blocked |
@@ -151,9 +151,9 @@ Source: `docs/tasks/task_uc_gap_closure.md`
 
 | Task | UC | Gap | Status |
 |------|-----|-----|--------|
-| Gap-5 | UC-S3 | Implement `deal_risk.go` agent | ❌ pending |
-| Gap-6 | UC-S3 | Wire `deal_risk` runner adapter + registry + handler endpoint | ❌ pending |
-| Gap-7 | UC-S3, UC-S2 | Agent trigger buttons in Deal detail + Leads screen (Mobile) | ⏳ partial (Prospecting done, Deal Risk placeholder done, backend runner pending) |
+| Gap-5 | UC-S3 | Implement `deal_risk.go` agent | ✅ done |
+| Gap-6 | UC-S3 | Wire `deal_risk` runner adapter + registry + handler endpoint | ✅ done |
+| Gap-7 | UC-S3, UC-S2 | Agent trigger buttons in Deal detail + Leads screen (Mobile) | ✅ done for UC-S3; UC-S2 unchanged |
 | Gap-8 | UC-K1, UC-D1 | KB search trigger + Data Insights screen (Mobile) | ✅ done |
 
 ---

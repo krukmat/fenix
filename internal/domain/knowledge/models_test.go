@@ -46,9 +46,10 @@ func setupTestDB(t *testing.T) *sql.DB {
 func createWorkspace(t *testing.T, db *sql.DB) string {
 	t.Helper()
 	id := newID()
+	now := time.Now()
 	_, err := db.Exec(
 		`INSERT INTO workspace (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-		id, "Test Workspace", "test-ws-"+id, time.Now(), time.Now(),
+		id, "Test Workspace", "test-ws-"+id, now, now,
 	)
 	if err != nil {
 		t.Fatalf("failed to create workspace: %v", err)
@@ -59,11 +60,12 @@ func createWorkspace(t *testing.T, db *sql.DB) string {
 // insertKnowledgeItem helper for tests
 func insertKnowledgeItem(t *testing.T, db *sql.DB, id, workspaceID, title, rawContent, normalizedContent string) {
 	t.Helper()
+	now := time.Now()
 	_, err := db.Exec(
 		`INSERT INTO knowledge_item
 		 (id, workspace_id, source_type, title, raw_content, normalized_content, created_at, updated_at)
 		 VALUES (?, ?, 'document', ?, ?, ?, ?, ?)`,
-		id, workspaceID, title, rawContent, normalizedContent, time.Now(), time.Now(),
+		id, workspaceID, title, rawContent, normalizedContent, now, now,
 	)
 	if err != nil {
 		t.Fatalf("failed to insert knowledge_item: %v", err)
@@ -208,11 +210,12 @@ func TestKnowledgeItem_UniqueConstraint_EntityType_EntityID(t *testing.T) {
 
 	// First insert should succeed
 	id1 := newID()
+	now1 := time.Now()
 	_, err := db.Exec(
 		`INSERT INTO knowledge_item
 		 (id, workspace_id, source_type, title, raw_content, entity_type, entity_id, created_at, updated_at)
 		 VALUES (?, ?, 'document', 'Doc 1', 'content', 'case', ?, ?, ?)`,
-		id1, wsID, entityID, time.Now(), time.Now(),
+		id1, wsID, entityID, now1, now1,
 	)
 	if err != nil {
 		t.Fatalf("first insert should succeed: %v", err)
@@ -220,11 +223,12 @@ func TestKnowledgeItem_UniqueConstraint_EntityType_EntityID(t *testing.T) {
 
 	// Second insert with same entity_type + entity_id should fail
 	id2 := newID()
+	now2 := time.Now()
 	_, err = db.Exec(
 		`INSERT INTO knowledge_item
 		 (id, workspace_id, source_type, title, raw_content, entity_type, entity_id, created_at, updated_at)
 		 VALUES (?, ?, 'document', 'Doc 2', 'content', 'case', ?, ?, ?)`,
-		id2, wsID, entityID, time.Now(), time.Now(),
+		id2, wsID, entityID, now2, now2,
 	)
 	if err == nil {
 		t.Error("expected UNIQUE constraint violation for duplicate entity_type+entity_id, but insert succeeded")

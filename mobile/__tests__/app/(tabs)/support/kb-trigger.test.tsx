@@ -127,7 +127,7 @@ describe('Support KB trigger', () => {
     const { default: Screen } = require('../../../../app/(tabs)/support/[id]');
     render(React.createElement(Screen));
     fireEvent.press(screen.getByTestId('kb-trigger-button'));
-    expect(mockMutate).toHaveBeenCalledWith({ caseId: 'case-1' });
+    expect(mockMutate).toHaveBeenCalledWith({ caseId: 'case-1' }, expect.objectContaining({ onSuccess: expect.any(Function) }));
   });
 
   it('disables the button and shows running label while pending', () => {

@@ -28,11 +28,17 @@ type InsightsRunner struct {
 	Agent *InsightsAgent
 }
 
+// DealRiskRunner adapts DealRiskAgent to the AgentRunner contract.
+type DealRiskRunner struct {
+	Agent *DealRiskAgent
+}
+
 var (
 	_ agent.Runner = (*SupportRunner)(nil)
 	_ agent.Runner = (*ProspectingRunner)(nil)
 	_ agent.Runner = (*KBRunner)(nil)
 	_ agent.Runner = (*InsightsRunner)(nil)
+	_ agent.Runner = (*DealRiskRunner)(nil)
 )
 
 func (r *SupportRunner) Run(ctx context.Context, rc *agent.RunContext, input agent.TriggerAgentInput) (*agent.Run, error) {
@@ -65,6 +71,15 @@ func (r *KBRunner) Run(ctx context.Context, rc *agent.RunContext, input agent.Tr
 func (r *InsightsRunner) Run(ctx context.Context, rc *agent.RunContext, input agent.TriggerAgentInput) (*agent.Run, error) {
 	_ = rc
 	cfg, err := decodeInsightsAgentInput(input)
+	if err != nil {
+		return nil, err
+	}
+	return r.Agent.Run(ctx, cfg)
+}
+
+func (r *DealRiskRunner) Run(ctx context.Context, rc *agent.RunContext, input agent.TriggerAgentInput) (*agent.Run, error) {
+	_ = rc
+	cfg, err := decodeDealRiskAgentInput(input)
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +150,26 @@ func decodeInsightsAgentInput(input agent.TriggerAgentInput) (InsightsAgentConfi
 	}
 	if err := json.Unmarshal(input.Inputs, &cfg); err != nil {
 		return InsightsAgentConfig{}, err
+	}
+	if cfg.WorkspaceID == "" {
+		cfg.WorkspaceID = input.WorkspaceID
+	}
+	if cfg.TriggeredByUserID == nil {
+		cfg.TriggeredByUserID = input.TriggeredBy
+	}
+	return cfg, nil
+}
+
+func decodeDealRiskAgentInput(input agent.TriggerAgentInput) (DealRiskAgentConfig, error) {
+	cfg := DealRiskAgentConfig{
+		WorkspaceID:       input.WorkspaceID,
+		TriggeredByUserID: input.TriggeredBy,
+	}
+	if len(input.Inputs) == 0 {
+		return cfg, nil
+	}
+	if err := json.Unmarshal(input.Inputs, &cfg); err != nil {
+		return DealRiskAgentConfig{}, err
 	}
 	if cfg.WorkspaceID == "" {
 		cfg.WorkspaceID = input.WorkspaceID

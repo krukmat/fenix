@@ -657,9 +657,10 @@ func evidenceCreateWorkspace(t *testing.T, db *sql.DB) string {
 	ctx := context.Background()
 	id := evidenceGenerateTestUUID()
 	slug := "test-workspace-" + id
+	now := time.Now()
 	_, err := db.ExecContext(ctx,
 		"INSERT INTO workspace (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-		id, "Test Workspace", slug, time.Now(), time.Now(),
+		id, "Test Workspace", slug, now, now,
 	)
 	if err != nil {
 		t.Fatalf("failed to create workspace: %v", err)

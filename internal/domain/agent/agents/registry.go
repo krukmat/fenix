@@ -11,6 +11,7 @@ const (
 	AgentTypeProspecting = "prospecting"
 	AgentTypeKB          = "kb"
 	AgentTypeInsights    = "insights"
+	AgentTypeDealRisk    = "deal-risk"
 	AgentTypeDSL         = "dsl"
 	AgentTypeSkill       = "skill"
 )
@@ -27,6 +28,7 @@ type GoAgentRunners struct {
 	Prospecting *ProspectingAgent
 	KB          *KBAgent
 	Insights    *InsightsAgent
+	DealRisk    *DealRiskAgent
 }
 
 // RegisterCurrentGoRunners registers the current Go agent implementations into
@@ -46,6 +48,7 @@ func RegisterCurrentGoRunners(registry *agent.RunnerRegistry, runners GoAgentRun
 		{AgentTypeProspecting, &ProspectingRunner{Agent: runners.Prospecting}},
 		{AgentTypeKB, &KBRunner{Agent: runners.KB}},
 		{AgentTypeInsights, &InsightsRunner{Agent: runners.Insights}},
+		{AgentTypeDealRisk, &DealRiskRunner{Agent: runners.DealRisk}},
 	}
 	for _, e := range entries {
 		if err := registry.Register(e.agentType, e.runner); err != nil {
@@ -78,7 +81,7 @@ func RegisterSkillRunner(registry *agent.RunnerRegistry, runner agent.Runner) er
 }
 
 func validateGoAgentRunners(runners GoAgentRunners) error {
-	if runners.Support == nil || runners.Prospecting == nil || runners.KB == nil || runners.Insights == nil {
+	if runners.Support == nil || runners.Prospecting == nil || runners.KB == nil || runners.Insights == nil || runners.DealRisk == nil {
 		return ErrGoAgentNil
 	}
 	return nil

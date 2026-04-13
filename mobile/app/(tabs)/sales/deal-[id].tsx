@@ -15,6 +15,7 @@ import { CRMDetailHeader } from '../../../src/components/crm';
 import { AgentActivitySection } from '../../../src/components/agents/AgentActivitySection';
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import { useDeal } from '../../../src/hooks/useCRM';
+import { useTriggerDealRiskAgent } from '../../../src/hooks/useWedge';
 import { wedgeHref, wedgeHrefObject } from '../../../src/utils/navigation';
 import type { ThemeColors } from '../../../src/theme/types';
 
@@ -133,6 +134,32 @@ function DealAccountSection({
   );
 }
 
+function DealRiskActionSection({
+  dealId,
+  router,
+  isPending,
+  onTrigger,
+}: {
+  dealId: string;
+  router: ReturnType<typeof useRouter>;
+  isPending: boolean;
+  onTrigger: (dealId: string, onSuccess: (runId: string) => void) => void;
+}) {
+  const label = isPending ? 'Running...' : 'Analyze Deal Risk';
+  return (
+    <View style={styles.section}>
+      <Button
+        mode="outlined"
+        testID="deal-risk-trigger-button"
+        disabled={isPending}
+        onPress={() => onTrigger(dealId, (runId) => router.push(wedgeHref(`/activity/${runId}`)))}
+      >
+        {label}
+      </Button>
+    </View>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function SalesDealDetailScreen() {
@@ -143,6 +170,7 @@ export default function SalesDealDetailScreen() {
   const dealId = rawId.startsWith('deal-deal-') ? rawId.slice(5) : rawId;
   const dealRouteId = `deal-${dealId}`;
   const { data, isLoading, error } = useDeal(dealId);
+  const triggerDealRiskAgent = useTriggerDealRiskAgent();
   const dealData = parseDealPayload(data);
 
   if (isLoading) {
@@ -161,6 +189,16 @@ export default function SalesDealDetailScreen() {
       </View>
     );
   }
+  const handleDealRiskTrigger = (currentDealId: string, onSuccess: (runId: string) => void) => {
+    triggerDealRiskAgent.mutate(
+      { dealId: currentDealId, language: 'es' },
+      {
+        onSuccess: (result) => {
+          if (result?.runId) onSuccess(result.runId);
+        },
+      },
+    );
+  };
 
   return (
     <>
@@ -192,11 +230,12 @@ export default function SalesDealDetailScreen() {
             Open Copilot
           </Button>
         </View>
-        <View style={styles.section}>
-          <Button mode="outlined" testID="deal-risk-trigger-button" disabled>
-            Analyze Deal Risk (Coming Soon)
-          </Button>
-        </View>
+        <DealRiskActionSection
+          dealId={dealData.id}
+          router={router}
+          isPending={triggerDealRiskAgent.isPending}
+          onTrigger={handleDealRiskTrigger}
+        />
         <AgentActivitySection entityType="deal" entityId={dealData.id} testIDPrefix="sales-deal-detail" />
         <EntitySignalsSection entityType="deal" entityId={dealData.id} testIDPrefix="sales-deal-detail" />
       </ScrollView>

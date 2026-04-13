@@ -170,7 +170,8 @@ func (h *ContactHandler) ListContactsByAccount(w http.ResponseWriter, r *http.Re
 		responses[i] = contactToResponse(c)
 	}
 
-	if !writePaginatedOr500(w, responses, len(responses), paginationParams{Limit: len(responses), Offset: 0}) {
+	n := len(responses)
+	if !writePaginatedOr500(w, responses, n, paginationParams{Limit: n, Offset: 0}) {
 		return
 	}
 }

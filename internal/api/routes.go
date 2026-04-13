@@ -389,12 +389,23 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 			groundsValidator,
 			db,
 		)
+		dealRiskAgent := agents.NewDealRiskAgent(
+			agentOrchestrator,
+			toolRegistry,
+			searchSvc,
+			chatProvider,
+			dealService,
+			crm.NewAccountService(db),
+			db,
+		)
+		dealRiskAgentHandler := handlers.NewDealRiskAgentHandler(dealRiskAgent)
 
 		_ = agents.RegisterCurrentGoRunners(runnerRegistry, agents.GoAgentRunners{
 			Support:     supportAgent,
 			Prospecting: prospectingAgent,
 			KB:          kbAgent,
 			Insights:    insightsAgent,
+			DealRisk:    dealRiskAgent,
 		})
 		_ = agents.RegisterDSLRunner(runnerRegistry, dslRunner)
 		skillRunner := agent.NewSkillRunner(db)
@@ -437,6 +448,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 			r.Post("/prospecting/trigger", prospectingAgentHandler.TriggerProspectingAgent)
 			r.Post("/kb/trigger", kbAgentHandler.TriggerKBAgent)
 			r.Post("/insights/trigger", insightsAgentHandler.TriggerInsightsAgent)
+			r.Post("/deal-risk/trigger", dealRiskAgentHandler.TriggerDealRiskAgent)
 		})
 	})
 

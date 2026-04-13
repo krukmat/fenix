@@ -202,6 +202,22 @@ export function useTriggerInsightsAgent() {
   });
 }
 
+/** Triggers the deal risk agent for a deal. Invalidates agent runs on success. */
+export function useTriggerDealRiskAgent() {
+  const workspaceId = useWorkspaceId();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ dealId, language }: { dealId: string; language?: string }) =>
+      agentApi.triggerDealRiskRun({ deal_id: dealId, language }),
+    onSuccess: () => {
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: wedgeQueryKeys.agentRuns(workspaceId) });
+      }
+    },
+  });
+}
+
 // ─── Governance ───────────────────────────────────────────────────────────────
 
 /** Fetches governance summary: recent usage + enriched quota states. Stale after 60s. */

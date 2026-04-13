@@ -470,6 +470,11 @@ type kbAgentRequest struct {
 	Language string `json:"language,omitempty"`
 }
 
+type dealRiskAgentRequest struct {
+	DealID   string `json:"deal_id"`
+	Language string `json:"language,omitempty"`
+}
+
 type insightsAgentRequest struct {
 	Query         string `json:"query"`
 	DateFrom      string `json:"date_from,omitempty"`
@@ -687,6 +692,65 @@ func handleKBRunError(w http.ResponseWriter, err error) bool {
 		return true
 	}
 	if errors.Is(err, agents.ErrKBDailyLimitExceeded) {
+		writeError(w, http.StatusTooManyRequests, err.Error())
+		return true
+	}
+	return false
+}
+
+// DealRiskAgentHandler handles Deal Risk Agent specific endpoints.
+type DealRiskAgentHandler struct {
+	dealRiskAgent *agents.DealRiskAgent
+}
+
+// NewDealRiskAgentHandler creates a new DealRiskAgentHandler.
+func NewDealRiskAgentHandler(dealRiskAgent *agents.DealRiskAgent) *DealRiskAgentHandler {
+	return &DealRiskAgentHandler{dealRiskAgent: dealRiskAgent}
+}
+
+func buildDealRiskConfig(w http.ResponseWriter, req dealRiskAgentRequest, workspaceID string) (agents.DealRiskAgentConfig, bool) {
+	if req.DealID == "" {
+		writeError(w, http.StatusBadRequest, "deal_id is required")
+		return agents.DealRiskAgentConfig{}, false
+	}
+	language := req.Language
+	if language == "" {
+		language = defaultAgentLanguage
+	}
+	return agents.DealRiskAgentConfig{
+		WorkspaceID: workspaceID,
+		DealID:      req.DealID,
+		Language:    language,
+	}, true
+}
+
+func withDealRiskTriggeredBy(config agents.DealRiskAgentConfig, userID string) agents.DealRiskAgentConfig {
+	if userID == "" {
+		return config
+	}
+	config.TriggeredByUserID = &userID
+	return config
+}
+
+// TriggerDealRiskAgent handles POST /api/v1/agents/deal-risk/trigger.
+func (h *DealRiskAgentHandler) TriggerDealRiskAgent(w http.ResponseWriter, r *http.Request) {
+	config, ok := prepareTriggeredAgentConfig(w, r, buildDealRiskConfig, withDealRiskTriggeredBy)
+	if !ok {
+		return
+	}
+	runQueuedAgent(w, r, config, h.dealRiskAgent.Run, handleDealRiskRunError, "failed to run deal risk agent", "deal-risk")
+}
+
+func handleDealRiskRunError(w http.ResponseWriter, err error) bool {
+	if errors.Is(err, agents.ErrDealIDRequired) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return true
+	}
+	if errors.Is(err, agents.ErrDealNotFound) {
+		writeError(w, http.StatusNotFound, err.Error())
+		return true
+	}
+	if errors.Is(err, agents.ErrDealRiskDailyLimitExceeded) || errors.Is(err, agents.ErrDealRiskDailyCostLimitExceeded) {
 		writeError(w, http.StatusTooManyRequests, err.Error())
 		return true
 	}

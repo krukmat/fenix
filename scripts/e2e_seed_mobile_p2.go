@@ -92,6 +92,9 @@ type seedOutput struct {
 	Deal struct {
 		ID string `json:"id"`
 	} `json:"deal"`
+	StaleDeal struct {
+		ID string `json:"id"`
+	} `json:"staleDeal"`
 	Case struct {
 		ID      string `json:"id"`
 		Subject string `json:"subject"`
@@ -167,6 +170,7 @@ type baseFixtureIDs struct {
 	contactEmail string
 	leadID       string
 	dealID       string
+	staleDealID  string
 }
 
 type caseFixtureIDs struct {
@@ -212,6 +216,7 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		baseFixtures.contactEmail,
 		baseFixtures.leadID,
 		baseFixtures.dealID,
+		baseFixtures.staleDealID,
 		caseFixtures.caseID,
 		caseFixtures.caseSubject,
 		caseFixtures.resolvedCaseID,
@@ -245,6 +250,10 @@ func seedBaseFixtures(ctx context.Context, db *sql.DB, auth authResponse, suffix
 	if seedKnowledgeErr := seedDealKnowledge(ctx, db, auth, dealID, suffix); seedKnowledgeErr != nil {
 		return baseFixtureIDs{}, fmt.Errorf("seedDealKnowledge: %w", seedKnowledgeErr)
 	}
+	staleDealID, err := seedStaleDeal(ctx, db, auth, accountID, suffix)
+	if err != nil {
+		return baseFixtureIDs{}, fmt.Errorf("seedStaleDeal: %w", err)
+	}
 
 	return baseFixtureIDs{
 		accountID:    accountID,
@@ -252,6 +261,7 @@ func seedBaseFixtures(ctx context.Context, db *sql.DB, auth authResponse, suffix
 		contactEmail: contactEmail,
 		leadID:       leadID,
 		dealID:       dealID,
+		staleDealID:  staleDealID,
 	}, nil
 }
 
@@ -423,13 +433,14 @@ func seedPairedRuns(ctx context.Context, db *sql.DB, auth authResponse, params [
 	return ids, nil
 }
 
-func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, caseID, caseSubject, resolvedCaseID, resolvedCaseSubject string, runs wedgeRunIDs, approvalID, signalID string) *seedOutput {
+func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, staleDealID, caseID, caseSubject, resolvedCaseID, resolvedCaseSubject string, runs wedgeRunIDs, approvalID, signalID string) *seedOutput {
 	out := &seedOutput{}
 	out.Account.ID = accountID
 	out.Contact.ID = contactID
 	out.Contact.Email = contactEmail
 	out.Lead.ID = leadID
 	out.Deal.ID = dealID
+	out.StaleDeal.ID = staleDealID
 	out.Case.ID = caseID
 	out.Case.Subject = caseSubject
 	out.ResolvedCase.ID = resolvedCaseID
@@ -500,6 +511,14 @@ func seedLead(ctx context.Context, db *sql.DB, auth authResponse, contactID, acc
 }
 
 func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
+	return seedDealWithAge(ctx, db, auth, accountID, suffix, false)
+}
+
+func seedStaleDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
+	return seedDealWithAge(ctx, db, auth, accountID, suffix+"_stale", true)
+}
+
+func seedDealWithAge(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string, stale bool) (string, error) {
 	pipelineSvc := crm.NewPipelineService(db)
 	pipeline, err := pipelineSvc.Create(ctx, crm.CreatePipelineInput{
 		WorkspaceID: auth.WorkspaceID,
@@ -531,6 +550,17 @@ func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 	})
 	if err != nil {
 		return "", err
+	}
+	if stale {
+		createdAt := time.Now().UTC().Add(-20 * 24 * time.Hour).Format(time.RFC3339)
+		updatedAt := time.Now().UTC().Add(-16 * 24 * time.Hour).Format(time.RFC3339)
+		if _, updateErr := db.ExecContext(ctx, `
+			UPDATE deal
+			SET created_at = ?, updated_at = ?
+			WHERE id = ? AND workspace_id = ?
+		`, createdAt, updatedAt, deal.ID, auth.WorkspaceID); updateErr != nil {
+			return "", updateErr
+		}
 	}
 	return deal.ID, nil
 }

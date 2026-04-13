@@ -592,7 +592,7 @@ func TestReindexService_FreshnessSLA_AccountVisibleInHybridSearch(t *testing.T) 
 	_, err := db.Exec(
 		`INSERT INTO account (id, workspace_id, name, domain, industry, owner_id, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		accountID, wsID, "Freshness Account", "freshness.example", "AI", ownerID, time.Now().Format(time.RFC3339), time.Now().Format(time.RFC3339),
+		accountID, wsID, "Freshness Account", "freshness.example", "AI", ownerID, start.Format(time.RFC3339), start.Format(time.RFC3339),
 	)
 	if err != nil {
 		t.Fatalf("seed account: %v", err)

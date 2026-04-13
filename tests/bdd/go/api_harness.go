@@ -45,7 +45,8 @@ type bddAPIRuntime struct {
 }
 
 type bddEvidenceBuilder struct {
-	packs map[string]*knowledge.EvidencePack
+	packs   map[string]*knowledge.EvidencePack
+	results *knowledge.SearchResults
 }
 
 type bddLLMProvider struct {
@@ -118,6 +119,15 @@ func (r *bddAPIRuntime) buildRouter() http.Handler {
 	orchestrator := agent.NewOrchestrator(r.db)
 	approvalService := policy.NewApprovalService(r.db, auditService)
 	supportAgent := agents.NewSupportAgentWithDBAndUsage(orchestrator, toolRegistry, r.evidence, r.db, r.usage)
+	dealRiskAgent := agents.NewDealRiskAgent(
+		orchestrator,
+		toolRegistry,
+		r.evidence,
+		nil,
+		dealService,
+		crm.NewAccountService(r.db),
+		r.db,
+	)
 	handoffService := agent.NewHandoffService(r.db, caseService, eventbus.New())
 	copilotService := copilot.NewActionServiceWithUsage(r.evidence, r.llm, policyEngine, auditService, r.usage)
 
@@ -136,6 +146,7 @@ func (r *bddAPIRuntime) buildRouter() http.Handler {
 
 	agentHandler := handlers.NewAgentHandler(orchestrator)
 	supportHandler := handlers.NewSupportAgentHandler(supportAgent)
+	dealRiskHandler := handlers.NewDealRiskAgentHandler(dealRiskAgent)
 	handoffHandler := handlers.NewHandoffHandler(handoffService)
 	approvalHandler := handlers.NewApprovalHandler(approvalService)
 	auditHandler := handlers.NewAuditHandler(auditService)
@@ -149,6 +160,7 @@ func (r *bddAPIRuntime) buildRouter() http.Handler {
 		api.Route("/agents", func(a chi.Router) {
 			a.Get("/runs/{id}", agentHandler.GetAgentRun)
 			a.Post("/support/trigger", supportHandler.TriggerSupportAgent)
+			a.Post("/deal-risk/trigger", dealRiskHandler.TriggerDealRiskAgent)
 			a.Get("/runs/{id}/handoff", handoffHandler.GetHandoffPackage)
 		})
 		api.Route("/approvals", func(a chi.Router) {
@@ -188,6 +200,14 @@ func (r *bddAPIRuntime) ensureSupportAgentDefinition() error {
 	_, err := r.db.Exec(`
 		INSERT OR IGNORE INTO agent_definition (id, workspace_id, name, agent_type, status)
 		VALUES ('support-agent', ?, 'Support Agent', 'support', 'active')
+	`, r.workspaceID)
+	return err
+}
+
+func (r *bddAPIRuntime) ensureDealRiskAgentDefinition() error {
+	_, err := r.db.Exec(`
+		INSERT OR IGNORE INTO agent_definition (id, workspace_id, name, agent_type, status)
+		VALUES ('deal-risk-agent', ?, 'Deal Risk Agent', 'deal-risk', 'active')
 	`, r.workspaceID)
 	return err
 }
@@ -271,6 +291,15 @@ func (r *bddAPIRuntime) createSalesDeal() (string, error) {
 	return deal.ID, nil
 }
 
+func (r *bddAPIRuntime) markDealStale(dealID string, createdAt, updatedAt time.Time) error {
+	_, err := r.db.Exec(`
+		UPDATE deal
+		SET created_at = ?, updated_at = ?
+		WHERE id = ? AND workspace_id = ?
+	`, createdAt.Format(time.RFC3339), updatedAt.Format(time.RFC3339), dealID, r.workspaceID)
+	return err
+}
+
 func (r *bddAPIRuntime) recordQuotaState() (string, error) {
 	policyRecord, err := r.usage.CreatePolicy(context.Background(), usage.CreatePolicyInput{
 		WorkspaceID:     r.workspaceID,
@@ -341,8 +370,24 @@ func (r *bddEvidenceBuilder) BuildEvidencePack(_ context.Context, input knowledg
 	}, nil
 }
 
+func (r *bddEvidenceBuilder) HybridSearch(_ context.Context, _ knowledge.SearchInput) (*knowledge.SearchResults, error) {
+	if r.results == nil {
+		return &knowledge.SearchResults{Items: []knowledge.SearchResult{}}, nil
+	}
+	cloned := &knowledge.SearchResults{Items: append([]knowledge.SearchResult(nil), r.results.Items...)}
+	return cloned, nil
+}
+
 func (r *bddEvidenceBuilder) set(query string, pack *knowledge.EvidencePack) {
 	r.packs[query] = cloneEvidencePack(pack)
+}
+
+func (r *bddEvidenceBuilder) setResults(results *knowledge.SearchResults) {
+	if results == nil {
+		r.results = &knowledge.SearchResults{Items: []knowledge.SearchResult{}}
+		return
+	}
+	r.results = &knowledge.SearchResults{Items: append([]knowledge.SearchResult(nil), results.Items...)}
 }
 
 func (p *bddLLMProvider) queue(responses ...string) {

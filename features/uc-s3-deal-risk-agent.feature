@@ -1,4 +1,4 @@
-@UC-S3 @stack-go @deferred
+@UC-S3 @stack-go
 Feature: Deal Risk Agent
   As a sales operator
   I want deal risk assessments to be grounded in evidence

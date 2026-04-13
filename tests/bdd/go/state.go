@@ -34,7 +34,6 @@ type scenarioState struct {
 	returnedDraft           bool
 	returnedInsight         bool
 	returnedKnowledgeDraft  bool
-	dealAtRisk              bool
 	actionRejected          bool
 	runExecuted             bool
 	denialRecorded          bool

@@ -1,12 +1,11 @@
-@UC-S3 @stack-mobile @deferred
-Feature: Deal Risk Agent Mobile Placeholder
+@UC-S3 @stack-mobile
+Feature: Deal Risk Agent Mobile
   As a mobile sales operator
-  I want the future Deal Risk entry point to be visible
-  So that the product surface stays stable while the backend runner remains deferred
+  I want to trigger deal risk analysis from the deal detail screen
+  So that I can inspect the generated run immediately
 
-  @placeholder @FR-092 @TST-033
-  Scenario: Show the Deal Risk placeholder on deal detail
-    Given an authenticated workspace user opens a deal detail screen
-    When the deal detail screen is displayed
-    Then the mobile app shows the Deal Risk trigger placeholder
-    And the placeholder is disabled
+  @active @FR-092 @TST-033
+  Scenario: Trigger Deal Risk Agent from deal detail and navigate to run
+    Given an authenticated workspace user opens a deal with stalled progress
+    When the user taps the Deal Risk trigger button
+    Then the app navigates to the agent run detail screen

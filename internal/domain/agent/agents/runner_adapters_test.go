@@ -35,6 +35,13 @@ func TestInsightsRunnerImplementsAgentRunner(t *testing.T) {
 	}
 }
 
+func TestDealRiskRunnerImplementsAgentRunner(t *testing.T) {
+	var runner agent.Runner = &DealRiskRunner{}
+	if runner == nil {
+		t.Fatal("expected non-nil runner adapter")
+	}
+}
+
 func TestDecodeSupportAgentInputUsesWorkspaceFallback(t *testing.T) {
 	cfg, err := decodeSupportAgentInput(agent.TriggerAgentInput{
 		WorkspaceID: "ws-1",
@@ -105,6 +112,27 @@ func TestDecodeInsightsAgentInputUsesFallbacks(t *testing.T) {
 	}
 }
 
+func TestDecodeDealRiskAgentInputUsesFallbacks(t *testing.T) {
+	userID := "user-1"
+	cfg, err := decodeDealRiskAgentInput(agent.TriggerAgentInput{
+		WorkspaceID: "ws-1",
+		TriggeredBy: &userID,
+		Inputs:      mustMarshalJSON(t, map[string]any{"deal_id": "deal-1"}),
+	})
+	if err != nil {
+		t.Fatalf("decodeDealRiskAgentInput() error = %v", err)
+	}
+	if cfg.WorkspaceID != "ws-1" {
+		t.Fatalf("WorkspaceID = %q, want %q", cfg.WorkspaceID, "ws-1")
+	}
+	if cfg.DealID != "deal-1" {
+		t.Fatalf("DealID = %q, want %q", cfg.DealID, "deal-1")
+	}
+	if cfg.TriggeredByUserID == nil || *cfg.TriggeredByUserID != userID {
+		t.Fatalf("TriggeredByUserID = %v, want %q", cfg.TriggeredByUserID, userID)
+	}
+}
+
 func TestProspectingRunnerRunReturnsDecodeError(t *testing.T) {
 	r := &ProspectingRunner{}
 	_, err := r.Run(t.Context(), nil, agent.TriggerAgentInput{
@@ -127,6 +155,16 @@ func TestKBRunnerRunReturnsDecodeError(t *testing.T) {
 
 func TestInsightsRunnerRunReturnsDecodeError(t *testing.T) {
 	r := &InsightsRunner{}
+	_, err := r.Run(t.Context(), nil, agent.TriggerAgentInput{
+		Inputs: json.RawMessage(`{bad json`),
+	})
+	if err == nil {
+		t.Fatal("expected decode error, got nil")
+	}
+}
+
+func TestDealRiskRunnerRunReturnsDecodeError(t *testing.T) {
+	r := &DealRiskRunner{}
 	_, err := r.Run(t.Context(), nil, agent.TriggerAgentInput{
 		Inputs: json.RawMessage(`{bad json`),
 	})

@@ -74,6 +74,30 @@ func (m *mockKBToolExecutorHandler) Execute(_ context.Context, _ json.RawMessage
 	return m.out, nil
 }
 
+type agentsTestDealGetter struct {
+	deal *crm.Deal
+	err  error
+}
+
+func (m *agentsTestDealGetter) Get(_ context.Context, _, _ string) (*crm.Deal, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.deal, nil
+}
+
+type agentsTestAccountGetter struct {
+	account *crm.Account
+	err     error
+}
+
+func (m *agentsTestAccountGetter) Get(_ context.Context, _, _ string) (*crm.Account, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.account, nil
+}
+
 // newTestSupportAgentHandler builds a SupportAgentHandler backed by an in-memory DB.
 func newTestSupportAgentHandler(t *testing.T) *SupportAgentHandler {
 	t.Helper()
@@ -183,6 +207,71 @@ func newTestInsightsAgentHandler(t *testing.T, db *sql.DB, wsID string) *Insight
 
 	insightsAgent := agents.NewInsightsAgent(orch, reg, &mockKnowledgeSearchHandler{}, db)
 	return NewInsightsAgentHandler(insightsAgent)
+}
+
+func newTestDealRiskAgentHandler(
+	t *testing.T,
+	db *sql.DB,
+	wsID string,
+	dealGetter agents.DealGetter,
+	accountGetter agents.AccountGetter,
+) *DealRiskAgentHandler {
+	t.Helper()
+	orch := agent.NewOrchestrator(db)
+	reg := tool.NewToolRegistry(db)
+
+	_, err := db.ExecContext(context.Background(),
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('deal-risk-agent', ?, 'Deal Risk Agent', 'deal-risk', 'active')`, wsID)
+	if err != nil {
+		t.Fatalf("insert deal risk agent_definition: %v", err)
+	}
+	if regErr := reg.Register(tool.BuiltinGetDeal, &agentsTestDealToolExecutor{getter: dealGetter}); regErr != nil {
+		t.Fatalf("register get_deal executor: %v", regErr)
+	}
+	if regErr := reg.Register(tool.BuiltinGetAccount, &agentsTestAccountToolExecutor{getter: accountGetter}); regErr != nil {
+		t.Fatalf("register get_account executor: %v", regErr)
+	}
+	if regErr := reg.Register(tool.BuiltinCreateTask, tool.NewCreateTaskExecutor(db)); regErr != nil {
+		t.Fatalf("register create_task executor: %v", regErr)
+	}
+
+	dealRiskAgent := agents.NewDealRiskAgent(orch, reg, &mockKnowledgeSearchHandler{}, nil, dealGetter, accountGetter, db)
+	return NewDealRiskAgentHandler(dealRiskAgent)
+}
+
+type agentsTestDealToolExecutor struct{ getter agents.DealGetter }
+
+func (m *agentsTestDealToolExecutor) Execute(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
+	var in struct {
+		DealID string `json:"deal_id"`
+	}
+	if err := json.Unmarshal(params, &in); err != nil {
+		return nil, err
+	}
+	deal, err := m.getter.Get(ctx, "", in.DealID)
+	if err != nil {
+		return nil, err
+	}
+	raw, _ := json.Marshal(map[string]any{"deal": deal})
+	return raw, nil
+}
+
+type agentsTestAccountToolExecutor struct{ getter agents.AccountGetter }
+
+func (m *agentsTestAccountToolExecutor) Execute(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
+	var in struct {
+		AccountID string `json:"account_id"`
+	}
+	if err := json.Unmarshal(params, &in); err != nil {
+		return nil, err
+	}
+	account, err := m.getter.Get(ctx, "", in.AccountID)
+	if err != nil {
+		return nil, err
+	}
+	raw, _ := json.Marshal(map[string]any{"account": account})
+	return raw, nil
 }
 
 func newTestInsightsAgentHandlerWithShadow(t *testing.T, db *sql.DB, wsID string) *InsightsAgentHandler {
@@ -1067,6 +1156,122 @@ func TestInsightsAgentHandler_TriggerInsights_200(t *testing.T) {
 	}
 	if got, _ := resp["agent"].(string); got != "insights" {
 		t.Fatalf("expected agent=insights, got=%q", got)
+	}
+}
+
+func TestDealRiskAgentHandler_TriggerDealRisk_201(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	ownerID := createUser(t, db, wsID)
+	now := time.Now().UTC()
+	h := newTestDealRiskAgentHandler(
+		t,
+		db,
+		wsID,
+		&agentsTestDealGetter{deal: &crm.Deal{
+			ID:        "deal-1",
+			AccountID: "acc-1",
+			OwnerID:   ownerID,
+			Title:     "Renewal",
+			Status:    "open",
+			CreatedAt: now.Add(-3 * 24 * time.Hour),
+			UpdatedAt: now.Add(-24 * time.Hour),
+		}},
+		&agentsTestAccountGetter{account: &crm.Account{ID: "acc-1", Name: "Acme"}},
+	)
+
+	body, _ := json.Marshal(map[string]any{"deal_id": "deal-1", "language": "es"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/deal-risk/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerDealRiskAgent(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if _, ok := resp["run_id"]; !ok {
+		t.Fatalf("expected run_id field, got: %v", resp)
+	}
+	if got, _ := resp["agent"].(string); got != "deal-risk" {
+		t.Fatalf("expected agent=deal-risk, got=%q", got)
+	}
+}
+
+func TestDealRiskAgentHandler_TriggerDealRisk_MissingDealID(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestDealRiskAgentHandler(t, db, wsID, &agentsTestDealGetter{}, &agentsTestAccountGetter{})
+
+	body, _ := json.Marshal(map[string]any{})
+	req := httptest.NewRequest(http.MethodPost, "/agents/deal-risk/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerDealRiskAgent(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestDealRiskAgentHandler_TriggerDealRisk_DealNotFound(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestDealRiskAgentHandler(t, db, wsID, &agentsTestDealGetter{err: sql.ErrNoRows}, &agentsTestAccountGetter{})
+
+	body, _ := json.Marshal(map[string]any{"deal_id": "missing"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/deal-risk/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerDealRiskAgent(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestDealRiskAgentHandler_TriggerDealRisk_LimitExceeded(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	h := newTestDealRiskAgentHandler(t, db, wsID, &agentsTestDealGetter{}, &agentsTestAccountGetter{})
+
+	for i := 0; i < 20; i++ {
+		_, err := db.ExecContext(context.Background(), `
+			INSERT INTO agent_run (id, workspace_id, agent_definition_id, trigger_type, status, started_at, created_at, updated_at)
+			VALUES (?, ?, 'deal-risk-agent', 'manual', 'success', datetime('now'), datetime('now'), datetime('now'))
+		`, uuid.NewV7().String(), wsID)
+		if err != nil {
+			t.Fatalf("insert agent_run[%d]: %v", i, err)
+		}
+	}
+
+	body, _ := json.Marshal(map[string]any{"deal_id": "deal-1"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/deal-risk/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerDealRiskAgent(rr, req)
+
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
 

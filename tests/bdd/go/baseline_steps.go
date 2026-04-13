@@ -95,27 +95,17 @@ func registerProspectingAndToolSteps(ctx *godog.ScenarioContext, state *scenario
 }
 
 func registerDealRiskAndKnowledgeSteps(ctx *godog.ScenarioContext, state *scenarioState) {
-	ctx.Step(`^a deal has evidence of stalled progress and negative signals$`, func() {
-		state.hasEvidence = true
+	ctx.Step(`^a deal has evidence of stalled progress and negative signals$`, func() error {
+		return setupDealRiskScenario(state)
 	})
 	ctx.Step(`^the Deal Risk Agent evaluates the deal$`, func() error {
-		if !state.hasEvidence {
-			return godog.ErrPending
-		}
-		state.dealAtRisk = true
-		return nil
+		return triggerDealRiskAgent(state)
 	})
 	ctx.Step(`^the Deal Risk Agent flags the deal as at risk$`, func() error {
-		if !state.dealAtRisk {
-			return godog.ErrPending
-		}
-		return nil
+		return expectDealRiskFlagged(state)
 	})
 	ctx.Step(`^the Deal Risk Agent explains the grounded evidence$`, func() error {
-		if !state.dealAtRisk || !state.hasEvidence {
-			return godog.ErrPending
-		}
-		return nil
+		return expectDealRiskEvidence(state)
 	})
 
 	ctx.Step(`^a resolved support outcome has grounded evidence attached$`, func() {

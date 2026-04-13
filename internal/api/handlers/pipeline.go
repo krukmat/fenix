@@ -156,7 +156,8 @@ func (h *PipelineHandler) ListStages(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list stages: %v", svcErr))
 		return
 	}
-	if !writePaginatedOr500(w, items, len(items), paginationParams{Limit: len(items), Offset: 0}) {
+	n := len(items)
+	if !writePaginatedOr500(w, items, n, paginationParams{Limit: n, Offset: 0}) {
 		return
 	}
 }

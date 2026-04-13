@@ -19,6 +19,7 @@ func TestRegisterCurrentGoRunners_RegistersAllAgentTypes(t *testing.T) {
 		Prospecting: &ProspectingAgent{},
 		KB:          &KBAgent{},
 		Insights:    &InsightsAgent{},
+		DealRisk:    &DealRiskAgent{},
 	})
 	if err != nil {
 		t.Fatalf("RegisterCurrentGoRunners() error = %v", err)
@@ -29,6 +30,7 @@ func TestRegisterCurrentGoRunners_RegistersAllAgentTypes(t *testing.T) {
 		AgentTypeProspecting,
 		AgentTypeKB,
 		AgentTypeInsights,
+		AgentTypeDealRisk,
 	}
 	for _, agentType := range cases {
 		runner, ok := registry.Get(agentType)
@@ -47,6 +49,7 @@ func TestRegisterCurrentGoRunners_RejectsNilRegistry(t *testing.T) {
 		Prospecting: &ProspectingAgent{},
 		KB:          &KBAgent{},
 		Insights:    &InsightsAgent{},
+		DealRisk:    &DealRiskAgent{},
 	})
 	if err != ErrRunnerRegistryNil {
 		t.Fatalf("error = %v, want %v", err, ErrRunnerRegistryNil)
@@ -61,6 +64,22 @@ func TestRegisterCurrentGoRunners_RejectsNilAgent(t *testing.T) {
 		Prospecting: nil,
 		KB:          &KBAgent{},
 		Insights:    &InsightsAgent{},
+		DealRisk:    &DealRiskAgent{},
+	})
+	if err != ErrGoAgentNil {
+		t.Fatalf("error = %v, want %v", err, ErrGoAgentNil)
+	}
+}
+
+func TestRegisterCurrentGoRunners_RejectsNilDealRiskAgent(t *testing.T) {
+	registry := agent.NewRunnerRegistry()
+
+	err := RegisterCurrentGoRunners(registry, GoAgentRunners{
+		Support:     &SupportAgent{},
+		Prospecting: &ProspectingAgent{},
+		KB:          &KBAgent{},
+		Insights:    &InsightsAgent{},
+		DealRisk:    nil,
 	})
 	if err != ErrGoAgentNil {
 		t.Fatalf("error = %v, want %v", err, ErrGoAgentNil)
@@ -122,6 +141,7 @@ func TestRegisterDSLRunner_DoesNotBreakGoRunners(t *testing.T) {
 		Prospecting: &ProspectingAgent{},
 		KB:          &KBAgent{},
 		Insights:    &InsightsAgent{},
+		DealRisk:    &DealRiskAgent{},
 	}); err != nil {
 		t.Fatalf("RegisterCurrentGoRunners() error = %v", err)
 	}
@@ -194,6 +214,7 @@ func TestExecuteAgent_WithRegisteredSupportRunner_UsesRealGoAgent(t *testing.T) 
 		Prospecting: &ProspectingAgent{},
 		KB:          &KBAgent{},
 		Insights:    &InsightsAgent{},
+		DealRisk:    &DealRiskAgent{},
 	})
 	if err != nil {
 		t.Fatalf("RegisterCurrentGoRunners() error = %v", err)

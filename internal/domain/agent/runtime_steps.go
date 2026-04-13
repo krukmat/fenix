@@ -103,6 +103,7 @@ func (o *Orchestrator) RecoverRun(ctx context.Context, workspaceID, runID string
 }
 
 func (o *Orchestrator) createInitialRunStep(ctx context.Context, run *Run) error {
+	now := time.Now().UTC() // single timestamp for created_at and updated_at
 	_, err := o.db.ExecContext(ctx, `
 		INSERT INTO agent_run_step (
 			id, workspace_id, agent_run_id, step_index, step_type, status, attempt, created_at, updated_at
@@ -115,8 +116,8 @@ func (o *Orchestrator) createInitialRunStep(ctx context.Context, run *Run) error
 		StepTypeRetrieveEvidence,
 		StepStatusPending,
 		1,
-		time.Now().UTC(),
-		time.Now().UTC(),
+		now,
+		now,
 	)
 	return err
 }
@@ -352,11 +353,12 @@ func finalizeRunStatusTx(ctx context.Context, tx *sql.Tx, workspaceID, runID, st
 }
 
 func reconcileOpenStepsTx(ctx context.Context, tx *sql.Tx, workspaceID, runID, terminalStepStatus string) error {
+	now := time.Now().UTC() // single timestamp for both completed_at and updated_at
 	_, err := tx.ExecContext(ctx, `
 		UPDATE agent_run_step
 		SET status = ?, completed_at = COALESCE(completed_at, ?), updated_at = ?
 		WHERE workspace_id = ? AND agent_run_id = ? AND status IN (?, ?)
-	`, terminalStepStatus, time.Now().UTC(), time.Now().UTC(), workspaceID, runID, StepStatusPending, StepStatusRunning)
+	`, terminalStepStatus, now, now, workspaceID, runID, StepStatusPending, StepStatusRunning)
 	return err
 }
 

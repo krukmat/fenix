@@ -16,6 +16,12 @@ jest.mock('../../../../src/hooks/useCRM', () => ({
   useDeal: () => mockUseDeal(),
 }));
 
+const mockMutate = jest.fn();
+const mockUseTriggerDealRiskAgent = jest.fn();
+jest.mock('../../../../src/hooks/useWedge', () => ({
+  useTriggerDealRiskAgent: () => mockUseTriggerDealRiskAgent(),
+}));
+
 jest.mock('react-native-paper', () => {
   const mockReact = require('react');
   const { TouchableOpacity, Text } = require('react-native');
@@ -98,6 +104,10 @@ const dealPayload = {
 describe('Sales deal detail screen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseTriggerDealRiskAgent.mockReturnValue({
+      mutate: mockMutate,
+      isPending: false,
+    });
     mockUseDeal.mockReturnValue({
       data: dealPayload,
       isLoading: false,
@@ -141,12 +151,12 @@ describe('Sales deal detail screen', () => {
     expect(screen.getByTestId('sales-deal-brief-button')).toBeTruthy();
   });
 
-  it('renders disabled Deal Risk placeholder button', () => {
+  it('renders Deal Risk trigger button', () => {
     const { default: Screen } = require('../../../../app/(tabs)/sales/deal-[id]');
     render(React.createElement(Screen));
     const button = screen.getByTestId('deal-risk-trigger-button');
     expect(button).toBeTruthy();
-    expect(button.props.accessibilityState?.disabled).toBe(true);
+    expect(button.props.accessibilityState?.disabled).toBe(false);
   });
 
   it('navigates to deal brief when button pressed', () => {
@@ -160,6 +170,43 @@ describe('Sales deal detail screen', () => {
     const { default: Screen } = require('../../../../app/(tabs)/sales/deal-[id]');
     render(React.createElement(Screen));
     expect(screen.queryByTestId('sales-deal-edit-button')).toBeNull();
+  });
+
+  it('triggers deal risk agent on press', () => {
+    const { default: Screen } = require('../../../../app/(tabs)/sales/deal-[id]');
+    render(React.createElement(Screen));
+
+    fireEvent.press(screen.getByTestId('deal-risk-trigger-button'));
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      { dealId: 'deal-1', language: 'es' },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  it('disables Deal Risk button while pending', () => {
+    mockUseTriggerDealRiskAgent.mockReturnValue({
+      mutate: mockMutate,
+      isPending: true,
+    });
+    const { default: Screen } = require('../../../../app/(tabs)/sales/deal-[id]');
+    render(React.createElement(Screen));
+
+    const button = screen.getByTestId('deal-risk-trigger-button');
+    expect(button.props.accessibilityState?.disabled).toBe(true);
+    expect(screen.getByText('Running...')).toBeTruthy();
+  });
+
+  it('navigates to run detail on Deal Risk success', () => {
+    mockMutate.mockImplementation((_input, options) => {
+      options?.onSuccess?.({ runId: 'run-123', status: 'queued', agent: 'deal-risk' });
+    });
+    const { default: Screen } = require('../../../../app/(tabs)/sales/deal-[id]');
+    render(React.createElement(Screen));
+
+    fireEvent.press(screen.getByTestId('deal-risk-trigger-button'));
+
+    expect(mockPush).toHaveBeenCalledWith('/activity/run-123');
   });
 
   it('shows loading state', () => {
