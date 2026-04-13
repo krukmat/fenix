@@ -282,7 +282,7 @@ FenixCRM is not a classic system of record — it is an operational layer where 
 
 ![The governed loop: context → action → approval → trace → governance](docs/article-assets/diagram-11-governed-loop.png)
 
-Every event or case surfaces context. The system suggests an action. A human decides whether to approve or hand it off. Execution happens. Everything is traced. The nine screens below show each step of that loop in practice.
+Every event or case surfaces context. The system suggests an action. A human decides whether to approve or hand it off. Execution happens. Everything is traced. The thirteen screens below show each step of that loop in practice.
 
 ---
 
@@ -358,9 +358,41 @@ Usage and cost are inspectable from the same governance area. Event count, input
 
 ---
 
+### 10. KB trigger — support resolution can become reusable knowledge
+
+![KB trigger on resolved support case](mobile/artifacts/maestro-reports/screenshots/11_support_kb_trigger.png)
+
+Once a case is resolved, the operator can trigger knowledge generation from the same support surface. The product does not force a jump to a separate knowledge tool before turning an outcome into reusable documentation.
+
+---
+
+### 11. Prospecting trigger — leads become an operational AI entry point
+
+![Prospecting trigger on lead detail](mobile/artifacts/maestro-reports/screenshots/12_sales_lead_prospecting.png)
+
+Leads are now part of the Sales operating surface, not an afterthought outside the wedge. From lead detail, the team can launch the Prospecting Agent directly and inspect the resulting run in activity trace.
+
+---
+
+### 12. Deal Risk placeholder — the integration point exists before the runner ships
+
+![Deal Risk placeholder on deal detail](mobile/artifacts/maestro-reports/screenshots/13_sales_deal_risk_placeholder.png)
+
+The product exposes where Deal Risk will live even before the backend runner is active. That keeps the UX contract stable: mobile already knows where the governed risk surface belongs once the deferred backend work lands.
+
+---
+
+### 13. Insights entry — ad hoc analysis becomes part of the mobile workflow
+
+![Insights entry screen](mobile/artifacts/maestro-reports/screenshots/14_activity_insights.png)
+
+Analytical questions do not need to start from a dashboard. The Insights screen gives mobile users a direct entry point for grounded ad hoc queries, with optional date bounds and the same run-detail traceability as the rest of the agent surfaces.
+
+---
+
 ![The main operating surfaces in FenixCRM](docs/article-assets/diagram-10-operating-surfaces.png)
 
-Each surface above is reachable from the inbox. The inbox is not one screen among many — it is the operational center from which everything else is reached, including the governance summary, audit trail, and usage drilldown.
+Each surface above is reachable from the inbox. The inbox is not one screen among many — it is the operational center from which everything else is reached, including governance, KB generation, prospecting entry points, risk placeholders, and ad hoc insights.
 
 > Full article: [When CRM Begins to Operate, Not Just Record](https://medium.com/@iotforce/when-crm-begins-to-operate-not-just-record-84248b080ee7)
 
