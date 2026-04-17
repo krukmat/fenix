@@ -86,6 +86,7 @@ const (
 var requiredUCIDs = []string{
 	"UC_S1", "UC_S2", "UC_S3", "UC_C1", "UC_K1", "UC_D1", "UC_G1", "UC_A1",
 	"UC_A2", "UC_A3", "UC_A4", "UC_A5", "UC_A6", "UC_A7", "UC_A8", "UC_A9",
+	"UC_P1",
 }
 
 var compactDoorstopIDRegex = regexp.MustCompile(`^([A-Z]+)(\d+)$`)

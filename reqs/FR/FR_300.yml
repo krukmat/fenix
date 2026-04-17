@@ -1,0 +1,12 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-300: Mobile CRM Screens
+  Provide mobile screens for browsing and inspecting CRM contacts, including list
+  with search/pagination and detail view with agent activity and signals sections.

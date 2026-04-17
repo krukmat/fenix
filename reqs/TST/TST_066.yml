@@ -1,0 +1,16 @@
+active: true
+bdd:
+  behavior: view_contact_detail
+  feature: features/uc-p1-crm-contacts-mobile.feature
+  scenario: View contact detail with agent activity
+  stack: mobile
+derived: false
+header: ''
+level: 2
+links:
+- FR_300: null
+normative: true
+ref: mobile/__tests__/screens/home.test.tsx
+reviewed: null
+text: |
+  TST_066: CRM contact detail — mobile BDD baseline coverage.
