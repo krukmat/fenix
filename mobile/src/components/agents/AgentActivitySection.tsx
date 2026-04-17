@@ -4,9 +4,10 @@ import { Text, useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useAgentRunsByEntity } from '../../hooks/useAgentSpec';
 import { formatLatency, getStatusColor, getStatusLabel } from '../../screens/agents/agentDetail.helpers';
+import { wedgeHref } from '../../utils/navigation';
 
 interface AgentActivitySectionProps {
-  entityType: 'account' | 'deal' | 'case' | 'lead';
+  entityType: 'account' | 'deal' | 'case' | 'lead' | 'contact';
   entityId: string;
   testIDPrefix?: string;
 }
@@ -40,7 +41,7 @@ export function AgentActivitySection({ entityType, entityId, testIDPrefix = 'age
         <TouchableOpacity
           key={run.id}
           style={[styles.card, { backgroundColor: theme.colors.surface }]}
-          onPress={() => router.push(`/agents/${run.id}`)}
+          onPress={() => router.push(wedgeHref(`/activity/${run.id}`))}
           testID={`${testIDPrefix}-item-${run.id}`}
         >
           <View style={styles.header}>

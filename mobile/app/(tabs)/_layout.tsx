@@ -107,6 +107,10 @@ export default function TabsLayout() {
       <Tabs.Screen name="deals" options={{ href: null }} />
       <Tabs.Screen name="cases" options={{ href: null }} />
       <Tabs.Screen name="copilot/index" options={{ href: null }} />
+      {/* Task Mobile P1.4 — T5: workflows hidden from tab bar (not a wedge tab) */}
+      <Tabs.Screen name="workflows" options={{ href: null }} />
+      {/* Task Mobile P1.4 — T1: contacts hidden from tab bar */}
+      <Tabs.Screen name="contacts" options={{ href: null }} />
     </Tabs>
   );
 }

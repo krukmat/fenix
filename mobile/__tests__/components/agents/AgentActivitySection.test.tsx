@@ -46,7 +46,7 @@ describe('AgentActivitySection', () => {
     expect(getByText('Delegated')).toBeTruthy();
 
     fireEvent.press(getByTestId('agent-activity-item-run-1'));
-    expect(mockPush).toHaveBeenCalledWith('/agents/run-1');
+    expect(mockPush).toHaveBeenCalledWith('/activity/run-1');
   });
 
   it('returns null when no activity exists', () => {

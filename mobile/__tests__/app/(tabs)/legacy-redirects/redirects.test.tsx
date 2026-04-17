@@ -1,12 +1,11 @@
 // W2-T2 (mobile_wedge_harmonization_plan): legacy route redirect tests
-// Verifies that /home, /cases, /accounts, /deals redirect to their wedge destinations.
+// Verifies that /cases, /accounts, /deals redirect to their wedge destinations.
+// Note: home/index is now the real HomeFeed screen, not a redirect.
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
 import { render, screen } from '@testing-library/react-native';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
-
-const mockReplace = jest.fn();
 
 jest.mock('expo-router', () => {
   const React = require('react');
@@ -19,23 +18,9 @@ jest.mock('expo-router', () => {
         { testID: 'redirect-component' },
         React.createElement(Text, { testID: 'redirect-href' }, String(href))
       ),
-    useRouter: () => ({ replace: mockReplace, push: jest.fn() }),
     useLocalSearchParams: () => ({}),
     Stack: { Screen: jest.fn(() => null) },
   };
-});
-
-// ─── home/index ───────────────────────────────────────────────────────────────
-
-describe('home/index redirect → /inbox', () => {
-  beforeEach(() => jest.clearAllMocks());
-
-  it('renders a Redirect to /inbox', async () => {
-    const { default: HomeRedirect } = await require('../../../../app/(tabs)/home/index');
-    render(React.createElement(HomeRedirect));
-    expect(screen.getByTestId('redirect-component')).toBeTruthy();
-    expect(screen.getByTestId('redirect-href').props.children).toBe('/inbox');
-  });
 });
 
 // ─── cases/index ──────────────────────────────────────────────────────────────

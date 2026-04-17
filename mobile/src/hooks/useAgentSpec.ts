@@ -1,10 +1,14 @@
+// Task Mobile P1.4 — T3: added workflow hooks (useWorkflows, useWorkflow, useCreateWorkflow, etc.)
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   agentApi,
   approvalApi,
   signalApi,
+  workflowApi,
   type AgentRunPublicStatus,
   type SignalStatus,
+  type Workflow,
+  type WorkflowStatus,
 } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
@@ -138,5 +142,121 @@ export function useHandoffPackage(runId: string | undefined, caseId: string | un
     retry: 1,
     refetchOnWindowFocus: false,
     enabled: !!runId && enabled,
+  });
+}
+
+// ─── Workflow hooks (Task Mobile P1.4 — T3) ──────────────────────────────────
+
+const workflowQueryKeys = {
+  workflows: (filters?: { status?: WorkflowStatus }) => ['workflows', filters ?? {}] as const,
+  workflow: (id: string) => ['workflow', id] as const,
+  workflowVersions: (id: string) => ['workflow-versions', id] as const,
+};
+
+const WORKFLOW_PAGE_SIZE = 25;
+
+export function useWorkflows(filters?: { status?: WorkflowStatus }) {
+  return useInfiniteQuery({
+    queryKey: workflowQueryKeys.workflows(filters),
+    queryFn: ({ pageParam }: { pageParam: number }) =>
+      workflowApi.list({ ...filters, page: pageParam, limit: WORKFLOW_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const total = lastPage.total ?? 0;
+      const loaded = allPages.flatMap((p) => p.data ?? []).length;
+      return loaded < total ? allPages.length + 1 : undefined;
+    },
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useWorkflow(id: string) {
+  return useQuery({
+    queryKey: workflowQueryKeys.workflow(id),
+    queryFn: () => workflowApi.get(id),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    enabled: !!id,
+  });
+}
+
+export function useCreateWorkflow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; description?: string; dsl_source: string }) =>
+      workflowApi.create(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: workflowQueryKeys.workflows() });
+    },
+  });
+}
+
+export function useUpdateWorkflow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { description?: string; dsl_source: string } }) =>
+      workflowApi.update(id, data),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: workflowQueryKeys.workflows() });
+      queryClient.invalidateQueries({ queryKey: workflowQueryKeys.workflow(variables.id) });
+    },
+  });
+}
+
+export function useActivateWorkflow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => workflowApi.activate(id),
+    onSuccess: (_result, id) => {
+      queryClient.invalidateQueries({ queryKey: workflowQueryKeys.workflow(id) });
+      queryClient.invalidateQueries({ queryKey: workflowQueryKeys.workflows() });
+    },
+  });
+}
+
+export function useExecuteWorkflow() {
+  return useMutation({
+    mutationFn: (id: string) => workflowApi.execute(id),
+  });
+}
+
+export function useWorkflowVersions(id: string) {
+  return useQuery<Workflow[]>({
+    queryKey: workflowQueryKeys.workflowVersions(id),
+    queryFn: () => workflowApi.listVersions(id),
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    enabled: !!id,
+  });
+}
+
+export function useNewVersion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => workflowApi.newVersion(id),
+    onSuccess: (_result, id) => {
+      queryClient.invalidateQueries({ queryKey: workflowQueryKeys.workflow(id) });
+      queryClient.invalidateQueries({ queryKey: workflowQueryKeys.workflowVersions(id) });
+      queryClient.invalidateQueries({ queryKey: workflowQueryKeys.workflows() });
+    },
+  });
+}
+
+export function useRollback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => workflowApi.rollback(id),
+    onSuccess: (_result, id) => {
+      queryClient.invalidateQueries({ queryKey: workflowQueryKeys.workflow(id) });
+      queryClient.invalidateQueries({ queryKey: workflowQueryKeys.workflowVersions(id) });
+      queryClient.invalidateQueries({ queryKey: workflowQueryKeys.workflows() });
+    },
   });
 }

@@ -7,6 +7,7 @@ import { useTheme, Button, Dialog, Portal, Paragraph, RadioButton } from 'react-
 import { useRouter } from 'expo-router';
 import { useAgentDefinitions } from '../../hooks/useCRM';
 import { agentApi } from '../../services/api';
+import { wedgeHref } from '../../utils/navigation';
 import type { ThemeColors } from '../../theme/types';
 
 interface AgentDefinition {
@@ -99,7 +100,7 @@ export default function TriggerAgentButton() {
     if (!selectedAgentId) return;
     try {
       const result = await agentApi.triggerRun(selectedAgentId, {});
-      router.push(`/agents/${result.id}`);
+      router.push(wedgeHref(`/activity/${result.id}`));
       handleCloseDialog();
     } catch (error) {
       console.error('Failed to trigger agent:', error);
