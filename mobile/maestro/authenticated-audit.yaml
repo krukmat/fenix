@@ -206,3 +206,31 @@ tags:
     timeout: 20000
 - takeScreenshot:
     path: "10_governance_usage"
+
+# ── 8. CRM Contacts (Task Mobile P1.4 — T1) ──────────────────────────────────
+
+- openLink: "fenixcrm:///contacts"
+- extendedWaitUntil:
+    visible:
+      id: "contacts-screen"
+    timeout: 20000
+- takeScreenshot:
+    path: "15_crm_contacts_list"
+
+- openLink: "fenixcrm:///contacts/${SEED_CONTACT_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "contact-detail-screen"
+    timeout: 20000
+- takeScreenshot:
+    path: "16_crm_contact_detail"
+
+# ── 9. Workflows (Task Mobile P1.4 — T2-T5) ──────────────────────────────────
+
+- openLink: "fenixcrm:///workflows"
+- extendedWaitUntil:
+    visible:
+      id: "workflows-list"
+    timeout: 20000
+- takeScreenshot:
+    path: "17_workflows_list"

@@ -1,12 +1,12 @@
 ---
 title: FenixCRM — FR & UC Implementation Status
-last_updated: 2026-04-13
+last_updated: 2026-04-17
 tags: [dashboard, status]
 ---
 
 # FenixCRM — FR & UC Implementation Status
 
-> Last updated: 2026-04-13
+> Last updated: 2026-04-17
 > Source of truth for current wedge priority: `docs/architecture.md` + `docs/plans/fenixcrm_strategic_repositioning_spec.md`
 > Source of truth for detailed requirement inventory: `docs/requirements.md` + BDD feature files in `features/`
 >
@@ -129,8 +129,9 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 | UC-A8 | Workflow Versioning | `uc-a8-workflow-versioning-and-rollback.feature` | ✅ | ⏳ | ❌ | ✅ UC_A8.yml | — |
 | UC-A9 | Agent Delegation | `uc-a9-agent-delegation.feature` | ✅ | ⏳ | ❌ | ✅ UC_A9.yml | — |
 | UC-B1 | Safe Tool Routing | `uc-b1-safe-tool-routing.feature` | ✅ | ⏳ | ❌ | ✅ UC_B1.yml | — |
+| UC-P1 | CRM Contacts Mobile | `uc-p1-crm-contacts-mobile.feature` | ❌ | ❌ | ✅ mobile canonical | — | Mobile-only UC — contacts list + detail screens (Task Mobile P1.4) |
 
-**Totals:** 17 UCs | Go canonical: 3 wedge UCs + runtime UCs | BFF: 0/17 ⏳ | Mobile: smoke only for UC-S1
+**Totals:** 18 UCs | Go canonical: 3 wedge UCs + runtime UCs | BFF: 0/18 ⏳ | Mobile: smoke UC-S1 + canonical UC-P1
 
 ---
 
