@@ -4,7 +4,7 @@ package crm
 
 // Timeline entity type constants.
 const (
-	timelineEntityCase    = "case_ticket"
+	timelineEntityCase    = "case"
 	timelineEntityLead    = "lead"
 	timelineEntityDeal    = "deal"
 	timelineEntityContact = "contact"
