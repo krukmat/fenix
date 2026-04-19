@@ -15,11 +15,12 @@ import { useAccounts, useDeals } from '../../../src/hooks/useCRM';
 import { wedgeHref } from '../../../src/utils/navigation';
 import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import { LeadListTab } from '../../../src/components/sales/LeadListTab';
+import { ContactsListContent } from '../../../src/components/contacts/ContactsListContent';
 import type { ThemeColors } from '../../../src/theme/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'accounts' | 'deals' | 'leads';
+type Tab = 'accounts' | 'deals' | 'leads' | 'contacts';
 
 interface AccountItem {
   id: string;
@@ -80,6 +81,15 @@ function TabBar({ active, onSelect, colors }: { active: Tab; onSelect: (t: Tab) 
       >
         <Text style={[styles.tabText, { color: active === 'leads' ? colors.primary : colors.onSurfaceVariant }]}>
           Leads
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        testID="sales-tab-contacts"
+        style={[styles.tab, active === 'contacts' && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+        onPress={() => onSelect('contacts')}
+      >
+        <Text style={[styles.tabText, { color: active === 'contacts' ? colors.primary : colors.onSurfaceVariant }]}>
+          Contacts
         </Text>
       </TouchableOpacity>
     </View>
@@ -232,6 +242,7 @@ export default function SalesScreen() {
       {activeTab === 'accounts' ? <AccountsTab colors={colors} router={router} /> : null}
       {activeTab === 'deals' ? <DealsTab colors={colors} router={router} /> : null}
       {activeTab === 'leads' ? <LeadListTab colors={colors} router={router} /> : null}
+      {activeTab === 'contacts' ? <ContactsListContent /> : null}
     </View>
   );
 }

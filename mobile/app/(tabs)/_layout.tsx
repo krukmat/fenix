@@ -111,6 +111,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="workflows" options={{ href: null }} />
       {/* Task Mobile P1.4 — T1: contacts hidden from tab bar */}
       <Tabs.Screen name="contacts" options={{ href: null }} />
+      {/* crm-dentro-governance: legacy CRM shim stays routeable but hidden from tab bar */}
+      <Tabs.Screen name="crm" options={{ href: null }} />
     </Tabs>
   );
 }

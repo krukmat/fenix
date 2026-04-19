@@ -18,8 +18,8 @@ the current runner. The canonical screenshot flow is now:
 - `mobile/maestro/seed-and-run.sh`
 
 `mobile/maestro/visual-audit.yaml` has been retired. Final PNGs are written to
-`mobile/artifacts/screenshots/` and Maestro reports to
-`mobile/artifacts/maestro-reports/`.
+`mobile/artifacts/screenshots/`. Maestro reports are temporary runner artifacts
+outside the repository by default.
 
 ## Problem
 

@@ -62,7 +62,11 @@ El runner activo es de dos fases:
 
 ### Ejecutar
 
+El comando de screenshots es mobile-only; debe ejecutarse desde `mobile/` porque no existe `package.json` en la raíz del repo.
+
 ```bash
+cd mobile
+
 # Construir APK debug
 npm run e2e:build
 
@@ -76,7 +80,7 @@ El script:
 3. Instala la APK en el emulador
 4. Abre la app por ADB, corre `maestro/auth-surface.yaml` y luego `maestro/authenticated-audit.yaml`
 5. Guarda screenshots finales en `artifacts/screenshots/`
-6. Guarda reportes Maestro saneados en `artifacts/maestro-reports/`
+6. Guarda reportes Maestro saneados en un directorio temporal fuera del repo (`FENIX_MAESTRO_REPORTS_DIR` permite sobrescribirlo)
 
 Capturas esperadas:
 - `01_auth_login`
@@ -91,8 +95,12 @@ Capturas esperadas:
 - `10_governance_usage`
 - `11_support_kb_trigger`
 - `12_sales_lead_prospecting`
-- `13_sales_deal_risk_placeholder`
+- `13_sales_deal_risk_active`
 - `14_activity_insights`
+- `15_sales_contacts_tab`
+- `16_contacts_list`
+- `17_contact_detail`
+- `18_workflows_list`
 
 ## Definición de Done para PR (DoD)
 

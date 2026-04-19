@@ -17,9 +17,9 @@ data/fenixcrm.db
 data/fenixcrm.db-shm
 data/fenixcrm.db-wal
 mobile/artifacts/*
-!mobile/artifacts/maestro-reports/
-!mobile/artifacts/maestro-reports/screenshots/
-!mobile/artifacts/maestro-reports/screenshots/*.png
+!mobile/artifacts/screenshots/
+!mobile/artifacts/screenshots/*.png
+mobile/artifacts/maestro-reports/
 .tmp/
 fenix
 .gocache/*
@@ -46,6 +46,8 @@ docs/plans/*
 !docs/plans/remove_e2e_sales_brief_mock.md
 !docs/plans/governance_mobile_enhancement_plan.md
 !docs/plans/agent_triggers_mobile_plan.md
+!docs/plans/crm-dentro-governance.md
+!docs/plans/mobile_screenshots_runner_fix_plan.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/
@@ -58,9 +60,3 @@ docs/decisions/*
 docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md
 coverage.out
 fenix.db
-mobile/artifacts/maestro-reports/2026-04-13_081143/ai-(Visual Audit - FenixCRM Auth Surface).json
-mobile/artifacts/maestro-reports/2026-04-13_081143/ai-report-Visual Audit - FenixCRM Auth Surface.html
-mobile/artifacts/maestro-reports/2026-04-13_081143/commands-(auth-surface.yaml).json
-mobile/artifacts/maestro-reports/2026-04-13_081151/ai-(Visual Audit - FenixCRM Authenticated Audit).json
-mobile/artifacts/maestro-reports/2026-04-13_081151/ai-report-Visual Audit - FenixCRM Authenticated Audit.html
-mobile/artifacts/maestro-reports/2026-04-13_081151/commands-(authenticated-audit.yaml).json

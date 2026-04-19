@@ -288,7 +288,7 @@ Every event or case surfaces context. The system suggests an action. A human dec
 
 ### 1. Entry — identity before automation
 
-![Login screen](mobile/artifacts/maestro-reports/screenshots/01_auth_login.png)
+![Login screen](mobile/artifacts/screenshots/01_auth_login.png)
 
 Every action is scoped to who you are and what workspace you belong to. Accountability starts at the door.
 
@@ -296,7 +296,7 @@ Every action is scoped to who you are and what workspace you belong to. Accounta
 
 ### 2. Inbox — operational center of gravity
 
-![Inbox](mobile/artifacts/maestro-reports/screenshots/02_inbox.png)
+![Inbox](mobile/artifacts/screenshots/02_inbox.png)
 
 The inbox is the core of the product. The question is not "what is in the pipeline?" but "what needs attention now?" Approvals, handoffs, signals, and policy rejections surface together as an operational queue.
 
@@ -304,7 +304,7 @@ The inbox is the core of the product. The question is not "what is in the pipeli
 
 ### 3. Signal — the system proposes, humans decide
 
-![Signal detail](mobile/artifacts/maestro-reports/screenshots/06_inbox_signal_detail.png)
+![Signal detail](mobile/artifacts/screenshots/06_inbox_signal_detail.png)
 
 Signals compress judgment into something reviewable. A detail surface opens with confidence level, entity context, and evidence attached to the signal itself.
 
@@ -312,7 +312,7 @@ Signals compress judgment into something reviewable. A detail surface opens with
 
 ### 4. Support case — working surface, not a read-only record
 
-![Support case detail](mobile/artifacts/maestro-reports/screenshots/03_support_case_detail.png)
+![Support case detail](mobile/artifacts/screenshots/03_support_case_detail.png)
 
 The case view shows history, current state, what the AI retrieved, what actions are available, and what the case requires next.
 
@@ -320,7 +320,7 @@ The case view shows history, current state, what the AI retrieved, what actions 
 
 ### 5. Sales brief — judgment, not just pipeline visibility
 
-![Sales brief](mobile/artifacts/maestro-reports/screenshots/04_sales_brief.png)
+![Sales brief](mobile/artifacts/screenshots/04_sales_brief.png)
 
 The brief surfaces account context, recent signals, and a suggested next action grounded in evidence — so reps start from a better position than raw data.
 
@@ -328,7 +328,7 @@ The brief surfaces account context, recent signals, and a suggested next action 
 
 ### 6. Denied trace — traceability matters most when something is stopped
 
-![Denied-by-policy activity trace](mobile/artifacts/maestro-reports/screenshots/08_activity_run_detail_denied.png)
+![Denied-by-policy activity trace](mobile/artifacts/screenshots/08_activity_run_detail_denied.png)
 
 A system that only records successful actions is only half-observable. A stopped run is not a failure to hide — it is an outcome to inspect, with reasoning, the policy that applied, and the moment the decision was made.
 
@@ -336,7 +336,7 @@ A system that only records successful actions is only half-observable. A stopped
 
 ### 7. Governance — inside the product, not bolted on
 
-![Governance overview](mobile/artifacts/maestro-reports/screenshots/05_governance.png)
+![Governance overview](mobile/artifacts/screenshots/05_governance.png)
 
 The governance surface is no longer a thin summary. Recent usage appears in product terms with actor, tool, model, latency, timestamp, and cost, while quota state sits beside that activity so control and consumption can be read together.
 
@@ -344,7 +344,7 @@ The governance surface is no longer a thin summary. Recent usage appears in prod
 
 ### 8. Audit trail — readable where work happens
 
-![Governance audit trail](mobile/artifacts/maestro-reports/screenshots/09_governance_audit.png)
+![Governance audit trail](mobile/artifacts/screenshots/09_governance_audit.png)
 
 Audit is not pushed into a separate admin console. On mobile, the user can inspect the stream of requests and decisions directly, filter outcomes, and understand how the system behaved while work is still in motion.
 
@@ -352,7 +352,7 @@ Audit is not pushed into a separate admin console. On mobile, the user can inspe
 
 ### 9. Usage drilldown — AI consumption as a product surface
 
-![Governance usage drilldown](mobile/artifacts/maestro-reports/screenshots/10_governance_usage.png)
+![Governance usage drilldown](mobile/artifacts/screenshots/10_governance_usage.png)
 
 Usage and cost are inspectable from the same governance area. Event count, input units, output units, and individual tool/model calls stay visible inside the product, which makes AI usage governable in product terms instead of only as backend telemetry.
 
@@ -360,7 +360,7 @@ Usage and cost are inspectable from the same governance area. Event count, input
 
 ### 10. KB trigger — support resolution can become reusable knowledge
 
-![KB trigger on resolved support case](mobile/artifacts/maestro-reports/screenshots/11_support_kb_trigger.png)
+![KB trigger on resolved support case](mobile/artifacts/screenshots/11_support_kb_trigger.png)
 
 Once a case is resolved, the operator can trigger knowledge generation from the same support surface. The product does not force a jump to a separate knowledge tool before turning an outcome into reusable documentation.
 
@@ -368,7 +368,7 @@ Once a case is resolved, the operator can trigger knowledge generation from the 
 
 ### 11. Prospecting trigger — leads become an operational AI entry point
 
-![Prospecting trigger on lead detail](mobile/artifacts/maestro-reports/screenshots/12_sales_lead_prospecting.png)
+![Prospecting trigger on lead detail](mobile/artifacts/screenshots/12_sales_lead_prospecting.png)
 
 Leads are now part of the Sales operating surface, not an afterthought outside the wedge. From lead detail, the team can launch the Prospecting Agent directly and inspect the resulting run in activity trace.
 
@@ -376,7 +376,7 @@ Leads are now part of the Sales operating surface, not an afterthought outside t
 
 ### 12. Deal Risk placeholder — the integration point exists before the runner ships
 
-![Deal Risk placeholder on deal detail](mobile/artifacts/maestro-reports/screenshots/13_sales_deal_risk_placeholder.png)
+![Deal Risk placeholder on deal detail](mobile/artifacts/screenshots/13_sales_deal_risk_placeholder.png)
 
 The product exposes where Deal Risk will live even before the backend runner is active. That keeps the UX contract stable: mobile already knows where the governed risk surface belongs once the deferred backend work lands.
 
@@ -384,7 +384,7 @@ The product exposes where Deal Risk will live even before the backend runner is 
 
 ### 13. Insights entry — ad hoc analysis becomes part of the mobile workflow
 
-![Insights entry screen](mobile/artifacts/maestro-reports/screenshots/14_activity_insights.png)
+![Insights entry screen](mobile/artifacts/screenshots/14_activity_insights.png)
 
 Analytical questions do not need to start from a dashboard. The Insights screen gives mobile users a direct entry point for grounded ad hoc queries, with optional date bounds and the same run-detail traceability as the rest of the agent surfaces.
 

@@ -82,6 +82,7 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
       .filter((p) => p.options?.href !== null)
       .map((p) => p.name);
 
+    expect(visibleNames).toHaveLength(5);
     expect(visibleNames).toContain('inbox/index');
     expect(visibleNames).toContain('support');
     expect(visibleNames).toContain('sales');
@@ -98,6 +99,7 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
       .map(([p]) => p)
       .filter((p) => p.options?.href !== null);
 
+    expect(visibleTabs).toHaveLength(5);
     expect(visibleTabs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: 'inbox/index', options: expect.objectContaining({ tabBarButtonTestID: 'tab-inbox', tabBarIcon: expect.any(Function) }) }),
@@ -121,7 +123,11 @@ describe('W2-T1: Wedge bottom-tab layout', () => {
 
     expect(hiddenNames).toContain('home');
     expect(hiddenNames).toContain('accounts');
+    expect(hiddenNames).toContain('deals');
     expect(hiddenNames).toContain('cases');
+    expect(hiddenNames).toContain('contacts');
+    expect(hiddenNames).toContain('workflows');
+    expect(hiddenNames).toContain('crm');
     expect(hiddenNames).not.toContain('agents/index');
     expect(hiddenNames).not.toContain('crm/index');
   });
@@ -149,7 +155,7 @@ describe('Tab bar overflow guard — feature folder layouts', () => {
   const path = require('path');
   const tabsBase = path.join(__dirname, '..', 'app', '(tabs)');
 
-  const foldersRequiringLayout = ['sales', 'support', 'accounts', 'cases', 'deals'];
+  const foldersRequiringLayout = ['sales', 'support', 'accounts', 'cases', 'deals', 'contacts', 'workflows', 'crm'];
 
   it.each(foldersRequiringLayout)(
     '%s/ has a _layout.tsx to contain its dynamic routes',

@@ -81,15 +81,7 @@ tags:
 
 # ── 2. Support ────────────────────────────────────────────────────────────────
 
-- tapOn:
-    id: "tab-support"
-- extendedWaitUntil:
-    visible:
-      id: "support-cases-list-item-0"
-    timeout: 20000
-- tapOn:
-    id: "support-cases-list-item-0"
-    retryTapIfNoChange: true
+- openLink: "fenixcrm:///support/${SEED_CASE_ID}"
 - extendedWaitUntil:
     visible:
       id: "support-case-detail-screen"
@@ -109,8 +101,7 @@ tags:
 
 # ── 3. Sales ──────────────────────────────────────────────────────────────────
 
-- tapOn:
-    id: "tab-sales"
+- openLink: "fenixcrm:///sales"
 - extendedWaitUntil:
     visible:
       id: "sales-screen"
@@ -157,6 +148,20 @@ tags:
     id: "deal-risk-trigger-button"
 - takeScreenshot:
     path: "13_sales_deal_risk_active"
+
+- openLink: "fenixcrm:///sales"
+- extendedWaitUntil:
+    visible:
+      id: "sales-screen"
+    timeout: 20000
+- tapOn:
+    id: "sales-tab-contacts"
+- extendedWaitUntil:
+    visible:
+      id: "contacts-list"
+    timeout: 20000
+- takeScreenshot:
+    path: "15_sales_contacts_tab"
 
 # ── 4. Activity (Denied Trace) ────────────────────────────────────────────────
 
@@ -207,7 +212,7 @@ tags:
 - takeScreenshot:
     path: "10_governance_usage"
 
-# ── 8. CRM Contacts (Task Mobile P1.4 — T1) ──────────────────────────────────
+# ── 8. Contacts canonical route (Task Mobile P1.4 — T1) ─────────────────────
 
 - openLink: "fenixcrm:///contacts"
 - extendedWaitUntil:
@@ -215,7 +220,7 @@ tags:
       id: "contacts-screen"
     timeout: 20000
 - takeScreenshot:
-    path: "15_crm_contacts_list"
+    path: "16_contacts_list"
 
 - openLink: "fenixcrm:///contacts/${SEED_CONTACT_ID}"
 - extendedWaitUntil:
@@ -223,7 +228,7 @@ tags:
       id: "contact-detail-screen"
     timeout: 20000
 - takeScreenshot:
-    path: "16_crm_contact_detail"
+    path: "17_contact_detail"
 
 # ── 9. Workflows (Task Mobile P1.4 — T2-T5) ──────────────────────────────────
 
@@ -233,4 +238,4 @@ tags:
       id: "workflows-list"
     timeout: 20000
 - takeScreenshot:
-    path: "17_workflows_list"
+    path: "18_workflows_list"

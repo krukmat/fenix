@@ -19,21 +19,21 @@ Caption: The loop from context to action, approval, trace, and governance.
 
 This diagram shows the reasoning loop behind the product: an event or case surfaces context, the system suggests an action, a human decides whether to approve or hand it off, execution happens, and everything is traced and governed. The ten screens that follow are where each step of that loop becomes visible.
 
-[Insert image: mobile/artifacts/maestro-reports/screenshots/01_auth_login.png]
+[Insert image: mobile/artifacts/screenshots/01_auth_login.png]
 Caption: Entry point and identity.
 
 ## 1. Entry comes before automation
 
 The login screen matters because it sets the frame: identity, access, and operating context come first. Every action that follows is scoped to who you are and what workspace you belong to. There is no anonymous automation here — accountability starts at the door.
 
-[Insert image: mobile/artifacts/maestro-reports/screenshots/02_inbox.png]
+[Insert image: mobile/artifacts/screenshots/02_inbox.png]
 Caption: The inbox as the operational center.
 
 ## 2. The inbox is the real center of gravity
 
 This screen is the key to the whole product. Where a classic Salesforce experience often centers the user on records and dashboards, FenixCRM is more centered on the inbox. The question shifts from "what is in the pipeline?" to "what needs attention now?" Approvals, handoffs, signals, and policy rejections surface together, ordered as an operational queue rather than split by record type. That also means handoff is not a secondary workflow; it lives in the same queue as everything else, which keeps continuity intact when work needs to move from one actor to another.
 
-[Insert image: mobile/artifacts/maestro-reports/screenshots/06_inbox_signal_detail.png]
+[Insert image: mobile/artifacts/screenshots/06_inbox_signal_detail.png]
 Caption: Signals open directly into contextual detail.
 
 ## 3. The system can propose, without deciding on its own
@@ -44,28 +44,28 @@ Signals matter because they compress judgment into something reviewable. Instead
 
 The transition from triage to action matters for the same reason. Work does not stop at the inbox; the user needs to move from the queue into the case with continuity preserved. What looked like an inbox item becomes a working surface with context intact, and handoff remains part of the operating model rather than an exception handled somewhere else.
 
-[Insert image: mobile/artifacts/maestro-reports/screenshots/03_support_case_detail.png]
+[Insert image: mobile/artifacts/screenshots/03_support_case_detail.png]
 Caption: Support as operational context.
 
 ## 5. Support is more than a ticket
 
 The support detail view turns the case into operating context: history, current state, and direction. It is not a read-only record — it is a working surface where the agent can see what the AI retrieved, what actions are available, and what the case requires next.
 
-[Insert image: mobile/artifacts/maestro-reports/screenshots/04_sales_brief.png]
+[Insert image: mobile/artifacts/screenshots/04_sales_brief.png]
 Caption: Sales as judgment, not just pipeline visibility.
 
 ## 6. Sales becomes situational reading
 
 The sales brief shows the same philosophy on the commercial side. It is more than a pipeline screen; it gives judgment a better starting point. Instead of asking the rep to interpret raw data, the brief surfaces what matters: account context, recent signals, and a suggested next action grounded in evidence.
 
-[Insert image: mobile/artifacts/maestro-reports/screenshots/08_activity_run_detail_denied.png]
+[Insert image: mobile/artifacts/screenshots/08_activity_run_detail_denied.png]
 Caption: A denied run is still a first-class outcome.
 
 ## 7. Traceability matters most when something is stopped
 
 A system that only records successful actions is only half-observable. The denied activity trace matters because real systems should explain what they did not do and why — a stopped run is not a failure to hide; it is an outcome to inspect. You can see the reasoning, the policy that applied, and the moment the decision was made.
 
-[Insert image: mobile/artifacts/maestro-reports/screenshots/05_governance.png]
+[Insert image: mobile/artifacts/screenshots/05_governance.png]
 Caption: Governance summary inside the product experience.
 
 ## 8. Governance is part of the product, not a side panel

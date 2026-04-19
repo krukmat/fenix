@@ -17,8 +17,8 @@ created: 2026-04-11
 - `mobile/maestro/visual-audit.yaml` has been retired in favor of the two-phase
   flow: `auth-surface.yaml` + `authenticated-audit.yaml`.
 - `mobile/maestro/seed-and-run.sh` now launches the app via ADB for phase 1 and
-  sanitizes `mobile/artifacts/maestro-reports/` so the bootstrap JWT is not
-  retained in report artifacts.
+  writes sanitized Maestro reports to a temporary directory outside the repo so
+  the bootstrap JWT is not retained in committed artifacts.
 
 ## Summary
 
@@ -196,8 +196,9 @@ Consumer side — `mobile/maestro/seed-and-run.sh` `seed_to_env_lines`:
 ### Artifacts and documentation
 
 - Keep final PNGs in `mobile/artifacts/screenshots/` (unchanged public path).
-- Write Maestro JSON/HTML reports to `mobile/artifacts/maestro-reports/` so they
-  can be excluded from reviewer-facing bundles and CI screenshot uploads.
+- Write Maestro JSON/HTML reports to a temporary directory outside the
+  repository by default. `FENIX_MAESTRO_REPORTS_DIR` can override this when
+  local report inspection is needed.
 - Tokens and passwords must not appear in:
   - `seed-and-run.sh` stdout (`print_seed_summary` must redact).
   - Maestro reports — achieved by passing secrets only via
@@ -270,8 +271,8 @@ Governance / safety verification:
    `fenixcrm:///e2e-bootstrap?token=x&userId=y&workspaceId=z` and confirm the
    app redirects to `/login` **without** calling `login()` or persisting any
    token. This protects the production build from an auth-injection surface.
-7. Inspect `mobile/artifacts/maestro-reports/` JSON/HTML after a full run and
-   confirm no plaintext token, password, or bearer value appears.
+7. Inspect the temporary Maestro report directory after a full run and confirm
+   no plaintext token, password, or bearer value appears.
 8. `print_seed_summary` stdout contains no token material — only lengths and
    ids safe for logs.
 

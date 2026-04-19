@@ -22,7 +22,8 @@ DEBUG_APK="${MOBILE_DIR}/android/app/build/outputs/apk/debug/app-debug.apk"
 AUTH_SURFACE_FLOW="${SCRIPT_DIR}/auth-surface.yaml"
 AUTHED_AUDIT_FLOW="${SCRIPT_DIR}/authenticated-audit.yaml"
 OUTPUT_DIR="${MOBILE_DIR}/artifacts/screenshots"
-REPORTS_DIR="${MOBILE_DIR}/artifacts/maestro-reports"
+TMP_BASE="${TMPDIR:-/tmp}"
+REPORTS_DIR="${FENIX_MAESTRO_REPORTS_DIR:-${TMP_BASE%/}/fenixcrm-maestro-reports}"
 ADB_BIN="${ANDROID_HOME:+${ANDROID_HOME}/platform-tools/}adb"
 MAESTRO_BIN="${MAESTRO_BIN:-maestro}"
 SEED_FILE=""
@@ -48,6 +49,22 @@ cleanup() {
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
+}
+
+check_backend_health() {
+  local health_url='http://localhost:8080/health'
+  if curl -fsS --max-time 3 "${health_url}" >/dev/null; then
+    return 0
+  fi
+  die "Go backend is not healthy at ${health_url}. Start it with: JWT_SECRET='test-secret-32-chars-minimum!!!' go run ./cmd/fenix serve --port 8080"
+}
+
+check_bff_reachable() {
+  local bff_url='http://localhost:3000'
+  if curl -sS --max-time 3 "${bff_url}" >/dev/null; then
+    return 0
+  fi
+  die "BFF is not reachable at ${bff_url}. Start the BFF on localhost:3000 before running screenshots."
 }
 
 SERIAL="${FENIX_SCREENSHOTS_DEVICE_SERIAL:-$("${ADB_BIN}" devices | awk '$2=="device"{print $1; exit}')}"
@@ -81,12 +98,16 @@ wait_for_android_services() {
 ensure_app_installed() {
   local package_path
   package_path="$(adb_shell pm path "${APP_ID}" 2>/dev/null | tr -d '\r' || true)"
-  if [[ "${package_path}" == package:* ]]; then
+  if [[ -f "${DEBUG_APK}" ]]; then
+    log "Installing debug APK on ${SERIAL}..."
+    "${ADB_BIN}" -s "${SERIAL}" install -r "${DEBUG_APK}" >/dev/null
     return 0
   fi
-  [[ -f "${DEBUG_APK}" ]] || die "App ${APP_ID} is not installed and debug APK not found at ${DEBUG_APK}"
-  log "Installing debug APK on ${SERIAL}..."
-  "${ADB_BIN}" -s "${SERIAL}" install -r "${DEBUG_APK}" >/dev/null
+  if [[ "${package_path}" == package:* ]]; then
+    log "Using already installed ${APP_ID}; debug APK not found at ${DEBUG_APK}"
+    return 0
+  fi
+  die "App ${APP_ID} is not installed and debug APK not found at ${DEBUG_APK}"
 }
 
 unlock_device() {
@@ -205,8 +226,10 @@ run_maestro_flow() {
 
 copy_reports_screenshots() {
   # Maestro writes PNGs under the test-output-dir. Collect any PNGs from the
-  # reports tree into the stable output dir so reviewers see only finished
-  # screenshots, not Maestro report artifacts.
+  # reports tree into the stable output dir. Successful runs should contain the
+  # full visual audit set; failed runs keep completed screenshots plus Maestro's
+  # failure screenshot for debugging.
+  mkdir -p "${OUTPUT_DIR}"
   find "${REPORTS_DIR}" -type f -name '*.png' -print0 2>/dev/null \
     | while IFS= read -r -d '' file; do
         cp -f "${file}" "${OUTPUT_DIR}/"
@@ -246,6 +269,29 @@ walk(root);
 NODE
 }
 
+finish() {
+  local code=$?
+  trap - EXIT
+
+  if [[ -d "${REPORTS_DIR}" ]]; then
+    if [[ -n "${SEED_BOOTSTRAP_URL:-}" ]]; then
+      sanitize_reports || true
+    fi
+    copy_reports_screenshots || true
+  fi
+
+  cleanup
+
+  if [[ -d "${OUTPUT_DIR}" ]]; then
+    log "Screenshots available in ${OUTPUT_DIR}"
+  fi
+  if [[ -d "${REPORTS_DIR}" ]]; then
+    log "Temporary Maestro reports available in ${REPORTS_DIR}"
+  fi
+
+  exit "${code}"
+}
+
 main() {
   need_cmd "${ADB_BIN}"
   need_cmd curl
@@ -260,9 +306,11 @@ main() {
   wait_for_android_services
   unlock_device
   ensure_app_installed
+  check_backend_health
+  check_bff_reachable
 
   SEED_FILE="$(mktemp)"
-  trap cleanup EXIT
+  trap finish EXIT
 
   log 'Seeding deterministic mobile fixtures...'
   (
@@ -308,16 +356,10 @@ main() {
   log 'Phase 2/2: capturing authenticated audit via e2e-bootstrap deep link...'
   run_maestro_flow "${AUTHED_AUDIT_FLOW}"
 
-  sanitize_reports
-  copy_reports_screenshots
-
   log 'Disabling BFF screenshot fixture mode...'
   curl -s -X POST http://localhost:3000/bff/api/v1/copilot/internal/screenshot-mode \
     -H 'Content-Type: application/json' \
     -d '{"enabled":false}' >/dev/null || true
-
-  log "Screenshots available in ${OUTPUT_DIR}"
-  log "Maestro reports available in ${REPORTS_DIR}"
 }
 
 main "$@"
