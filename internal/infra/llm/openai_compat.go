@@ -34,8 +34,11 @@ func NewOpenAICompatProvider(baseURL, apiKey, model string) *OpenAICompatProvide
 		baseURL: baseURL,
 		apiKey:  apiKey,
 		model:   model,
+		// Dedicated transport avoids sharing http.DefaultTransport, preventing
+		// CloseIdleConnections from one client affecting parallel test clients.
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout:   60 * time.Second,
+			Transport: &http.Transport{},
 		},
 	}
 }
