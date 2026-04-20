@@ -86,7 +86,7 @@ func buildPermitLabels(permits []CartaPermit) []DSLCoverageLabel {
 }
 
 func collectUncoveredBehaviors(behaviors []SpecBehavior, permitLabels []DSLCoverageLabel) []Violation {
-	var violations []Violation
+	violations := make([]Violation, 0, len(behaviors))
 	for _, behavior := range behaviors {
 		if cartaBehaviorCovered(behavior, permitLabels) {
 			continue

@@ -6,7 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -42,7 +42,7 @@ const routeByID = "/{id}"
 // C2/C4: CORS allowlist + per-IP rate limiting on auth endpoints.
 //
 //nolint:funlen,maintidx // router principal mantiene registro centralizado de rutas por diseño
-func NewRouter(db *sql.DB) *chi.Mux {
+func NewRouter(db *sql.DB) (*chi.Mux, error) {
 	cfg := config.Load()
 	return newRouterWithConfig(db, cfg)
 }
@@ -51,16 +51,16 @@ func NewRouter(db *sql.DB) *chi.Mux {
 // inject a custom BFFOrigin without relying on env vars.
 //
 //nolint:funlen,maintidx // router principal mantiene registro centralizado de rutas por diseño
-func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
+func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 	r := chi.NewRouter()
 	auditService := domainaudit.NewAuditService(db)
 	chatProvider, err := llm.NewChatProvider(cfg)
 	if err != nil {
-		log.Fatalf("api: create chat provider: %v", err)
+		return nil, fmt.Errorf("api: create chat provider: %w", err)
 	}
 	embedProvider, err := llm.NewEmbedProvider(cfg)
 	if err != nil {
-		log.Fatalf("api: create embed provider: %v", err)
+		return nil, fmt.Errorf("api: create embed provider: %w", err)
 	}
 
 	// Global middleware (runs on all routes)
@@ -452,5 +452,5 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) *chi.Mux {
 		})
 	})
 
-	return r
+	return r, nil
 }

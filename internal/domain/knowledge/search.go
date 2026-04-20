@@ -181,7 +181,7 @@ func (s *SearchService) bm25Search(ctx context.Context, query, wsID, entityType,
 	}
 	defer rows.Close()
 
-	var results []bm25Row
+	results := make([]bm25Row, 0)
 	for rows.Next() {
 		var r bm25Row
 		if scanErr := rows.Scan(&r.id, &r.title, &r.snippet, &r.score); scanErr != nil {

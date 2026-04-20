@@ -90,7 +90,7 @@ func (s *PromptService) ListPromptExperiments(ctx context.Context, workspaceID, 
 	}
 	defer rows.Close()
 
-	var experiments []*PromptExperiment
+	experiments := make([]*PromptExperiment, 0)
 	for rows.Next() {
 		experiment, scanErr := scanPromptExperiment(rows)
 		if scanErr != nil {

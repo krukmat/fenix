@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/matiasleandrokruk/fenix/internal/infra/config"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 )
@@ -22,6 +23,26 @@ func TestMain(m *testing.M) {
 	// AuthMiddleware reads JWT_SECRET — must be set for protected routes to parse tokens.
 	os.Setenv("JWT_SECRET", "test-secret-key-32-chars-min!!!") //nolint:errcheck
 	os.Exit(m.Run())
+}
+
+// mustNewRouter wraps NewRouter and fails the test if construction fails.
+func mustNewRouter(t *testing.T, db *sql.DB) *chi.Mux {
+	t.Helper()
+	r, err := NewRouter(db)
+	if err != nil {
+		t.Fatalf("mustNewRouter: %v", err)
+	}
+	return r
+}
+
+// mustNewRouterWithConfig wraps newRouterWithConfig and fails the test if construction fails.
+func mustNewRouterWithConfig(t *testing.T, db *sql.DB, cfg config.Config) *chi.Mux {
+	t.Helper()
+	r, err := newRouterWithConfig(db, cfg)
+	if err != nil {
+		t.Fatalf("mustNewRouterWithConfig: %v", err)
+	}
+	return r
 }
 
 // mustOpenAPITestDB opens an in-memory SQLite DB with all migrations applied.
@@ -42,7 +63,7 @@ func mustOpenAPITestDB(t *testing.T) *sql.DB {
 func TestNewRouter_HealthEndpoint(t *testing.T) {
 	db := mustOpenAPITestDB(t)
 
-	router := NewRouter(db)
+	router := mustNewRouter(t, db)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
@@ -61,7 +82,7 @@ func TestNewRouter_ReadyzEndpoint(t *testing.T) {
 	cfg := testCfg()
 	cfg.OllamaBaseURL = "http://127.0.0.1:1"
 
-	router := newRouterWithConfig(db, cfg)
+	router := mustNewRouterWithConfig(t, db, cfg)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	w := httptest.NewRecorder()
@@ -82,7 +103,7 @@ func TestNewRouter_ReadyzEndpoint(t *testing.T) {
 func TestNewRouter_KnowledgeIngestEndpoint_Unauthorized(t *testing.T) {
 	db := mustOpenAPITestDB(t)
 
-	router := NewRouter(db)
+	router := mustNewRouter(t, db)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/ingest",
 		strings.NewReader(`{"title":"test","raw_content":"hello","source_type":"document"}`))
@@ -112,7 +133,7 @@ func testCfg() config.Config {
 // TestRouter_CORS_AllowedOrigin_ReceivesHeaders verifies ACAO header for BFF origin.
 func TestRouter_CORS_AllowedOrigin_ReceivesHeaders(t *testing.T) {
 	db := mustOpenAPITestDB(t)
-	router := newRouterWithConfig(db, testCfg())
+	router := mustNewRouterWithConfig(t, db, testCfg())
 
 	req := httptest.NewRequest(http.MethodOptions, "/auth/login", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
@@ -128,7 +149,7 @@ func TestRouter_CORS_AllowedOrigin_ReceivesHeaders(t *testing.T) {
 // TestRouter_CORS_BlockedOrigin_NoHeaders verifies no ACAO header for unlisted origin.
 func TestRouter_CORS_BlockedOrigin_NoHeaders(t *testing.T) {
 	db := mustOpenAPITestDB(t)
-	router := newRouterWithConfig(db, testCfg())
+	router := mustNewRouterWithConfig(t, db, testCfg())
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -158,7 +179,7 @@ func registerBody(email, password, displayName, workspaceName string) *bytes.Rea
 // TestRouter_Register_ShortPassword_Returns400 verifies 400 for passwords < 12 chars.
 func TestRouter_Register_ShortPassword_Returns400(t *testing.T) {
 	db := mustOpenAPITestDB(t)
-	router := newRouterWithConfig(db, testCfg())
+	router := mustNewRouterWithConfig(t, db, testCfg())
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/register",
 		registerBody("short@test.com", "Short1!", "Short", "TestCo"))
@@ -174,7 +195,7 @@ func TestRouter_Register_ShortPassword_Returns400(t *testing.T) {
 // TestRouter_Register_ValidPassword_Returns201 verifies 201 for passwords >= 12 chars.
 func TestRouter_Register_ValidPassword_Returns201(t *testing.T) {
 	db := mustOpenAPITestDB(t)
-	router := newRouterWithConfig(db, testCfg())
+	router := mustNewRouterWithConfig(t, db, testCfg())
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/register",
 		registerBody("valid@test.com", "ValidPassword1!", "Valid", "TestCo"))
@@ -195,7 +216,7 @@ func TestRouter_Login_RateLimit_Returns429(t *testing.T) {
 	db := mustOpenAPITestDB(t)
 	// Use a custom config so this test is isolated from other test router instances.
 	cfg := testCfg()
-	router := newRouterWithConfig(db, cfg)
+	router := mustNewRouterWithConfig(t, db, cfg)
 
 	loginJSON := strings.NewReader(`{"email":"x@x.com","password":"pass"}`)
 
@@ -234,7 +255,7 @@ func TestRouter_Login_RateLimit_Returns429(t *testing.T) {
 func TestRouter_Register_RateLimit_Returns429(t *testing.T) {
 	db := mustOpenAPITestDB(t)
 	cfg := testCfg()
-	router := newRouterWithConfig(db, cfg)
+	router := mustNewRouterWithConfig(t, db, cfg)
 
 	const registerLimit = 3
 	ip := "10.2.3.4"

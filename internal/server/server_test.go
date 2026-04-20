@@ -39,7 +39,10 @@ func TestNewServer_ConfiguresAddressAndHandler(t *testing.T) {
 	}
 
 	cfg := Config{Host: "127.0.0.1", Port: 18080, ReadTimeout: time.Second, WriteTimeout: 2 * time.Second, IdleTimeout: 3 * time.Second}
-	s := NewServer(db, cfg)
+	s, err := NewServer(db, cfg)
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
 
 	if s == nil {
 		t.Fatal("NewServer() returned nil")

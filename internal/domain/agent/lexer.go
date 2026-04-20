@@ -61,7 +61,7 @@ func processLexerLineWith(lineIndex int, rawLine string, indentStack *[]int, lex
 }
 
 func emitFinalDedents(indentStack *[]int, totalLines int) []Token {
-	var tokens []Token
+	tokens := make([]Token, 0, len(*indentStack))
 	for len(*indentStack) > 1 {
 		*indentStack = (*indentStack)[:len(*indentStack)-1]
 		tokens = append(tokens, Token{Type: TokenDedent, Literal: "", Line: totalLines, Column: 1})

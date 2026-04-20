@@ -56,7 +56,7 @@ func scanWorkflow(scanner interface {
 }
 
 func scanWorkflowRows(rows *sql.Rows) ([]*Workflow, error) {
-	var out []*Workflow
+	out := make([]*Workflow, 0)
 	for rows.Next() {
 		wf, err := scanWorkflow(rows)
 		if err != nil {

@@ -87,7 +87,11 @@ func runServe(args []string, out io.Writer) int {
 
 	cfg := server.DefaultConfig()
 	cfg.Port = *port
-	srv := server.NewServer(db, cfg)
+	srv, err := server.NewServer(db, cfg)
+	if err != nil {
+		fmt.Fprintf(out, "server: init failed: %v\n", err) //nolint:errcheck
+		return 1
+	}
 
 	if startErr := srv.Start(context.Background()); startErr != nil {
 		fmt.Fprintf(out, "server failed: %v\n", startErr) //nolint:errcheck

@@ -32,7 +32,7 @@ func setupCRMIntegrationTest(t *testing.T) crmTestEnv {
 
 	db := mustOpenAPITestDB(t)
 	db.SetMaxOpenConns(1) // pin to single connection for in-memory SQLite isolation
-	router := NewRouter(db)
+	router := mustNewRouter(t, db)
 
 	// Register a user + workspace.
 	regBody := registerBody("crm-test@example.com", "ValidPassword1!", "CRM User", "CRM Workspace")

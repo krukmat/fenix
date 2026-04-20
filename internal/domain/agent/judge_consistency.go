@@ -42,7 +42,7 @@ func RunInitialSpecDSLChecks(spec *SpecSummary, program *Program) ([]Violation, 
 	}
 
 	coverage := BuildDSLCoverageSummary(program)
-	var violations []Violation
+	violations := make([]Violation, 0, len(spec.Behaviors))
 
 	for _, behavior := range spec.Behaviors {
 		if isBehaviorCovered(behavior, coverage) {

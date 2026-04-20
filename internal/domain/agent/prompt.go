@@ -148,7 +148,7 @@ func (s *PromptService) ListPromptVersions(ctx context.Context, workspaceID, age
 		return nil, fmt.Errorf("list: %w", err)
 	}
 
-	var results []*PromptVersion
+	results := make([]*PromptVersion, 0, len(rows))
 	for _, row := range rows {
 		results = append(results, rowToPromptVersion(&row))
 	}

@@ -40,8 +40,11 @@ type Server struct {
 
 // NewServer creates a new HTTP server with the given database and configuration.
 // Task 1.3.9: Initialize HTTP server with database and routing
-func NewServer(db *sql.DB, config Config) *Server {
-	router := api.NewRouter(db)
+func NewServer(db *sql.DB, config Config) (*Server, error) {
+	router, err := api.NewRouter(db)
+	if err != nil {
+		return nil, fmt.Errorf("server: build router: %w", err)
+	}
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", config.Host, config.Port),
@@ -55,7 +58,7 @@ func NewServer(db *sql.DB, config Config) *Server {
 		config: config,
 		db:     db,
 		http:   httpServer,
-	}
+	}, nil
 }
 
 // Start starts the HTTP server and blocks until an error occurs.

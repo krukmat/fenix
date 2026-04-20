@@ -85,7 +85,7 @@ func scanSignal(scanner interface {
 }
 
 func scanSignalRows(rows *sql.Rows) ([]*Signal, error) {
-	var out []*Signal
+	out := make([]*Signal, 0)
 	for rows.Next() {
 		item, err := scanSignal(rows)
 		if err != nil {

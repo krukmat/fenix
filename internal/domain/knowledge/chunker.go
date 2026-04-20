@@ -33,7 +33,7 @@ func Chunk(text string, chunkSize, overlap int) []string {
 	}
 
 	stride := chunkSize - overlap
-	var chunks []string
+	chunks := make([]string, 0, (len(tokens)+stride-1)/stride)
 
 	for start := 0; start < len(tokens); start += stride {
 		end := start + chunkSize
