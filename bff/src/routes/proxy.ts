@@ -6,11 +6,11 @@ import { config } from '../config';
 
 const router = Router();
 
-function hasParsedJsonBody(req: Request): boolean {
+export function hasParsedJsonBody(req: Request): boolean {
   return req.body !== undefined && req.body !== null && Object.keys(req.body as object).length > 0;
 }
 
-function restreamParsedJsonBody(proxyReq: import('http').ClientRequest, req: Request): void {
+export function restreamParsedJsonBody(proxyReq: import('http').ClientRequest, req: Request): void {
   if (!hasParsedJsonBody(req)) {
     return;
   }
