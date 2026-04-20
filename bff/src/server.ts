@@ -6,15 +6,13 @@ validateConfig();
 import app from './app';
 
 const server = app.listen(config.port, () => {
-  // eslint-disable-next-line no-console
-  console.log(`FenixCRM BFF running on port ${config.port} [${config.nodeEnv}] → ${config.backendUrl}`);
+  process.stdout.write(`FenixCRM BFF running on port ${config.port} [${config.nodeEnv}] → ${config.backendUrl}\n`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   server.close(() => {
-    // eslint-disable-next-line no-console
-    console.log('BFF server closed');
+    process.stdout.write('BFF server closed\n');
     process.exit(0);
   });
 });
