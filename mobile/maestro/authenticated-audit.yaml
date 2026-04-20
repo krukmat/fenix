@@ -239,3 +239,44 @@ tags:
     timeout: 20000
 - takeScreenshot:
     path: "18_workflows_list"
+
+# ── 10. Core CRM no-AI surface (Mobile Core CRM Validation 8C) ───────────────
+
+- openLink: "fenixcrm:///crm"
+- extendedWaitUntil:
+    visible:
+      id: "crm-hub"
+    timeout: 20000
+- assertVisible:
+    id: "crm-hub-accounts"
+- takeScreenshot:
+    path: "19_crm_hub"
+
+- tapOn:
+    id: "crm-hub-accounts"
+- extendedWaitUntil:
+    visible:
+      id: "crm-accounts-list"
+    timeout: 20000
+- assertVisible:
+    id: "crm-accounts-search"
+- takeScreenshot:
+    path: "20_crm_accounts_list"
+
+- openLink: "fenixcrm:///crm/accounts/${SEED_ACCOUNT_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "crm-account-detail-screen"
+    timeout: 20000
+- assertVisible:
+    id: "crm-entity-child-forms"
+- takeScreenshot:
+    path: "21_crm_account_detail"
+
+# ── 11. Core CRM mutation UAT (Mobile Core CRM Validation 8D) ────────────────
+# Wave 8D: create one Case, return to list, verify new record appears.
+# Runs as a sub-flow so it can be isolated or skipped without touching the
+# smoke path above (8C).
+
+- runFlow:
+    file: "./crm-mutation-case.yaml"

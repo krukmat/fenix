@@ -40,7 +40,7 @@ export function useSignals(filters?: { status?: SignalStatus; entity_type?: stri
   return useInfiniteQuery({
     queryKey: agentSpecQueryKeys.signals(workspaceId ?? '', filters),
     queryFn: ({ pageParam }: { pageParam: number }) =>
-      signalApi.getSignals(workspaceId!, filters, { page: pageParam, limit: SIGNAL_PAGE_SIZE }),
+      signalApi.getSignals(workspaceId ?? '', filters, { page: pageParam, limit: SIGNAL_PAGE_SIZE }),
     initialPageParam: 1,
     getNextPageParam: (_lastPage, allPages) => {
       const loaded = allPages.flat().length;
@@ -59,7 +59,7 @@ export function useSignalsByEntity(entityType: string, entityId: string) {
 
   return useQuery({
     queryKey: agentSpecQueryKeys.signalsByEntity(workspaceId ?? '', entityType, entityId),
-    queryFn: () => signalApi.getSignals(workspaceId!, { entity_type: entityType, entity_id: entityId }),
+    queryFn: () => signalApi.getSignals(workspaceId ?? '', { entity_type: entityType, entity_id: entityId }),
     staleTime: 15_000,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -90,7 +90,7 @@ export function useAgentRunsByEntity(
   return useInfiniteQuery({
     queryKey: agentSpecQueryKeys.agentRunsByEntity(workspaceId ?? '', entityType, entityId, filters),
     queryFn: ({ pageParam }: { pageParam: number }) =>
-      agentApi.getRunsByEntity(workspaceId!, entityType, entityId, { page: pageParam, limit: AGENT_RUN_PAGE_SIZE }, filters),
+      agentApi.getRunsByEntity(workspaceId ?? '', entityType, entityId, { page: pageParam, limit: AGENT_RUN_PAGE_SIZE }, filters),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
       const total = lastPage.meta?.total ?? 0;
@@ -110,7 +110,7 @@ export function usePendingApprovals() {
 
   return useQuery({
     queryKey: agentSpecQueryKeys.pendingApprovals(workspaceId ?? ''),
-    queryFn: () => approvalApi.getPendingApprovals(workspaceId!),
+    queryFn: () => approvalApi.getPendingApprovals(workspaceId ?? ''),
     staleTime: 15_000,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -136,7 +136,7 @@ export function useDecideApproval() {
 export function useHandoffPackage(runId: string | undefined, caseId: string | undefined, enabled: boolean) {
   return useQuery({
     queryKey: agentSpecQueryKeys.handoffPackage(runId ?? '', caseId),
-    queryFn: () => agentApi.getHandoff(runId!, caseId),
+    queryFn: () => agentApi.getHandoff(runId ?? '', caseId),
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     retry: 1,

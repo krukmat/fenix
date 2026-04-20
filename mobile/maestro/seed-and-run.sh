@@ -146,6 +146,8 @@ const pairs = {
   SEED_CONTACT_EMAIL:      seed.contact?.email ?? '',
   SEED_LEAD_ID:            seed.lead?.id ?? '',
   SEED_DEAL_ID:            seed.deal?.id ?? '',
+  SEED_PIPELINE_ID:        seed.pipeline?.id ?? '',
+  SEED_STAGE_ID:           seed.stage?.id ?? '',
   SEED_STALE_DEAL_ID:      seed.staleDeal?.id ?? seed.deal?.id ?? '',
   SEED_CASE_ID:            seed.case?.id ?? '',
   SEED_CASE_SUBJECT:       seed.case?.subject ?? '',
@@ -185,6 +187,8 @@ print_seed_summary() {
   log "SEED_ACCOUNT_ID=${SEED_ACCOUNT_ID}"
   log "SEED_CONTACT_ID=${SEED_CONTACT_ID}"
   log "SEED_DEAL_ID=${SEED_DEAL_ID}"
+  log "SEED_PIPELINE_ID=${SEED_PIPELINE_ID}"
+  log "SEED_STAGE_ID=${SEED_STAGE_ID}"
   log "SEED_STALE_DEAL_ID=${SEED_STALE_DEAL_ID}"
   log "SEED_LEAD_ID=${SEED_LEAD_ID}"
   log "SEED_CASE_ID=${SEED_CASE_ID}"
@@ -210,6 +214,8 @@ run_maestro_flow() {
     -e "SEED_CONTACT_EMAIL=${SEED_CONTACT_EMAIL}" \
     -e "SEED_LEAD_ID=${SEED_LEAD_ID}" \
     -e "SEED_DEAL_ID=${SEED_DEAL_ID}" \
+    -e "SEED_PIPELINE_ID=${SEED_PIPELINE_ID}" \
+    -e "SEED_STAGE_ID=${SEED_STAGE_ID}" \
     -e "SEED_STALE_DEAL_ID=${SEED_STALE_DEAL_ID}" \
     -e "SEED_CASE_ID=${SEED_CASE_ID}" \
     -e "SEED_CASE_SUBJECT=${SEED_CASE_SUBJECT}" \

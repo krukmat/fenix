@@ -92,6 +92,12 @@ type seedOutput struct {
 	Deal struct {
 		ID string `json:"id"`
 	} `json:"deal"`
+	Pipeline struct {
+		ID string `json:"id"`
+	} `json:"pipeline"`
+	Stage struct {
+		ID string `json:"id"`
+	} `json:"stage"`
 	StaleDeal struct {
 		ID string `json:"id"`
 	} `json:"staleDeal"`
@@ -170,7 +176,15 @@ type baseFixtureIDs struct {
 	contactEmail string
 	leadID       string
 	dealID       string
+	pipelineID   string
+	stageID      string
 	staleDealID  string
+}
+
+type dealFixtureIDs struct {
+	dealID     string
+	pipelineID string
+	stageID    string
 }
 
 type caseFixtureIDs struct {
@@ -216,6 +230,8 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		baseFixtures.contactEmail,
 		baseFixtures.leadID,
 		baseFixtures.dealID,
+		baseFixtures.pipelineID,
+		baseFixtures.stageID,
 		baseFixtures.staleDealID,
 		caseFixtures.caseID,
 		caseFixtures.caseSubject,
@@ -243,11 +259,11 @@ func seedBaseFixtures(ctx context.Context, db *sql.DB, auth authResponse, suffix
 		return baseFixtureIDs{}, fmt.Errorf("seedLead: %w", err)
 	}
 
-	dealID, err := seedDeal(ctx, db, auth, accountID, suffix)
+	dealFixtures, err := seedDealFixture(ctx, db, auth, accountID, suffix, false)
 	if err != nil {
 		return baseFixtureIDs{}, fmt.Errorf("seedDeal: %w", err)
 	}
-	if seedKnowledgeErr := seedDealKnowledge(ctx, db, auth, dealID, suffix); seedKnowledgeErr != nil {
+	if seedKnowledgeErr := seedDealKnowledge(ctx, db, auth, dealFixtures.dealID, suffix); seedKnowledgeErr != nil {
 		return baseFixtureIDs{}, fmt.Errorf("seedDealKnowledge: %w", seedKnowledgeErr)
 	}
 	staleDealID, err := seedStaleDeal(ctx, db, auth, accountID, suffix)
@@ -260,7 +276,9 @@ func seedBaseFixtures(ctx context.Context, db *sql.DB, auth authResponse, suffix
 		contactID:    contactID,
 		contactEmail: contactEmail,
 		leadID:       leadID,
-		dealID:       dealID,
+		dealID:       dealFixtures.dealID,
+		pipelineID:   dealFixtures.pipelineID,
+		stageID:      dealFixtures.stageID,
 		staleDealID:  staleDealID,
 	}, nil
 }
@@ -433,13 +451,15 @@ func seedPairedRuns(ctx context.Context, db *sql.DB, auth authResponse, params [
 	return ids, nil
 }
 
-func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, staleDealID, caseID, caseSubject, resolvedCaseID, resolvedCaseSubject string, runs wedgeRunIDs, approvalID, signalID string) *seedOutput {
+func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, pipelineID, stageID, staleDealID, caseID, caseSubject, resolvedCaseID, resolvedCaseSubject string, runs wedgeRunIDs, approvalID, signalID string) *seedOutput {
 	out := &seedOutput{}
 	out.Account.ID = accountID
 	out.Contact.ID = contactID
 	out.Contact.Email = contactEmail
 	out.Lead.ID = leadID
 	out.Deal.ID = dealID
+	out.Pipeline.ID = pipelineID
+	out.Stage.ID = stageID
 	out.StaleDeal.ID = staleDealID
 	out.Case.ID = caseID
 	out.Case.Subject = caseSubject
@@ -511,14 +531,22 @@ func seedLead(ctx context.Context, db *sql.DB, auth authResponse, contactID, acc
 }
 
 func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
-	return seedDealWithAge(ctx, db, auth, accountID, suffix, false)
+	fixture, err := seedDealFixture(ctx, db, auth, accountID, suffix, false)
+	if err != nil {
+		return "", err
+	}
+	return fixture.dealID, nil
 }
 
 func seedStaleDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
-	return seedDealWithAge(ctx, db, auth, accountID, suffix+"_stale", true)
+	fixture, err := seedDealFixture(ctx, db, auth, accountID, suffix+"_stale", true)
+	if err != nil {
+		return "", err
+	}
+	return fixture.dealID, nil
 }
 
-func seedDealWithAge(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string, stale bool) (string, error) {
+func seedDealFixture(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string, stale bool) (dealFixtureIDs, error) {
 	pipelineSvc := crm.NewPipelineService(db)
 	pipeline, err := pipelineSvc.Create(ctx, crm.CreatePipelineInput{
 		WorkspaceID: auth.WorkspaceID,
@@ -526,7 +554,7 @@ func seedDealWithAge(ctx context.Context, db *sql.DB, auth authResponse, account
 		EntityType:  "deal",
 	})
 	if err != nil {
-		return "", err
+		return dealFixtureIDs{}, err
 	}
 
 	stage, err := pipelineSvc.CreateStage(ctx, crm.CreatePipelineStageInput{
@@ -535,7 +563,7 @@ func seedDealWithAge(ctx context.Context, db *sql.DB, auth authResponse, account
 		Position:   1,
 	})
 	if err != nil {
-		return "", err
+		return dealFixtureIDs{}, err
 	}
 
 	svc := crm.NewDealService(db)
@@ -549,7 +577,7 @@ func seedDealWithAge(ctx context.Context, db *sql.DB, auth authResponse, account
 		Status:      "open",
 	})
 	if err != nil {
-		return "", err
+		return dealFixtureIDs{}, err
 	}
 	if stale {
 		createdAt := time.Now().UTC().Add(-20 * 24 * time.Hour).Format(time.RFC3339)
@@ -559,10 +587,10 @@ func seedDealWithAge(ctx context.Context, db *sql.DB, auth authResponse, account
 			SET created_at = ?, updated_at = ?
 			WHERE id = ? AND workspace_id = ?
 		`, createdAt, updatedAt, deal.ID, auth.WorkspaceID); updateErr != nil {
-			return "", updateErr
+			return dealFixtureIDs{}, updateErr
 		}
 	}
-	return deal.ID, nil
+	return dealFixtureIDs{dealID: deal.ID, pipelineID: pipeline.ID, stageID: stage.ID}, nil
 }
 
 func seedDealKnowledge(ctx context.Context, db *sql.DB, auth authResponse, dealID, suffix string) error {

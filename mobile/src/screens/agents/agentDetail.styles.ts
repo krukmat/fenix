@@ -2,6 +2,8 @@
 
 import { StyleSheet } from 'react-native';
 
+const SPACE_BETWEEN = 'space-between' as const;
+
 export const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { justifyContent: 'center', alignItems: 'center', flex: 1 },
@@ -13,7 +15,7 @@ export const styles = StyleSheet.create({
   },
   summaryHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: SPACE_BETWEEN,
     alignItems: 'center',
     marginBottom: 12,
   },
@@ -58,7 +60,7 @@ export const styles = StyleSheet.create({
   },
   evidenceHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: SPACE_BETWEEN,
     alignItems: 'center',
     marginBottom: 8,
   },
@@ -99,13 +101,13 @@ export const styles = StyleSheet.create({
   },
   auditHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: SPACE_BETWEEN,
     alignItems: 'center',
     marginBottom: 8,
   },
   auditFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: SPACE_BETWEEN,
     alignItems: 'center',
   },
   outcomeBadge: {

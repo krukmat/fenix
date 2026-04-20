@@ -24,8 +24,8 @@ class ErrorBoundaryClass extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+  componentDidCatch(_error: Error, _errorInfo: React.ErrorInfo) {
+    // Errors are surfaced via the fallback UI; no logging here
   }
 
   handleReset = () => {

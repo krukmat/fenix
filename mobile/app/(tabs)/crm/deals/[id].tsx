@@ -1,2 +1,5 @@
-// Task Mobile P1.4 — CRM route shim: /crm/deals/[id]
-export { default } from '../../deals/[id]';
+import { CoreCRMDealDetail } from '../../../../src/components/crm/CoreCRMDetailViews';
+
+export default function CRMDealDetailScreen() {
+  return <CoreCRMDealDetail />;
+}

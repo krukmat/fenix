@@ -1,2 +1,6 @@
-// Task Mobile P1.4 — CRM route shim: /crm/accounts/new → /accounts/new
-export { default } from '../../accounts/new';
+import React from 'react';
+import { CRMAccountForm } from '../../../../src/components/crm/CRMAccountForm';
+
+export default function CRMAccountNewScreen() {
+  return <CRMAccountForm mode="create" />;
+}

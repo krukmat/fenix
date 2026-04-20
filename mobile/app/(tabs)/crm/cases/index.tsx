@@ -1,2 +1,5 @@
-// Task Mobile P1.4 — CRM route shim: /crm/cases
-export { default } from '../../cases/index';
+import { CoreCRMCasesList } from '../../../../src/components/crm/CoreCRMListViews';
+
+export default function CRMCasesScreen() {
+  return <CoreCRMCasesList />;
+}

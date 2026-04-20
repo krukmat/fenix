@@ -38,6 +38,8 @@ export interface CRMListScreenProps<T extends CRMListItem> {
   onStatusFilterChange?: (status: string) => void;
   availableStatuses?: string[];
   hasData?: boolean;
+  primaryActionLabel?: string;
+  onPrimaryAction?: () => void;
 }
 
 // Helper to get theme colors
@@ -113,6 +115,8 @@ function ListHeader({
   statusFilter,
   onStatusFilterChange,
   availableStatuses,
+  primaryActionLabel,
+  onPrimaryAction,
 }: {
   colors: ThemeColors;
   testIDPrefix: string;
@@ -121,9 +125,20 @@ function ListHeader({
   statusFilter?: string;
   onStatusFilterChange?: (status: string) => void;
   availableStatuses?: string[];
+  primaryActionLabel?: string;
+  onPrimaryAction?: () => void;
 }) {
   return (
     <View style={styles.header}>
+      {primaryActionLabel && onPrimaryAction ? (
+        <TouchableOpacity
+          testID={`${testIDPrefix}-primary-action`}
+          style={[styles.primaryAction, { backgroundColor: colors.primary }]}
+          onPress={onPrimaryAction}
+        >
+          <Text style={[styles.primaryActionText, { color: colors.onPrimary }]}>{primaryActionLabel}</Text>
+        </TouchableOpacity>
+      ) : null}
       <View style={[styles.searchContainer, { backgroundColor: colors.surfaceVariant, borderColor: colors.outline }]}>
         <TextInput
           style={[styles.searchInput, { color: colors.onSurface }]}
@@ -201,6 +216,8 @@ export function CRMListScreen<T extends CRMListItem>({
   onStatusFilterChange,
   availableStatuses,
   hasData,
+  primaryActionLabel,
+  onPrimaryAction,
 }: CRMListScreenProps<T>) {
   const colors = useThemeColors();
 
@@ -243,6 +260,8 @@ export function CRMListScreen<T extends CRMListItem>({
             statusFilter={statusFilter}
             onStatusFilterChange={onStatusFilterChange}
             availableStatuses={availableStatuses}
+            primaryActionLabel={primaryActionLabel}
+            onPrimaryAction={onPrimaryAction}
           />
         )}
         ListFooterComponent={() => <FooterLoading colors={colors} loadingMore={loadingMore} />}
@@ -262,6 +281,8 @@ const styles = StyleSheet.create({
   centered: { justifyContent: 'center', alignItems: 'center' },
   listContent: { paddingBottom: 16 },
   header: { padding: 16 },
+  primaryAction: { minHeight: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  primaryActionText: { fontSize: 15, fontWeight: '700' },
   searchContainer: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 4 },
   searchInput: { fontSize: 16, paddingVertical: 8 },
   statusFilterContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, gap: 8 },

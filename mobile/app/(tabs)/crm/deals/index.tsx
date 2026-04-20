@@ -1,2 +1,5 @@
-// Task Mobile P1.4 — CRM route shim: /crm/deals
-export { default } from '../../deals/index';
+import { CoreCRMDealsList } from '../../../../src/components/crm/CoreCRMListViews';
+
+export default function CRMDealsScreen() {
+  return <CoreCRMDealsList />;
+}

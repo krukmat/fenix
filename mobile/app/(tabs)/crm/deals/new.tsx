@@ -1,2 +1,6 @@
-// Task Mobile P1.4 — CRM route shim: /crm/deals/new
-export { default } from '../../deals/new';
+import React from 'react';
+import { CRMDealCreateForm } from '../../../../src/components/crm/CRMDealCreateForm';
+
+export default function CRMDealNewScreen() {
+  return <CRMDealCreateForm />;
+}

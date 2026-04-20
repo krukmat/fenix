@@ -16,6 +16,16 @@ import {
   useUpdateDeal,
   useCreateCase,
   useUpdateCase,
+  usePipelines,
+  usePipelineStages,
+  useActivities,
+  useEntityTimeline,
+  useCreateAccount,
+  useUpdateAccount,
+  useCreateContact,
+  useDeleteDeal,
+  useCreateNote,
+  useDeleteAttachment,
   useAgentRuns,
   useAgentRun,
   useAgentDefinitions,
@@ -53,8 +63,18 @@ jest.mock('../../src/services/api', () => ({
     getCaseFull: jest.fn(),
     createDeal: jest.fn(),
     updateDeal: jest.fn(),
+    deleteDeal: jest.fn(),
     createCase: jest.fn(),
     updateCase: jest.fn(),
+    getPipelines: jest.fn(),
+    getPipelineStages: jest.fn(),
+    getActivities: jest.fn(),
+    getTimelineByEntity: jest.fn(),
+    createAccount: jest.fn(),
+    updateAccount: jest.fn(),
+    createContact: jest.fn(),
+    createNote: jest.fn(),
+    deleteAttachment: jest.fn(),
   },
   agentApi: {
     getRuns: jest.fn(),
@@ -88,6 +108,10 @@ describe('useCRM hooks', () => {
       expect(queryKeys.lead('ws', 'id-lead')).toEqual(['lead', 'ws', 'id-lead']);
       expect(queryKeys.cases('ws')).toEqual(['cases', 'ws']);
       expect(queryKeys.case('ws', 'id-4')).toEqual(['case', 'ws', 'id-4']);
+      expect(queryKeys.pipelines('ws')).toEqual(['pipelines', 'ws']);
+      expect(queryKeys.pipelineStages('ws', 'pipe-1')).toEqual(['pipeline-stages', 'ws', 'pipe-1']);
+      expect(queryKeys.activities('ws')).toEqual(['activities', 'ws']);
+      expect(queryKeys.entityTimeline('ws', 'case', 'case-1')).toEqual(['timeline', 'ws', 'case', 'case-1']);
       expect(queryKeys.agentRuns('ws')).toEqual(['agent-runs', 'ws']);
       expect(queryKeys.agentRun('ws', 'id-5')).toEqual(['agent-run', 'ws', 'id-5']);
       expect(queryKeys.agentDefinitions('ws')).toEqual(['agent-definitions', 'ws']);
@@ -194,6 +218,30 @@ describe('useCRM hooks', () => {
     );
   });
 
+  it('new CRM query hooks should use workspace-isolated keys', () => {
+    usePipelines();
+    usePipelineStages('pipe-1');
+    useActivities();
+    useEntityTimeline('case', 'case-1');
+
+    expect(mockUseInfiniteQuery).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ queryKey: ['pipelines', 'ws-1'], enabled: true })
+    );
+    expect(mockUseQuery).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ queryKey: ['pipeline-stages', 'ws-1', 'pipe-1'], enabled: true })
+    );
+    expect(mockUseInfiniteQuery).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ queryKey: ['activities', 'ws-1'], enabled: true })
+    );
+    expect(mockUseQuery).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ queryKey: ['timeline', 'ws-1', 'case', 'case-1'], enabled: true })
+    );
+  });
+
   it('should disable queries when workspaceId is missing', () => {
     mockUseAuthStore.mockImplementation((selector: unknown) =>
       (selector as (state: { workspaceId: string | null }) => unknown)({ workspaceId: null })
@@ -246,5 +294,49 @@ describe('useCRM hooks', () => {
 
     expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['cases', 'ws-1'] });
     expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['case', 'ws-1', 'c-1'] });
+  });
+
+  it('new CRM mutations should invalidate affected query keys', () => {
+    useCreateAccount();
+    (mockUseMutation.mock.calls[0][0] as { onSuccess?: () => void }).onSuccess?.();
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['accounts', 'ws-1'] });
+
+    jest.clearAllMocks();
+    useUpdateAccount();
+    (mockUseMutation.mock.calls[0][0] as { onSuccess?: (_result: unknown, vars: { id: string }) => void })
+      .onSuccess?.({}, { id: 'acc-1' });
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['accounts', 'ws-1'] });
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['account', 'ws-1', 'acc-1'] });
+
+    jest.clearAllMocks();
+    useCreateContact();
+    (mockUseMutation.mock.calls[0][0] as { onSuccess?: (_result: unknown, data: { accountId?: string }) => void })
+      .onSuccess?.({}, { accountId: 'acc-1' });
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['contacts', 'ws-1'] });
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['account-contacts', 'ws-1', 'acc-1'] });
+
+    jest.clearAllMocks();
+    useDeleteDeal();
+    (mockUseMutation.mock.calls[0][0] as { onSuccess?: (_result: unknown, id: string) => void })
+      .onSuccess?.({}, 'deal-1');
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['deals', 'ws-1'] });
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['deal', 'ws-1', 'deal-1'] });
+  });
+
+  it('entity child mutations should invalidate entity timeline where available', () => {
+    useCreateNote();
+    (mockUseMutation.mock.calls[0][0] as {
+      onSuccess?: (_result: unknown, data: { entityType: string; entityId: string }) => void;
+    }).onSuccess?.({}, { entityType: 'case', entityId: 'case-1' });
+
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['notes', 'ws-1'] });
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['timeline', 'ws-1', 'case', 'case-1'] });
+
+    jest.clearAllMocks();
+    useDeleteAttachment();
+    (mockUseMutation.mock.calls[0][0] as { onSuccess?: (_result: unknown, id: string) => void })
+      .onSuccess?.({}, 'att-1');
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['attachments', 'ws-1'] });
+    expect(mockInvalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['attachment', 'ws-1', 'att-1'] });
   });
 });

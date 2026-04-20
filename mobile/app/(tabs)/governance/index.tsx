@@ -11,6 +11,8 @@ import { wedgeHref } from '../../../src/utils/navigation';
 import type { ThemeColors } from '../../../src/theme/types';
 import type { UsageEvent, QuotaStateItem, GovernanceSummary } from '../../../src/services/api.types';
 
+const SPACE_BETWEEN = 'space-between' as const;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function useColors(): ThemeColors {
@@ -165,13 +167,13 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   section: { padding: 16 },
   sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: SPACE_BETWEEN, alignItems: 'center', marginBottom: 12 },
   viewAllLink: { fontSize: 13, fontWeight: '600' },
   auditLinkSection: { paddingTop: 0 },
-  auditLinkRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 8 },
+  auditLinkRow: { flexDirection: 'row', justifyContent: SPACE_BETWEEN, alignItems: 'center', padding: 14, borderRadius: 8 },
   auditLinkText: { fontSize: 15, fontWeight: '600' },
   quotaCard: { padding: 14, borderRadius: 8, marginBottom: 10 },
-  quotaHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  quotaHeader: { flexDirection: 'row', justifyContent: SPACE_BETWEEN, alignItems: 'center', marginBottom: 8 },
   quotaBar: { height: 6, borderRadius: 3, backgroundColor: '#E5E7EB', overflow: 'hidden' },
   quotaFill: { height: 6, borderRadius: 3 },
 });

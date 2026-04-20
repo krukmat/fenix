@@ -124,7 +124,6 @@ export default function RegisterScreen() {
         workspaceId: response.workspaceId,
       });
     } catch (err) {
-      console.error('Register error:', err);
       if (isAxiosError(err) && err.response?.status === 409) {
         setError('User already exists');
       } else {

@@ -1,2 +1,6 @@
-// Task Mobile P1.4 — CRM route shim: /crm/cases/new
-export { default } from '../../cases/new';
+import React from 'react';
+import { CRMCaseForm } from '../../../../src/components/crm/CRMCaseForm';
+
+export default function CRMCaseNewScreen() {
+  return <CRMCaseForm mode="create" />;
+}

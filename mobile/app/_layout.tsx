@@ -56,8 +56,8 @@ function RootLayout() {
       try {
         // Load stored token from SecureStore
         await loadStoredToken();
-      } catch (e) {
-        console.warn('Error loading stored token:', e);
+      } catch {
+        // loadStoredToken handles its own error state
       } finally {
         setIsReady(true);
         // Hide splash screen after loading

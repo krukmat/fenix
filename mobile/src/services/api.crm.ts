@@ -1,5 +1,8 @@
 // Task 4.2 — FR-300: CRM and Auth API methods
 import { apiClient } from './api.client';
+import { crmEndpointApi } from './api.crm.endpoints';
+
+const CRM_BASE = '/bff/api/v1';
 
 export const authApi = {
   login: async (email: string, password: string) => {
@@ -36,27 +39,37 @@ function extractSignalCount(obj: Record<string, unknown> | null): number {
 }
 
 export const crmApi = {
+  ...crmEndpointApi,
+
   getAccounts: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/api/v1/accounts', {
+    const response = await apiClient.get(`${CRM_BASE}/accounts`, {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
   },
 
-  createAccount: async (data: { name: string; industry?: string }) => {
-    const response = await apiClient.post('/bff/api/v1/accounts', data);
+  createAccount: async (data: {
+    name: string;
+    industry?: string;
+    website?: string;
+    phone?: string;
+    email?: string;
+    description?: string;
+    ownerId?: string;
+  }) => {
+    const response = await apiClient.post(`${CRM_BASE}/accounts`, data);
     return response.data;
   },
 
   getContacts: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/api/v1/contacts', {
+    const response = await apiClient.get(`${CRM_BASE}/contacts`, {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
   },
 
   getDeals: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/api/v1/deals', {
+    const response = await apiClient.get(`${CRM_BASE}/deals`, {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
@@ -66,14 +79,14 @@ export const crmApi = {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 50;
     const offset = (page - 1) * limit;
-    const response = await apiClient.get('/bff/api/v1/leads', {
+    const response = await apiClient.get(`${CRM_BASE}/leads`, {
       params: { workspace_id: workspaceId, limit, offset },
     });
     return response.data;
   },
 
   getCases: async (workspaceId: string, pagination?: { page?: number; limit?: number }) => {
-    const response = await apiClient.get('/bff/api/v1/cases', {
+    const response = await apiClient.get(`${CRM_BASE}/cases`, {
       params: { workspace_id: workspaceId, page: pagination?.page ?? 1, limit: pagination?.limit ?? 50 },
     });
     return response.data;
@@ -92,7 +105,7 @@ export const crmApi = {
     status?: string;
     metadata?: string;
   }) => {
-    const response = await apiClient.post('/bff/api/v1/deals', data);
+    const response = await apiClient.post(`${CRM_BASE}/deals`, data);
     return response.data;
   },
 
@@ -109,7 +122,7 @@ export const crmApi = {
     status?: string;
     metadata?: string;
   }) => {
-    const response = await apiClient.put(`/bff/api/v1/deals/${id}`, data);
+    const response = await apiClient.put(`${CRM_BASE}/deals/${id}`, data);
     return response.data;
   },
 
@@ -128,7 +141,7 @@ export const crmApi = {
     slaDeadline?: string;
     metadata?: string;
   }) => {
-    const response = await apiClient.post('/bff/api/v1/cases', data);
+    const response = await apiClient.post(`${CRM_BASE}/cases`, data);
     return response.data;
   },
 
@@ -147,16 +160,16 @@ export const crmApi = {
     slaDeadline?: string;
     metadata?: string;
   }) => {
-    const response = await apiClient.put(`/bff/api/v1/cases/${id}`, data);
+    const response = await apiClient.put(`${CRM_BASE}/cases/${id}`, data);
     return response.data;
   },
 
   getAccountFull: async (id: string) => {
     const [account, contacts, deals, timeline] = await Promise.all([
-      apiClient.get(`/bff/api/v1/accounts/${id}`).then((response) => response.data),
-      getOrNull(`/bff/api/v1/accounts/${id}/contacts`),
-      getOrNull('/bff/api/v1/deals', { account_id: id, limit: 50 }),
-      getOrNull(`/bff/api/v1/timeline/account/${id}`),
+      apiClient.get(`${CRM_BASE}/accounts/${id}`).then((response) => response.data),
+      getOrNull(`${CRM_BASE}/accounts/${id}/contacts`),
+      getOrNull(`${CRM_BASE}/deals`, { account_id: id, limit: 50 }),
+      getOrNull(`${CRM_BASE}/timeline/account/${id}`),
     ]);
     return {
       account,
@@ -169,28 +182,28 @@ export const crmApi = {
   },
 
   getDealFull: async (id: string) => {
-    const deal = await apiClient.get(`/bff/api/v1/deals/${id}`).then((response) => response.data);
+    const deal = await apiClient.get(`${CRM_BASE}/deals/${id}`).then((response) => response.data);
     const d = deal as Record<string, unknown> | null;
     const accountId = extractId(d, 'accountId', 'account_id');
     const contactId = extractId(d, 'contactId', 'contact_id');
     const [account, contact, activities] = await Promise.all([
-      accountId ? getOrNull(`/bff/api/v1/accounts/${accountId}`) : Promise.resolve(null),
-      contactId ? getOrNull(`/bff/api/v1/contacts/${contactId}`) : Promise.resolve(null),
-      getOrNull('/bff/api/v1/activities', { deal_id: id, limit: 50 }),
+      accountId ? getOrNull(`${CRM_BASE}/accounts/${accountId}`) : Promise.resolve(null),
+      contactId ? getOrNull(`${CRM_BASE}/contacts/${contactId}`) : Promise.resolve(null),
+      getOrNull(`${CRM_BASE}/activities`, { deal_id: id, limit: 50 }),
     ]);
     return { deal, account, contact, activities, active_signal_count: extractSignalCount(d) };
   },
 
   getCaseFull: async (id: string) => {
-    const caseData = await apiClient.get(`/bff/api/v1/cases/${id}`).then((response) => response.data);
+    const caseData = await apiClient.get(`${CRM_BASE}/cases/${id}`).then((response) => response.data);
     const c = caseData as Record<string, unknown> | null;
     const accountId = extractId(c, 'accountId', 'account_id');
     const contactId = extractId(c, 'contactId', 'contact_id');
     const handoffStatus = extractId(c, 'handoffStatus', 'handoff_status');
     const [account, contact, activities] = await Promise.all([
-      accountId ? getOrNull(`/bff/api/v1/accounts/${accountId}`) : Promise.resolve(null),
-      contactId ? getOrNull(`/bff/api/v1/contacts/${contactId}`) : Promise.resolve(null),
-      getOrNull('/bff/api/v1/activities', { case_id: id, limit: 50 }),
+      accountId ? getOrNull(`${CRM_BASE}/accounts/${accountId}`) : Promise.resolve(null),
+      contactId ? getOrNull(`${CRM_BASE}/contacts/${contactId}`) : Promise.resolve(null),
+      getOrNull(`${CRM_BASE}/activities`, { case_id: id, limit: 50 }),
     ]);
     return {
       case: caseData,
@@ -203,12 +216,12 @@ export const crmApi = {
   },
 
   getContact: async (id: string) => {
-    const response = await apiClient.get(`/bff/api/v1/contacts/${id}`);
+    const response = await apiClient.get(`${CRM_BASE}/contacts/${id}`);
     return response.data;
   },
 
   getLead: async (id: string) => {
-    const response = await apiClient.get(`/bff/api/v1/leads/${id}`);
+    const response = await apiClient.get(`${CRM_BASE}/leads/${id}`);
     return response.data;
   },
 };

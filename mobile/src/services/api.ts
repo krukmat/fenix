@@ -63,6 +63,40 @@ export type {
   InboxResponse,
 } from './api.types';
 
+export type {
+  CRMEntityType,
+  CRMPageMeta,
+  CRMListResponse,
+  CRMBaseEntity,
+  CRMOwnedEntity,
+  CRMAccount,
+  CRMContact,
+  CRMLead,
+  CRMPipeline,
+  CRMPipelineStage,
+  CRMDeal,
+  CRMCase,
+  CRMActivity,
+  CRMNote,
+  CRMAttachment,
+  CRMTimelineEvent,
+} from './api.crm.types';
+
+export {
+  normalizeCRMList,
+  normalizeCRMAccount,
+  normalizeCRMContact,
+  normalizeCRMLead,
+  normalizeCRMPipeline,
+  normalizeCRMPipelineStage,
+  normalizeCRMDeal,
+  normalizeCRMCase,
+  normalizeCRMActivity,
+  normalizeCRMNote,
+  normalizeCRMAttachment,
+  normalizeCRMTimelineEvent,
+} from './api.crm.normalizers';
+
 export { agentApi, salesBriefApi } from './api.agents';
 export { signalApi, toolApi, approvalApi, inboxApi, governanceApi } from './api.secondary';
 export { authApi, crmApi } from './api.crm';

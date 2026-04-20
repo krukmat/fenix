@@ -54,7 +54,7 @@ export function renderDealItem(
       )}
       {(item.amount ?? item.value) !== undefined && (
         <Text style={[styles.dealValue, { color: colors.onSurfaceVariant }]}>
-          ${(item.amount ?? item.value)!.toLocaleString()}
+          ${((item.amount ?? item.value) as number).toLocaleString()}
         </Text>
       )}
       <View style={styles.badgeRow}>

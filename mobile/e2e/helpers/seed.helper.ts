@@ -18,6 +18,12 @@ export type WedgeSeed = {
   deal: {
     id: string;
   };
+  pipeline: {
+    id: string;
+  };
+  stage: {
+    id: string;
+  };
   case: {
     id: string;
     subject: string;

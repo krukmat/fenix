@@ -15,6 +15,7 @@ interface EntityCard {
 const ENTITIES: EntityCard[] = [
   { label: 'Accounts', icon: '🏢', route: '/crm/accounts', testID: 'crm-hub-accounts' },
   { label: 'Contacts', icon: '👤', route: '/crm/contacts', testID: 'crm-hub-contacts' },
+  { label: 'Leads', icon: '🎯', route: '/crm/leads', testID: 'crm-hub-leads' },
   { label: 'Deals', icon: '💼', route: '/crm/deals', testID: 'crm-hub-deals' },
   { label: 'Cases', icon: '🎫', route: '/crm/cases', testID: 'crm-hub-cases' },
 ];

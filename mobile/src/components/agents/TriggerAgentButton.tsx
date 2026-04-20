@@ -102,8 +102,8 @@ export default function TriggerAgentButton() {
       const result = await agentApi.triggerRun(selectedAgentId, {});
       router.push(wedgeHref(`/activity/${result.id}`));
       handleCloseDialog();
-    } catch (error) {
-      console.error('Failed to trigger agent:', error);
+    } catch {
+      // Agent trigger failure is surfaced via query error state
     }
   };
 

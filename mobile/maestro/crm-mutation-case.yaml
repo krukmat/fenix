@@ -1,0 +1,90 @@
+# mobile_core_crm_validation_plan.md — Wave 8D: Mutation UAT path
+#
+# Validates the create-Case mutation path end-to-end:
+#   1. Navigate to /crm/cases list (authenticated session already bootstrapped)
+#   2. Tap "New Case" primary action
+#   3. Fill the subject field with a stable UAT value
+#   4. Submit and wait for router to return to /crm/cases
+#   5. Assert the new case subject appears in the refreshed list
+#
+# Pre-conditions:
+#   - Session bootstrapped via e2e-bootstrap deep link (SEED_BOOTSTRAP_URL exported
+#     by seed-and-run.sh before this flow runs).
+#   - Backend and BFF are healthy (checked by seed-and-run.sh).
+#   - At least the seed account exists so the cases list is reachable.
+#
+# The subject value is stable and deterministic so repeated runs are idempotent
+# from a UAT verification standpoint (each run creates a new case; the list check
+# only needs to see the text visible somewhere in the list).
+appId: com.fenixcrm.app
+name: CRM Mutation UAT - Create Case
+tags:
+  - crm-mutation
+  - uat
+  - wave-8d
+
+---
+
+# ── 0. Re-bootstrap session (idempotent guard) ────────────────────────────────
+# seed-and-run.sh calls this flow AFTER authenticated-audit.yaml so the session
+# is already live. The openLink here is a no-op if the app is still authed;
+# if the session expired it re-establishes without login UI interaction.
+
+- openLink: ${SEED_BOOTSTRAP_URL}
+- extendedWaitUntil:
+    visible:
+      id: "inbox-screen"
+    timeout: 30000
+
+# ── 1. Navigate to /crm/cases list ───────────────────────────────────────────
+
+- openLink: "fenixcrm:///crm/cases"
+- extendedWaitUntil:
+    visible:
+      id: "crm-cases-list"
+    timeout: 20000
+- assertVisible:
+    id: "crm-cases-primary-action"
+- takeScreenshot:
+    path: "22_crm_cases_list_before_create"
+
+# ── 2. Open create-case form via primary action ───────────────────────────────
+
+- tapOn:
+    id: "crm-cases-primary-action"
+- extendedWaitUntil:
+    visible:
+      id: "crm-case-form-screen"
+    timeout: 20000
+- assertVisible:
+    id: "crm-case-form-subject"
+- takeScreenshot:
+    path: "23_crm_case_form_empty"
+
+# ── 3. Fill subject and submit ────────────────────────────────────────────────
+
+- tapOn:
+    id: "crm-case-form-subject"
+- inputText: "UAT Case Wave 8D"
+- tapOn:
+    id: "crm-case-form-submit"
+
+# ── 4. Wait for router to return to cases list ────────────────────────────────
+# createCase.mutateAsync resolves, then router.replace('/crm/cases') fires.
+# React Query invalidates the cases list cache → list refetches before render.
+
+- extendedWaitUntil:
+    visible:
+      id: "crm-cases-list"
+    timeout: 30000
+- takeScreenshot:
+    path: "24_crm_cases_list_after_create"
+
+# ── 5. Verify the new case subject appears in the list ────────────────────────
+# assertVisible on text works even if the item is not at index 0, because
+# Maestro scans the full visible render tree for matching text.
+
+- assertVisible:
+    text: "UAT Case Wave 8D"
+- takeScreenshot:
+    path: "25_crm_cases_mutation_verified"

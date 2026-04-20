@@ -144,7 +144,7 @@ describe('Home screen (index)', () => {
 // ─── CRM Hub ─────────────────────────────────────────────────────────────────
 
 describe('CRM Hub screen', () => {
-  it('renders 4 entity cards', () => {
+  it('renders 5 entity cards', () => {
     const { getByTestId } = render(
       <PaperProvider>
         <CRMHub />
@@ -152,6 +152,7 @@ describe('CRM Hub screen', () => {
     );
     expect(getByTestId('crm-hub-accounts')).toBeTruthy();
     expect(getByTestId('crm-hub-contacts')).toBeTruthy();
+    expect(getByTestId('crm-hub-leads')).toBeTruthy();
     expect(getByTestId('crm-hub-deals')).toBeTruthy();
     expect(getByTestId('crm-hub-cases')).toBeTruthy();
   });
@@ -174,5 +175,15 @@ describe('CRM Hub screen', () => {
     );
     fireEvent.press(getByTestId('crm-hub-deals'));
     expect(mockPush).toHaveBeenCalledWith('/crm/deals');
+  });
+
+  it('navigates to /crm/leads when Leads card is pressed', () => {
+    const { getByTestId } = render(
+      <PaperProvider>
+        <CRMHub />
+      </PaperProvider>
+    );
+    fireEvent.press(getByTestId('crm-hub-leads'));
+    expect(mockPush).toHaveBeenCalledWith('/crm/leads');
   });
 });

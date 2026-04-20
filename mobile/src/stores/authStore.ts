@@ -41,7 +41,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         isAuthenticated: true,
       });
     } catch (error) {
-      console.error('Failed to login:', error);
       throw error;
     }
   },
@@ -54,22 +53,21 @@ export const useAuthStore = create<AuthState>((set) => ({
       workspaceId: null,
       isAuthenticated: false,
     });
-    
+
     try {
       // Try to delete from SecureStore
       await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-    } catch (error) {
-      // Log but don't throw - logout must always complete from user perspective
-      console.error('Failed to delete token from SecureStore:', error);
+    } catch {
+      // Swallow — logout must always complete from user perspective
     }
   },
 
   loadStoredToken: async () => {
     set({ isLoading: true });
-    
+
     try {
       const stored = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
-      
+
       if (stored) {
         const data: AuthData = JSON.parse(stored);
         set({
@@ -82,8 +80,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       } else {
         set({ isLoading: false });
       }
-    } catch (error) {
-      console.error('Failed to load stored token:', error);
+    } catch {
       set({ isLoading: false });
     }
   },

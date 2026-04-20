@@ -40,7 +40,7 @@ export function useInbox() {
 
   return useQuery({
     queryKey: wedgeQueryKeys.inbox(workspaceId ?? ''),
-    queryFn: () => inboxApi.getInbox(workspaceId!),
+    queryFn: () => inboxApi.getInbox(workspaceId ?? ''),
     staleTime: 15_000,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -106,7 +106,7 @@ export function useSalesBrief(entityType: string, entityId: string, enabled = tr
 export function useRunUsage(runId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: wedgeQueryKeys.runUsage(runId ?? ''),
-    queryFn: () => agentApi.getRunUsage(runId!),
+    queryFn: () => agentApi.getRunUsage(runId ?? ''),
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -123,7 +123,7 @@ export function useAgentRuns(filters?: { status?: AgentRunPublicStatus }) {
 
   return useQuery({
     queryKey: wedgeQueryKeys.agentRuns(workspaceId ?? '', filters),
-    queryFn: () => agentApi.getRuns(workspaceId!, { limit: 50 }, filters),
+    queryFn: () => agentApi.getRuns(workspaceId ?? '', { limit: 50 }, filters),
     staleTime: 15_000,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -226,7 +226,7 @@ export function useGovernanceSummary() {
 
   return useQuery({
     queryKey: wedgeQueryKeys.governanceSummary(workspaceId ?? ''),
-    queryFn: () => governanceApi.getSummary(workspaceId!),
+    queryFn: () => governanceApi.getSummary(workspaceId ?? ''),
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -241,7 +241,7 @@ export function useAuditEvents(filters?: AuditFilters, page = 1) {
 
   return useQuery({
     queryKey: wedgeQueryKeys.auditEvents(workspaceId ?? '', filters, page),
-    queryFn: () => governanceApi.getAuditEvents(workspaceId!, filters, { page, limit: 20 }),
+    queryFn: () => governanceApi.getAuditEvents(workspaceId ?? '', filters, { page, limit: 20 }),
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     retry: 1,
@@ -256,7 +256,7 @@ export function useUsageEvents(filters?: UsageFilters, page = 1) {
 
   return useQuery({
     queryKey: wedgeQueryKeys.usageEvents(workspaceId ?? '', filters, page),
-    queryFn: () => governanceApi.getUsageEvents(workspaceId!, filters, { page, limit: 20 }),
+    queryFn: () => governanceApi.getUsageEvents(workspaceId ?? '', filters, { page, limit: 20 }),
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     retry: 1,

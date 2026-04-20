@@ -11,6 +11,8 @@ import { EntitySignalsSection } from '../../../src/components/signals/EntitySign
 import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
 import type { ThemeColors } from '../../../src/theme/types';
 
+const NOT_SPECIFIED = 'Not specified';
+
 function useColors(): ThemeColors {
   const theme = useTheme();
   return theme.colors as ThemeColors;
@@ -40,10 +42,10 @@ function getStatusColor(status: string): string {
 
 function getMetadata(deal: DealDetailData) {
   return [
-    { label: 'Value', value: (deal.amount ?? deal.value) ? `$${(deal.amount ?? deal.value)!.toLocaleString()}` : 'Not specified' },
-    { label: 'Stage', value: deal.stage || 'Not specified' },
+    { label: 'Value', value: (deal.amount ?? deal.value) ? `$${((deal.amount ?? deal.value) as number).toLocaleString()}` : NOT_SPECIFIED },
+    { label: 'Stage', value: deal.stage || NOT_SPECIFIED },
     { label: 'Pipeline', value: deal.pipeline || 'Default' },
-    { label: 'Close Date', value: deal.closeDate || 'Not specified' },
+    { label: 'Close Date', value: deal.closeDate || NOT_SPECIFIED },
   ];
 }
 

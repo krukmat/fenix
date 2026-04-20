@@ -11,6 +11,10 @@ import { useAccount } from '../../../src/hooks/useCRM';
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import type { ThemeColors } from '../../../src/theme/types';
 
+const NOT_AVAILABLE = 'Not available';
+const NOT_SPECIFIED = 'Not specified';
+const SPACE_BETWEEN = 'space-between' as const;
+
 function useColors(): ThemeColors {
   const theme = useTheme();
   return theme.colors as ThemeColors;
@@ -23,10 +27,10 @@ interface AccountData { id: string; name?: string; industry?: string; phone?: st
 
 function getMetadata(account: AccountData) {
   return [
-    { label: 'Industry', value: account.industry || 'Not specified' },
-    { label: 'Phone', value: account.phone || 'Not available' },
-    { label: 'Email', value: account.email || 'Not available' },
-    { label: 'Website', value: account.website || 'Not available' },
+    { label: 'Industry', value: account.industry || NOT_SPECIFIED },
+    { label: 'Phone', value: account.phone || NOT_AVAILABLE },
+    { label: 'Email', value: account.email || NOT_AVAILABLE },
+    { label: 'Website', value: account.website || NOT_AVAILABLE },
   ];
 }
 
@@ -231,7 +235,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: SPACE_BETWEEN,
     marginBottom: 12,
   },
   sectionCount: {
@@ -253,7 +257,7 @@ const styles = StyleSheet.create({
   contactHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: SPACE_BETWEEN,
     marginBottom: 4,
   },
   contactName: {
@@ -268,7 +272,7 @@ const styles = StyleSheet.create({
   contactSubline: {
     fontSize: 12,
   },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: SPACE_BETWEEN },
   badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   badgeText: { color: '#FFF', fontSize: 12, fontWeight: '500' },
 });

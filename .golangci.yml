@@ -60,13 +60,11 @@ linters-settings:
 
   revive:
     rules:
-      - name: add-constant
-        severity: error
-        arguments:
-          - maxLitCount: "3"
-            allowStrs: '""'
-            allowInts: "0,1,2"
-            allowFloats: "0.0,0.,1.0,1.,2.0,2."
+      # add-constant for numeric literals is too noisy on ML/scoring code with thresholds.
+      # String constant duplication is already caught by goconst.
+      # Keeping revive enabled for its other checks (exported-functions, error-return, etc.)
+      - name: exported
+        severity: warning
 
   govet:
     enable:
@@ -155,11 +153,45 @@ issues:
         - errorlint
         - interfacebloat
         - depguard
+    # scripts/ are CLI tools and seed helpers, not hot-path production code
+    - path: ^scripts/
+      linters: [prealloc, revive, gocritic]
+    # cmd/ are entry points — prealloc not critical, add-constant too noisy for CLI arg parsing
+    - path: ^cmd/
+      linters: [prealloc, revive]
+    # pkg/auth panic is an init-time guard: missing JWT_SECRET at startup must be fatal
+    - path: pkg/auth/auth\.go
+      linters: [gocritic]
+      text: "panic in production"
+    # SQLite extension registration: log.Fatalf at init is the correct Go pattern for
+    # sqlite-vec function registration failures — cannot return error from init-style hook
+    - path: internal/infra/sqlite/vector_functions\.go
+      linters: [gocritic]
+      text: "log.Fatalf"
+    # _, _ = io.Copy is idiomatic for response body drain — errors are not actionable
+    - path: internal/api/handlers/
+      linters: [gocritic]
+      text: "silent error drop.*io\\.Copy"
+    # _, _ = io.Copy in report handler — draining body, error not recoverable
+    - path: internal/api/handlers/report\.go
+      linters: [gocritic]
+      text: "silent error drop"
+    # _, _ usage.RecordEvent: fire-and-forget telemetry — must not block agent/copilot flows
+    - text: "silent error drop.*usage\\.RecordEvent"
+      linters: [gocritic]
+    # _, _ handoffSvc.InitiateHandoff in non-blocking paths: error already logged inside
+    - text: "silent error drop.*handoffSvc\\.InitiateHandoff"
+      linters: [gocritic]
+    # rand.Read in uuid pkg: crypto/rand.Read only errors on OS failure, unrecoverable
+    - path: pkg/uuid/uuid\.go
+      linters: [gocritic, revive]
+      text: "silent error drop|add-constant"
   # Exclude generated code (aligned with Makefile coverage-gate exclusions, lines 104-107)
   exclude-dirs:
     - internal/infra/sqlite/sqlcgen  # sqlc generated code
     - ruleguard
     - vendor
+    - bff/node_modules               # JS node_modules contain Go pkg (flatted) — not our code
   exclude-files:
     - ".*\\.pb\\.go$"  # Future protobuf generated files
     - ".*_test\\.go$"  # Test files (allowed to be complex, caught by gocyclo instead)

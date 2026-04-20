@@ -101,6 +101,9 @@ Capturas esperadas:
 - `16_contacts_list`
 - `17_contact_detail`
 - `18_workflows_list`
+- `19_crm_hub`
+- `20_crm_accounts_list`
+- `21_crm_account_detail`
 
 ## Definición de Done para PR (DoD)
 

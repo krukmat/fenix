@@ -3,31 +3,13 @@
 
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { crmApi, agentApi } from '../services/api';
-import { useAuthStore } from '../stores/authStore';
+import { queryKeys, useWorkspaceId } from './useCRM.keys';
 
 const PAGE_SIZE = 50;
 
-// Query keys pattern (workspace isolation)
-export const queryKeys = {
-  accounts: (workspaceId: string) => ['accounts', workspaceId] as const,
-  account: (workspaceId: string, id: string) => ['account', workspaceId, id] as const,
-  contacts: (workspaceId: string) => ['contacts', workspaceId] as const,
-  contact: (workspaceId: string, id: string) => ['contact', workspaceId, id] as const,
-  deals: (workspaceId: string) => ['deals', workspaceId] as const,
-  deal: (workspaceId: string, id: string) => ['deal', workspaceId, id] as const,
-  leads: (workspaceId: string) => ['leads', workspaceId] as const,
-  lead: (workspaceId: string, id: string) => ['lead', workspaceId, id] as const,
-  cases: (workspaceId: string) => ['cases', workspaceId] as const,
-  case: (workspaceId: string, id: string) => ['case', workspaceId, id] as const,
-  agentRuns: (workspaceId: string) => ['agent-runs', workspaceId] as const,
-  agentRun: (workspaceId: string, id: string) => ['agent-run', workspaceId, id] as const,
-  agentDefinitions: (workspaceId: string) => ['agent-definitions', workspaceId] as const,
-};
-
-// Hook to get workspaceId from auth store - returns null if not available
-function useWorkspaceId(): string | null {
-  return useAuthStore((state) => state.workspaceId);
-}
+export { queryKeys } from './useCRM.keys';
+export * from './useCRM.full';
+export * from './useCRM.entityMutations';
 
 function useInfiniteWorkspaceList<TPage extends { total?: number; data?: unknown[] }>(
   buildQueryKey: (workspaceId: string) => readonly unknown[],
@@ -37,7 +19,7 @@ function useInfiniteWorkspaceList<TPage extends { total?: number; data?: unknown
 ) {
   return useInfiniteQuery({
     queryKey: buildQueryKey(workspaceId ?? ''),
-    queryFn: ({ pageParam }: { pageParam: number }) => fetchPage(workspaceId!, pageParam),
+    queryFn: ({ pageParam }: { pageParam: number }) => fetchPage(workspaceId ?? '', pageParam),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
       const total = lastPage.total ?? 0;
@@ -254,7 +236,7 @@ export function useAgentDefinitions() {
   const workspaceId = useWorkspaceId();
   return useQuery({
     queryKey: queryKeys.agentDefinitions(workspaceId ?? ''),
-    queryFn: () => agentApi.getDefinitions(workspaceId!),
+    queryFn: () => agentApi.getDefinitions(workspaceId ?? ''),
     staleTime: 5 * 60_000, // 5 minutes - definitions don't change often
     gcTime: 30 * 60_000,
     retry: 1,

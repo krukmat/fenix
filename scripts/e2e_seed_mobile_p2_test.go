@@ -23,6 +23,8 @@ func TestSeedOutputExposesAuthBlock(t *testing.T) {
 	out.Auth.Token = "tok-abc.def.ghi"
 	out.Auth.UserID = "user-xyz"
 	out.Auth.WorkspaceID = "ws-xyz"
+	out.Pipeline.ID = "pipe-xyz"
+	out.Stage.ID = "stage-xyz"
 
 	encoded, err := json.Marshal(out)
 	if err != nil {
@@ -58,6 +60,22 @@ func TestSeedOutputExposesAuthBlock(t *testing.T) {
 	}
 	if creds["password"] != "seed-password" {
 		t.Errorf("credentials.password = %v, want seed-password", creds["password"])
+	}
+
+	pipeline, ok := decoded["pipeline"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected seedOutput JSON to contain a 'pipeline' object, got: %s", string(encoded))
+	}
+	if pipeline["id"] != "pipe-xyz" {
+		t.Errorf("pipeline.id = %v, want pipe-xyz", pipeline["id"])
+	}
+
+	stage, ok := decoded["stage"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected seedOutput JSON to contain a 'stage' object, got: %s", string(encoded))
+	}
+	if stage["id"] != "stage-xyz" {
+		t.Errorf("stage.id = %v, want stage-xyz", stage["id"])
 	}
 }
 

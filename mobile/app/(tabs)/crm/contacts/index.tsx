@@ -1,2 +1,5 @@
-// Task Mobile P1.4 — CRM route shim: /crm/contacts
-export { default } from '../../contacts/index';
+import { CoreCRMContactsList } from '../../../../src/components/crm/CoreCRMListViews';
+
+export default function CRMContactsScreen() {
+  return <CoreCRMContactsList />;
+}

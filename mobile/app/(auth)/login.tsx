@@ -37,7 +37,6 @@ export default function LoginScreen() {
         workspaceId: response.workspaceId,
       });
     } catch (err) {
-      console.error('Login error:', err);
       if (isAxiosError(err) && err.response?.status === 401) {
         setError('Invalid credentials');
       } else {
