@@ -18,6 +18,8 @@ linters:
     - errorlint      # manejo correcto de errors wrapping (errors.Is/As)
     - interfacebloat # ISP: interfaces con demasiados métodos indican violación de segregación
     - depguard       # DIP: impide que capas superiores dependan de capas inferiores incorrectas
+    - dupl           # structural code duplication — copiar/pegar sin abstraer
+    - prealloc        # detecta slices que deben pre-alocarse antes de loops
   disable:
     - gocyclo
 
@@ -50,6 +52,21 @@ linters-settings:
 
   dupl:
     threshold: 120
+
+  prealloc:
+    simple: true          # slices inicializadas en for-range simples
+    range-loops: true     # incluye for-range
+    for-loops: true       # incluye for-index
+
+  revive:
+    rules:
+      - name: add-constant
+        severity: error
+        arguments:
+          - maxLitCount: "3"
+            allowStrs: '""'
+            allowInts: "0,1,2"
+            allowFloats: "0.0,0.,1.0,1.,2.0,2."
 
   govet:
     enable:
@@ -109,7 +126,7 @@ linters-settings:
         bodyWidth: 4
       ruleguard:
         rules: "ruleguard/rules-*.go"
-        enable: "smells"
+        enable: "smells,performance"
         failOn: "dsl,import"
 
 issues:

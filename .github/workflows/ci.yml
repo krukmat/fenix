@@ -52,6 +52,42 @@ jobs:
           cd mobile
           npm run test:coverage
 
+  bff-quality:
+    name: BFF Quality Gates
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: bff/package-lock.json
+
+      - name: Install BFF dependencies
+        run: |
+          cd bff
+          npm ci
+
+      - name: Typecheck (BFF)
+        run: |
+          cd bff
+          npx tsc --noEmit
+
+      - name: Lint (BFF — production-grade ESLint)
+        run: |
+          cd bff
+          npm run lint
+
+      - name: Coverage gate (BFF)
+        run: |
+          cd bff
+          npm run test:coverage
+
   # Job 1: Cyclomatic Complexity Gate — blocks merge if any function exceeds threshold 7
   # This job must pass before lint and tests can run.
   complexity:
@@ -144,7 +180,7 @@ jobs:
   test:
     name: Lint and Test
     if: github.event_name != 'schedule'
-    needs: [mobile-quality, complexity, traceability, no-inline-disable-gate]
+    needs: [mobile-quality, bff-quality, complexity, traceability, no-inline-disable-gate]
     runs-on: ubuntu-latest
 
     steps:

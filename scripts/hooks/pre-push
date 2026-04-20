@@ -23,6 +23,7 @@ CHANGED_FILES="$(git diff --name-only "$DIFF_RANGE" 2>/dev/null || true)"
 
 GO_CHANGED=0
 MOBILE_CHANGED=0
+BFF_CHANGED=0
 
 if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(internal/|cmd/|pkg/|scripts/.*\.go$|go\.mod$|go\.sum$|\.golangci\.yml$|Makefile$)'; then
   GO_CHANGED=1
@@ -32,8 +33,12 @@ if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(mobile/|scripts/check-no-inline-
   MOBILE_CHANGED=1
 fi
 
-if [ "$GO_CHANGED" -eq 0 ] && [ "$MOBILE_CHANGED" -eq 0 ]; then
-  echo "No Go or mobile-impacting changes detected in $DIFF_RANGE -> skipping pre-push QA"
+if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(bff/|scripts/qa-bff-prepush\.sh$)'; then
+  BFF_CHANGED=1
+fi
+
+if [ "$GO_CHANGED" -eq 0 ] && [ "$MOBILE_CHANGED" -eq 0 ] && [ "$BFF_CHANGED" -eq 0 ]; then
+  echo "No Go, mobile, or BFF-impacting changes detected in $DIFF_RANGE -> skipping pre-push QA"
   exit 0
 fi
 
@@ -45,4 +50,9 @@ fi
 if [ "$MOBILE_CHANGED" -eq 1 ]; then
   echo "Mobile-impacting changes detected in $DIFF_RANGE"
   bash scripts/qa-mobile-prepush.sh
+fi
+
+if [ "$BFF_CHANGED" -eq 1 ]; then
+  echo "BFF-impacting changes detected in $DIFF_RANGE"
+  bash scripts/qa-bff-prepush.sh
 fi

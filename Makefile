@@ -71,6 +71,19 @@ lint:
 	@test -f $(GOLANGCI_LINT) || go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOLANGCI_LINT) run ./...
 
+# Lint mobile TypeScript (ESLint — production-grade rules including hooks, no-console, no-unused-vars)
+lint-mobile:
+	@echo "Running mobile ESLint (production-grade)..."
+	cd mobile && npm run lint
+
+# Lint BFF TypeScript (ESLint — no-console, no-any, no-floating-promises, complexity)
+lint-bff:
+	@echo "Running BFF ESLint (production-grade)..."
+	cd bff && npm run lint
+
+# Lint all layers
+lint-all: lint lint-mobile lint-bff
+
 # Check cyclomatic complexity — fails if any function exceeds threshold 7
 # Threshold rationale: 7 is the industry-standard limit for maintainable code.
 # Functions above 7 are harder to test (need more test cases) and harder to understand.

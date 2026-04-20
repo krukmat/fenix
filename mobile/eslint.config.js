@@ -26,6 +26,31 @@ module.exports = defineConfig([
       // Maintainability gates
       '@typescript-eslint/no-explicit-any': 'error',
       'import/no-cycle': 'error',
+
+      // Production-grade: no debug artifacts in shipped code
+      'no-console': 'error',
+      'no-debugger': 'error',
+
+      // Production-grade: unused code is dead weight and confuses readers
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
+
+      // Production-grade: React hooks correctness
+      // Missing deps cause stale closures — silent bugs that are hard to reproduce in prod
+      'react-hooks/exhaustive-deps': 'error',
+      // Hook call order must be stable across renders
+      'react-hooks/rules-of-hooks': 'error',
+
+      // Production-grade: no non-null assertions — replace with proper guards
+      '@typescript-eslint/no-non-null-assertion': 'error',
+
+      // Production-grade: sonarjs smell detection
+      'sonarjs/no-redundant-jump': 'error',
+      'sonarjs/prefer-immediate-return': 'error',
+      'sonarjs/no-ignored-return': 'error',   // ignoring return values of pure functions
+      'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
     },
   },
   {
@@ -35,6 +60,7 @@ module.exports = defineConfig([
       'sonarjs/cognitive-complexity': 'off',
       'max-lines-per-function': 'off',
       'max-lines': 'off',
+      'no-console': 'off',
     },
   },
   {
@@ -47,6 +73,8 @@ module.exports = defineConfig([
       'max-lines': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       'import/no-cycle': 'off',
+      'no-console': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
     },
   },
 ]);
