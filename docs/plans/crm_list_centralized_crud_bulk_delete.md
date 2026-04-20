@@ -2,7 +2,7 @@
 doc_type: task
 id: CRM-LIST-CENTRALIZED-CRUD-BULK-DELETE
 title: "CRM List Centralized CRUD and Bulk Delete"
-status: in-progress
+status: completed
 phase: mobile-crm
 week: ~
 tags: [mobile, crm, lists, crud, bulk-delete, ux]
@@ -17,7 +17,7 @@ files_affected:
   - mobile/src/components/crm/CoreCRMDetailViews.tsx
   - mobile/__tests__/app/(tabs)/crm/read-only.test.tsx
 created: 2026-04-20
-completed: null
+completed: 2026-04-20
 ---
 
 # CRM List Centralized CRUD and Bulk Delete

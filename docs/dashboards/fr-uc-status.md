@@ -1,12 +1,12 @@
 ---
 title: FenixCRM — FR & UC Implementation Status
-last_updated: 2026-04-17
+last_updated: 2026-04-20
 tags: [dashboard, status]
 ---
 
 # FenixCRM — FR & UC Implementation Status
 
-> Last updated: 2026-04-17
+> Last updated: 2026-04-20
 > Source of truth for current wedge priority: `docs/architecture.md` + `docs/plans/fenixcrm_strategic_repositioning_spec.md`
 > Source of truth for detailed requirement inventory: `docs/requirements.md` + BDD feature files in `features/`
 >
@@ -105,6 +105,7 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 | FR-301 | BFF Gateway (Express.js thin proxy) | P0 | ✅ | task_4.1 | — |
 | FR-302 | Observability (/metrics, /health) | P0 | ✅ | task_4.9 | — |
 | FR-303 | Mobile eval service | P1 | 🔒 | — | — |
+| FR-304 | CRM List Centralized CRUD and Bulk Delete | P1 | ✅ | crm_list_centralized_crud_bulk_delete | uc-p2-crm-list-crud-mobile.feature (TST-067–076) |
 
 ---
 
@@ -130,8 +131,9 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 | UC-A9 | Agent Delegation | `uc-a9-agent-delegation.feature` | ✅ | ⏳ | ❌ | ✅ UC_A9.yml | — |
 | UC-B1 | Safe Tool Routing | `uc-b1-safe-tool-routing.feature` | ✅ | ⏳ | ❌ | ✅ UC_B1.yml | — |
 | UC-P1 | CRM Contacts Mobile | `uc-p1-crm-contacts-mobile.feature` | ❌ | ❌ | ✅ mobile canonical | — | Mobile-only UC — contacts list + detail screens (Task Mobile P1.4) |
+| UC-P2 | CRM List CRUD and Bulk Delete | `uc-p2-crm-list-crud-mobile.feature` | ❌ | ❌ | ✅ mobile canonical | ✅ UC_P2.yml | Multi-select, row edit, bulk delete, read-only detail (FR-304) |
 
-**Totals:** 18 UCs | Go canonical: 3 wedge UCs + runtime UCs | BFF: 0/18 ⏳ | Mobile: smoke UC-S1 + canonical UC-P1
+**Totals:** 19 UCs | Go canonical: 3 wedge UCs + runtime UCs | BFF: 0/19 ⏳ | Mobile: smoke UC-S1 + canonical UC-P1, UC-P2
 
 ---
 
