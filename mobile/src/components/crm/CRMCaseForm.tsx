@@ -1,12 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from 'react-native-paper';
 import { normalizeCRMAccount, normalizeCRMCase, normalizeCRMContact } from '../../services/api';
 import type { CRMCase, CRMContact } from '../../services/api';
 import { useAccounts, useCase, useContacts, useCreateCase, useUpdateCase } from '../../hooks/useCRM';
 import { useAuthStore } from '../../stores/authStore';
-import type { ThemeColors } from '../../theme/types';
+import {
+  Field,
+  FormErrorText,
+  LoadingView,
+  SubmitButton,
+  baseFormStyles,
+  listItems,
+  record,
+  useCRMColors,
+} from './CRMFormBase';
 
 type CaseFormValues = {
   accountId: string;
@@ -30,25 +38,6 @@ const emptyValues: CaseFormValues = {
   status: 'open',
   channel: '',
 };
-
-function useCRMColors(): ThemeColors {
-  const theme = useTheme();
-  return theme.colors as ThemeColors;
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
-}
-
-function unwrapDataArray<T>(value: unknown): T[] {
-  if (Array.isArray(value)) return value as T[];
-  const payload = record(value);
-  return Array.isArray(payload?.data) ? (payload.data as T[]) : [];
-}
-
-function listItems<T>(data: { pages?: unknown[] } | undefined, normalize: (raw: unknown) => T): T[] {
-  return (data?.pages ?? []).flatMap((page) => unwrapDataArray<unknown>(page).map(normalize));
-}
 
 function caseValues(caseData: CRMCase): CaseFormValues {
   return {
@@ -85,26 +74,6 @@ function payload(values: CaseFormValues, ownerId: string) {
         .filter(([, value]) => value !== ''),
     ),
   };
-}
-
-function Field(props: { label: string; value: string; onChangeText: (value: string) => void; testID: string; multiline?: boolean }) {
-  const colors = useCRMColors();
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>{props.label}</Text>
-      <TextInput
-        testID={props.testID}
-        value={props.value}
-        onChangeText={props.onChangeText}
-        multiline={props.multiline}
-        style={[
-          styles.input,
-          props.multiline ? styles.multiline : null,
-          { borderColor: colors.outline, color: colors.onSurface, backgroundColor: colors.surface },
-        ]}
-      />
-    </View>
-  );
 }
 
 function OptionList<T extends { id: string }>({
@@ -183,47 +152,36 @@ export function CRMCaseForm({ mode, caseId }: { mode: CaseFormMode; caseId?: str
   };
 
   if (loading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="crm-case-form-loading">
-        <Text style={{ color: colors.onSurfaceVariant }}>Loading...</Text>
-      </View>
-    );
+    return <LoadingView testID="crm-case-form-loading" colors={colors} />;
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} testID="crm-case-form-screen">
-      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+    <ScrollView style={[baseFormStyles.container, { backgroundColor: colors.background }]} testID="crm-case-form-screen">
+      <View style={[baseFormStyles.card, { backgroundColor: colors.surface }]}>
         <Field label="Subject" value={values.subject} onChangeText={(value) => setField('subject', value)} testID="crm-case-form-subject" />
         <Field label="Description" value={values.description} onChangeText={(value) => setField('description', value)} testID="crm-case-form-description" multiline />
         <Field label="Priority" value={values.priority} onChangeText={(value) => setField('priority', value)} testID="crm-case-form-priority" />
         <Field label="Status" value={values.status} onChangeText={(value) => setField('status', value)} testID="crm-case-form-status" />
         <Field label="Channel" value={values.channel} onChangeText={(value) => setField('channel', value)} testID="crm-case-form-channel" />
-        <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Account</Text>
+        <Text style={[baseFormStyles.label, { color: colors.onSurfaceVariant }]}>Account</Text>
         <OptionList items={accounts} selectedId={values.accountId} label={(account) => account.name} testIDPrefix="crm-case-form-account" onSelect={(id) => setField('accountId', id)} />
-        <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Contact</Text>
+        <Text style={[baseFormStyles.label, { color: colors.onSurfaceVariant }]}>Contact</Text>
         <OptionList items={contacts} selectedId={values.contactId} label={(contact) => [contact.firstName, contact.lastName].filter(Boolean).join(' ') || contact.email || contact.id} testIDPrefix="crm-case-form-contact" onSelect={(id) => setField('contactId', id)} />
-        {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
-        <TouchableOpacity testID="crm-case-form-submit" style={[styles.submit, { backgroundColor: colors.primary }, submitting ? styles.disabled : null]} onPress={onSubmit} disabled={submitting}>
-          <Text style={[styles.submitText, { color: colors.onPrimary }]}>{mode === 'edit' ? 'Save Case' : 'Create Case'}</Text>
-        </TouchableOpacity>
+        <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
+        <SubmitButton
+          testID="crm-case-form-submit"
+          onPress={onSubmit}
+          disabled={submitting}
+          label={mode === 'edit' ? 'Save Case' : 'Create Case'}
+          colors={colors}
+        />
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { margin: 16, padding: 16, borderRadius: 8 },
-  field: { marginBottom: 14 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
-  input: { borderWidth: 1, borderRadius: 8, minHeight: 44, paddingHorizontal: 12, fontSize: 16 },
-  multiline: { minHeight: 96, paddingTop: 10, textAlignVertical: 'top' },
   optionList: { gap: 8, marginBottom: 14 },
   option: { borderWidth: 1, borderRadius: 8, padding: 12 },
   optionText: { fontSize: 15, fontWeight: '600' },
-  error: { fontSize: 14, marginBottom: 12 },
-  submit: { minHeight: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  disabled: { opacity: 0.7 },
-  submitText: { fontSize: 16, fontWeight: '700' },
 });

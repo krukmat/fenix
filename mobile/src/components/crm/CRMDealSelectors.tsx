@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useTheme } from 'react-native-paper';
 import type { CRMAccount, CRMContact, CRMPipeline, CRMPipelineStage } from '../../services/api';
 import {
   normalizeCRMAccount,
@@ -9,7 +8,7 @@ import {
   normalizeCRMPipelineStage,
 } from '../../services/api';
 import { useAccounts, useContacts, usePipelineStages, usePipelines } from '../../hooks/useCRM';
-import type { ThemeColors } from '../../theme/types';
+import { listItems, unwrapDataArray, useCRMColors } from './CRMFormBase';
 
 export type CRMDealSelectorValues = {
   accountId: string;
@@ -26,25 +25,6 @@ export const emptyDealSelectorValues: CRMDealSelectorValues = {
   pipelineId: '',
   stageId: '',
 };
-
-function useCRMColors(): ThemeColors {
-  const theme = useTheme();
-  return theme.colors as ThemeColors;
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
-}
-
-function unwrapDataArray<T>(value: unknown): T[] {
-  if (Array.isArray(value)) return value as T[];
-  const payload = record(value);
-  return Array.isArray(payload?.data) ? (payload.data as T[]) : [];
-}
-
-function listItems<T>(data: { pages?: unknown[] } | undefined, normalize: (raw: unknown) => T): T[] {
-  return (data?.pages ?? []).flatMap((page) => unwrapDataArray<unknown>(page).map(normalize));
-}
 
 function directItems<T>(data: unknown, normalize: (raw: unknown) => T): T[] {
   return unwrapDataArray<unknown>(data).map(normalize);

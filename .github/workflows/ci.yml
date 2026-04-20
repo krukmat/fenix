@@ -208,7 +208,7 @@ jobs:
           node-version: '20'
 
       - name: Pattern opportunities gate (strict mode)
-        run: make pattern-opportunities-gate PATTERN_GATE_MODE=strict PATTERN_GATE_TS_DUP_THRESHOLD=6
+        run: make pattern-opportunities-gate PATTERN_GATE_MODE=strict PATTERN_GATE_TS_DUP_THRESHOLD=5
 
       - name: Show lint gates (gocognit + maintidx)
         run: |

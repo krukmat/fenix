@@ -2,12 +2,12 @@
 doc_type: adr
 id: REFACTOR-CRM-FORM-LAYOUT
 title: "CRM Form shared layout — deferred refactor evidence"
-status: deferred
+status: completed
 created: 2026-04-20
 tags: [mobile, crm, forms, duplication, wave6]
 ---
 
-# CRM Form shared layout — deferred refactor
+# CRM Form shared layout — completed refactor
 
 ## Problema previo
 
@@ -25,13 +25,16 @@ refactor wave is safer and allows full regression coverage.
 
 ## Patrón aplicado
 
-Deferred extraction pattern: duplication evidence is documented here so the gate passes in
-strict mode while the actual structural refactor is scheduled as a follow-up wave.
+Deferred extraction pattern completed. The duplicated editable form controls and data-unwrapping
+helpers were moved into a shared CRM form module, and the temporary jscpd threshold was restored
+to 5%.
 
-The planned refactor will apply the **Extract Component** pattern:
-- `CRMFormBase.tsx` — shared `Field` + `OptionList` + `SubmitButton` layout
-- `useFormField` hook — common `validate(values, ownerId) → string | null` shape
-- Common `payload` builder pattern extracted into a shared utility
+The refactor applied the **Extract Component** pattern:
+- `CRMFormBase.tsx` — shared editable `Field`, `SubmitButton`, `FormErrorText`, `LoadingView`,
+  `baseFormStyles`, `useCRMColors`, `record`, `unwrapDataArray`, and `listItems`.
+- CRM create/edit forms now import the shared controls instead of defining local copies.
+- `OptionList`, form validation, and payload builders remain local where behavior differs by
+  workflow.
 
 ## Before
 
@@ -52,32 +55,35 @@ return (
 After the refactor:
 ```tsx
 // CRMFormBase.tsx
-export function Field({ label, error, children }: FieldProps) { ... }
-export function useFormField<T>(validate: ValidateFn<T>) { ... }
+export function Field(props: FieldProps) { ... }
+export function SubmitButton(props: SubmitButtonProps) { ... }
+export function LoadingView(props: LoadingViewProps) { ... }
+export function listItems<T>(data, normalize): T[] { ... }
 
 // CRMLeadForm.tsx (simplified)
-const { errors, handleSubmit } = useFormField(validateLead);
-return <Field label="Name" error={errors.name}><TextInput .../></Field>;
+return <Field label="Name" value={values.name} onChangeText={...} testID="crm-lead-form-name" />;
 ```
 
 ## Riesgos y rollback
 
 - Risk: shared component changes break one or more forms simultaneously.
-- Mitigation: implement behind feature branch, full Maestro UAT before merge.
+- Mitigation: targeted unit tests per migrated form plus the shared `CRMFormBase` test.
 - Rollback: revert the `CRMFormBase.tsx` extraction; each form is self-contained.
-- Gate threshold: restore `PATTERN_GATE_TS_DUP_THRESHOLD` to 5% after refactor lands.
+- Gate threshold: `PATTERN_GATE_TS_DUP_THRESHOLD` restored to 5%.
 
 ## Tests
 
-- All 5 form components have unit tests that will continue to pass post-refactor.
-- Maestro mutation flows (`crm-mutation-case.yaml`, etc.) serve as end-to-end regression.
-- jscpd gate must report ≤ 5% after the refactor is complete.
+- Added `mobile/__tests__/components/crm/CRMFormBase.test.tsx`.
+- Targeted Jest suites passed for Account, Contact, Lead, Deal, Case, DealSelectors, and
+  EntityChildForms.
+- `cd mobile && npm run typecheck` passed after each migrated slice.
+- `make pattern-refactor-gate` passed with the restored 5% threshold.
 
 ## Métricas
 
-| Metric | Before refactor | Target after refactor |
+| Metric | Before refactor | Final after refactor |
 |---|---|---|
-| jscpd duplication % | 5.17% | < 5% |
-| Clone count | 32 | < 20 |
+| jscpd duplication % | 5.17% | 2.17% |
+| Clone count | 32 | 15 |
 | Gate threshold | 6% (temporary) | 5% (restored) |
-| Files affected | 5 form files | 5 simplified + 1 shared base |
+| Files affected | 5 form files | 7 migrated CRM files + 1 shared base + 1 shared test |

@@ -1,12 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from 'react-native-paper';
 import { useCreateDeal, useDeal, useUpdateDeal } from '../../hooks/useCRM';
 import { useAuthStore } from '../../stores/authStore';
-import type { ThemeColors } from '../../theme/types';
 import { normalizeCRMDeal } from '../../services/api';
 import type { CRMDeal } from '../../services/api';
+import {
+  Field,
+  FormErrorText,
+  LoadingView,
+  SubmitButton,
+  baseFormStyles,
+  record,
+  useCRMColors,
+} from './CRMFormBase';
 import {
   CRMDealSelectors,
   emptyDealSelectorValues,
@@ -42,11 +49,6 @@ const emptyValues: DealCreateValues = {
   status: 'open',
 };
 
-function useCRMColors(): ThemeColors {
-  const theme = useTheme();
-  return theme.colors as ThemeColors;
-}
-
 function selectorValues(values: DealCreateValues): CRMDealSelectorValues {
   return {
     accountId: values.accountId,
@@ -77,10 +79,6 @@ function validate(values: DealCreateValues, ownerId: string | null, data: CRMDea
   return validateDealSelectors(selectorValues(values), data.contacts, data.stages);
 }
 
-function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
-}
-
 function payload(values: DealCreateValues, ownerId: string) {
   return {
     ownerId,
@@ -94,21 +92,6 @@ function payload(values: DealCreateValues, ownerId: string) {
     ...(values.expectedClose.trim() ? { expectedClose: values.expectedClose.trim() } : {}),
     ...(values.status.trim() ? { status: values.status.trim() } : {}),
   };
-}
-
-function Field(props: { label: string; value: string; onChangeText: (value: string) => void; testID: string }) {
-  const colors = useCRMColors();
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>{props.label}</Text>
-      <TextInput
-        testID={props.testID}
-        value={props.value}
-        onChangeText={props.onChangeText}
-        style={[styles.input, { borderColor: colors.outline, color: colors.onSurface, backgroundColor: colors.surface }]}
-      />
-    </View>
-  );
 }
 
 function CRMDealForm({ mode, dealId }: { mode: DealFormMode; dealId?: string }) {
@@ -155,31 +138,26 @@ function CRMDealForm({ mode, dealId }: { mode: DealFormMode; dealId?: string }) 
   };
 
   if (loading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="crm-deal-form-loading">
-        <Text style={{ color: colors.onSurfaceVariant }}>Loading...</Text>
-      </View>
-    );
+    return <LoadingView testID="crm-deal-form-loading" colors={colors} />;
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} testID={`crm-deal-${mode}-form-screen`}>
-      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+    <ScrollView style={[baseFormStyles.container, { backgroundColor: colors.background }]} testID={`crm-deal-${mode}-form-screen`}>
+      <View style={[baseFormStyles.card, { backgroundColor: colors.surface }]}>
         <Field label="Title" value={values.title} onChangeText={(value) => setField('title', value)} testID="crm-deal-form-title" />
         <Field label="Amount" value={values.amount} onChangeText={(value) => setField('amount', value)} testID="crm-deal-form-amount" />
         <Field label="Currency" value={values.currency} onChangeText={(value) => setField('currency', value)} testID="crm-deal-form-currency" />
         <Field label="Expected close" value={values.expectedClose} onChangeText={(value) => setField('expectedClose', value)} testID="crm-deal-form-expected-close" />
         <Field label="Status" value={values.status} onChangeText={(value) => setField('status', value)} testID="crm-deal-form-status" />
         <CRMDealSelectors values={selectorValues(values)} onChange={setField} onDataChange={setSelectorData} />
-        {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
-        <TouchableOpacity
+        <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
+        <SubmitButton
           testID="crm-deal-form-submit"
-          style={[styles.submit, { backgroundColor: colors.primary }, submitting ? styles.disabled : null]}
           onPress={onSubmit}
           disabled={submitting}
-        >
-          <Text style={[styles.submitText, { color: colors.onPrimary }]}>{mode === 'edit' ? 'Save Deal' : 'Create Deal'}</Text>
-        </TouchableOpacity>
+          label={mode === 'edit' ? 'Save Deal' : 'Create Deal'}
+          colors={colors}
+        />
       </View>
     </ScrollView>
   );
@@ -192,16 +170,3 @@ export function CRMDealCreateForm() {
 export function CRMDealEditForm({ dealId }: { dealId: string }) {
   return <CRMDealForm mode="edit" dealId={dealId} />;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { margin: 16, padding: 16, borderRadius: 8 },
-  field: { marginBottom: 14 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
-  input: { borderWidth: 1, borderRadius: 8, minHeight: 44, paddingHorizontal: 12, fontSize: 16 },
-  error: { fontSize: 14, marginBottom: 12 },
-  submit: { minHeight: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  disabled: { opacity: 0.7 },
-  submitText: { fontSize: 16, fontWeight: '700' },
-});

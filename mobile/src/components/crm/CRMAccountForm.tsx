@@ -1,11 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from 'react-native-paper';
 import { normalizeCRMAccount } from '../../services/api';
 import type { CRMAccount } from '../../services/api';
-import type { ThemeColors } from '../../theme/types';
 import { useAccount, useCreateAccount, useUpdateAccount } from '../../hooks/useCRM';
+import {
+  Field,
+  FormErrorText,
+  LoadingView,
+  SubmitButton,
+  baseFormStyles,
+  record,
+  useCRMColors,
+} from './CRMFormBase';
 
 type AccountFormValues = {
   name: string;
@@ -28,11 +35,6 @@ const emptyValues: AccountFormValues = {
   description: '',
 };
 
-function useCRMColors(): ThemeColors {
-  const theme = useTheme();
-  return theme.colors as ThemeColors;
-}
-
 function accountValues(account: CRMAccount): AccountFormValues {
   return {
     name: account.name,
@@ -42,10 +44,6 @@ function accountValues(account: CRMAccount): AccountFormValues {
     email: account.email ?? '',
     description: account.description ?? '',
   };
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 }
 
 function payload(values: AccountFormValues): AccountFormValues & { name: string } {
@@ -62,38 +60,6 @@ function validate(values: AccountFormValues): string | null {
   if (!values.name.trim()) return 'Account name is required';
   if (values.email.trim() && !values.email.includes('@')) return 'Enter a valid email';
   return null;
-}
-
-function Field({
-  label,
-  value,
-  onChangeText,
-  testID,
-  multiline,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-  testID: string;
-  multiline?: boolean;
-}) {
-  const colors = useCRMColors();
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>{label}</Text>
-      <TextInput
-        testID={testID}
-        value={value}
-        onChangeText={onChangeText}
-        multiline={multiline}
-        style={[
-          styles.input,
-          multiline ? styles.multiline : null,
-          { borderColor: colors.outline, color: colors.onSurface, backgroundColor: colors.surface },
-        ]}
-      />
-    </View>
-  );
 }
 
 export function CRMAccountForm({ mode, accountId }: { mode: AccountFormMode; accountId?: string }) {
@@ -137,16 +103,12 @@ export function CRMAccountForm({ mode, accountId }: { mode: AccountFormMode; acc
   };
 
   if (loading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="crm-account-form-loading">
-        <Text style={{ color: colors.onSurfaceVariant }}>Loading...</Text>
-      </View>
-    );
+    return <LoadingView testID="crm-account-form-loading" colors={colors} />;
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} testID="crm-account-form-screen">
-      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+    <ScrollView style={[baseFormStyles.container, { backgroundColor: colors.background }]} testID="crm-account-form-screen">
+      <View style={[baseFormStyles.card, { backgroundColor: colors.surface }]}>
         <Field label="Name" value={values.name} onChangeText={(value) => setField('name', value)} testID="crm-account-form-name" />
         <Field label="Industry" value={values.industry} onChangeText={(value) => setField('industry', value)} testID="crm-account-form-industry" />
         <Field label="Website" value={values.website} onChangeText={(value) => setField('website', value)} testID="crm-account-form-website" />
@@ -159,30 +121,15 @@ export function CRMAccountForm({ mode, accountId }: { mode: AccountFormMode; acc
           testID="crm-account-form-description"
           multiline
         />
-        {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
-        <TouchableOpacity
+        <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
+        <SubmitButton
           testID="crm-account-form-submit"
-          style={[styles.submit, { backgroundColor: colors.primary }, submitting ? styles.disabled : null]}
           onPress={onSubmit}
           disabled={submitting}
-        >
-          <Text style={[styles.submitText, { color: colors.onPrimary }]}>{mode === 'edit' ? 'Save Account' : 'Create Account'}</Text>
-        </TouchableOpacity>
+          label={mode === 'edit' ? 'Save Account' : 'Create Account'}
+          colors={colors}
+        />
       </View>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { margin: 16, padding: 16, borderRadius: 8 },
-  field: { marginBottom: 14 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
-  input: { borderWidth: 1, borderRadius: 8, minHeight: 44, paddingHorizontal: 12, fontSize: 16 },
-  multiline: { minHeight: 96, paddingTop: 10, textAlignVertical: 'top' },
-  error: { fontSize: 14, marginBottom: 12 },
-  submit: { minHeight: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  disabled: { opacity: 0.7 },
-  submitText: { fontSize: 16, fontWeight: '700' },
-});

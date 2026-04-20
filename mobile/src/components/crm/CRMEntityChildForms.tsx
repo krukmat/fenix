@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { CRMDetailSection, useCRMColors } from './CoreCRMReadOnly';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { CRMDetailSection } from './CoreCRMReadOnly';
+import { Field, SubmitButton, baseFormStyles, useCRMColors } from './CRMFormBase';
 import { useCreateActivity, useCreateAttachment, useCreateNote } from '../../hooks/useCRM';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -49,59 +50,11 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'CRM request failed';
 }
 
-function Field({
-  label,
-  value,
-  onChangeText,
-  testID,
-  multiline,
-  keyboardType,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-  testID: string;
-  multiline?: boolean;
-  keyboardType?: 'default' | 'numeric';
-}) {
-  const colors = useCRMColors();
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>{label}</Text>
-      <TextInput
-        testID={testID}
-        value={value}
-        onChangeText={onChangeText}
-        multiline={multiline}
-        keyboardType={keyboardType}
-        style={[
-          styles.input,
-          multiline ? styles.multiline : null,
-          { borderColor: colors.outline, color: colors.onSurface, backgroundColor: colors.surface },
-        ]}
-      />
-    </View>
-  );
-}
-
-function SubmitButton({ label, testID, disabled, onPress }: { label: string; testID: string; disabled: boolean; onPress: () => void }) {
-  const colors = useCRMColors();
-  return (
-    <TouchableOpacity
-      testID={testID}
-      style={[styles.submit, { backgroundColor: colors.primary }, disabled ? styles.disabled : null]}
-      onPress={onPress}
-      disabled={disabled}
-    >
-      <Text style={[styles.submitText, { color: colors.onPrimary }]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
 function ActivityForm({ entityType, entityId, userId }: EntityChildFormsProps & { userId: string | null }) {
   const createActivity = useCreateActivity();
   const [values, setValues] = useState<ActivityValues>(emptyActivity);
   const [error, setError] = useState<string | null>(null);
+  const colors = useCRMColors();
 
   const setField = (field: keyof ActivityValues, value: string) => {
     setError(null);
@@ -136,8 +89,8 @@ function ActivityForm({ entityType, entityId, userId }: EntityChildFormsProps & 
       <Field label="Subject" value={values.subject} onChangeText={(value) => setField('subject', value)} testID="crm-entity-child-activity-subject" />
       <Field label="Body" value={values.body} onChangeText={(value) => setField('body', value)} testID="crm-entity-child-activity-body" multiline />
       <Field label="Status" value={values.status} onChangeText={(value) => setField('status', value)} testID="crm-entity-child-activity-status" />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <SubmitButton label="Add Activity" testID="crm-entity-child-activity-submit" disabled={createActivity.isPending} onPress={onSubmit} />
+      {error ? <Text style={[baseFormStyles.error, { color: colors.error }]}>{error}</Text> : null}
+      <SubmitButton label="Add Activity" testID="crm-entity-child-activity-submit" disabled={createActivity.isPending} onPress={onSubmit} colors={colors} />
     </View>
   );
 }
@@ -180,8 +133,8 @@ function NoteForm({ entityType, entityId, userId }: EntityChildFormsProps & { us
       >
         <Text style={[styles.toggleText, { color: colors.onSurface }]}>{isInternal ? 'Internal' : 'Public'}</Text>
       </TouchableOpacity>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <SubmitButton label="Add Note" testID="crm-entity-child-note-submit" disabled={createNote.isPending} onPress={onSubmit} />
+      {error ? <Text style={[baseFormStyles.error, { color: colors.error }]}>{error}</Text> : null}
+      <SubmitButton label="Add Note" testID="crm-entity-child-note-submit" disabled={createNote.isPending} onPress={onSubmit} colors={colors} />
     </View>
   );
 }
@@ -190,6 +143,7 @@ function AttachmentForm({ entityType, entityId, userId }: EntityChildFormsProps 
   const createAttachment = useCreateAttachment();
   const [values, setValues] = useState<AttachmentValues>(emptyAttachment);
   const [error, setError] = useState<string | null>(null);
+  const colors = useCRMColors();
 
   const setField = (field: keyof AttachmentValues, value: string) => {
     setError(null);
@@ -229,8 +183,8 @@ function AttachmentForm({ entityType, entityId, userId }: EntityChildFormsProps 
       <Field label="Storage Path" value={values.storagePath} onChangeText={(value) => setField('storagePath', value)} testID="crm-entity-child-attachment-storage-path" />
       <Field label="Content Type" value={values.contentType} onChangeText={(value) => setField('contentType', value)} testID="crm-entity-child-attachment-content-type" />
       <Field label="Size Bytes" value={values.sizeBytes} onChangeText={(value) => setField('sizeBytes', value)} testID="crm-entity-child-attachment-size-bytes" keyboardType="numeric" />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <SubmitButton label="Add Attachment" testID="crm-entity-child-attachment-submit" disabled={createAttachment.isPending} onPress={onSubmit} />
+      {error ? <Text style={[baseFormStyles.error, { color: colors.error }]}>{error}</Text> : null}
+      <SubmitButton label="Add Attachment" testID="crm-entity-child-attachment-submit" disabled={createAttachment.isPending} onPress={onSubmit} colors={colors} />
     </View>
   );
 }
@@ -252,14 +206,6 @@ const styles = StyleSheet.create({
   container: { gap: 12 },
   card: { padding: 14, borderRadius: 8, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#D0D5DD' },
   cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12 },
-  field: { marginBottom: 12 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
-  input: { borderWidth: 1, borderRadius: 8, minHeight: 44, paddingHorizontal: 12, fontSize: 16 },
-  multiline: { minHeight: 84, paddingTop: 10, textAlignVertical: 'top' },
   toggle: { borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 12 },
   toggleText: { fontSize: 15, fontWeight: '600' },
-  error: { color: '#BA1A1A', fontSize: 14, marginBottom: 10 },
-  submit: { minHeight: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  disabled: { opacity: 0.7 },
-  submitText: { fontSize: 15, fontWeight: '700' },
 });

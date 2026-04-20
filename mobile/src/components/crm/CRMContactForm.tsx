@@ -1,14 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from 'react-native-paper';
 import {
   normalizeCRMAccount,
   normalizeCRMContact,
 } from '../../services/api';
 import type { CRMAccount, CRMContact } from '../../services/api';
-import type { ThemeColors } from '../../theme/types';
 import { useAccounts, useContact, useCreateContact, useUpdateContact } from '../../hooks/useCRM';
+import {
+  Field,
+  FormErrorText,
+  LoadingView,
+  SubmitButton,
+  baseFormStyles,
+  listItems,
+  record,
+  useCRMColors,
+} from './CRMFormBase';
 
 type ContactFormValues = {
   accountId: string;
@@ -31,23 +39,8 @@ const emptyValues: ContactFormValues = {
   title: '',
 };
 
-function useCRMColors(): ThemeColors {
-  const theme = useTheme();
-  return theme.colors as ThemeColors;
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
-}
-
-function unwrapDataArray<T>(value: unknown): T[] {
-  if (Array.isArray(value)) return value as T[];
-  const payload = record(value);
-  return Array.isArray(payload?.data) ? (payload.data as T[]) : [];
-}
-
 function listAccounts(data: ReturnType<typeof useAccounts>['data']): CRMAccount[] {
-  return (data?.pages ?? []).flatMap((page) => unwrapDataArray<unknown>(page).map(normalizeCRMAccount));
+  return listItems(data, normalizeCRMAccount);
 }
 
 function contactValues(contact: CRMContact): ContactFormValues {
@@ -76,31 +69,6 @@ function payload(values: ContactFormValues) {
       .map(([key, value]) => [key, value.trim()])
       .filter(([, value]) => value !== ''),
   ) as Partial<ContactFormValues>;
-}
-
-function Field({
-  label,
-  value,
-  onChangeText,
-  testID,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-  testID: string;
-}) {
-  const colors = useCRMColors();
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>{label}</Text>
-      <TextInput
-        testID={testID}
-        value={value}
-        onChangeText={onChangeText}
-        style={[styles.input, { borderColor: colors.outline, color: colors.onSurface, backgroundColor: colors.surface }]}
-      />
-    </View>
-  );
 }
 
 function AccountPicker({
@@ -178,50 +146,35 @@ export function CRMContactForm({ mode, contactId }: { mode: ContactFormMode; con
   };
 
   if (loading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="crm-contact-form-loading">
-        <Text style={{ color: colors.onSurfaceVariant }}>Loading...</Text>
-      </View>
-    );
+    return <LoadingView testID="crm-contact-form-loading" colors={colors} />;
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} testID="crm-contact-form-screen">
-      <View style={[styles.card, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Account</Text>
+    <ScrollView style={[baseFormStyles.container, { backgroundColor: colors.background }]} testID="crm-contact-form-screen">
+      <View style={[baseFormStyles.card, { backgroundColor: colors.surface }]}>
+        <Text style={[baseFormStyles.label, { color: colors.onSurfaceVariant }]}>Account</Text>
         <AccountPicker accounts={accounts} selectedId={values.accountId} onSelect={(id) => setField('accountId', id)} />
         <Field label="First name" value={values.firstName} onChangeText={(value) => setField('firstName', value)} testID="crm-contact-form-first-name" />
         <Field label="Last name" value={values.lastName} onChangeText={(value) => setField('lastName', value)} testID="crm-contact-form-last-name" />
         <Field label="Email" value={values.email} onChangeText={(value) => setField('email', value)} testID="crm-contact-form-email" />
         <Field label="Phone" value={values.phone} onChangeText={(value) => setField('phone', value)} testID="crm-contact-form-phone" />
         <Field label="Title" value={values.title} onChangeText={(value) => setField('title', value)} testID="crm-contact-form-title" />
-        {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
-        <TouchableOpacity
+        <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
+        <SubmitButton
           testID="crm-contact-form-submit"
-          style={[styles.submit, { backgroundColor: colors.primary }, submitting ? styles.disabled : null]}
           onPress={onSubmit}
           disabled={submitting}
-        >
-          <Text style={[styles.submitText, { color: colors.onPrimary }]}>{mode === 'edit' ? 'Save Contact' : 'Create Contact'}</Text>
-        </TouchableOpacity>
+          label={mode === 'edit' ? 'Save Contact' : 'Create Contact'}
+          colors={colors}
+        />
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { margin: 16, padding: 16, borderRadius: 8 },
-  field: { marginBottom: 14 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
-  input: { borderWidth: 1, borderRadius: 8, minHeight: 44, paddingHorizontal: 12, fontSize: 16 },
   accountList: { gap: 8, marginBottom: 14 },
   accountOption: { borderWidth: 1, borderRadius: 8, padding: 12 },
   accountName: { fontSize: 15, fontWeight: '600' },
   help: { fontSize: 13, marginBottom: 14 },
-  error: { fontSize: 14, marginBottom: 12 },
-  submit: { minHeight: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  disabled: { opacity: 0.7 },
-  submitText: { fontSize: 16, fontWeight: '700' },
 });
