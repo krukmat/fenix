@@ -6,14 +6,14 @@ validateConfig();
 import app from './app';
 
 const server = app.listen(config.port, () => {
-  console.log(`FenixCRM BFF running on port ${config.port}`);
-  console.log(`Backend URL: ${config.backendUrl}`);
-  console.log(`Environment: ${config.nodeEnv}`);
+  // eslint-disable-next-line no-console
+  console.log(`FenixCRM BFF running on port ${config.port} [${config.nodeEnv}] → ${config.backendUrl}`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   server.close(() => {
+    // eslint-disable-next-line no-console
     console.log('BFF server closed');
     process.exit(0);
   });

@@ -19,21 +19,22 @@ function isAxiosLikeError(err: unknown): err is AxiosError {
   return err instanceof AxiosError || (err instanceof Error && 'isAxiosError' in err && (err as { isAxiosError: unknown }).isAxiosError === true);
 }
 
+function handleAxiosError(err: AxiosError<{ message?: string }>, res: Response): void {
+  const status = err.response?.status ?? 502;
+  const data = err.response?.data;
+  const message = data?.message ?? err.message ?? 'Go backend error';
+  res.status(status).json(buildErrorEnvelope('BACKEND_ERROR', message, data));
+}
+
 // Express 5 error handler: 4 params required for handler recognition; _req and _next are intentional
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
   if (isAxiosLikeError(err)) {
-    const axiosErr = err as AxiosError<{ message?: string }>;
-    const status = axiosErr.response?.status ?? 502;
-    const data = axiosErr.response?.data;
-    const message = data?.message ?? axiosErr.message ?? 'Go backend error';
-    res.status(status).json(buildErrorEnvelope('BACKEND_ERROR', message, data));
+    handleAxiosError(err as AxiosError<{ message?: string }>, res);
     return;
   }
-
   if (err instanceof Error) {
     res.status(500).json(buildErrorEnvelope('INTERNAL_ERROR', err.message));
     return;
   }
-
   res.status(500).json(buildErrorEnvelope('UNKNOWN_ERROR', 'An unexpected error occurred'));
 }
