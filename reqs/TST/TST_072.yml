@@ -1,0 +1,16 @@
+active: true
+bdd:
+  behavior: bulk_delete_hidden_no_selection
+  feature: features/uc-p2-crm-list-crud-mobile.feature
+  scenario: Delete selected button is hidden with no selection
+  stack: mobile
+derived: false
+header: ''
+level: 2
+links:
+- FR_304: ''
+normative: true
+ref: mobile/__tests__/app/(tabs)/crm/read-only.test.tsx
+reviewed: null
+text: |
+  TST_072: CRM list bulk delete — Delete selected button hidden with zero selection.

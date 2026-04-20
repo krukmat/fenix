@@ -1,0 +1,14 @@
+active: true
+derived: false
+header: ''
+level: 1
+links:
+- FR_304: ''
+normative: true
+ref: docs/requirements.md
+reviewed: null
+text: |
+  UC-P2: CRM List Centralized CRUD and Bulk Delete — Mobile screens
+  Sales and support reps manage CRM entities (create, edit, bulk delete) entirely from
+  list screens. Detail screens are read-only. Multi-selection, per-row edit, and bulk
+  delete with confirmation are the primary affordances.

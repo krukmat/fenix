@@ -580,6 +580,21 @@ flowchart TD
 - No se permiten mutaciones offline (solo lectura).
 **Dep:** FR-300.
 
+**FR-304 — CRM List Centralized CRUD and Bulk Delete (P1)**
+**Descripción:** Las pantallas de listado CRM (Account, Contact, Lead, Deal, Case) son la única superficie operacional para crear, editar y eliminar entidades. Los detail screens pasan a modo read-only.
+**AC:**
+- Checkboxes always-visible por fila para multi-selección; estado de selección keyed by entity id.
+- Control "Select all" aplica solo a filas visibles (filtered rows actuales, no paginación completa).
+- Control "Clear" limpia la selección.
+- Contador de selección visible en el header durante selección activa.
+- Botón "Edit" (icono pencil) por fila navega a `/crm/<entity>/edit/<id>`; la navegación row-body navega al detail read-only.
+- "Delete selected" visible solo cuando hay al menos una fila seleccionada; oculto con cero selección.
+- Confirmación destructiva vía `Alert.alert` con conteo de items seleccionados antes de ejecutar.
+- Delete ejecuta mutaciones por entidad vía `Promise.allSettled`; en fallo parcial mantiene seleccionados solo los ids fallidos para retry.
+- Checkboxes, Select all, Clear, Edit y Delete selected deshabilitados durante delete pendiente.
+- Detail screens (account, contact, lead, deal, case) no exponen acción primaria de edición; son read-only.
+**Dep:** FR-300, FR-001, FR-002.
+
 ---
 
 ### Resumen FR por dominio y prioridad
@@ -594,7 +609,7 @@ flowchart TD
 | Agent Studio | FR-242 | FR-240, FR-241, FR-243 | — | 4 |
 | Integraciones | FR-050, FR-051 | — | FR-052 | 3 |
 | Seguridad & Audit | FR-060, FR-061, FR-070, FR-071 | FR-071 | — | 4 |
-| Mobile & BFF | — | FR-300, FR-301, FR-302, FR-303 | — | 4 |
+| Mobile & BFF | — | FR-300, FR-301, FR-302, FR-303, FR-304 | — | 5 |
 | **Total** | **19** | **~15** | **1** | **31** |
 
 ---

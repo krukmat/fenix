@@ -1,0 +1,16 @@
+active: true
+bdd:
+  behavior: row_body_navigation
+  feature: features/uc-p2-crm-list-crud-mobile.feature
+  scenario: Row body navigation goes to read-only detail
+  stack: mobile
+derived: false
+header: ''
+level: 2
+links:
+- FR_304: ''
+normative: true
+ref: mobile/__tests__/app/(tabs)/crm/read-only.test.tsx
+reviewed: null
+text: |
+  TST_071: CRM list — row body tap navigates to read-only detail route.

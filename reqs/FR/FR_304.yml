@@ -1,0 +1,14 @@
+active: true
+derived: false
+header: ''
+level: 1
+links: []
+normative: true
+ref: ''
+reviewed: null
+text: |
+  FR-304: CRM List Centralized CRUD and Bulk Delete
+  List screens are the single operational surface for create, edit, and delete of CRM
+  entities (Account, Contact, Lead, Deal, Case). Multi-selection with always-visible
+  checkboxes, per-row edit navigation, bulk delete with confirmation and partial-failure
+  handling, and read-only detail screens.

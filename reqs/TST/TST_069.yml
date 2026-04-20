@@ -1,0 +1,16 @@
+active: true
+bdd:
+  behavior: clear_selection
+  feature: features/uc-p2-crm-list-crud-mobile.feature
+  scenario: Clear all selected rows
+  stack: mobile
+derived: false
+header: ''
+level: 2
+links:
+- FR_304: ''
+normative: true
+ref: mobile/__tests__/app/(tabs)/crm/read-only.test.tsx
+reviewed: null
+text: |
+  TST_069: CRM list multi-selection — clear selection.
