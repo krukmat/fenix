@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
+import { Alert } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import CRMAccountsScreen from '../../../../app/(tabs)/crm/accounts/index';
 import CRMAccountDetailScreen from '../../../../app/(tabs)/crm/accounts/[id]';
@@ -63,12 +64,27 @@ const listQuery = (items: unknown[]) => ({
   isRefetching: false,
 });
 
+function textContent(value: unknown): string {
+  return Array.isArray(value) ? value.join('') : String(value);
+}
+
+const mockDeleteAccount = jest.fn();
+const mockDeleteContact = jest.fn();
+const mockDeleteLead = jest.fn();
+const mockDeleteDeal = jest.fn();
+const mockDeleteCase = jest.fn();
+
 jest.mock('../../../../src/hooks/useCRM', () => ({
   useAccounts: () => listQuery([{ id: 'acc-1', name: 'Acme', industry: 'Manufacturing' }]),
   useContacts: () => listQuery([{ id: 'contact-1', accountId: 'acc-1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.test' }]),
   useCases: () => listQuery([{ id: 'case-1', subject: 'Cannot login', priority: 'high', status: 'open' }]),
   useDeals: () => listQuery([{ id: 'deal-1', title: 'Expansion', status: 'open', amount: 12000 }]),
   useLeads: () => listQuery([{ id: 'lead-1', source: 'web', status: 'new', metadata: { name: 'Jane Lead' } }]),
+  useDeleteAccount: () => ({ mutateAsync: mockDeleteAccount, isPending: false }),
+  useDeleteContact: () => ({ mutateAsync: mockDeleteContact, isPending: false }),
+  useDeleteLead: () => ({ mutateAsync: mockDeleteLead, isPending: false }),
+  useDeleteDeal: () => ({ mutateAsync: mockDeleteDeal, isPending: false }),
+  useDeleteCase: () => ({ mutateAsync: mockDeleteCase, isPending: false }),
   useAccount: () => ({
     data: {
       account: { id: 'acc-1', name: 'Acme', industry: 'Manufacturing' },
@@ -113,9 +129,29 @@ describe('CRM read-only routes', () => {
     expect(screen.getByTestId('crm-accounts-list')).toBeTruthy();
     expect(screen.getByText('Acme')).toBeTruthy();
     expect(screen.getByTestId('crm-accounts-primary-action')).toBeTruthy();
+    expect(screen.getByTestId('crm-accounts-item-0-select')).toBeTruthy();
 
     fireEvent.press(screen.getByTestId('crm-accounts-item-0'));
     expect(mockPush).toHaveBeenCalledWith('/crm/accounts/acc-1');
+  });
+
+  it('supports multi-selection controls in the accounts list', () => {
+    render(<CRMAccountsScreen />);
+    const checkbox = screen.getByTestId('crm-accounts-item-0-select');
+
+    expect(checkbox.props.accessibilityState.checked).toBe(false);
+    expect(textContent(screen.getByTestId('crm-accounts-selection-count').props.children)).toBe('0 selected');
+
+    fireEvent.press(checkbox);
+    expect(screen.getByTestId('crm-accounts-item-0-select').props.accessibilityState.checked).toBe(true);
+    expect(textContent(screen.getByTestId('crm-accounts-selection-count').props.children)).toBe('1 selected');
+
+    fireEvent.press(screen.getByTestId('crm-accounts-clear-selection'));
+    expect(screen.getByTestId('crm-accounts-item-0-select').props.accessibilityState.checked).toBe(false);
+    expect(textContent(screen.getByTestId('crm-accounts-selection-count').props.children)).toBe('0 selected');
+
+    fireEvent.press(screen.getByTestId('crm-accounts-select-all'));
+    expect(screen.getByTestId('crm-accounts-item-0-select').props.accessibilityState.checked).toBe(true);
   });
 
   it('renders Leads in the CRM hub and navigates to /crm/leads', () => {
@@ -166,51 +202,119 @@ describe('CRM read-only routes', () => {
     expect(mockPush).toHaveBeenCalledWith('/crm/deals/new');
   });
 
-  it('renders account detail without wedge copilot actions', () => {
+  // Task 5 — Detail screens are read-only; Edit moved to list rows
+  it('renders account detail as read-only — no edit primary action', () => {
     render(<CRMAccountDetailScreen />);
     expect(screen.getByTestId('crm-account-detail-screen')).toBeTruthy();
     expect(screen.getByTestId('crm-entity-child-forms')).toBeTruthy();
     expect(screen.getByText('Acme')).toBeTruthy();
     expect(screen.queryByTestId('account-copilot-open-button')).toBeNull();
-
-    fireEvent.press(screen.getByTestId('crm-account-detail-primary-action'));
-    expect(mockPush).toHaveBeenCalledWith('/crm/accounts/edit/acc-1');
+    expect(screen.queryByTestId('crm-account-detail-primary-action')).toBeNull();
   });
 
-  it('renders lead detail as a read-only CRM route', () => {
+  it('renders lead detail as read-only — no edit primary action', () => {
     render(<CRMLeadDetailScreen />);
     expect(screen.getByTestId('crm-lead-detail-screen')).toBeTruthy();
     expect(screen.getByText('Jane Lead')).toBeTruthy();
     expect(screen.getByText('jane@example.test')).toBeTruthy();
-
-    fireEvent.press(screen.getByTestId('crm-lead-detail-primary-action'));
-    expect(mockPush).toHaveBeenCalledWith('/crm/leads/edit/acc-1');
+    expect(screen.queryByTestId('crm-lead-detail-primary-action')).toBeNull();
   });
 
-  it('renders contact detail and exposes edit navigation', () => {
+  it('renders contact detail as read-only — no edit primary action', () => {
     render(<CRMContactDetailScreen />);
     expect(screen.getByTestId('crm-contact-detail-screen')).toBeTruthy();
     expect(screen.getByText('Ada Lovelace')).toBeTruthy();
-
-    fireEvent.press(screen.getByTestId('crm-contact-detail-primary-action'));
-    expect(mockPush).toHaveBeenCalledWith('/crm/contacts/edit/acc-1');
+    expect(screen.queryByTestId('crm-contact-detail-primary-action')).toBeNull();
   });
 
-  it('renders case detail and exposes edit navigation', () => {
+  it('renders case detail as read-only — no edit primary action', () => {
     render(<CRMCaseDetailScreen />);
     expect(screen.getByTestId('crm-case-detail-screen')).toBeTruthy();
     expect(screen.getByText('Cannot login')).toBeTruthy();
-
-    fireEvent.press(screen.getByTestId('crm-case-detail-primary-action'));
-    expect(mockPush).toHaveBeenCalledWith('/crm/cases/edit/acc-1');
+    expect(screen.queryByTestId('crm-case-detail-primary-action')).toBeNull();
   });
 
-  it('renders deal detail and exposes edit navigation', () => {
+  it('renders deal detail as read-only — no edit primary action', () => {
     render(<CRMDealDetailScreen />);
     expect(screen.getByTestId('crm-deal-detail-screen')).toBeTruthy();
     expect(screen.getByText('Expansion')).toBeTruthy();
+    expect(screen.queryByTestId('crm-deal-detail-primary-action')).toBeNull();
+  });
 
-    fireEvent.press(screen.getByTestId('crm-deal-detail-primary-action'));
-    expect(mockPush).toHaveBeenCalledWith('/crm/deals/edit/acc-1');
+  // Task 3 — Bulk Delete
+  it('hides Delete selected when no rows are selected', () => {
+    render(<CRMAccountsScreen />);
+    expect(screen.queryByTestId('crm-accounts-delete-selected')).toBeNull();
+  });
+
+  it('shows Delete selected when at least one row is selected', () => {
+    render(<CRMAccountsScreen />);
+    fireEvent.press(screen.getByTestId('crm-accounts-item-0-select'));
+    expect(screen.getByTestId('crm-accounts-delete-selected')).toBeTruthy();
+  });
+
+  it('cancel on delete confirmation does not call delete mutation', () => {
+    jest.spyOn(Alert, 'alert').mockImplementation((_title, _msg, buttons = []) => {
+      const cancel = buttons.find((b) => b.style === 'cancel');
+      cancel?.onPress?.();
+    });
+    render(<CRMAccountsScreen />);
+    fireEvent.press(screen.getByTestId('crm-accounts-item-0-select'));
+    fireEvent.press(screen.getByTestId('crm-accounts-delete-selected'));
+    expect(mockDeleteAccount).not.toHaveBeenCalled();
+  });
+
+  it('confirm on delete calls delete mutation for each selected id', async () => {
+    (mockDeleteAccount as ReturnType<typeof jest.fn>).mockResolvedValue(undefined);
+    jest.spyOn(Alert, 'alert').mockImplementation((_title, _msg, buttons = []) => {
+      const confirm = buttons.find((b) => b.style === 'destructive');
+      confirm?.onPress?.();
+    });
+    render(<CRMAccountsScreen />);
+    fireEvent.press(screen.getByTestId('crm-accounts-item-0-select'));
+    fireEvent.press(screen.getByTestId('crm-accounts-delete-selected'));
+    await Promise.resolve();
+    expect(mockDeleteAccount).toHaveBeenCalledWith('acc-1');
+  });
+
+  // Task 2 — Centralize Edit in List Screens
+  it('exposes edit action on account list row and navigates to edit route', () => {
+    render(<CRMAccountsScreen />);
+    expect(screen.getByTestId('crm-accounts-item-0-edit')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('crm-accounts-item-0-edit'));
+    expect(mockPush).toHaveBeenCalledWith('/crm/accounts/edit/acc-1');
+  });
+
+  it('exposes edit action on contact list row and navigates to edit route', () => {
+    render(<CRMContactsScreen />);
+    expect(screen.getByTestId('crm-contacts-item-0-edit')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('crm-contacts-item-0-edit'));
+    expect(mockPush).toHaveBeenCalledWith('/crm/contacts/edit/contact-1');
+  });
+
+  it('exposes edit action on lead list row and navigates to edit route', () => {
+    render(<CRMLeadsScreen />);
+    expect(screen.getByTestId('crm-leads-item-0-edit')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('crm-leads-item-0-edit'));
+    expect(mockPush).toHaveBeenCalledWith('/crm/leads/edit/lead-1');
+  });
+
+  it('exposes edit action on deal list row and navigates to edit route', () => {
+    render(<CRMDealsScreen />);
+    expect(screen.getByTestId('crm-deals-item-0-edit')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('crm-deals-item-0-edit'));
+    expect(mockPush).toHaveBeenCalledWith('/crm/deals/edit/deal-1');
+  });
+
+  it('exposes edit action on case list row and navigates to edit route', () => {
+    render(<CRMCasesScreen />);
+    expect(screen.getByTestId('crm-cases-item-0-edit')).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId('crm-cases-item-0-edit'));
+    expect(mockPush).toHaveBeenCalledWith('/crm/cases/edit/case-1');
   });
 });

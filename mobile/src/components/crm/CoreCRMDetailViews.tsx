@@ -124,7 +124,6 @@ function accountName(payload: DetailPayload): string | undefined {
 
 export function CoreCRMAccountDetail() {
   const id = useRouteId();
-  const router = useRouter();
   const { data, isLoading, error } = useAccount(id);
   const payload = record(data);
   const account = normalizeCRMAccount(payload?.account ?? payload);
@@ -138,8 +137,6 @@ export function CoreCRMAccountDetail() {
       loading={isLoading}
       error={error?.message}
       testIDPrefix="crm-account-detail"
-      primaryActionLabel="Edit Account"
-      onPrimaryAction={() => router.push(`/crm/accounts/edit/${id}`)}
     >
       <RelatedContacts contacts={contacts} />
       <RelatedDeals deals={deals} />
@@ -150,7 +147,6 @@ export function CoreCRMAccountDetail() {
 
 export function CoreCRMContactDetail() {
   const id = useRouteId();
-  const router = useRouter();
   const { data, isLoading, error } = useContact(id);
   const contact = normalizeCRMContact(record(data)?.contact ?? data);
   const title = [contact.firstName, contact.lastName].filter(Boolean).join(' ') || contact.email || 'Unknown Contact';
@@ -162,8 +158,6 @@ export function CoreCRMContactDetail() {
       loading={isLoading}
       error={error?.message}
       testIDPrefix="crm-contact-detail"
-      primaryActionLabel="Edit Contact"
-      onPrimaryAction={() => router.push(`/crm/contacts/edit/${id}`)}
     >
       <CRMEntityChildForms entityType="contact" entityId={id} />
     </CRMDetailShell>
@@ -172,7 +166,6 @@ export function CoreCRMContactDetail() {
 
 export function CoreCRMLeadDetail() {
   const id = useRouteId();
-  const router = useRouter();
   const { data, isLoading, error } = useLead(id);
   const lead = normalizeCRMLead(record(data)?.lead ?? data);
   const title = asText(lead.metadata.name, `Lead ${lead.id || id}`);
@@ -184,8 +177,6 @@ export function CoreCRMLeadDetail() {
       loading={isLoading}
       error={error?.message}
       testIDPrefix="crm-lead-detail"
-      primaryActionLabel="Edit Lead"
-      onPrimaryAction={() => router.push(`/crm/leads/edit/${id}`)}
     >
       <CRMEntityChildForms entityType="lead" entityId={id} />
     </CRMDetailShell>
@@ -194,7 +185,6 @@ export function CoreCRMLeadDetail() {
 
 export function CoreCRMDealDetail() {
   const id = useRouteId();
-  const router = useRouter();
   const { data, isLoading, error } = useDeal(id);
   const payload = record(data);
   const deal = normalizeCRMDeal(payload?.deal ?? payload);
@@ -206,8 +196,6 @@ export function CoreCRMDealDetail() {
       loading={isLoading}
       error={error?.message}
       testIDPrefix="crm-deal-detail"
-      primaryActionLabel="Edit Deal"
-      onPrimaryAction={() => router.push(`/crm/deals/edit/${id}`)}
     >
       <RelatedContacts contacts={relatedList(payload, 'contact', normalizeCRMContact)} />
       <CRMEntityChildForms entityType="deal" entityId={id} />
@@ -217,7 +205,6 @@ export function CoreCRMDealDetail() {
 
 export function CoreCRMCaseDetail() {
   const id = useRouteId();
-  const router = useRouter();
   const { data, isLoading, error } = useCase(id);
   const payload = record(data);
   const caseData = normalizeCRMCase(payload?.case ?? payload);
@@ -229,8 +216,6 @@ export function CoreCRMCaseDetail() {
       loading={isLoading}
       error={error?.message}
       testIDPrefix="crm-case-detail"
-      primaryActionLabel="Edit Case"
-      onPrimaryAction={() => router.push(`/crm/cases/edit/${id}`)}
     >
       <RelatedContacts contacts={relatedList(payload, 'contact', normalizeCRMContact)} />
       <CRMEntityChildForms entityType="case" entityId={id} />

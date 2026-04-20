@@ -262,11 +262,22 @@ tags:
     id: "crm-accounts-search"
 - takeScreenshot:
     path: "20_crm_accounts_list"
+- tapOn:
+    id: "crm-accounts-item-0-select"
+- assertVisible:
+    id: "crm-accounts-delete-selected"
+- takeScreenshot:
+    path: "20b_crm_accounts_list_selected"
 
 - openLink: "fenixcrm:///crm/accounts/${SEED_ACCOUNT_ID}"
 - extendedWaitUntil:
     visible:
       id: "crm-account-detail-screen"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: "crm-entity-child-forms"
+    direction: DOWN
     timeout: 20000
 - assertVisible:
     id: "crm-entity-child-forms"

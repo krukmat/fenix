@@ -8,11 +8,11 @@ import {
   RefreshControl,
   StyleSheet,
   ActivityIndicator,
-  TextInput,
   TouchableOpacity,
 } from 'react-native';
 import { useTheme } from 'react-native-paper';
 import type { ThemeColors } from '../../theme/types';
+import { ListHeader, SelectableItem } from './CRMListSelection';
 
 export interface CRMListItem {
   id: string;
@@ -40,6 +40,14 @@ export interface CRMListScreenProps<T extends CRMListItem> {
   hasData?: boolean;
   primaryActionLabel?: string;
   onPrimaryAction?: () => void;
+  selectedIds?: ReadonlySet<string>;
+  onToggleSelect?: (id: string) => void;
+  onSelectAllVisible?: () => void;
+  onClearSelection?: () => void;
+  selectionDisabled?: boolean;
+  onRowEdit?: (id: string) => void;
+  onBulkDelete?: () => void;
+  bulkDeletePending?: boolean;
 }
 
 // Helper to get theme colors
@@ -106,74 +114,6 @@ function EmptyState({
   );
 }
 
-// Search and filter header component
-function ListHeader({
-  colors,
-  testIDPrefix,
-  searchValue,
-  handleSearchChange,
-  statusFilter,
-  onStatusFilterChange,
-  availableStatuses,
-  primaryActionLabel,
-  onPrimaryAction,
-}: {
-  colors: ThemeColors;
-  testIDPrefix: string;
-  searchValue: string;
-  handleSearchChange: (value: string) => void;
-  statusFilter?: string;
-  onStatusFilterChange?: (status: string) => void;
-  availableStatuses?: string[];
-  primaryActionLabel?: string;
-  onPrimaryAction?: () => void;
-}) {
-  return (
-    <View style={styles.header}>
-      {primaryActionLabel && onPrimaryAction ? (
-        <TouchableOpacity
-          testID={`${testIDPrefix}-primary-action`}
-          style={[styles.primaryAction, { backgroundColor: colors.primary }]}
-          onPress={onPrimaryAction}
-        >
-          <Text style={[styles.primaryActionText, { color: colors.onPrimary }]}>{primaryActionLabel}</Text>
-        </TouchableOpacity>
-      ) : null}
-      <View style={[styles.searchContainer, { backgroundColor: colors.surfaceVariant, borderColor: colors.outline }]}>
-        <TextInput
-          style={[styles.searchInput, { color: colors.onSurface }]}
-          placeholder="Search..."
-          placeholderTextColor={colors.onSurfaceVariant}
-          value={searchValue}
-          onChangeText={handleSearchChange}
-          testID={`${testIDPrefix}-search`}
-        />
-      </View>
-      {availableStatuses && availableStatuses.length > 0 && (
-        <View style={styles.statusFilterContainer}>
-          <TouchableOpacity
-            style={[styles.statusChip, { backgroundColor: !statusFilter ? colors.primary : colors.surfaceVariant }]}
-            onPress={() => onStatusFilterChange?.('')}
-            testID={`${testIDPrefix}-status-all`}
-          >
-            <Text style={[styles.statusChipText, { color: !statusFilter ? colors.onPrimary : colors.onSurfaceVariant }]}>All</Text>
-          </TouchableOpacity>
-          {availableStatuses.map((status) => (
-            <TouchableOpacity
-              key={status}
-              style={[styles.statusChip, { backgroundColor: statusFilter === status ? colors.primary : colors.surfaceVariant }]}
-              onPress={() => onStatusFilterChange?.(status)}
-              testID={`${testIDPrefix}-status-${status}`}
-            >
-              <Text style={[styles.statusChipText, { color: statusFilter === status ? colors.onPrimary : colors.onSurfaceVariant }]}>{status}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
 // Footer loading component
 function FooterLoading({ colors, loadingMore }: { colors: ThemeColors; loadingMore: boolean }) {
   if (!loadingMore) return null;
@@ -196,30 +136,115 @@ function checkInitialState<T extends CRMListItem>(
   return 'list';
 }
 
-export function CRMListScreen<T extends CRMListItem>({
-  data,
-  loading,
-  error,
-  onRefresh,
-  onEndReached,
-  searchValue,
-  onSearchChange,
-  renderItem,
-  emptyTitle,
-  emptySubtitle,
+function renderListItem<T extends CRMListItem>({
+  item,
+  index,
   testIDPrefix,
-  onRetry,
-  isRefreshing = false,
-  loadingMore = false,
-  hasMore = false,
-  statusFilter,
-  onStatusFilterChange,
-  availableStatuses,
-  hasData,
-  primaryActionLabel,
-  onPrimaryAction,
-}: CRMListScreenProps<T>) {
+  colors,
+  selectedIds,
+  selectionEnabled,
+  selectionDisabled,
+  onToggleSelect,
+  onRowEdit,
+  renderItem,
+}: {
+  item: T;
+  index: number;
+  testIDPrefix: string;
+  colors: ThemeColors;
+  selectedIds?: ReadonlySet<string>;
+  selectionEnabled: boolean;
+  selectionDisabled?: boolean;
+  onToggleSelect?: (id: string) => void;
+  onRowEdit?: (id: string) => void;
+  renderItem: ({ item, index }: { item: T; index: number }) => React.ReactElement;
+}) {
+  if (!selectionEnabled || !onToggleSelect) return renderItem({ item, index });
+  return (
+    <SelectableItem
+      item={item}
+      index={index}
+      testIDPrefix={testIDPrefix}
+      colors={colors}
+      selected={selectedIds?.has(item.id) ?? false}
+      disabled={selectionDisabled}
+      onToggleSelect={onToggleSelect}
+      onEdit={onRowEdit}
+      renderItem={renderItem}
+    />
+  );
+}
+
+type ListContentProps<T extends CRMListItem> = CRMListScreenProps<T> & {
+  colors: ThemeColors;
+  selectionEnabled: boolean;
+  selectedCount: number;
+  handleSearchChange: (value: string) => void;
+};
+
+function ListHeaderComponent<T extends CRMListItem>(props: ListContentProps<T>) {
+  const { colors, testIDPrefix, data, searchValue, handleSearchChange, statusFilter, onStatusFilterChange,
+    availableStatuses, primaryActionLabel, onPrimaryAction, selectionEnabled, selectedCount,
+    selectionDisabled, onSelectAllVisible, onClearSelection, onBulkDelete, bulkDeletePending } = props;
+  return (
+    <ListHeader
+      colors={colors} testIDPrefix={testIDPrefix} hasVisibleData={data.length > 0}
+      searchValue={searchValue} handleSearchChange={handleSearchChange}
+      statusFilter={statusFilter} onStatusFilterChange={onStatusFilterChange}
+      availableStatuses={availableStatuses} primaryActionLabel={primaryActionLabel}
+      onPrimaryAction={onPrimaryAction} selectionEnabled={selectionEnabled}
+      selectedCount={selectedCount} selectionDisabled={selectionDisabled}
+      onSelectAllVisible={onSelectAllVisible} onClearSelection={onClearSelection}
+      onBulkDelete={onBulkDelete} bulkDeletePending={bulkDeletePending}
+    />
+  );
+}
+
+function CRMListContent<T extends CRMListItem>(props: ListContentProps<T>) {
+  const { data, onRefresh, onEndReached, renderItem, testIDPrefix,
+    isRefreshing = false, loadingMore = false, hasMore = false,
+    selectedIds, onToggleSelect, selectionDisabled, onRowEdit,
+    colors, selectionEnabled } = props;
+  const HeaderComponent = () => <ListHeaderComponent {...props} />;
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]} testID={`${testIDPrefix}-list`}>
+      <FlatList
+        data={data}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => renderListItem({
+          item, index, testIDPrefix, colors, selectedIds,
+          selectionEnabled, selectionDisabled, onToggleSelect, onRowEdit, renderItem,
+        })}
+        ListHeaderComponent={HeaderComponent}
+        ListFooterComponent={() => <FooterLoading colors={colors} loadingMore={loadingMore} />}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        onEndReached={hasMore ? onEndReached : undefined}
+        onEndReachedThreshold={0.5}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        testID={`${testIDPrefix}-flatlist`}
+      />
+    </View>
+  );
+}
+
+export function CRMListScreen<T extends CRMListItem>(props: CRMListScreenProps<T>) {
+  const {
+    data,
+    loading,
+    error,
+    emptyTitle,
+    emptySubtitle,
+    testIDPrefix,
+    onRetry,
+    hasData,
+    selectedIds,
+    onToggleSelect,
+    onSearchChange,
+  } = props;
   const colors = useThemeColors();
+  const selectionEnabled = !!selectedIds && !!onToggleSelect;
+  const selectedCount = selectedIds?.size ?? 0;
 
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -244,35 +269,14 @@ export function CRMListScreen<T extends CRMListItem>({
     return <EmptyState testIDPrefix={testIDPrefix} colors={colors} emptyTitle={emptyTitle} emptySubtitle={emptySubtitle} />;
   }
 
-  // List state or filtered-to-empty state (hasData is true)
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]} testID={`${testIDPrefix}-list`}>
-      <FlatList
-        data={data}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        ListHeaderComponent={() => (
-          <ListHeader
-            colors={colors}
-            testIDPrefix={testIDPrefix}
-            searchValue={searchValue}
-            handleSearchChange={handleSearchChange}
-            statusFilter={statusFilter}
-            onStatusFilterChange={onStatusFilterChange}
-            availableStatuses={availableStatuses}
-            primaryActionLabel={primaryActionLabel}
-            onPrimaryAction={onPrimaryAction}
-          />
-        )}
-        ListFooterComponent={() => <FooterLoading colors={colors} loadingMore={loadingMore} />}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-        onEndReached={hasMore ? onEndReached : undefined}
-        onEndReachedThreshold={0.5}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        testID={`${testIDPrefix}-flatlist`}
-      />
-    </View>
+    <CRMListContent
+      {...props}
+      colors={colors}
+      selectionEnabled={selectionEnabled}
+      selectedCount={selectedCount}
+      handleSearchChange={handleSearchChange}
+    />
   );
 }
 
@@ -281,13 +285,6 @@ const styles = StyleSheet.create({
   centered: { justifyContent: 'center', alignItems: 'center' },
   listContent: { paddingBottom: 16 },
   header: { padding: 16 },
-  primaryAction: { minHeight: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  primaryActionText: { fontSize: 15, fontWeight: '700' },
-  searchContainer: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 4 },
-  searchInput: { fontSize: 16, paddingVertical: 8 },
-  statusFilterContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, gap: 8 },
-  statusChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
-  statusChipText: { fontSize: 14, fontWeight: '500' },
   loadingText: { marginTop: 12, fontSize: 16 },
   errorText: { fontSize: 16, textAlign: 'center', marginBottom: 16 },
   retryButton: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },

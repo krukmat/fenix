@@ -66,6 +66,12 @@ tags:
 - tapOn:
     id: "crm-case-form-subject"
 - inputText: "UAT Case Wave 8D"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "crm-case-form-submit"
+    direction: DOWN
+    timeout: 20000
 - tapOn:
     id: "crm-case-form-submit"
 
