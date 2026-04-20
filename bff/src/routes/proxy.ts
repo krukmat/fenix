@@ -1,24 +1,10 @@
 // Task 4.1 — FR-301: Transparent proxy — all /bff/api/v1/* forwarded to Go /api/v1/*
 import { Router } from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import type { Request } from 'express';
 import { config } from '../config';
+import { restreamParsedJsonBody } from './proxyBody';
 
 const router = Router();
-
-export function hasParsedJsonBody(req: Request): boolean {
-  return req.body !== undefined && req.body !== null && Object.keys(req.body as object).length > 0;
-}
-
-export function restreamParsedJsonBody(proxyReq: import('http').ClientRequest, req: Request): void {
-  if (!hasParsedJsonBody(req)) {
-    return;
-  }
-  const body = JSON.stringify(req.body);
-  proxyReq.setHeader('Content-Type', 'application/json');
-  proxyReq.setHeader('Content-Length', Buffer.byteLength(body));
-  proxyReq.write(body);
-}
 
 // Pass-through: all methods, all paths under /bff/api/v1
 // http-proxy-middleware rewrites /bff/api/v1/... → /api/v1/...

@@ -5,6 +5,7 @@
 import http from 'http';
 import request from 'supertest';
 import { makeProxyStub } from './helpers/proxyStub';
+import { hasParsedJsonBody, restreamParsedJsonBody } from '../src/routes/proxyBody';
 
 const proxyHandlerFn = jest.fn((req, res, _next) => {
   // Default: simulate auth-required endpoint
@@ -51,10 +52,6 @@ describe('Proxy pass-through /bff/api/v1/*', () => {
     expect(res.status).toBe(401);
   });
 });
-
-// Import after mock setup to avoid module init order issues
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { hasParsedJsonBody, restreamParsedJsonBody } = require('../src/routes/proxy') as typeof import('../src/routes/proxy');
 
 describe('hasParsedJsonBody', () => {
   it('returns true when body has keys', () => {
