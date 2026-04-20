@@ -31,6 +31,7 @@ echo "==> Gate: deadcode"
 deadcode -test ./... 2>&1 \
   | grep -v "mcp_adapter\|MCPGateway\|BuildServer\|MCPResourceProvider\|MCPResourceDescriptor\|MCPResourcePayload" \
   | grep -v "_test\.go:\|ruleguard" \
+  | grep -v "bff/node_modules/" \
   | tee /tmp/deadcode-report.txt || true
 LINES=$(grep -c "." /tmp/deadcode-report.txt 2>/dev/null || echo 0)
 echo "Dead code findings (after MCP allowlist): $LINES"
