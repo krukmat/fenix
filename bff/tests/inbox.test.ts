@@ -103,4 +103,56 @@ describe('GET /bff/api/v1/mobile/inbox', () => {
     expect(res.body.handoffs).toHaveLength(0);
     expect(res.body.rejected).toHaveLength(0);
   });
+
+  it('normalizes approvals when backend returns a plain array (not wrapped in data)', async () => {
+    mockGoClient.get.mockImplementation((url: string, options?: { params?: { status?: string } }) => {
+      if (url === '/api/v1/approvals') return Promise.resolve({ data: [sampleApproval] });
+      if (url === '/api/v1/signals') return Promise.resolve({ data: [sampleSignal] });
+      if (url === '/api/v1/agents/runs' && options?.params?.status === 'handed_off')
+        return Promise.resolve({ data: { data: [] } });
+      if (url === '/api/v1/agents/runs' && options?.params?.status === 'denied_by_policy')
+        return Promise.resolve({ data: { data: [] } });
+      return Promise.reject(new Error(`unexpected url: ${url}`));
+    });
+
+    const res = await request(app)
+      .get('/bff/api/v1/mobile/inbox')
+      .set('Authorization', 'Bearer test-token');
+
+    expect(res.status).toBe(200);
+    expect(res.body.approvals).toHaveLength(1);
+    expect(res.body.approvals[0].id).toBe('appr-1');
+  });
+
+  it('normalizes signals when backend returns wrapped data object', async () => {
+    mockGoClient.get.mockImplementation((url: string, options?: { params?: { status?: string } }) => {
+      if (url === '/api/v1/approvals') return Promise.resolve({ data: { data: [] } });
+      if (url === '/api/v1/signals') return Promise.resolve({ data: { data: [sampleSignal] } });
+      if (url === '/api/v1/agents/runs' && options?.params?.status === 'handed_off')
+        return Promise.resolve({ data: { data: [] } });
+      if (url === '/api/v1/agents/runs' && options?.params?.status === 'denied_by_policy')
+        return Promise.resolve({ data: { data: [] } });
+      return Promise.reject(new Error(`unexpected url: ${url}`));
+    });
+
+    const res = await request(app)
+      .get('/bff/api/v1/mobile/inbox')
+      .set('Authorization', 'Bearer test-token');
+
+    expect(res.status).toBe(200);
+    expect(res.body.signals).toHaveLength(1);
+    expect(res.body.signals[0].id).toBe('sig-1');
+  });
+
+  it('includes workspace_id in params when provided as query string', async () => {
+    mockGoClient.get.mockResolvedValue({ data: { data: [] } });
+
+    const res = await request(app)
+      .get('/bff/api/v1/mobile/inbox?workspace_id=ws-123')
+      .set('Authorization', 'Bearer test-token');
+
+    expect(res.status).toBe(200);
+    const firstCall = mockGoClient.get.mock.calls[0] as [string, { params: Record<string, unknown> }];
+    expect(firstCall[1].params.workspace_id).toBe('ws-123');
+  });
 });
