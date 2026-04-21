@@ -389,37 +389,9 @@ Deal risk is part of the deal flow. The user can review risk signals without lea
 
 Analytical questions do not need to start from a dashboard. The Insights screen gives mobile users a direct entry point for grounded ad hoc queries.
 
----
-
-### Mobile CRM surfaces
-
-The mobile CRM area keeps core customer records close to the governed AI work. Users can move from the hub to accounts, contacts, leads, deals, and cases, then open detail, edit records, select rows, or run bulk actions.
-
-<p>
-  <img src="mobile/artifacts/screenshots/19_crm_hub.png" alt="CRM hub" width="220" />
-  <img src="mobile/artifacts/screenshots/20_crm_accounts_list.png" alt="Accounts list" width="220" />
-  <img src="mobile/artifacts/screenshots/21_crm_account_detail.png" alt="Account detail" width="220" />
-</p>
-
-<p>
-  <img src="mobile/artifacts/screenshots/26_crm_contacts_list.png" alt="Contacts list" width="220" />
-  <img src="mobile/artifacts/screenshots/27_crm_leads_list.png" alt="Leads list" width="220" />
-  <img src="mobile/artifacts/screenshots/28_crm_deals_list.png" alt="Deals list" width="220" />
-</p>
-
-<p>
-  <img src="mobile/artifacts/screenshots/30_crm_accounts_edit_form.png" alt="Account edit form" width="220" />
-  <img src="mobile/artifacts/screenshots/31_crm_contacts_bulk_delete_confirm.png" alt="Bulk delete confirmation" width="220" />
-  <img src="mobile/artifacts/screenshots/32_crm_contacts_after_bulk_delete.png" alt="Contacts after bulk delete" width="220" />
-</p>
-
-The screenshots are generated from the mobile app with Maestro and are stored in `mobile/artifacts/screenshots/`.
-
----
-
 ![The main operating surfaces in FenixCRM](docs/article-assets/diagram-10-operating-surfaces.png)
 
-Each surface above is reachable from the inbox or from the CRM hub. The inbox is the operational center for governed work. The CRM hub is the place to inspect and maintain customer records.
+Each surface above is reachable from the inbox or from the CRM hub. The inbox is the operational center for governed work. The CRM hub is the place to inspect and maintain customer records. Screenshots are generated from the mobile app with Maestro and stored in `mobile/artifacts/screenshots/`.
 
 > Full article: [When CRM Begins to Operate, Not Just Record](https://medium.com/@iotforce/when-crm-begins-to-operate-not-just-record-84248b080ee7)
 

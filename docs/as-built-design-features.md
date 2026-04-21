@@ -1,7 +1,7 @@
 # FenixCRM — Diseño As-Built de Features Implementadas
 
-> **Fecha**: 2026-04-21  
-> **Objetivo**: documentar el diseño real implementado (as-built), trazando requerimientos ↔ código ↔ datos.  
+> **Fecha**: 2026-04-21
+> **Objetivo**: documentar el diseño real implementado (as-built), trazando requerimientos ↔ código ↔ datos.
 > **Fuentes**: `docs/requirements.md`, `docs/architecture.md`, `docs/implementation-plan.md` + evidencia en `internal/*`, `bff/*`, `mobile/*`.
 
 ---
