@@ -2,6 +2,8 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 import type { AuditEvent, AuditOutcome } from '../../services/api.types';
+import { getAgentStatusColor } from '../../theme/semantic';
+import { typography } from '../../theme/typography';
 
 interface AuditEventCardProps {
   event: AuditEvent;
@@ -11,12 +13,7 @@ interface AuditEventCardProps {
 }
 
 function getOutcomeColor(outcome: AuditOutcome): string {
-  const colors: Record<AuditOutcome, string> = {
-    success: '#10B981',
-    denied: '#EF4444',
-    error: '#DC2626',
-  };
-  return colors[outcome] ?? '#6B7280';
+  return getAgentStatusColor(outcome);
 }
 
 function formatDetails(details: unknown): string {
@@ -43,7 +40,11 @@ export function AuditEventCard({
   const outcomeColor = getOutcomeColor(event.outcome);
 
   return (
-    <Card testID={`${testIDPrefix}-card`} style={styles.card} onPress={onPress}>
+    <Card
+      testID={`${testIDPrefix}-card`}
+      style={[styles.card, { borderLeftWidth: 2, borderLeftColor: outcomeColor }]}
+      onPress={onPress}
+    >
       <Card.Content>
         <View style={styles.headerRow}>
           <View style={styles.headerText}>
@@ -73,7 +74,7 @@ export function AuditEventCard({
         <Text
           testID={`${testIDPrefix}-created-at`}
           variant="bodySmall"
-          style={{ color: colors.onSurfaceVariant, marginTop: 8 }}
+          style={[typography.monoSM, { color: colors.onSurfaceVariant, marginTop: 8 }]}
         >
           {new Date(event.created_at).toLocaleString()}
         </Text>
@@ -90,14 +91,14 @@ export function AuditEventCard({
             <Text
               testID={`${testIDPrefix}-trace-id`}
               variant="bodySmall"
-              style={{ color: colors.onSurfaceVariant, marginTop: 4 }}
+              style={[typography.monoSM, { color: colors.onSurfaceVariant, marginTop: 4 }]}
             >
               Trace: {event.trace_id ?? '—'}
             </Text>
             <Text
               testID={`${testIDPrefix}-details`}
               variant="bodySmall"
-              style={[styles.detailsText, { color: colors.onSurfaceVariant }]}
+              style={[styles.detailsText, typography.monoSM, { color: colors.onSurfaceVariant }]}
             >
               {formatDetails(event.details)}
             </Text>

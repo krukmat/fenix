@@ -19,8 +19,8 @@ function useColors(): ThemeColors {
   return useTheme().colors as ThemeColors;
 }
 
-function SectionHeader({ title, colors }: { title: string; colors: ThemeColors }) {
-  return <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>{title}</Text>;
+function SectionHeader({ title }: { title: string; colors: ThemeColors }) {
+  return <Text style={styles.sectionTitle}>{title}</Text>;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -62,6 +62,7 @@ function UsageList({
 
 function QuotaItem({ quota, index, colors }: { quota: QuotaStateItem; index: number; colors: ThemeColors }) {
   const pct = quota.limitValue > 0 ? Math.round((quota.currentValue / quota.limitValue) * 100) : 0;
+  const fillColor = pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#3B82F6';
   return (
     <View testID={`governance-quota-item-${index}`} style={[styles.quotaCard, { backgroundColor: colors.surface }]}>
       <View style={styles.quotaHeader}>
@@ -69,7 +70,7 @@ function QuotaItem({ quota, index, colors }: { quota: QuotaStateItem; index: num
         <Text style={{ color: colors.onSurfaceVariant, fontSize: 12 }}>{quota.resetPeriod} · {quota.enforcementMode}</Text>
       </View>
       <View style={styles.quotaBar}>
-        <View style={[styles.quotaFill, { width: `${Math.min(pct, 100)}%` as `${number}%`, backgroundColor: pct >= 90 ? '#EF4444' : colors.primary }]} />
+        <View style={[styles.quotaFill, { width: `${Math.min(pct, 100)}%` as `${number}%`, backgroundColor: fillColor }]} />
       </View>
       <Text style={{ color: colors.onSurfaceVariant, fontSize: 12, marginTop: 4 }}>
         {quota.currentValue} / {quota.limitValue} ({pct}%)
@@ -115,7 +116,7 @@ function GovernanceContent({ summary, colors }: { summary: GovernanceSummary; co
         <TouchableOpacity
           testID="governance-audit-trail-link"
           onPress={() => router.push(wedgeHref('/governance/audit'))}
-          style={[styles.auditLinkRow, { backgroundColor: colors.surface }]}
+          style={[styles.auditLinkRow, { backgroundColor: colors.surface, borderLeftWidth: 3, borderLeftColor: '#3B82F6' }]}
           accessibilityRole="button"
         >
           <Text style={[styles.auditLinkText, { color: colors.onSurface }]}>Audit Trail</Text>
@@ -166,7 +167,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   section: { padding: 16 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: '#8899AA', marginBottom: 12 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: SPACE_BETWEEN, alignItems: 'center', marginBottom: 12 },
   viewAllLink: { fontSize: 13, fontWeight: '600' },
   auditLinkSection: { paddingTop: 0 },
@@ -174,6 +175,6 @@ const styles = StyleSheet.create({
   auditLinkText: { fontSize: 15, fontWeight: '600' },
   quotaCard: { padding: 14, borderRadius: 8, marginBottom: 10 },
   quotaHeader: { flexDirection: 'row', justifyContent: SPACE_BETWEEN, alignItems: 'center', marginBottom: 8 },
-  quotaBar: { height: 6, borderRadius: 3, backgroundColor: '#E5E7EB', overflow: 'hidden' },
-  quotaFill: { height: 6, borderRadius: 3 },
+  quotaBar: { height: 4, borderRadius: 3, backgroundColor: '#E5E7EB', overflow: 'hidden' },
+  quotaFill: { height: 4, borderRadius: 3 },
 });

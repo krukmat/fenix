@@ -70,7 +70,7 @@ function RootLayout() {
 
   if (!isReady || isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1565C0' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0D12' }}>
         <ActivityIndicator size="large" color="#FFFFFF" />
       </View>
     );
@@ -105,7 +105,7 @@ function RootLayout() {
                 }}
               />
             </Stack>
-            <StatusBar style="auto" />
+            <StatusBar style="light" />
           </PaperProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

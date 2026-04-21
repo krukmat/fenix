@@ -16,6 +16,7 @@ import { useAgentRuns } from '../../../src/hooks/useWedge';
 import { wedgeHref } from '../../../src/utils/navigation';
 import type { AgentRunPublicStatus } from '../../../src/services/api.types';
 import type { ThemeColors } from '../../../src/theme/types';
+import { typography } from '../../../src/theme/typography';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -77,18 +78,26 @@ function FilterChips({ active, onSelect, colors }: {
 }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.chipRow, { backgroundColor: colors.surface }]}>
-      {FILTERS.map((f) => (
-        <TouchableOpacity
-          key={f.value}
-          testID={`filter-${f.value}`}
-          style={[styles.chip, active === f.value && { backgroundColor: colors.primary }]}
-          onPress={() => onSelect(f.value)}
-        >
-          <Text style={[styles.chipText, { color: active === f.value ? '#FFF' : colors.onSurfaceVariant }]}>
-            {f.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
+      {FILTERS.map((f) => {
+        const isActive = active === f.value;
+        return (
+          <TouchableOpacity
+            key={f.value}
+            testID={`filter-${f.value}`}
+            style={[
+              styles.chip,
+              isActive
+                ? { backgroundColor: '#1E3A5F', borderColor: '#3B82F6' }
+                : { backgroundColor: '#1A2030', borderColor: '#2E3A50' },
+            ]}
+            onPress={() => onSelect(f.value)}
+          >
+            <Text style={[styles.chipText, { color: isActive ? '#FFF' : colors.onSurfaceVariant }]}>
+              {f.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -109,8 +118,16 @@ function RunRow({ run, colors, onPress }: { run: RunItem; colors: ThemeColors; o
         </View>
       </View>
       <View style={styles.rowMeta}>
-        {run.latency_ms ? <Text style={[styles.metaText, { color: colors.onSurfaceVariant }]}>{formatLatency(run.latency_ms)}</Text> : null}
-        {run.cost_euros !== undefined ? <Text style={[styles.metaText, { color: colors.onSurfaceVariant }]}>{run.cost_euros.toFixed(3)} €</Text> : null}
+        {run.latency_ms ? (
+          <Text style={[styles.metaText, typography.monoSM, { color: colors.onSurfaceVariant }]}>
+            {formatLatency(run.latency_ms)}
+          </Text>
+        ) : null}
+        {run.cost_euros !== undefined ? (
+          <Text style={[styles.metaText, typography.monoSM, { color: colors.onSurfaceVariant }]}>
+            {run.cost_euros.toFixed(3)} €
+          </Text>
+        ) : null}
         {run.started_at ? <Text style={[styles.metaText, { color: colors.onSurfaceVariant }]}>{new Date(run.started_at).toLocaleString()}</Text> : null}
       </View>
     </TouchableOpacity>
@@ -121,7 +138,7 @@ function InsightsEntryCard({ colors, onPress }: { colors: ThemeColors; onPress: 
   return (
     <TouchableOpacity
       testID="activity-insights-nav"
-      style={[styles.insightsCard, { backgroundColor: colors.surface }]}
+      style={styles.insightsCard}
       onPress={onPress}
     >
       <Text style={[styles.insightsTitle, { color: colors.onSurface }]}>Insights Agent</Text>
@@ -181,11 +198,11 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   topSection: { padding: 16, paddingBottom: 0 },
-  insightsCard: { padding: 16, borderRadius: 10, elevation: 1 },
+  insightsCard: { backgroundColor: '#1E3A5F', borderWidth: 1, borderColor: '#3B82F6', borderLeftWidth: 3, borderRadius: 12, padding: 18 },
   insightsTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
   insightsSubtitle: { fontSize: 13, lineHeight: 18 },
   chipRow: { paddingHorizontal: 12, paddingVertical: 8, flexGrow: 0 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginRight: 8, backgroundColor: '#E5E7EB' },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginRight: 8, borderWidth: 1 },
   chipText: { fontSize: 13, fontWeight: '500' },
   listContent: { padding: 16 },
   row: { padding: 16, borderRadius: 8, marginBottom: 10, elevation: 1 },

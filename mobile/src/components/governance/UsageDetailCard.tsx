@@ -5,6 +5,8 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 import type { UsageEvent } from '../../services/api.types';
+import { typography } from '../../theme/typography';
+import { semanticColors } from '../../theme/colors';
 
 interface UsageDetailCardProps {
   event: UsageEvent;
@@ -69,21 +71,21 @@ export function UsageDetailCard({ event, testIDPrefix = 'udc', onPress }: UsageD
           <Text
             testID={`${testIDPrefix}-cost`}
             variant="bodySmall"
-            style={{ color: colors.onSurface, fontWeight: '600' }}
+            style={[typography.monoLG, { color: semanticColors.success }]}
         >
             {formatCost(event.estimatedCost)}
           </Text>
           <Text
             testID={`${testIDPrefix}-latency`}
             variant="bodySmall"
-            style={{ color: colors.onSurfaceVariant }}
+            style={typography.monoSM}
         >
             {formatLatency(event.latencyMs)}
           </Text>
           <Text
             testID={`${testIDPrefix}-timestamp`}
             variant="bodySmall"
-            style={{ color: colors.onSurfaceVariant }}
+            style={typography.monoSM}
         >
             {formatTimestamp(event.createdAt)}
           </Text>

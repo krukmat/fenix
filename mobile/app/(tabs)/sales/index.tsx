@@ -17,6 +17,8 @@ import { SignalCountBadge } from '../../../src/components/signals/SignalCountBad
 import { LeadListTab } from '../../../src/components/sales/LeadListTab';
 import { ContactsListContent } from '../../../src/components/contacts/ContactsListContent';
 import type { ThemeColors } from '../../../src/theme/types';
+import { getAgentStatusColor } from '../../../src/theme/semantic';
+import { typography } from '../../../src/theme/typography';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,12 +47,6 @@ function useColors(): ThemeColors {
   return theme.colors as ThemeColors;
 }
 
-function getDealStatusColor(status: string): string {
-  if (status === 'won') return '#10B981';
-  if (status === 'lost') return '#EF4444';
-  return '#3B82F6';
-}
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function TabBar({ active, onSelect, colors }: { active: Tab; onSelect: (t: Tab) => void; colors: ThemeColors }) {
@@ -58,7 +54,7 @@ function TabBar({ active, onSelect, colors }: { active: Tab; onSelect: (t: Tab) 
     <View style={[styles.tabBar, { backgroundColor: colors.surface }]}>
       <TouchableOpacity
         testID="sales-tab-accounts"
-        style={[styles.tab, active === 'accounts' && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+        style={[styles.tab, active === 'accounts' && { borderBottomColor: '#3B82F6', borderBottomWidth: 2 }]}
         onPress={() => onSelect('accounts')}
       >
         <Text style={[styles.tabText, { color: active === 'accounts' ? colors.primary : colors.onSurfaceVariant }]}>
@@ -67,7 +63,7 @@ function TabBar({ active, onSelect, colors }: { active: Tab; onSelect: (t: Tab) 
       </TouchableOpacity>
       <TouchableOpacity
         testID="sales-tab-deals"
-        style={[styles.tab, active === 'deals' && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+        style={[styles.tab, active === 'deals' && { borderBottomColor: '#3B82F6', borderBottomWidth: 2 }]}
         onPress={() => onSelect('deals')}
       >
         <Text style={[styles.tabText, { color: active === 'deals' ? colors.primary : colors.onSurfaceVariant }]}>
@@ -76,7 +72,7 @@ function TabBar({ active, onSelect, colors }: { active: Tab; onSelect: (t: Tab) 
       </TouchableOpacity>
       <TouchableOpacity
         testID="sales-tab-leads"
-        style={[styles.tab, active === 'leads' && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+        style={[styles.tab, active === 'leads' && { borderBottomColor: '#3B82F6', borderBottomWidth: 2 }]}
         onPress={() => onSelect('leads')}
       >
         <Text style={[styles.tabText, { color: active === 'leads' ? colors.primary : colors.onSurfaceVariant }]}>
@@ -85,7 +81,7 @@ function TabBar({ active, onSelect, colors }: { active: Tab; onSelect: (t: Tab) 
       </TouchableOpacity>
       <TouchableOpacity
         testID="sales-tab-contacts"
-        style={[styles.tab, active === 'contacts' && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+        style={[styles.tab, active === 'contacts' && { borderBottomColor: '#3B82F6', borderBottomWidth: 2 }]}
         onPress={() => onSelect('contacts')}
       >
         <Text style={[styles.tabText, { color: active === 'contacts' ? colors.primary : colors.onSurfaceVariant }]}>
@@ -127,7 +123,7 @@ function DealRow({
         <Text style={[styles.rowTitle, { color: colors.onSurface, flex: 1 }]}>
           {item.title || item.name || 'Unnamed Deal'}
         </Text>
-        <View style={[styles.statusChip, { backgroundColor: getDealStatusColor(item.status) }]}>
+        <View style={[styles.statusChip, { backgroundColor: getAgentStatusColor(item.status) }]}>
           <Text style={styles.statusChipText}>{item.status}</Text>
         </View>
       </View>
@@ -135,7 +131,9 @@ function DealRow({
         <Text style={[styles.rowSub, { color: colors.onSurfaceVariant }]}>{item.accountName}</Text>
       ) : null}
       {item.amount !== undefined ? (
-        <Text style={[styles.rowSub, { color: colors.onSurfaceVariant }]}>${item.amount.toLocaleString()}</Text>
+        <Text style={[styles.rowSub, typography.monoLG, { color: colors.onSurfaceVariant }]}>
+          ${item.amount.toLocaleString()}
+        </Text>
       ) : null}
     </TouchableOpacity>
   );

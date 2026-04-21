@@ -10,8 +10,23 @@ import { authApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
 import { AuthFormLayout } from '../../src/components/ui/AuthFormLayout';
 
-export default function LoginScreen() {
+function RegisterLinkButton() {
   const router = useRouter();
+
+  return (
+    <Button
+      testID="go-to-register-link"
+      mode="text"
+      onPress={() => router.push('/register')}
+      style={styles.linkButton}
+      labelStyle={styles.linkLabel}
+    >
+      Do not have an account? Sign up
+    </Button>
+  );
+}
+
+export default function LoginScreen() {
   const login = useAuthStore((state) => state.login);
   
   const [email, setEmail] = useState('');
@@ -58,7 +73,9 @@ export default function LoginScreen() {
         autoCapitalize="none"
         autoComplete="email"
         mode="outlined"
+        dense
         style={styles.input}
+        contentStyle={styles.inputContent}
       />
 
       <TextInput
@@ -68,7 +85,9 @@ export default function LoginScreen() {
         onChangeText={setPassword}
         secureTextEntry
         mode="outlined"
+        dense
         style={styles.input}
+        contentStyle={styles.inputContent}
       />
 
       {error ? (
@@ -84,26 +103,37 @@ export default function LoginScreen() {
         loading={loading}
         disabled={loading}
         style={styles.button}
+        labelStyle={styles.buttonLabel}
       >
         Sign In
       </Button>
 
-      <Button testID="go-to-register-link" mode="text" onPress={() => router.push('/register')} style={styles.linkButton}>
-        Do not have an account? Sign up
-      </Button>
+      <RegisterLinkButton />
     </AuthFormLayout>
   );
 }
 
 const styles = StyleSheet.create({
   input: {
-    marginBottom: 16,
+    marginBottom: 10,
+    height: 48,
+    fontSize: 14,
+  },
+  inputContent: {
+    fontSize: 14,
   },
   button: {
-    marginTop: 8,
-    paddingVertical: 4,
+    marginTop: 6,
+    borderRadius: 8,
+  },
+  buttonLabel: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   linkButton: {
-    marginTop: 16,
+    marginTop: 10,
+  },
+  linkLabel: {
+    fontSize: 13,
   },
 });

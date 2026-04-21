@@ -80,7 +80,13 @@ export function ApprovalCard({
 
   return (
     <>
-      <Card testID={testIDPrefix} style={styles.card}>
+      <Card
+        testID={testIDPrefix}
+        style={[
+          styles.card,
+          { borderLeftWidth: 3, borderLeftColor: isExpired ? theme.colors.error : theme.colors.primary },
+        ]}
+      >
         <Card.Content>
           <View style={styles.headerRow}>
             <Text variant="titleSmall" style={styles.action} testID={`${testIDPrefix}-action`}>

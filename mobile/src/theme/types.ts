@@ -11,4 +11,8 @@ export interface ThemeColors {
   onSurfaceVariant: string;
   error: string;
   outline: string;
+  success?: string;
+  warning?: string;
+  info?: string;
+  surfaceContainerHigh?: string;
 }

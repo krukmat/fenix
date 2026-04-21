@@ -2,14 +2,12 @@
 
 import React from 'react';
 import { Stack } from 'expo-router';
+import { darkStackScreenOptions } from '../../../src/navigation/darkStackOptions';
 
 export default function CRMLayout() {
   return (
     <Stack
-      screenOptions={{
-        headerShown: false,
-        animation: 'slide_from_right',
-      }}
+      screenOptions={darkStackScreenOptions}
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="accounts/index" options={{ title: 'Accounts', headerShown: true }} />

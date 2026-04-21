@@ -4,18 +4,13 @@ import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text, IconButton, Dialog, Portal, Button, useTheme } from 'react-native-paper';
 import type { Signal } from '../../services/api';
+import { getConfidenceColor, confidenceGlowStyle } from '../../theme/semantic';
 
 interface SignalCardProps {
   signal: Signal;
   onDismiss: (id: string) => void;
   onPress?: (signal: Signal) => void;
   testIDPrefix?: string;
-}
-
-function confidenceColor(confidence: number): string {
-  if (confidence >= 0.8) return '#2e7d32';
-  if (confidence >= 0.5) return '#e65100';
-  return '#757575';
 }
 
 function confidenceLabel(confidence: number): string {
@@ -60,7 +55,7 @@ function DismissDialog({
 export function SignalCard({ signal, onDismiss, onPress, testIDPrefix = 'signal-card' }: SignalCardProps) {
   const [confirmVisible, setConfirmVisible] = useState(false);
   const theme = useTheme();
-  const color = confidenceColor(signal.confidence);
+  const color = getConfidenceColor(signal.confidence);
 
   const handleDismissConfirm = () => {
     setConfirmVisible(false);
@@ -69,7 +64,11 @@ export function SignalCard({ signal, onDismiss, onPress, testIDPrefix = 'signal-
 
   return (
     <>
-      <Card testID={testIDPrefix} style={styles.card} onPress={onPress ? () => onPress(signal) : undefined}>
+      <Card
+        testID={testIDPrefix}
+        style={[styles.card, confidenceGlowStyle(signal.confidence)]}
+        onPress={onPress ? () => onPress(signal) : undefined}
+      >
         <Card.Content>
           <View style={styles.header}>
             <View style={styles.titleRow}>

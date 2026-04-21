@@ -8,7 +8,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useInbox } from '../../src/hooks/useWedge';
-import { brandColors } from '../../src/theme';
 
 // ─── Inbox badge ──────────────────────────────────────────────────────────────
 
@@ -32,44 +31,47 @@ const WEDGE_TAB_SCREENS: { name: string; title: string; icon: TabIconName; testI
 const TAB_SCREEN_OPTIONS = {
   headerShown: true,
   headerShadowVisible: false,
-  headerStyle: { backgroundColor: brandColors.background },
-  headerTintColor: brandColors.onBackground,
+  headerStyle: { backgroundColor: '#111620' },
+  headerTintColor: '#F0F4FF',
   headerTitleAlign: 'left' as const,
   headerTitleStyle: {
-    color: brandColors.onBackground,
-    fontSize: 22,
+    color: '#F0F4FF',
+    fontSize: 18,
     fontWeight: '700' as const,
+    letterSpacing: -0.3,
   },
-  tabBarActiveTintColor: brandColors.primary,
-  tabBarInactiveTintColor: brandColors.onSurfaceVariant,
+  tabBarActiveTintColor: '#3B82F6',
+  tabBarInactiveTintColor: '#8899AA',
   tabBarShowLabel: true,
   tabBarHideOnKeyboard: true,
   tabBarStyle: {
-    backgroundColor: '#FFFFFF',
-    borderTopColor: '#DDE5F0',
+    backgroundColor: '#111620',
+    borderTopColor: '#1E2B3E',
     borderTopWidth: 1,
     height: 68,
     paddingTop: 6,
     paddingBottom: 8,
-    elevation: 10,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: -4 },
+    shadowColor: '#000000',
+    shadowOpacity: 0.4,
+    shadowOffset: { width: 0, height: -2 },
     shadowRadius: 12,
+    elevation: 12,
   },
   tabBarLabelStyle: {
     fontSize: 11,
-    fontWeight: '700' as const,
+    fontWeight: '600' as const,
     marginTop: 2,
+    letterSpacing: 0.2,
   },
-  tabBarItemStyle: {
-    paddingVertical: 2,
-  },
+  tabBarItemStyle: { paddingVertical: 2 },
   tabBarBadgeStyle: {
-    backgroundColor: '#D32F2F',
+    backgroundColor: '#EF4444',
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '700' as const,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
   },
 };
 

@@ -36,7 +36,9 @@ function RegisterForm(props: RegisterFormProps) {
         onChangeText={props.onDisplayNameChange}
         autoCapitalize="words"
         mode="outlined"
+        dense
         style={styles.input}
+        contentStyle={styles.inputContent}
       />
 
       <TextInput
@@ -48,7 +50,9 @@ function RegisterForm(props: RegisterFormProps) {
         autoCapitalize="none"
         autoComplete="email"
         mode="outlined"
+        dense
         style={styles.input}
+        contentStyle={styles.inputContent}
       />
 
       <TextInput
@@ -58,7 +62,9 @@ function RegisterForm(props: RegisterFormProps) {
         onChangeText={props.onWorkspaceChange}
         autoCapitalize="words"
         mode="outlined"
+        dense
         style={styles.input}
+        contentStyle={styles.inputContent}
       />
 
       <TextInput
@@ -68,7 +74,9 @@ function RegisterForm(props: RegisterFormProps) {
         onChangeText={props.onPasswordChange}
         secureTextEntry
         mode="outlined"
+        dense
         style={styles.input}
+        contentStyle={styles.inputContent}
       />
 
       {props.error ? (
@@ -84,11 +92,18 @@ function RegisterForm(props: RegisterFormProps) {
         loading={props.loading}
         disabled={props.loading}
         style={styles.button}
+        labelStyle={styles.buttonLabel}
       >
         Sign Up
       </Button>
 
-      <Button testID="go-to-login-link" mode="text" onPress={() => router.push('/login')} style={styles.linkButton}>
+      <Button
+        testID="go-to-login-link"
+        mode="text"
+        onPress={() => router.push('/login')}
+        style={styles.linkButton}
+        labelStyle={styles.linkLabel}
+      >
         Already have an account? Sign in
       </Button>
     </>
@@ -155,13 +170,25 @@ export default function RegisterScreen() {
 
 const styles = StyleSheet.create({
   input: {
-    marginBottom: 16,
+    marginBottom: 10,
+    height: 48,
+    fontSize: 14,
+  },
+  inputContent: {
+    fontSize: 14,
   },
   button: {
-    marginTop: 8,
-    paddingVertical: 4,
+    marginTop: 6,
+    borderRadius: 8,
+  },
+  buttonLabel: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   linkButton: {
-    marginTop: 16,
+    marginTop: 10,
+  },
+  linkLabel: {
+    fontSize: 13,
   },
 });
