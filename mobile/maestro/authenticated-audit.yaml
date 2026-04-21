@@ -269,6 +269,115 @@ tags:
 - takeScreenshot:
     path: "20b_crm_accounts_list_selected"
 
+# ── 10b. CRM list selected states — contacts, leads, deals, cases ─────────────
+
+- openLink: "fenixcrm:///crm/contacts"
+- extendedWaitUntil:
+    visible:
+      id: "crm-contacts-list"
+    timeout: 20000
+- assertVisible:
+    id: "crm-contacts-search"
+- takeScreenshot:
+    path: "26_crm_contacts_list"
+- tapOn:
+    id: "crm-contacts-item-0-select"
+- assertVisible:
+    id: "crm-contacts-delete-selected"
+- takeScreenshot:
+    path: "26b_crm_contacts_list_selected"
+
+- openLink: "fenixcrm:///crm/leads"
+- extendedWaitUntil:
+    visible:
+      id: "crm-leads-list"
+    timeout: 20000
+- assertVisible:
+    id: "crm-leads-search"
+- takeScreenshot:
+    path: "27_crm_leads_list"
+- tapOn:
+    id: "crm-leads-item-0-select"
+- assertVisible:
+    id: "crm-leads-delete-selected"
+- takeScreenshot:
+    path: "27b_crm_leads_list_selected"
+
+- openLink: "fenixcrm:///crm/deals"
+- extendedWaitUntil:
+    visible:
+      id: "crm-deals-list"
+    timeout: 20000
+- assertVisible:
+    id: "crm-deals-search"
+- takeScreenshot:
+    path: "28_crm_deals_list"
+- tapOn:
+    id: "crm-deals-item-0-select"
+- assertVisible:
+    id: "crm-deals-delete-selected"
+- takeScreenshot:
+    path: "28b_crm_deals_list_selected"
+
+- openLink: "fenixcrm:///crm/cases"
+- extendedWaitUntil:
+    visible:
+      id: "crm-cases-list"
+    timeout: 20000
+- tapOn:
+    id: "crm-cases-item-0-select"
+- assertVisible:
+    id: "crm-cases-delete-selected"
+- takeScreenshot:
+    path: "29_crm_cases_list_selected"
+
+# ── 10c. Edit form opened from list row edit button (accounts) ────────────────
+
+- openLink: "fenixcrm:///crm/accounts"
+- extendedWaitUntil:
+    visible:
+      id: "crm-accounts-list"
+    timeout: 20000
+- tapOn:
+    id: "crm-accounts-item-0-edit"
+- extendedWaitUntil:
+    visible:
+      id: "crm-account-form-screen"
+    timeout: 20000
+- takeScreenshot:
+    path: "30_crm_accounts_edit_form"
+- back
+- extendedWaitUntil:
+    visible:
+      id: "crm-accounts-list"
+    timeout: 10000
+
+# ── 10d. Bulk delete flow (contacts) ──────────────────────────────────────────
+
+- openLink: "fenixcrm:///crm/contacts"
+- extendedWaitUntil:
+    visible:
+      id: "crm-contacts-list"
+    timeout: 20000
+- tapOn:
+    id: "crm-contacts-item-0-select"
+- assertVisible:
+    id: "crm-contacts-delete-selected"
+- tapOn:
+    id: "crm-contacts-delete-selected"
+- assertVisible:
+    text: "Delete selected"
+- takeScreenshot:
+    path: "31_crm_contacts_bulk_delete_confirm"
+- tapOn:
+    text: "Delete"
+- extendedWaitUntil:
+    visible:
+      id: "crm-contacts-empty"
+    timeout: 30000
+- takeScreenshot:
+    path: "32_crm_contacts_after_bulk_delete"
+
 - openLink: "fenixcrm:///crm/accounts/${SEED_ACCOUNT_ID}"
 - extendedWaitUntil:
     visible:

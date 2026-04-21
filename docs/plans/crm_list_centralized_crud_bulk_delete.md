@@ -272,4 +272,5 @@ bash scripts/qa-mobile-prepush.sh
 
 ## Open Items
 
-- Task 6 (UX polish) pending: Edit button → pencil icon, checkbox ✓ checkmark, Delete selected screenshot.
+- No open implementation items for this plan.
+- Follow-up visual coverage is tracked separately in `docs/plans/fr304_screenshot_coverage_gaps.md`.
