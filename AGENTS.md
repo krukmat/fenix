@@ -28,6 +28,13 @@ Preferred shortcut:
   - **Mobile changes** (`mobile/`, mobile scripts, `ci.yml`): runs `scripts/qa-mobile-prepush.sh` (typecheck, lint, arch, coverage)
 - There is no bypass. Fix the failing gate before pushing.
 
+## Commit Attribution
+
+- Before creating a commit, make sure the active AI attribution matches the agent doing the work.
+- Use `bash scripts/switch-agent.sh gpt` for Codex/GPT work unless the user asks for a different explicit signature.
+- Do not reuse a previous agent signature such as `claude-sonnet-4-6` for commits authored by Codex/GPT.
+- The `prepare-commit-msg` hook appends `AI-Agent` and `AI-Timestamp` trailers based on `AI_AGENTS`, `AI_AGENT`, or `git config fenix.ai-agent`.
+
 ## Reporting
 
 - Every substantive report to the user must include:
