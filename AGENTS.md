@@ -31,7 +31,9 @@ Preferred shortcut:
 ## Commit Attribution
 
 - Before creating a commit, make sure the active AI attribution matches the agent doing the work.
-- Use `bash scripts/switch-agent.sh gpt` for Codex/GPT work unless the user asks for a different explicit signature.
+- For Codex/GPT work, set and verify the signature before committing:
+  - `git config fenix.ai-agent "chat-gpt5.4"`
+  - `git config fenix.ai-agent`
 - Do not reuse a previous agent signature such as `claude-sonnet-4-6` for commits authored by Codex/GPT.
 - The `prepare-commit-msg` hook appends `AI-Agent` and `AI-Timestamp` trailers based on `AI_AGENTS`, `AI_AGENT`, or `git config fenix.ai-agent`.
 
