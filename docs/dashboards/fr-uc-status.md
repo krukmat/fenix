@@ -1,12 +1,12 @@
 ---
 title: FenixCRM — FR & UC Implementation Status
-last_updated: 2026-04-20
+last_updated: 2026-04-21
 tags: [dashboard, status]
 ---
 
 # FenixCRM — FR & UC Implementation Status
 
-> Last updated: 2026-04-20
+> Last updated: 2026-04-21
 > Source of truth for current wedge priority: `docs/architecture.md` + `docs/plans/fenixcrm_strategic_repositioning_spec.md`
 > Source of truth for detailed requirement inventory: `docs/requirements.md` + BDD feature files in `features/`
 >
@@ -101,7 +101,7 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 
 | FR | Title | Priority | Status | Implementing Task | BDD Coverage |
 |----|-------|----------|--------|-------------------|--------------|
-| FR-300 | Mobile app (React Native + Expo) | P0 | ✅ | task_4.2, task_4.3, task_4.4, task_4.5 | uc-s1 (mobile, partial) |
+| FR-300 | Mobile app (React Native + Expo) | P0 | ✅ | task_4.2, task_4.3, task_4.4, task_4.5, ui-redesign-command-center | uc-s1 (mobile, partial); visual shell validated by Maestro screenshots |
 | FR-301 | BFF Gateway (Express.js thin proxy) | P0 | ✅ | task_4.1 | — |
 | FR-302 | Observability (/metrics, /health) | P0 | ✅ | task_4.9 | — |
 | FR-303 | Mobile eval service | P1 | 🔒 | — | — |

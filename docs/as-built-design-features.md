@@ -1,6 +1,6 @@
 # FenixCRM — Diseño As-Built de Features Implementadas
 
-> **Fecha**: 2026-03-05  
+> **Fecha**: 2026-04-21  
 > **Objetivo**: documentar el diseño real implementado (as-built), trazando requerimientos ↔ código ↔ datos.  
 > **Fuentes**: `docs/requirements.md`, `docs/architecture.md`, `docs/implementation-plan.md` + evidencia en `internal/*`, `bff/*`, `mobile/*`.
 
@@ -320,7 +320,42 @@ Observabilidad as-built:
 
 ---
 
-## 10) Notas de consistencia y gaps as-built detectados
+## 10) Feature: Mobile Operational UI Shell (FR-300)
+
+### Diagrama de composición
+
+```mermaid
+flowchart TD
+  Root["mobile/app/_layout.tsx<br/>PaperProvider + StatusBar"]
+  Theme["mobile/src/theme/*<br/>colors, typography, spacing, semantic"]
+  Tabs["mobile/app/(tabs)/_layout.tsx<br/>dark tab/header shell"]
+  Nested["mobile/src/navigation/darkStackOptions.ts<br/>nested dark stack headers"]
+  Screens["Inbox, Sales, Activity, Governance, CRM, Workflows"]
+  Visuals["mobile/artifacts/screenshots<br/>Maestro visual audit"]
+
+  Theme --> Root
+  Root --> Tabs
+  Tabs --> Screens
+  Nested --> Screens
+  Screens --> Visuals
+```
+
+### Estado as-built
+
+- La app mobile usa `MD3DarkTheme` como base en `mobile/src/theme/index.ts`.
+- `mobile/src/theme/colors.ts` define la paleta Command Center dark y `semanticColors`.
+- `mobile/src/theme/semantic.ts` centraliza colores de estados de agent runs, CRM statuses, outcomes de audit, prioridad y confidence.
+- `mobile/src/theme/typography.ts` y `mobile/src/theme/spacing.ts` centralizan tokens de tipografía, radius, spacing y elevación.
+- `mobile/src/navigation/darkStackOptions.ts` evita headers blancos en stacks anidados como CRM y Workflows.
+- La superficie visual cubierta por Maestro incluye login, Inbox, Support, Sales, Activity, Governance, Workflows y CRM hub/list/detail/form surfaces.
+
+### Alcance
+
+Este bloque actualiza la presentación de FR-300 y no introduce contratos funcionales nuevos. Por tanto, no requiere feature BDD nueva; la validación vive en TypeScript/lint/tests mobile y Maestro screenshots.
+
+---
+
+## 11) Notas de consistencia y gaps as-built detectados
 
 1. **BFF aggregation y handoff**: en `bff/src/routes/aggregated.ts` se consulta `GET /api/v1/handoffs/{id}`; las rutas Go principales de handoff están bajo `/api/v1/agents/runs/{id}/handoff`.
 2. **Search vector**: implementación actual usa recuperación de `embedding_document` + similitud coseno en memoria (`search.go`), además de FTS5 BM25 + RRF.
@@ -328,7 +363,7 @@ Observabilidad as-built:
 
 ---
 
-## 11) Trazabilidad final (resumen)
+## 12) Trazabilidad final (resumen)
 
 - Requerimientos y arquitectura piden evidencia-first, actions via tools, governance y auditabilidad.
 - Implementación as-built cubre los bloques núcleo: CRM, Knowledge, Copilot, Agents, Governance, Audit/Observability/Eval.

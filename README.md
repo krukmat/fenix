@@ -248,7 +248,7 @@ fenixcrm/
 |-- docs/               # architecture, plans, and task docs
 |-- reqs/               # UC / FR / TST requirement traceability
 |-- tests/              # contract and integration tests
-|-- mobile/             # optional mobile app surface
+|-- mobile/             # mobile app, visual system, and screenshot artifacts
 |-- bff/                # optional backend for frontend
 |-- pkg/                # shared Go utilities
 |-- scripts/            # QA and automation
@@ -265,6 +265,7 @@ make run
 make lint
 make complexity
 make trace-check
+cd mobile && npm run screenshots
 ```
 
 Important note:
@@ -282,117 +283,143 @@ FenixCRM is not a classic system of record — it is an operational layer where 
 
 ![The governed loop: context → action → approval → trace → governance](docs/article-assets/diagram-11-governed-loop.png)
 
-Every event or case surfaces context. The system suggests an action. A human decides whether to approve or hand it off. Execution happens. Everything is traced. The thirteen screens below show each step of that loop in practice.
+Every event or case surfaces context. The system suggests an action. A human decides whether to approve or hand it off. Execution happens. Everything is traced. The screens below show that loop in practice.
 
 ---
 
-### 1. Entry — identity before automation
+### 1. Entry - identity before automation
 
 ![Login screen](mobile/artifacts/screenshots/01_auth_login.png)
 
-Every action is scoped to who you are and what workspace you belong to. Accountability starts at the door.
+Every action starts with a user and a workspace. Accountability starts at the door.
 
 ---
 
-### 2. Inbox — operational center of gravity
+### 2. Inbox - the main work queue
 
 ![Inbox](mobile/artifacts/screenshots/02_inbox.png)
 
-The inbox is the core of the product. The question is not "what is in the pipeline?" but "what needs attention now?" Approvals, handoffs, signals, and policy rejections surface together as an operational queue.
+The inbox is the main work queue. It answers a simple question: "what needs attention now?" Approvals, handoffs, signals, and policy rejections are shown together.
 
 ---
 
-### 3. Signal — the system proposes, humans decide
+### 3. Signal - the system proposes, humans decide
 
 ![Signal detail](mobile/artifacts/screenshots/06_inbox_signal_detail.png)
 
-Signals compress judgment into something reviewable. A detail surface opens with confidence level, entity context, and evidence attached to the signal itself.
+Signals make AI judgment reviewable. The detail screen shows confidence, related CRM context, and the evidence behind the signal.
 
 ---
 
-### 4. Support case — working surface, not a read-only record
+### 4. Support case - a working surface
 
 ![Support case detail](mobile/artifacts/screenshots/03_support_case_detail.png)
 
-The case view shows history, current state, what the AI retrieved, what actions are available, and what the case requires next.
+The case view shows history, current state, what the AI found, what actions are available, and what the case needs next.
 
 ---
 
-### 5. Sales brief — judgment, not just pipeline visibility
+### 5. Sales brief - context before action
 
 ![Sales brief](mobile/artifacts/screenshots/04_sales_brief.png)
 
-The brief surfaces account context, recent signals, and a suggested next action grounded in evidence — so reps start from a better position than raw data.
+The brief shows account context, recent signals, and a suggested next action grounded in evidence. Sales users start from context, not from raw data.
 
 ---
 
-### 6. Denied trace — traceability matters most when something is stopped
+### 6. Denied trace - stopped work is still visible
 
 ![Denied-by-policy activity trace](mobile/artifacts/screenshots/08_activity_run_detail_denied.png)
 
-A system that only records successful actions is only half-observable. A stopped run is not a failure to hide — it is an outcome to inspect, with reasoning, the policy that applied, and the moment the decision was made.
+A stopped run is not hidden. The user can inspect the reason, the policy that applied, and when the decision happened.
 
 ---
 
-### 7. Governance — inside the product, not bolted on
+### 7. Governance - control inside the product
 
 ![Governance overview](mobile/artifacts/screenshots/05_governance.png)
 
-The governance surface is no longer a thin summary. Recent usage appears in product terms with actor, tool, model, latency, timestamp, and cost, while quota state sits beside that activity so control and consumption can be read together.
+Governance is part of the product, not a separate backend view. Usage, quota state, actor, tool, model, latency, time, and cost can be read together.
 
 ---
 
-### 8. Audit trail — readable where work happens
+### 8. Audit trail - readable where work happens
 
 ![Governance audit trail](mobile/artifacts/screenshots/09_governance_audit.png)
 
-Audit is not pushed into a separate admin console. On mobile, the user can inspect the stream of requests and decisions directly, filter outcomes, and understand how the system behaved while work is still in motion.
+Audit is available where work happens. Mobile users can inspect requests and decisions, filter outcomes, and understand how the system behaved.
 
 ---
 
-### 9. Usage drilldown — AI consumption as a product surface
+### 9. Usage drilldown - AI cost in product terms
 
 ![Governance usage drilldown](mobile/artifacts/screenshots/10_governance_usage.png)
 
-Usage and cost are inspectable from the same governance area. Event count, input units, output units, and individual tool/model calls stay visible inside the product, which makes AI usage governable in product terms instead of only as backend telemetry.
+Usage and cost are visible from the same governance area. Event count, input units, output units, and individual tool/model calls stay visible inside the product.
 
 ---
 
-### 10. KB trigger — support resolution can become reusable knowledge
+### 10. KB trigger - resolved work can become knowledge
 
 ![KB trigger on resolved support case](mobile/artifacts/screenshots/11_support_kb_trigger.png)
 
-Once a case is resolved, the operator can trigger knowledge generation from the same support surface. The product does not force a jump to a separate knowledge tool before turning an outcome into reusable documentation.
+Once a case is resolved, the operator can trigger knowledge generation from the same support screen. The result can become reusable documentation.
 
 ---
 
-### 11. Prospecting trigger — leads become an operational AI entry point
+### 11. Prospecting trigger - leads can start AI work
 
 ![Prospecting trigger on lead detail](mobile/artifacts/screenshots/12_sales_lead_prospecting.png)
 
-Leads are now part of the Sales operating surface, not an afterthought outside the wedge. From lead detail, the team can launch the Prospecting Agent directly and inspect the resulting run in activity trace.
+Leads are part of the Sales operating surface. From lead detail, the team can launch the Prospecting Agent and inspect the resulting run.
 
 ---
 
-### 12. Deal Risk placeholder — the integration point exists before the runner ships
+### 12. Deal Risk - risk review in the deal flow
 
-![Deal Risk placeholder on deal detail](mobile/artifacts/screenshots/13_sales_deal_risk_placeholder.png)
+![Deal Risk on deal detail](mobile/artifacts/screenshots/13_sales_deal_risk_active.png)
 
-The product exposes where Deal Risk will live even before the backend runner is active. That keeps the UX contract stable: mobile already knows where the governed risk surface belongs once the deferred backend work lands.
+Deal risk is part of the deal flow. The user can review risk signals without leaving the sales context.
 
 ---
 
-### 13. Insights entry — ad hoc analysis becomes part of the mobile workflow
+### 13. Insights entry - questions can start from mobile
 
 ![Insights entry screen](mobile/artifacts/screenshots/14_activity_insights.png)
 
-Analytical questions do not need to start from a dashboard. The Insights screen gives mobile users a direct entry point for grounded ad hoc queries, with optional date bounds and the same run-detail traceability as the rest of the agent surfaces.
+Analytical questions do not need to start from a dashboard. The Insights screen gives mobile users a direct entry point for grounded ad hoc queries.
+
+---
+
+### Mobile CRM surfaces
+
+The mobile CRM area keeps core customer records close to the governed AI work. Users can move from the hub to accounts, contacts, leads, deals, and cases, then open detail, edit records, select rows, or run bulk actions.
+
+<p>
+  <img src="mobile/artifacts/screenshots/19_crm_hub.png" alt="CRM hub" width="220" />
+  <img src="mobile/artifacts/screenshots/20_crm_accounts_list.png" alt="Accounts list" width="220" />
+  <img src="mobile/artifacts/screenshots/21_crm_account_detail.png" alt="Account detail" width="220" />
+</p>
+
+<p>
+  <img src="mobile/artifacts/screenshots/26_crm_contacts_list.png" alt="Contacts list" width="220" />
+  <img src="mobile/artifacts/screenshots/27_crm_leads_list.png" alt="Leads list" width="220" />
+  <img src="mobile/artifacts/screenshots/28_crm_deals_list.png" alt="Deals list" width="220" />
+</p>
+
+<p>
+  <img src="mobile/artifacts/screenshots/30_crm_accounts_edit_form.png" alt="Account edit form" width="220" />
+  <img src="mobile/artifacts/screenshots/31_crm_contacts_bulk_delete_confirm.png" alt="Bulk delete confirmation" width="220" />
+  <img src="mobile/artifacts/screenshots/32_crm_contacts_after_bulk_delete.png" alt="Contacts after bulk delete" width="220" />
+</p>
+
+The screenshots are generated from the mobile app with Maestro and are stored in `mobile/artifacts/screenshots/`.
 
 ---
 
 ![The main operating surfaces in FenixCRM](docs/article-assets/diagram-10-operating-surfaces.png)
 
-Each surface above is reachable from the inbox. The inbox is not one screen among many — it is the operational center from which everything else is reached, including governance, KB generation, prospecting entry points, risk placeholders, and ad hoc insights.
+Each surface above is reachable from the inbox or from the CRM hub. The inbox is the operational center for governed work. The CRM hub is the place to inspect and maintain customer records.
 
 > Full article: [When CRM Begins to Operate, Not Just Record](https://medium.com/@iotforce/when-crm-begins-to-operate-not-just-record-84248b080ee7)
 

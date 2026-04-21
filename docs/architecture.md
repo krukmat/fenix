@@ -2,7 +2,7 @@
 
 > **Version**: 1.1
 > **Status**: Strategically realigned
-> **Last updated**: 2026-04-06
+> **Last updated**: 2026-04-21
 > **Primary references**: `docs/requirements.md`, `docs/plans/fenixcrm_strategic_repositioning_spec.md`
 > **Precedence rule**: when older documents imply broad CRM-replacement scope, this document and the strategic repositioning spec take precedence until the implementation plan and requirements are fully reprioritized.
 
@@ -118,6 +118,17 @@ The strategic direction in this document is frozen by:
 - The BFF is justified when request aggregation, auth relay, or mobile transport behavior is needed.
 - Mobile is an important interface, but architecture shall not block the wedge on mobile parity.
 - Cost governance must be recorded close to runtime execution, not delegated to external billing logic.
+
+### Mobile visual system as-built
+
+The mobile client now uses a dark React Native Paper MD3 theme for the supported operational surfaces. The as-built visual system is intentionally token-based and local to `mobile/src/theme/*`:
+
+- `colors.ts` defines the Command Center dark palette and semantic colors.
+- `typography.ts`, `spacing.ts`, and `semantic.ts` centralize type scale, spacing/elevation tokens, status colors, and confidence styles.
+- `navigation/darkStackOptions.ts` keeps nested Expo Router stacks aligned with the dark header treatment used by the main tab shell.
+- Maestro screenshots in `mobile/artifacts/screenshots/` are the current visual regression artifact for the mobile surface.
+
+This is a client presentation contract for FR-300, not a new business capability or BDD behavior surface.
 
 ---
 
@@ -905,6 +916,8 @@ fenixcrm/
 |-- pkg/                     # Shared Go utilities intended for reuse
 |-- bff/                     # Optional Express proxy for client-specific needs
 |-- mobile/                  # Optional React Native client
+|   |-- src/theme/           # Mobile MD3 dark theme tokens and semantic helpers
+|   `-- src/navigation/      # Shared mobile navigation presentation options
 |-- docs/                    # Architecture, plans, ADRs, handoffs, tasks
 |-- reqs/                    # Doorstop requirements (UC / FR / TST)
 |-- features/                # BDD feature files
@@ -935,3 +948,4 @@ fenixcrm/
 6. Strategic APIs are defined with tenant isolation, policy touchpoints, and audit behavior.
 7. Mobile and BFF are documented as optional wedge interfaces, not universal blockers.
 8. The project structure reflects the actual codebase, with `internal/*` as backend source of truth.
+9. Mobile visual theming is documented as a presentation-layer contract and does not imply new BDD behavior.

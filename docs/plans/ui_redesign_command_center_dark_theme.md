@@ -17,8 +17,13 @@ files_affected:
   - mobile/src/theme/typography.ts
   - mobile/src/theme/spacing.ts
   - mobile/src/theme/semantic.ts
+  - mobile/src/navigation/darkStackOptions.ts
   - mobile/app/_layout.tsx
   - mobile/app/(tabs)/_layout.tsx
+  - mobile/app/(tabs)/crm/_layout.tsx
+  - mobile/app/(tabs)/workflows/_layout.tsx
+  - mobile/app/(auth)/login.tsx
+  - mobile/app/(auth)/register.tsx
   - mobile/src/components/ui/AuthFormLayout.tsx
   - mobile/src/components/inbox/InboxFeed.tsx
   - mobile/src/components/approvals/ApprovalCard.tsx
@@ -669,10 +674,15 @@ All implementation tasks are capped at **medium reasoning**. Tasks that could be
 | `mobile/src/theme/typography.ts` | **NEW** |
 | `mobile/src/theme/spacing.ts` | **NEW** |
 | `mobile/src/theme/semantic.ts` | **NEW** |
+| `mobile/src/navigation/darkStackOptions.ts` | **NEW** nested dark stack header options |
 | `mobile/app/_layout.tsx` | Minor edit |
 | `mobile/app/(tabs)/_layout.tsx` | Rewrite `TAB_SCREEN_OPTIONS` |
+| `mobile/app/(tabs)/crm/_layout.tsx` | Apply shared dark nested stack options |
+| `mobile/app/(tabs)/workflows/_layout.tsx` | Apply shared dark nested stack options |
+| `mobile/app/(auth)/login.tsx` | Compact auth form field/button spacing |
+| `mobile/app/(auth)/register.tsx` | Compact auth form field/button spacing |
 | `mobile/src/components/ui/AuthFormLayout.tsx` | Style rewrite |
-| `mobile/src/components/inbox/InboxFeed.tsx` | Style rewrite (StyleSheet only) |
+| `mobile/src/components/inbox/InboxFeed.tsx` | Style rewrite (StyleSheet only) + item spacing |
 | `mobile/src/components/approvals/ApprovalCard.tsx` | Minor style addition |
 | `mobile/src/components/signals/SignalCard.tsx` | Replace `confidenceColor()` + card glow |
 | `mobile/src/components/governance/AuditEventCard.tsx` | Status colors + monospace |
@@ -692,6 +702,14 @@ All implementation tasks are capped at **medium reasoning**. Tasks that could be
 - Routing configuration in `_layout.tsx`
 - All hooks, stores, services, API layer
 - Any animation/gesture handler logic
+
+---
+
+## Documentation and BDD Impact
+
+- Architecture/as-built documentation should treat this as a FR-300 presentation-layer contract, not a new domain capability.
+- BDD feature files do not need new scenarios for this task because no business behavior, routing target, data contract, or acceptance flow changed.
+- Maestro screenshots are the relevant visual regression artifact for this workstream.
 
 ---
 
@@ -715,6 +733,7 @@ Visual verification:
    - dark background on every touched screen;
    - visible tab/header contrast;
    - no white card islands left from the old light theme;
+   - nested stacks such as CRM and Workflows do not render white native headers;
    - `SignalCard` confidence glow visible on green/amber borders;
    - CRM hub icons rendered as `MaterialCommunityIcons`, not emoji;
    - no text overlap or clipped tab labels.
