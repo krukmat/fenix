@@ -485,6 +485,7 @@ func (h *WorkflowHandler) Preview(w http.ResponseWriter, r *http.Request) { // C
 	}
 	response := workflowPreviewToResponse(result)
 	if !response.Passed {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnprocessableEntity)
 	}
 	_ = writeJSONOr500(w, map[string]any{"data": response})

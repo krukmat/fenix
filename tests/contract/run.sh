@@ -22,7 +22,8 @@ run_schemathesis() {
                 --checks response_schema_conformance \
                 --checks content_type_conformance \
                 --phases examples,fuzzing \
-                --max-examples "${CONTRACT_MAX_EXAMPLES:-10}"
+                --max-examples "${CONTRACT_MAX_EXAMPLES:-10}" \
+                --suppress-health-check=filter_too_much
             ;;
         smoke)
             # Fast smoke mode: quick signal without full contract hardening.
@@ -80,7 +81,7 @@ USER_ROLE_ID=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
 sqlite3 "$DB_FILE" "
   INSERT INTO role (id, workspace_id, name, permissions, created_at, updated_at)
   VALUES ('$ROLE_ID', '$WORKSPACE_ID', 'contract-admin',
-          '{\"api\":[\"admin\"],\"global\":[\"read_all\"]}',
+          '{\"api\":[\"admin\"],\"global\":[\"admin\",\"read_all\"]}',
           datetime('now'), datetime('now'));
   INSERT INTO user_role (id, user_id, role_id, created_at)
   VALUES ('$USER_ROLE_ID', '$USER_ID', '$ROLE_ID', datetime('now'));
