@@ -65,10 +65,26 @@ for i in $(seq 1 30); do
     sleep 1
 done
 
-TOKEN=$(curl -sf -X POST "http://localhost:$PORT/auth/register" \
+REGISTER_RESP=$(curl -sf -X POST "http://localhost:$PORT/auth/register" \
     -H "Content-Type: application/json" \
-    -d '{"email":"contract@test.com","password":"ContractTest1234!","displayName":"Contract Tester","workspaceName":"ContractWS"}' \
-    | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+    -d '{"email":"contract@test.com","password":"ContractTest1234!","displayName":"Contract Tester","workspaceName":"ContractWS"}')
+
+TOKEN=$(echo "$REGISTER_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+USER_ID=$(echo "$REGISTER_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['userId'])")
+WORKSPACE_ID=$(echo "$REGISTER_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['workspaceId'])")
+
+# Grant admin role so /admin/*, /workflows/*, and /signals/* return 2xx instead of 403.
+# Role is resolved per-request from DB (not embedded in JWT), so this takes effect immediately.
+ROLE_ID=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+USER_ROLE_ID=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+sqlite3 "$DB_FILE" "
+  INSERT INTO role (id, workspace_id, name, permissions, created_at, updated_at)
+  VALUES ('$ROLE_ID', '$WORKSPACE_ID', 'contract-admin',
+          '{\"api\":[\"admin\"],\"global\":[\"read_all\"]}',
+          datetime('now'), datetime('now'));
+  INSERT INTO user_role (id, user_id, role_id, created_at)
+  VALUES ('$USER_ROLE_ID', '$USER_ID', '$ROLE_ID', datetime('now'));
+"
 
 echo "Running contract tests in mode: $CONTRACT_MODE"
 run_schemathesis
