@@ -9,6 +9,8 @@ import (
 
 const (
 	cartaKeyword                  = "CARTA"
+	warnCartaMissingGrounds       = "carta_missing_grounds"
+	cartaApprovalModeRequired     = "required"
 	cartaInvariantModeNever       = "never"
 	cartaInvariantModeAlways      = "always"
 	cartaOnExceedPause            = "pause"
@@ -61,7 +63,7 @@ func ParseCarta(source string) (*CartaSummary, error) {
 	}
 	summary.Warnings = parser.Warnings()
 	if summary.Grounds == nil {
-		parser.addWarning(Token{Line: 1, Column: 1}, "carta_missing_grounds", "Carta has no GROUNDS block")
+		parser.addWarning(Token{Line: 1, Column: 1}, warnCartaMissingGrounds, "Carta has no GROUNDS block")
 		summary.Warnings = parser.Warnings()
 	}
 	return summary, nil
@@ -267,7 +269,7 @@ func (p *CartaParser) parseAgentInvariantDirective(summary *CartaSummary, seen *
 
 func (p *CartaParser) parseGroundsBlock() (*CartaGrounds, error) {
 	grounds := &CartaGrounds{}
-	err := p.parseFieldBlock(TokenGrounds, "GROUNDS", func() error {
+	err := p.parseFieldBlock(TokenGrounds, string(TokenGrounds), func() error {
 		return p.parseGroundsField(grounds)
 	})
 	if err != nil {
@@ -529,7 +531,7 @@ func (p *CartaParser) parseInvariantMode(current Token) (string, error) {
 
 func (p *CartaParser) parseBudgetBlock() (*CartaBudget, error) {
 	budget := &CartaBudget{}
-	err := p.parseFieldBlock(TokenBudget, "BUDGET", func() error {
+	err := p.parseFieldBlock(TokenBudget, string(TokenBudget), func() error {
 		return p.parseBudgetField(budget)
 	})
 	if err != nil {
@@ -935,7 +937,7 @@ func isCartaRateUnit(value string) bool {
 
 func isCartaApprovalMode(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "none", "required":
+	case string(SemanticEffectNone), cartaApprovalModeRequired:
 		return true
 	default:
 		return false

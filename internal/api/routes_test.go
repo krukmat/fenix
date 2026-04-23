@@ -122,11 +122,12 @@ func TestNewRouter_KnowledgeIngestEndpoint_Unauthorized(t *testing.T) {
 // testCfg returns a Config with a known BFFOrigin for router-level tests.
 func testCfg() config.Config {
 	return config.Config{
-		LLMProvider:     "ollama",
-		OllamaBaseURL:   "http://localhost:11434",
-		OllamaModel:     "nomic-embed-text",
-		OllamaChatModel: "llama3.2:3b",
-		BFFOrigin:       "http://localhost:3000",
+		LLMProvider:        "ollama",
+		OllamaBaseURL:      "http://localhost:11434",
+		OllamaModel:        "nomic-embed-text",
+		OllamaChatModel:    "llama3.2:3b",
+		BFFOrigin:          "http://localhost:3000",
+		CORSAllowedOrigins: []string{"http://localhost:3000", "http://localhost:5173"},
 	}
 }
 
@@ -143,6 +144,21 @@ func TestRouter_CORS_AllowedOrigin_ReceivesHeaders(t *testing.T) {
 	got := w.Header().Get("Access-Control-Allow-Origin")
 	if got != "http://localhost:3000" {
 		t.Errorf("Access-Control-Allow-Origin = %q; want %q", got, "http://localhost:3000")
+	}
+}
+
+func TestRouter_CORS_LocalDevOrigin_ReceivesHeaders(t *testing.T) {
+	db := mustOpenAPITestDB(t)
+	router := mustNewRouterWithConfig(t, db, testCfg())
+
+	req := httptest.NewRequest(http.MethodOptions, "/auth/login", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	got := w.Header().Get("Access-Control-Allow-Origin")
+	if got != "http://localhost:5173" {
+		t.Errorf("Access-Control-Allow-Origin = %q; want %q", got, "http://localhost:5173")
 	}
 }
 

@@ -75,6 +75,64 @@ describe('POST /bff/copilot/chat (SSE relay)', () => {
   });
 });
 
+describe('GET /bff/copilot/events (EventSource relay)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('relays SSE chunks from Go through a browser-compatible GET endpoint', (done) => {
+    const mockStream = new PassThrough();
+    mockAxios.post.mockResolvedValue({
+      data: mockStream,
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    });
+
+    const chunks: string[] = [];
+    const req = request(app)
+      .get('/bff/copilot/events?message=Hello&entity_id=case-123&entity_type=case')
+      .set('Authorization', 'Bearer browser-token')
+      .set('Accept', 'text/event-stream')
+      .buffer(false)
+      .parse((res, callback) => {
+        res.on('data', (chunk: Buffer) => chunks.push(chunk.toString()));
+        res.on('end', () => callback(null, chunks.join('')));
+        res.on('error', callback);
+      });
+
+    setImmediate(() => {
+      mockStream.write('data: {"type":"token","content":"Browser"}\n\n');
+      mockStream.end();
+    });
+
+    req.then((res) => {
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/text\/event-stream/);
+      expect(chunks.join('')).toContain('data: {"type":"token","content":"Browser"}');
+      expect(mockAxios.post).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/copilot/chat'),
+        { message: 'Hello', entity_id: 'case-123', entity_type: 'case' },
+        expect.objectContaining({ responseType: 'stream' }),
+      );
+      done();
+    }).catch(done);
+  });
+
+  it('returns a terminal SSE error event for persistent upstream failures', async () => {
+    mockAxios.post.mockRejectedValue(new Error('Unauthorized'));
+
+    const res = await request(app)
+      .get('/bff/copilot/events?message=Hello')
+      .set('Accept', 'text/event-stream');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/event-stream/);
+    expect(res.text).toContain('retry: 0');
+    expect(res.text).toContain('event: error');
+    expect(res.text).toContain('sse_upstream_error');
+  });
+});
+
 describe('POST /bff/api/v1/copilot/sales-brief', () => {
   beforeEach(() => {
     jest.clearAllMocks();

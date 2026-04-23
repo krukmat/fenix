@@ -39,8 +39,22 @@ Preferred shortcut:
 
 ## Reporting
 
+- Discrete tasks must be executed one at a time. After closing a task with the required outcome report, stop and wait for explicit user confirmation before starting the next task, even when a plan lists multiple tasks or waves.
+- Before starting work on each discrete task, present the task card to the user first, before reading, editing, or running task-specific commands except for minimal inspection needed to identify the next task. The task card must include:
+  - `Tarea: <name or ID>`
+  - `Resumen: <what will be done in 1-2 sentences>`
+  - `Código afectado: <expected files or areas>`
+  - `Esfuerzo/razonamiento: Bajo | Medio | Alto - <brief reason>`
+  - `Tokens estimado: ~N`
+- When closing a task, report the outcome with:
+  - `Resultado: <what changed>`
+  - `Verificación: <commands run, or why QA was not applicable>`
+  - `Archivos afectados: <files changed>`
+  - `Esfuerzo/razonamiento: Bajo | Medio | Alto - <forensic note on reasoning effort used>`
+  - `Tokens: ~N`
+- After the closing report, proactively present the next task card using the same starting-task format, but do not begin that next task until the user explicitly confirms.
 - Every substantive report to the user must include:
-  - `Complejidad: Baja | Media | Alta | Muy alta`
+  - `Esfuerzo/razonamiento: Bajo | Medio | Alto - <forensic note on reasoning effort used>`
   - `Tokens: ~N` (approximate estimate of the response/report size)
 - Apply this to progress updates and final summaries.
 

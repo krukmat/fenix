@@ -39,6 +39,21 @@ func TestCORSMiddleware_AllowedOrigin_ReceivesHeaders(t *testing.T) {
 	}
 }
 
+func TestCORSMiddleware_AllowedOriginList_ReceivesMatchingOrigin(t *testing.T) {
+	t.Parallel()
+
+	devOrigin := "http://localhost:5173"
+	handler := CORSMiddleware(testAllowedOrigin, devOrigin)(okHandler)
+	req := newCORSRequest(http.MethodPost, devOrigin)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	got := rr.Header().Get(headerACAllowOrigin)
+	if got != devOrigin {
+		t.Errorf("Access-Control-Allow-Origin = %q; want %q", got, devOrigin)
+	}
+}
+
 // TestCORSMiddleware_AllowedOrigin_PassesThrough verifies that the downstream
 // handler is called and returns 200 for allowed origins.
 func TestCORSMiddleware_AllowedOrigin_PassesThrough(t *testing.T) {

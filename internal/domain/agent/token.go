@@ -44,6 +44,12 @@ const (
 	TokenWait     TokenType = "WAIT"
 	TokenDispatch TokenType = "DISPATCH"
 	TokenSurface  TokenType = "SURFACE"
+	TokenAs       TokenType = "AS"   // CLSF-52
+	TokenRole     TokenType = "ROLE" // CLSF-53
+
+	// DSL v1 reserved keywords — lexed but not yet executable. // CLSF-50
+	TokenCall    TokenType = "CALL"
+	TokenApprove TokenType = "APPROVE"
 )
 
 type Token struct {
@@ -66,12 +72,18 @@ var dslKeywords = map[string]TokenType{
 	"WAIT":     TokenWait,
 	"DISPATCH": TokenDispatch,
 	"SURFACE":  TokenSurface,
+	"AS":       TokenAs,   // CLSF-52
+	"ROLE":     TokenRole, // CLSF-53
 	"TRUE":     TokenBoolean,
 	"FALSE":    TokenBoolean,
 	"NULL":     TokenNull,
 }
 
-var dslReservedKeywords = map[string]TokenType{}
+// dslReservedKeywords are lexed but not yet executable in DSL v0. // CLSF-50
+var dslReservedKeywords = map[string]TokenType{
+	"CALL":    TokenCall,
+	"APPROVE": TokenApprove,
+}
 
 func LookupTokenType(literal string) TokenType {
 	normalized := strings.TrimSpace(strings.ToUpper(literal))

@@ -122,6 +122,8 @@ func statementParsers() map[TokenType]func(*Parser) (Statement, error) {
 		TokenDispatch: (*Parser).parseDispatchStatement,
 		TokenSurface:  (*Parser).parseSurfaceStatement,
 		TokenWait:     (*Parser).parseWaitStatement,
+		TokenCall:     (*Parser).parseCallStatement,    // CLSF-52
+		TokenApprove:  (*Parser).parseApproveStatement, // CLSF-53
 	}
 }
 
@@ -229,6 +231,88 @@ func (p *Parser) parseAgentStatement() (Statement, error) {
 		Input:    input,
 		Position: positionFromToken(start),
 	}, nil
+}
+
+func (p *Parser) parseCallStatement() (Statement, error) { // CLSF-52
+	start, err := p.expect(TokenCall, "expected CALL")
+	if err != nil {
+		return nil, err
+	}
+	tool, err := p.expect(TokenIdentifier, "expected tool name after CALL")
+	if err != nil {
+		return nil, err
+	}
+	input, alias, err := p.parseCallInputAlias()
+	if err != nil {
+		return nil, err
+	}
+	if parseErr := p.expectNewline("expected newline after CALL statement"); parseErr != nil {
+		return nil, parseErr
+	}
+	return &CallStatement{
+		Tool:     &IdentifierExpr{Name: tool.Literal, Position: positionFromToken(tool)},
+		Input:    input,
+		Alias:    alias,
+		Position: positionFromToken(start),
+	}, nil
+}
+
+// parseCallInputAlias parses the optional WITH <expr> AS <alias> tail of a CALL statement.
+func (p *Parser) parseCallInputAlias() (Expression, *IdentifierExpr, error) {
+	var input Expression
+	if p.current().Type == TokenWith {
+		p.advance()
+		var err error
+		input, err = p.parseExpression()
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	if p.current().Type != TokenAs {
+		return input, nil, nil
+	}
+	p.advance()
+	aliasTok, err := p.expect(TokenIdentifier, "expected alias name after AS")
+	if err != nil {
+		return nil, nil, err
+	}
+	return input, &IdentifierExpr{Name: aliasTok.Literal, Position: positionFromToken(aliasTok)}, nil
+}
+
+func (p *Parser) parseApproveStatement() (Statement, error) { // CLSF-53
+	start, err := p.expect(TokenApprove, "expected APPROVE")
+	if err != nil {
+		return nil, err
+	}
+	stage, err := p.expect(TokenIdentifier, "expected stage name after APPROVE")
+	if err != nil {
+		return nil, err
+	}
+	role, err := p.parseApproveRole()
+	if err != nil {
+		return nil, err
+	}
+	if parseErr := p.expectNewline("expected newline after APPROVE statement"); parseErr != nil {
+		return nil, parseErr
+	}
+	return &ApproveStatement{
+		Stage:    &IdentifierExpr{Name: stage.Literal, Position: positionFromToken(stage)},
+		Role:     role,
+		Position: positionFromToken(start),
+	}, nil
+}
+
+// parseApproveRole parses the optional "role <name>" tail of an APPROVE statement.
+func (p *Parser) parseApproveRole() (*IdentifierExpr, error) {
+	if p.current().Type != TokenRole {
+		return nil, nil
+	}
+	p.advance()
+	roleTok, err := p.expect(TokenIdentifier, "expected role name after role keyword")
+	if err != nil {
+		return nil, err
+	}
+	return &IdentifierExpr{Name: roleTok.Literal, Position: positionFromToken(roleTok)}, nil
 }
 
 func (p *Parser) parseDispatchStatement() (Statement, error) {

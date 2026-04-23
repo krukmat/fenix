@@ -2,13 +2,14 @@ active: true
 bdd:
   behavior: bulk_delete_confirm
   feature: features/uc-p2-crm-list-crud-mobile.feature
-  scenario: Confirming bulk delete calls delete mutation for each selected entity
+  scenario: |
+    Confirming bulk delete calls delete mutation for each selected entity
   stack: mobile
 derived: false
 header: ''
 level: 2
 links:
-- FR_304: ''
+- FR_304: rolybs4Bb5gnvJxCf0K0D6dAFy7M9Gtno1iqqFm5r9M=
 normative: true
 ref: mobile/__tests__/app/(tabs)/crm/read-only.test.tsx
 reviewed: null

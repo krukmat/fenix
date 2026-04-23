@@ -119,6 +119,115 @@ func TestASTNodeTypeMarkerMethods(t *testing.T) {
 	cmp.expressionNode()
 }
 
+func TestCallStatementImplementsStatementInterface(t *testing.T) { // CLSF-51
+	t.Parallel()
+
+	stmt := &CallStatement{
+		Tool:     &IdentifierExpr{Name: "search", Position: Position{Line: 3, Column: 6}},
+		Input:    &LiteralExpr{Value: "query", Position: Position{Line: 3, Column: 13}},
+		Alias:    &IdentifierExpr{Name: "result", Position: Position{Line: 3, Column: 25}},
+		Position: Position{Line: 3, Column: 1},
+	}
+
+	var _ Statement = stmt // compile-time interface check
+
+	if stmt.Pos().Line != 3 || stmt.Pos().Column != 1 {
+		t.Fatalf("CallStatement.Pos() = %+v, want 3:1", stmt.Pos())
+	}
+	if stmt.Tool.Name != "search" {
+		t.Fatalf("Tool.Name = %q, want search", stmt.Tool.Name)
+	}
+	if stmt.Alias.Name != "result" {
+		t.Fatalf("Alias.Name = %q, want result", stmt.Alias.Name)
+	}
+}
+
+func TestCallStatementInputIsOptional(t *testing.T) { // CLSF-51
+	t.Parallel()
+
+	stmt := &CallStatement{
+		Tool:     &IdentifierExpr{Name: "ping", Position: Position{Line: 5, Column: 6}},
+		Position: Position{Line: 5, Column: 1},
+	}
+
+	if stmt.Input != nil {
+		t.Fatal("CallStatement.Input must be nil when not provided")
+	}
+	if stmt.Alias != nil {
+		t.Fatal("CallStatement.Alias must be nil when not provided")
+	}
+}
+
+func TestApproveStatementImplementsStatementInterface(t *testing.T) { // CLSF-51
+	t.Parallel()
+
+	stmt := &ApproveStatement{
+		Stage:    &IdentifierExpr{Name: "send_email", Position: Position{Line: 4, Column: 9}},
+		Role:     &IdentifierExpr{Name: "manager", Position: Position{Line: 4, Column: 25}},
+		Position: Position{Line: 4, Column: 1},
+	}
+
+	var _ Statement = stmt // compile-time interface check
+
+	if stmt.Pos().Line != 4 || stmt.Pos().Column != 1 {
+		t.Fatalf("ApproveStatement.Pos() = %+v, want 4:1", stmt.Pos())
+	}
+	if stmt.Stage.Name != "send_email" {
+		t.Fatalf("Stage.Name = %q, want send_email", stmt.Stage.Name)
+	}
+	if stmt.Role.Name != "manager" {
+		t.Fatalf("Role.Name = %q, want manager", stmt.Role.Name)
+	}
+}
+
+func TestApproveStatementRoleIsOptional(t *testing.T) { // CLSF-51
+	t.Parallel()
+
+	stmt := &ApproveStatement{
+		Stage:    &IdentifierExpr{Name: "send_email", Position: Position{Line: 6, Column: 9}},
+		Position: Position{Line: 6, Column: 1},
+	}
+
+	if stmt.Role != nil {
+		t.Fatal("ApproveStatement.Role must be nil when not provided")
+	}
+}
+
+func TestCallAndApproveCanAppearInWorkflowBody(t *testing.T) { // CLSF-51
+	t.Parallel()
+
+	body := []Statement{
+		&ApproveStatement{
+			Stage:    &IdentifierExpr{Name: "send_email", Position: Position{Line: 3, Column: 9}},
+			Role:     &IdentifierExpr{Name: "manager", Position: Position{Line: 3, Column: 25}},
+			Position: Position{Line: 3, Column: 1},
+		},
+		&CallStatement{
+			Tool:     &IdentifierExpr{Name: "send_email", Position: Position{Line: 4, Column: 6}},
+			Position: Position{Line: 4, Column: 1},
+		},
+	}
+
+	program := &Program{
+		Workflow: &WorkflowDecl{
+			Name:     "approval_flow",
+			Body:     body,
+			Position: Position{Line: 1, Column: 1},
+		},
+	}
+
+	stmts := ProgramStatements(program)
+	if len(stmts) != 2 {
+		t.Fatalf("len(stmts) = %d, want 2", len(stmts))
+	}
+	if _, ok := stmts[0].(*ApproveStatement); !ok {
+		t.Fatal("stmts[0] must be *ApproveStatement")
+	}
+	if _, ok := stmts[1].(*CallStatement); !ok {
+		t.Fatal("stmts[1] must be *CallStatement")
+	}
+}
+
 func TestComparisonExprSupportsBridgeAlignedOperators(t *testing.T) {
 	t.Parallel()
 

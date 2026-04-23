@@ -197,3 +197,11 @@ All architectural decisions are in `docs/decisions/`:
 | ADR-016 | CDC reindex SLA <60s | CDC / Search |
 | ADR-017 | Quality gates gocognit/maintidx | Quality / Lint |
 | ADR-018 | BDD pipeline strategy | Testing / BDD |
+| ADR-019 | Product category: governed AI layer | Strategy |
+| ADR-020 | Cost governance as runtime concern | Governance / Cost |
+| ADR-021 | Integration-first context strategy | RAG / Context |
+| ADR-022 | Mobile deprioritized for wedge | Mobile / Strategy |
+| ADR-023 | APPROVE role validation — deferred to runtime, workspace-scoped, abstention on unknown | Security / DSL / Governance |
+| ADR-024 | Defer TYPE, ENUM, ACTION, CONNECTOR — no implementation until runtime contracts exist | DSL / Language Design |
+| ADR-025 | BFF as unified client gateway — web, mobile, and future clients all route through BFF | Architecture / Security |
+| ADR-026 | Web builder stack: HTMX + Express (BFF) over separate React SPA — avoids 4th stack | Architecture / Web / Maintenance |

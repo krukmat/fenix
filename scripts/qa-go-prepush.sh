@@ -32,8 +32,13 @@ deadcode -test ./... 2>&1 \
   | grep -v "mcp_adapter\|MCPGateway\|BuildServer\|MCPResourceProvider\|MCPResourceDescriptor\|MCPResourcePayload" \
   | grep -v "_test\.go:\|ruleguard" \
   | grep -v "bff/node_modules/" \
+  | grep -v "web/node_modules/" \
   | tee /tmp/deadcode-report.txt || true
-LINES=$(grep -c "." /tmp/deadcode-report.txt 2>/dev/null || echo 0)
+if [ -f /tmp/deadcode-report.txt ]; then
+  LINES="$(wc -l < /tmp/deadcode-report.txt | tr -d '[:space:]')"
+else
+  LINES=0
+fi
 echo "Dead code findings (after MCP allowlist): $LINES"
 if [ "$LINES" -gt 0 ]; then
   echo "FAILED: $LINES unexpected dead code finding(s)"

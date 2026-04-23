@@ -69,8 +69,8 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	// C2: CORS — strict origin allowlist (only BFF origin is allowed).
-	r.Use(apmiddleware.CORSMiddleware(cfg.BFFOrigin))
+	// C2/CLSF-67: CORS — strict origin allowlist for BFF and local dev origins.
+	r.Use(apmiddleware.CORSMiddleware(cfg.CORSAllowedOrigins...))
 
 	// Task 4.9 — count all requests for metrics
 	r.Use(func(next http.Handler) http.Handler {
@@ -234,8 +234,13 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 		r.Route("/workflows", func(r chi.Router) {
 			r.Post("/", workflowHandler.Create)
 			r.Get("/", workflowHandler.List)
+			r.Post("/diff", workflowHandler.Diff)
+			r.Post("/preview", workflowHandler.Preview)
+			r.Post("/{id}/visual-authoring", workflowHandler.VisualAuthoring)
 			r.Get("/{id}/versions", workflowHandler.ListVersions)
+			r.Get("/{id}/graph", workflowHandler.Graph)
 			r.Post("/{id}/new-version", workflowHandler.NewVersion)
+			r.Post("/{id}/validate", workflowHandler.Validate)
 			r.Post("/{id}/verify", workflowHandler.Verify)
 			r.Post("/{id}/execute", workflowHandler.Execute)
 			r.Get(routeByID, workflowHandler.Get)

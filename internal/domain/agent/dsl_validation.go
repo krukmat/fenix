@@ -64,6 +64,13 @@ func validateStatement(statement Statement) error {
 }
 
 func validateLeafStatement(statement Statement) (bool, error) {
+	if handled, err := validateV0LeafStatement(statement); handled {
+		return true, err
+	}
+	return validateV1LeafStatement(statement)
+}
+
+func validateV0LeafStatement(statement Statement) (bool, error) {
 	switch stmt := statement.(type) {
 	case *SetStatement:
 		return true, validateSetStatement(stmt)
@@ -77,6 +84,17 @@ func validateLeafStatement(statement Statement) (bool, error) {
 		return true, validateSurfaceStatement(stmt)
 	case *WaitStatement:
 		return true, validateWaitStatement(stmt)
+	default:
+		return false, nil
+	}
+}
+
+func validateV1LeafStatement(statement Statement) (bool, error) {
+	switch stmt := statement.(type) {
+	case *CallStatement:
+		return true, validateCallStatement(stmt) // CLSF-54
+	case *ApproveStatement:
+		return true, validateApproveStatement(stmt) // CLSF-54
 	default:
 		return false, nil
 	}
@@ -180,6 +198,24 @@ func validateWaitStatement(stmt *WaitStatement) error {
 	default:
 		return validationError(stmt.Pos(), "WAIT duration unit is not supported")
 	}
+}
+
+// validateCallStatement accepts CALL as structurally valid DSL v1 syntax. // CLSF-54
+// Runtime execution is not supported until Wave 5 runtime contracts exist.
+func validateCallStatement(stmt *CallStatement) error {
+	if stmt.Tool == nil || stmt.Tool.Name == "" {
+		return validationError(stmt.Pos(), "CALL requires a tool name")
+	}
+	return nil
+}
+
+// validateApproveStatement accepts APPROVE as structurally valid DSL v1 syntax. // CLSF-54
+// Role resolution is deferred to runtime per ADR-023.
+func validateApproveStatement(stmt *ApproveStatement) error {
+	if stmt.Stage == nil || stmt.Stage.Name == "" {
+		return validationError(stmt.Pos(), "APPROVE requires a stage name")
+	}
+	return nil
 }
 
 func validationError(pos Position, reason string) error {

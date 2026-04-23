@@ -195,3 +195,169 @@ SET lead.score = 42`
 		t.Fatalf("literal value = %v, want 42", lit.Value)
 	}
 }
+
+func TestParseDSLParsesCallWithInputAndAlias(t *testing.T) { // CLSF-52
+	t.Parallel()
+
+	program, err := ParseDSL("WORKFLOW x\nON case.created\nCALL search WITH query AS result")
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
+	}
+	stmt, ok := program.Workflow.Body[0].(*CallStatement)
+	if !ok {
+		t.Fatalf("body[0] type = %T, want *CallStatement", program.Workflow.Body[0])
+	}
+	if stmt.Tool == nil || stmt.Tool.Name != "search" {
+		t.Fatalf("Tool.Name = %q, want search", stmt.Tool.Name)
+	}
+	if stmt.Input == nil {
+		t.Fatal("Input must not be nil when WITH is present")
+	}
+	if stmt.Alias == nil || stmt.Alias.Name != "result" {
+		t.Fatalf("Alias.Name = %q, want result", stmt.Alias.Name)
+	}
+}
+
+func TestParseDSLParsesCallBareNoWithNoAs(t *testing.T) { // CLSF-52
+	t.Parallel()
+
+	program, err := ParseDSL("WORKFLOW x\nON case.created\nCALL ping")
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
+	}
+	stmt, ok := program.Workflow.Body[0].(*CallStatement)
+	if !ok {
+		t.Fatalf("body[0] type = %T, want *CallStatement", program.Workflow.Body[0])
+	}
+	if stmt.Tool == nil || stmt.Tool.Name != "ping" {
+		t.Fatalf("Tool.Name = %q, want ping", stmt.Tool.Name)
+	}
+	if stmt.Input != nil {
+		t.Fatal("Input must be nil when WITH is absent")
+	}
+	if stmt.Alias != nil {
+		t.Fatal("Alias must be nil when AS is absent")
+	}
+}
+
+func TestParseDSLParsesCallWithInputNoAlias(t *testing.T) { // CLSF-52
+	t.Parallel()
+
+	program, err := ParseDSL("WORKFLOW x\nON case.created\nCALL search WITH query")
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
+	}
+	stmt, ok := program.Workflow.Body[0].(*CallStatement)
+	if !ok {
+		t.Fatalf("body[0] type = %T, want *CallStatement", program.Workflow.Body[0])
+	}
+	if stmt.Input == nil {
+		t.Fatal("Input must not be nil when WITH is present")
+	}
+	if stmt.Alias != nil {
+		t.Fatal("Alias must be nil when AS is absent")
+	}
+}
+
+func TestParseDSLRejectsCallMissingToolName(t *testing.T) { // CLSF-52
+	t.Parallel()
+
+	_, err := ParseDSL("WORKFLOW x\nON case.created\nCALL")
+	if err == nil {
+		t.Fatal("expected parser error for CALL without tool name")
+	}
+	var parseErr *ParserError
+	if !errors.As(err, &parseErr) {
+		t.Fatalf("expected ParserError, got %T", err)
+	}
+}
+
+func TestParseDSLParsesApproveWithRole(t *testing.T) { // CLSF-53
+	t.Parallel()
+
+	program, err := ParseDSL("WORKFLOW x\nON case.created\nAPPROVE send_email role manager")
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
+	}
+	stmt, ok := program.Workflow.Body[0].(*ApproveStatement)
+	if !ok {
+		t.Fatalf("body[0] type = %T, want *ApproveStatement", program.Workflow.Body[0])
+	}
+	if stmt.Stage == nil || stmt.Stage.Name != "send_email" {
+		t.Fatalf("Stage.Name = %q, want send_email", stmt.Stage.Name)
+	}
+	if stmt.Role == nil || stmt.Role.Name != "manager" {
+		t.Fatalf("Role.Name = %q, want manager", stmt.Role.Name)
+	}
+}
+
+func TestParseDSLParsesApproveBareNoRole(t *testing.T) { // CLSF-53
+	t.Parallel()
+
+	program, err := ParseDSL("WORKFLOW x\nON case.created\nAPPROVE send_email")
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
+	}
+	stmt, ok := program.Workflow.Body[0].(*ApproveStatement)
+	if !ok {
+		t.Fatalf("body[0] type = %T, want *ApproveStatement", program.Workflow.Body[0])
+	}
+	if stmt.Stage == nil || stmt.Stage.Name != "send_email" {
+		t.Fatalf("Stage.Name = %q, want send_email", stmt.Stage.Name)
+	}
+	if stmt.Role != nil {
+		t.Fatal("Role must be nil when role keyword is absent")
+	}
+}
+
+func TestParseDSLRejectsApproveMissingStageName(t *testing.T) { // CLSF-53
+	t.Parallel()
+
+	_, err := ParseDSL("WORKFLOW x\nON case.created\nAPPROVE")
+	if err == nil {
+		t.Fatal("expected parser error for APPROVE without stage name")
+	}
+	var parseErr *ParserError
+	if !errors.As(err, &parseErr) {
+		t.Fatalf("expected ParserError, got %T", err)
+	}
+}
+
+func TestParseDSLRejectsApproveRoleMissingName(t *testing.T) { // CLSF-53
+	t.Parallel()
+
+	_, err := ParseDSL("WORKFLOW x\nON case.created\nAPPROVE send_email role")
+	if err == nil {
+		t.Fatal("expected parser error for APPROVE role without name")
+	}
+	var parseErr *ParserError
+	if !errors.As(err, &parseErr) {
+		t.Fatalf("expected ParserError, got %T", err)
+	}
+}
+
+func TestParseDSLApproveCarriesPosition(t *testing.T) { // CLSF-53
+	t.Parallel()
+
+	program, err := ParseDSL("WORKFLOW x\nON case.created\nAPPROVE send_email role manager")
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
+	}
+	stmt := program.Workflow.Body[0].(*ApproveStatement)
+	if stmt.Pos().Line == 0 {
+		t.Fatal("ApproveStatement must carry a non-zero position")
+	}
+}
+
+func TestParseDSLCallCarriesPosition(t *testing.T) { // CLSF-52
+	t.Parallel()
+
+	program, err := ParseDSL("WORKFLOW x\nON case.created\nCALL search WITH query AS result")
+	if err != nil {
+		t.Fatalf("ParseDSL() error = %v", err)
+	}
+	stmt := program.Workflow.Body[0].(*CallStatement)
+	if stmt.Pos().Line == 0 {
+		t.Fatal("CallStatement must carry a non-zero position")
+	}
+}

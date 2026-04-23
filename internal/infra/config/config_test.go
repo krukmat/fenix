@@ -15,6 +15,8 @@ func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("OPENAI_COMPAT_BASE_URL", "")
 	t.Setenv("OPENAI_COMPAT_API_KEY", "")
 	t.Setenv("OPENAI_COMPAT_MODEL", "")
+	t.Setenv("BFF_ORIGIN", "")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "")
 
 	cfg := Load()
 
@@ -39,6 +41,9 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.OpenAICompatBaseURL != "" {
 		t.Errorf("expected empty OpenAICompatBaseURL, got %q", cfg.OpenAICompatBaseURL)
+	}
+	if !containsString(cfg.CORSAllowedOrigins, "http://localhost:3000") || !containsString(cfg.CORSAllowedOrigins, "http://localhost:5173") {
+		t.Errorf("expected default CORSAllowedOrigins to include BFF and local dev origins, got %#v", cfg.CORSAllowedOrigins)
 	}
 }
 
@@ -102,6 +107,26 @@ func TestLoad_OpenAICompatFields(t *testing.T) {
 	}
 }
 
+func TestLoad_CORSAllowedOriginsOverride(t *testing.T) {
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://bff.example.com, http://localhost:5173, https://bff.example.com")
+
+	cfg := Load()
+	want := []string{"https://bff.example.com", "http://localhost:5173"}
+	if !equalStrings(cfg.CORSAllowedOrigins, want) {
+		t.Errorf("CORSAllowedOrigins = %#v; want %#v", cfg.CORSAllowedOrigins, want)
+	}
+}
+
+func TestLoad_BFFOriginFeedsDefaultCORSAllowlist(t *testing.T) {
+	t.Setenv("BFF_ORIGIN", "https://bff.internal")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "")
+
+	cfg := Load()
+	if !containsString(cfg.CORSAllowedOrigins, "https://bff.internal") {
+		t.Errorf("CORSAllowedOrigins = %#v; want BFF origin included", cfg.CORSAllowedOrigins)
+	}
+}
+
 func TestEnvOr_Present(t *testing.T) {
 	t.Setenv("TEST_ENVOR_KEY", "custom-value")
 	got := envOr("TEST_ENVOR_KEY", "fallback")
@@ -116,4 +141,25 @@ func TestEnvOr_Absent(t *testing.T) {
 	if got != "fallback" {
 		t.Errorf("expected 'fallback', got %q", got)
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func equalStrings(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }

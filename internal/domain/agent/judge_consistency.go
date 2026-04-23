@@ -6,7 +6,13 @@ import (
 	"strings"
 )
 
-const judgeCheckBehaviorCoverage = 5
+const (
+	judgeCheckBehaviorCoverage = 5
+	coverageKindWorkflow       = string(SemanticNodeWorkflow)
+	coverageKindTrigger        = string(SemanticNodeTrigger)
+	coverageKindNotify         = string(SemanticEffectNotify)
+	coverageKindAgent          = string(RuntimeOperationAgent)
+)
 
 type DSLCoverageSummary struct {
 	Labels []DSLCoverageLabel
@@ -26,8 +32,8 @@ func BuildDSLCoverageSummary(program *Program) *DSLCoverageSummary {
 
 	workflow := program.Workflow
 	summary.Labels = append(summary.Labels,
-		newCoverageLabel("workflow", workflow.Name),
-		newCoverageLabel("trigger", workflow.Trigger.Event),
+		newCoverageLabel(coverageKindWorkflow, workflow.Name),
+		newCoverageLabel(coverageKindTrigger, workflow.Trigger.Event),
 	)
 	collectStatementCoverage(&summary.Labels, workflow.Body)
 	return summary
@@ -67,9 +73,9 @@ func collectStatementCoverage(out *[]DSLCoverageLabel, statements []Statement) {
 		case *SetStatement:
 			*out = append(*out, newCoverageLabel("set", "set "+stmt.Target.Name))
 		case *NotifyStatement:
-			*out = append(*out, newCoverageLabel("notify", "notify "+stmt.Target.Name))
+			*out = append(*out, newCoverageLabel(coverageKindNotify, coverageKindNotify+" "+stmt.Target.Name))
 		case *AgentStatement:
-			*out = append(*out, newCoverageLabel("agent", "agent "+stmt.Name.Name))
+			*out = append(*out, newCoverageLabel(coverageKindAgent, coverageKindAgent+" "+stmt.Name.Name))
 		case *IfStatement:
 			*out = append(*out, newCoverageLabel("if", "if"))
 			collectStatementCoverage(out, stmt.Body)
@@ -135,9 +141,9 @@ func splitCoverageParts(value string) []string {
 
 func filterCoverageTokens(parts []string) map[string]bool {
 	stop := map[string]bool{
-		"workflow": true,
-		"with":     true,
-		"agent":    true,
+		coverageKindWorkflow: true,
+		"with":               true,
+		coverageKindAgent:    true,
 	}
 	set := make(map[string]bool)
 	for _, part := range parts {

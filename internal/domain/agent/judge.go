@@ -56,7 +56,7 @@ func appendInitialSpecConsistencyFindings(result *JudgeResult, workflow *workflo
 
 func isCartaSource(source string) bool {
 	trimmed := strings.TrimSpace(source)
-	return trimmed == "CARTA" || strings.HasPrefix(trimmed, "CARTA ")
+	return trimmed == string(TokenCarta) || strings.HasPrefix(trimmed, string(TokenCarta)+" ")
 }
 
 func appendCartaSpecConsistencyFindings(result *JudgeResult, workflow *workflowdomain.Workflow, program *Program) {

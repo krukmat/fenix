@@ -56,7 +56,7 @@ func collectCartaPermitViolations(out *[]Violation, statements []Statement, perm
 func cartaStatementLocation(stmt Statement) string {
 	switch node := stmt.(type) {
 	case *SetStatement:
-		return stmtLocation("SET", identifierName(node.Target))
+		return stmtLocation(string(TokenSet), identifierName(node.Target))
 	case *NotifyStatement:
 		return stmtLocation("NOTIFY", identifierName(node.Target))
 	default:
@@ -80,7 +80,7 @@ func buildPermitLabels(permits []CartaPermit) []DSLCoverageLabel {
 		if toolName == "" {
 			continue
 		}
-		labels = append(labels, newCoverageLabel("permit", toolName))
+		labels = append(labels, newCoverageLabel(string(SemanticNodePermit), toolName))
 	}
 	return labels
 }
@@ -122,7 +122,7 @@ func RunCartaGroundsPresenceCheck(carta *CartaSummary) []Warning {
 	}
 	return []Warning{normalizeWarning(Warning{
 		CheckID:     CartaCheckGrounds,
-		Code:        "carta_missing_grounds",
+		Code:        warnCartaMissingGrounds,
 		Description: "Carta has no GROUNDS block",
 		Location:    "spec_source",
 	})}

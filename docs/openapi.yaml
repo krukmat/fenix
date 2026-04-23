@@ -1214,6 +1214,116 @@ paths:
           description: Unexpected response
       security:
       - BearerAuth: []
+  /api/v1/workflows/diff:
+    post:
+      summary: Diff workflow DSL sources
+      x-fr-traces:
+      - FR-240
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowDiffRequest'
+      responses:
+        '200':
+          description: Semantic diff
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowDiffEnvelope'
+        '400':
+          description: Invalid JSON body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid workflow source
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/workflows/preview:
+    post:
+      summary: Preview workflow tooling diagnostics and visual graph from draft sources
+      x-fr-traces:
+      - FR-241
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowPreviewRequest'
+      responses:
+        '200':
+          description: Preview passed validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowPreviewEnvelope'
+        '400':
+          description: Invalid JSON body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Preview has validation diagnostics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowPreviewEnvelope'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/workflows/{id}/visual-authoring:
+    parameters:
+    - $ref: '#/components/parameters/ID'
+    post:
+      summary: Generate and persist workflow sources from visual authoring graph
+      x-fr-traces:
+      - FR-241
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowVisualAuthoringRequest'
+      responses:
+        '200':
+          description: Workflow updated from visual graph
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnyResponse'
+        '400':
+          description: Invalid JSON body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Visual graph or generated sources have validation diagnostics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowValidateEnvelope'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
   /api/v1/workflows/{id}:
     parameters:
     - $ref: '#/components/parameters/ID'
@@ -1262,6 +1372,30 @@ paths:
           description: Unexpected response
       security:
       - BearerAuth: []
+  /api/v1/workflows/{id}/graph:
+    parameters:
+    - $ref: '#/components/parameters/ID'
+    get:
+      summary: Get workflow semantic graph
+      x-fr-traces:
+      - FR-240
+      responses:
+        '200':
+          description: Semantic graph and conformance profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowGraphEnvelope'
+        '404':
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
   /api/v1/workflows/{id}/versions:
     parameters:
     - $ref: '#/components/parameters/ID'
@@ -1294,6 +1428,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnyResponse'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
+  /api/v1/workflows/{id}/validate:
+    parameters:
+    - $ref: '#/components/parameters/ID'
+    post:
+      summary: Validate workflow tooling contract
+      x-fr-traces:
+      - FR-240
+      responses:
+        '200':
+          description: Workflow passed validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowValidateEnvelope'
+        '404':
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Workflow has validation diagnostics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowValidateEnvelope'
         default:
           description: Unexpected response
       security:
@@ -2003,6 +2167,444 @@ components:
     AnyResponse:
       type: object
       additionalProperties: true
+    WorkflowGraphEnvelope:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/WorkflowGraphResponse'
+    WorkflowGraphResponse:
+      type: object
+      required:
+      - workflow_id
+      - conformance
+      properties:
+        workflow_id:
+          type: string
+        conformance:
+          $ref: '#/components/schemas/WorkflowConformance'
+        graph:
+          $ref: '#/components/schemas/WorkflowSemanticGraph'
+    WorkflowValidateEnvelope:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/WorkflowValidateResponse'
+    WorkflowValidateResponse:
+      type: object
+      required:
+      - workflow_id
+      - passed
+      - diagnostics
+      - conformance
+      properties:
+        workflow_id:
+          type: string
+        passed:
+          type: boolean
+        diagnostics:
+          $ref: '#/components/schemas/WorkflowValidationDiagnostics'
+        conformance:
+          $ref: '#/components/schemas/WorkflowConformance'
+    WorkflowPreviewRequest:
+      type: object
+      required:
+      - dsl_source
+      properties:
+        dsl_source:
+          type: string
+        spec_source:
+          type: string
+    WorkflowVisualAuthoringRequest:
+      type: object
+      required:
+      - graph
+      properties:
+        graph:
+          $ref: '#/components/schemas/VisualAuthoringGraph'
+    VisualAuthoringGraph:
+      type: object
+      required:
+      - nodes
+      - edges
+      properties:
+        workflow_name:
+          type: string
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/VisualAuthoringNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/VisualAuthoringEdge'
+        metadata:
+          type: object
+          additionalProperties: true
+    VisualAuthoringNode:
+      type: object
+      required:
+      - id
+      - kind
+      - label
+      - position
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        label:
+          type: string
+        position:
+          $ref: '#/components/schemas/WorkflowVisualPosition'
+        data:
+          $ref: '#/components/schemas/VisualAuthoringNodeData'
+        properties:
+          type: object
+          additionalProperties: true
+    VisualAuthoringNodeData:
+      type: object
+      properties:
+        workflow_name:
+          type: string
+        event:
+          type: string
+        expression:
+          type: string
+        action:
+          type: string
+        target:
+          type: string
+        value:
+          type: string
+        agent_name:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        permit:
+          type: string
+        grounds:
+          type: object
+          additionalProperties: true
+        delegate_to:
+          type: string
+        invariant:
+          type: string
+        budget:
+          type: object
+          additionalProperties: true
+    VisualAuthoringEdge:
+      type: object
+      required:
+      - id
+      - from
+      - to
+      - connection_type
+      properties:
+        id:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+        connection_type:
+          type: string
+        properties:
+          type: object
+          additionalProperties: true
+    WorkflowPreviewEnvelope:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/WorkflowPreviewResponse'
+    WorkflowPreviewResponse:
+      type: object
+      required:
+      - passed
+      - diagnostics
+      - conformance
+      - visual_graph
+      properties:
+        passed:
+          type: boolean
+        diagnostics:
+          $ref: '#/components/schemas/WorkflowValidationDiagnostics'
+        conformance:
+          $ref: '#/components/schemas/WorkflowConformance'
+        visual_graph:
+          $ref: '#/components/schemas/WorkflowVisualProjection'
+    WorkflowValidationDiagnostics:
+      type: object
+      properties:
+        violations:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowDiagnostic'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowDiagnostic'
+    WorkflowDiagnostic:
+      type: object
+      properties:
+        checkId:
+          type: integer
+        code:
+          type: string
+        type:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        line:
+          type: integer
+        column:
+          type: integer
+    WorkflowConformance:
+      type: object
+      required:
+      - profile
+      properties:
+        profile:
+          type: string
+          enum: [safe, extended, invalid]
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowConformanceDetail'
+    WorkflowConformanceDetail:
+      type: object
+      required:
+      - code
+      - severity
+      - message
+      properties:
+        code:
+          type: string
+        severity:
+          type: string
+          enum: [info, warning, error]
+        message:
+          type: string
+        line:
+          type: integer
+        column:
+          type: integer
+    WorkflowSemanticGraph:
+      type: object
+      required:
+      - nodes
+      - edges
+      properties:
+        workflow_name:
+          type: string
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowSemanticNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowSemanticEdge'
+    WorkflowSemanticNode:
+      type: object
+      required:
+      - id
+      - kind
+      - source
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [workflow, trigger, action, decision, grounds, permit, delegate, invariant, budget]
+        label:
+          type: string
+        source:
+          type: string
+          enum: [dsl, carta, legacy, system]
+        position:
+          $ref: '#/components/schemas/WorkflowSourcePosition'
+        effect:
+          type: string
+          enum: [none, read, write, notify, delegate, governance]
+        properties:
+          type: object
+          additionalProperties: true
+    WorkflowSemanticEdge:
+      type: object
+      required:
+      - from
+      - to
+      - kind
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        kind:
+          type: string
+          enum: [contains, next, branches, governs, requires]
+        properties:
+          type: object
+          additionalProperties: true
+    WorkflowSourcePosition:
+      type: object
+      properties:
+        line:
+          type: integer
+        column:
+          type: integer
+    WorkflowVisualProjection:
+      type: object
+      required:
+      - nodes
+      - edges
+      - conformance
+      properties:
+        workflow_name:
+          type: string
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowVisualNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowVisualEdge'
+        conformance:
+          $ref: '#/components/schemas/WorkflowConformance'
+    WorkflowVisualNode:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        label:
+          type: string
+        color:
+          type: string
+        position:
+          $ref: '#/components/schemas/WorkflowVisualPosition'
+        source:
+          type: string
+        effect:
+          type: string
+        properties:
+          type: object
+          additionalProperties: true
+    WorkflowVisualPosition:
+      type: object
+      properties:
+        x:
+          type: integer
+        y:
+          type: integer
+    WorkflowVisualEdge:
+      type: object
+      properties:
+        id:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+        connection_type:
+          type: string
+        properties:
+          type: object
+          additionalProperties: true
+    WorkflowDiffRequest:
+      type: object
+      required:
+      - before
+      - after
+      properties:
+        before:
+          $ref: '#/components/schemas/WorkflowDiffSource'
+        after:
+          $ref: '#/components/schemas/WorkflowDiffSource'
+    WorkflowDiffSource:
+      type: object
+      required:
+      - dsl_source
+      properties:
+        dsl_source:
+          type: string
+    WorkflowDiffEnvelope:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/WorkflowDiffResponse'
+    WorkflowDiffResponse:
+      type: object
+      required:
+      - diff
+      properties:
+        diff:
+          $ref: '#/components/schemas/WorkflowSemanticDiff'
+    WorkflowSemanticDiff:
+      type: object
+      required:
+      - has_semantic_changes
+      - layout_only
+      properties:
+        has_semantic_changes:
+          type: boolean
+        layout_only:
+          type: boolean
+        node_changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowSemanticNodeChange'
+        edge_changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowSemanticEdgeChange'
+    WorkflowSemanticNodeChange:
+      type: object
+      required:
+      - kind
+      - id
+      properties:
+        kind:
+          type: string
+          enum: [added, removed, modified]
+        id:
+          type: string
+        before:
+          $ref: '#/components/schemas/WorkflowSemanticNode'
+        after:
+          $ref: '#/components/schemas/WorkflowSemanticNode'
+        fields:
+          type: array
+          items:
+            type: string
+    WorkflowSemanticEdgeChange:
+      type: object
+      required:
+      - kind
+      - id
+      properties:
+        kind:
+          type: string
+          enum: [added, removed, modified]
+        id:
+          type: string
+        before:
+          $ref: '#/components/schemas/WorkflowSemanticEdge'
+        after:
+          $ref: '#/components/schemas/WorkflowSemanticEdge'
     KnowledgeIngestRequest:
       type: object
       required:
@@ -2070,6 +2672,11 @@ components:
       type: object
     ErrorResponse:
       type: object
+      required:
+      - error
+      properties:
+        error:
+          type: string
   parameters:
     Limit:
       name: limit

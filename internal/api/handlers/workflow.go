@@ -101,7 +101,58 @@ type ExecuteWorkflowRequest struct {
 	Inputs         json.RawMessage `json:"inputs,omitempty"`
 }
 
-const actionWorkflowsUpdate = "workflows.update"
+type WorkflowDiffRequest struct {
+	Before WorkflowDiffSource `json:"before"`
+	After  WorkflowDiffSource `json:"after"`
+}
+
+type WorkflowDiffSource struct {
+	DSLSource string `json:"dsl_source"`
+}
+
+type WorkflowDiffResponse struct {
+	Diff agent.WorkflowSemanticDiff `json:"diff"`
+}
+
+type WorkflowGraphResponse struct {
+	WorkflowID    string                       `json:"workflow_id"`
+	Conformance   agent.ConformanceResult      `json:"conformance"`
+	SemanticGraph *agent.WorkflowSemanticGraph `json:"graph,omitempty"`
+}
+
+type WorkflowValidateResponse struct {
+	WorkflowID  string                        `json:"workflow_id"`
+	Passed      bool                          `json:"passed"`
+	Diagnostics WorkflowValidationDiagnostics `json:"diagnostics"`
+	Conformance agent.ConformanceResult       `json:"conformance"`
+}
+
+type WorkflowPreviewRequest struct {
+	DSLSource  string `json:"dsl_source"`
+	SpecSource string `json:"spec_source,omitempty"`
+}
+
+type WorkflowVisualAuthoringRequest struct {
+	Graph *agent.VisualAuthoringGraph `json:"graph"`
+}
+
+type WorkflowPreviewResponse struct {
+	Passed      bool                           `json:"passed"`
+	Diagnostics WorkflowValidationDiagnostics  `json:"diagnostics"`
+	Conformance agent.ConformanceResult        `json:"conformance"`
+	VisualGraph agent.WorkflowVisualProjection `json:"visual_graph"`
+}
+
+type WorkflowValidationDiagnostics struct {
+	Violations []agent.Violation `json:"violations,omitempty"`
+	Warnings   []agent.Warning   `json:"warnings,omitempty"`
+}
+
+const (
+	actionWorkflowsGet    = "workflows.get"
+	actionWorkflowsVerify = "workflows.verify"
+	actionWorkflowsUpdate = "workflows.update"
+)
 
 func NewWorkflowHandler(service WorkflowService) *WorkflowHandler {
 	return &WorkflowHandler{reader: service, writer: service, lifecycle: service}
@@ -169,7 +220,7 @@ func (h *WorkflowHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkflowHandler) Get(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "workflows.get") {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsGet) {
 		return
 	}
 
@@ -222,6 +273,22 @@ func (h *WorkflowHandler) List(w http.ResponseWriter, r *http.Request) {
 	_ = writeJSONOr500(w, map[string]any{"data": response})
 }
 
+func (h *WorkflowHandler) Diff(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsGet) {
+		return
+	}
+	var req WorkflowDiffRequest
+	if !decodeBodyJSON(w, r, &req) {
+		return
+	}
+	response, err := workflowDiffToResponse(req)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = writeJSONOr500(w, map[string]any{"data": response})
+}
+
 func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsUpdate) {
 		return
@@ -254,7 +321,7 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkflowHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "workflows.get") {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsGet) {
 		return
 	}
 
@@ -343,7 +410,7 @@ func (h *WorkflowHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkflowHandler) Verify(w http.ResponseWriter, r *http.Request) {
-	if !checkActionAuthorization(w, r, h.authz, resourceAPI, "workflows.verify") {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsVerify) {
 		return
 	}
 	workspaceID, id, item, ok := h.loadWorkflowForJudge(w, r)
@@ -358,6 +425,166 @@ func (h *WorkflowHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeJudgeResult(w, result)
+}
+
+func (h *WorkflowHandler) Graph(w http.ResponseWriter, r *http.Request) { // CLSF-61
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsGet) {
+		return
+	}
+	_, _, item, ok := h.loadWorkflowForJudge(w, r)
+	if !ok {
+		return
+	}
+	result, err := agent.ValidateWorkflowForTooling(r.Context(), item)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if r.URL.Query().Get("format") == "visual" {
+		conformance := result.Conformance
+		conformance.Graph = nil
+		projection := agent.ProjectWorkflowSemanticGraph(result.SemanticGraph, conformance)
+		_ = writeJSONOr500(w, map[string]any{"data": projection})
+		return
+	}
+	_ = writeJSONOr500(w, map[string]any{"data": workflowGraphToResponse(result)})
+}
+
+func (h *WorkflowHandler) Validate(w http.ResponseWriter, r *http.Request) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsVerify) {
+		return
+	}
+	_, _, item, ok := h.loadWorkflowForJudge(w, r)
+	if !ok {
+		return
+	}
+	result, err := agent.ValidateWorkflowForTooling(r.Context(), item)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response := workflowValidateToResponse(result)
+	if !response.Passed {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+	}
+	_ = writeJSONOr500(w, map[string]any{"data": response})
+}
+
+func (h *WorkflowHandler) Preview(w http.ResponseWriter, r *http.Request) { // CLSF-66
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsVerify) {
+		return
+	}
+	var req WorkflowPreviewRequest
+	if !decodeBodyJSON(w, r, &req) {
+		return
+	}
+	result, err := agent.ValidateWorkflowForTooling(r.Context(), previewWorkflow(req))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response := workflowPreviewToResponse(result)
+	if !response.Passed {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+	}
+	_ = writeJSONOr500(w, map[string]any{"data": response})
+}
+
+func (h *WorkflowHandler) VisualAuthoring(w http.ResponseWriter, r *http.Request) { // CLSF-75
+	workspaceID, id, item, req, ok := h.loadVisualAuthoringContext(w, r)
+	if !ok {
+		return
+	}
+
+	if !validateVisualAuthoringGraphRequest(w, id, req.Graph) {
+		return
+	}
+
+	sources, err := agent.GenerateSourcesFromVisualAuthoringGraph(req.Graph)
+	if err != nil {
+		writeVisualSourceGenerationFailure(w, id, err)
+		return
+	}
+
+	candidate := visualAuthoringWorkflowCandidate(item, sources)
+	if !validateVisualAuthoringCandidate(w, r.Context(), candidate) {
+		return
+	}
+
+	out, ok := h.updateVisualAuthoringWorkflow(r.Context(), w, workspaceID, id, item, sources)
+	if !ok {
+		return
+	}
+	h.invalidateCacheIfConfigured(id)
+	_ = writeJSONOr500(w, map[string]any{"data": workflowToResponse(out)})
+}
+
+func (h *WorkflowHandler) loadVisualAuthoringContext(w http.ResponseWriter, r *http.Request) (string, string, *workflowdomain.Workflow, WorkflowVisualAuthoringRequest, bool) {
+	if !checkActionAuthorization(w, r, h.authz, resourceAPI, actionWorkflowsUpdate) {
+		return "", "", nil, WorkflowVisualAuthoringRequest{}, false
+	}
+	workspaceID, id, item, ok := h.loadWorkflowForJudge(w, r)
+	if !ok {
+		return "", "", nil, WorkflowVisualAuthoringRequest{}, false
+	}
+	var req WorkflowVisualAuthoringRequest
+	if !decodeBodyJSON(w, r, &req) {
+		return "", "", nil, WorkflowVisualAuthoringRequest{}, false
+	}
+	return workspaceID, id, item, req, true
+}
+
+func (h *WorkflowHandler) updateVisualAuthoringWorkflow(ctx context.Context, w http.ResponseWriter, workspaceID, workflowID string, item *workflowdomain.Workflow, sources agent.VisualSourceResult) (*workflowdomain.Workflow, bool) {
+	out, err := h.writer.Update(ctx, workspaceID, workflowID, workflowdomain.UpdateWorkflowInput{
+		AgentDefinitionID: item.AgentDefinitionID,
+		Description:       optionalWorkflowString(item.Description),
+		DSLSource:         sources.DSLSource,
+		SpecSource:        sources.SpecSource,
+	})
+	if err != nil {
+		writeWorkflowError(w, err)
+		return nil, false
+	}
+	return out, true
+}
+
+func validateVisualAuthoringGraphRequest(w http.ResponseWriter, workflowID string, graph *agent.VisualAuthoringGraph) bool {
+	visualValidation := agent.ValidateVisualAuthoringGraph(graph)
+	if visualValidation.Passed {
+		return true
+	}
+	w.WriteHeader(http.StatusUnprocessableEntity)
+	_ = writeJSONOr500(w, map[string]any{
+		"data": workflowValidationFailureResponse(workflowID, visualValidation.Violations),
+	})
+	return false
+}
+
+func writeVisualSourceGenerationFailure(w http.ResponseWriter, workflowID string, err error) {
+	w.WriteHeader(http.StatusUnprocessableEntity)
+	_ = writeJSONOr500(w, map[string]any{
+		"data": workflowValidationFailureResponse(workflowID, []agent.Violation{{
+			Code:        "visual_source_generation_failed",
+			Type:        "visual_authoring_generation",
+			Description: err.Error(),
+			Location:    "graph",
+		}}),
+	})
+}
+
+func validateVisualAuthoringCandidate(w http.ResponseWriter, ctx context.Context, candidate *workflowdomain.Workflow) bool {
+	validation, err := agent.ValidateWorkflowForTooling(ctx, candidate)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return false
+	}
+	validationResponse := workflowValidateToResponse(validation)
+	if validationResponse.Passed {
+		return true
+	}
+	w.WriteHeader(http.StatusUnprocessableEntity)
+	_ = writeJSONOr500(w, map[string]any{"data": validationResponse})
+	return false
 }
 
 func (h *WorkflowHandler) Activate(w http.ResponseWriter, r *http.Request) {
@@ -504,6 +731,134 @@ func (h *WorkflowHandler) writeJudgeConflict(w http.ResponseWriter, result *agen
 func (h *WorkflowHandler) writeWorkflowResponse(w http.ResponseWriter, workflow *workflowdomain.Workflow) {
 	w.WriteHeader(http.StatusOK)
 	_ = writeJSONOr500(w, map[string]any{"data": workflowToResponse(workflow)})
+}
+
+func workflowGraphToResponse(result *agent.WorkflowValidationResult) WorkflowGraphResponse {
+	if result == nil {
+		return WorkflowGraphResponse{}
+	}
+	conformance := result.Conformance
+	conformance.Graph = nil
+	return WorkflowGraphResponse{
+		WorkflowID:    result.WorkflowID,
+		Conformance:   conformance,
+		SemanticGraph: result.SemanticGraph,
+	}
+}
+
+func workflowValidateToResponse(result *agent.WorkflowValidationResult) WorkflowValidateResponse {
+	if result == nil {
+		return WorkflowValidateResponse{}
+	}
+	conformance := result.Conformance
+	conformance.Graph = nil
+	passed := result.Judge != nil && result.Judge.Passed && conformance.Profile != agent.ConformanceProfileInvalid
+	return WorkflowValidateResponse{
+		WorkflowID: result.WorkflowID,
+		Passed:     passed,
+		Diagnostics: WorkflowValidationDiagnostics{
+			Violations: judgeViolations(result.Judge),
+			Warnings:   judgeWarnings(result.Judge),
+		},
+		Conformance: conformance,
+	}
+}
+
+func workflowPreviewToResponse(result *agent.WorkflowValidationResult) WorkflowPreviewResponse {
+	if result == nil {
+		return WorkflowPreviewResponse{}
+	}
+	validate := workflowValidateToResponse(result)
+	conformance := result.Conformance
+	conformance.Graph = nil
+	return WorkflowPreviewResponse{
+		Passed:      validate.Passed,
+		Diagnostics: validate.Diagnostics,
+		Conformance: conformance,
+		VisualGraph: agent.ProjectWorkflowSemanticGraph(result.SemanticGraph, conformance),
+	}
+}
+
+func previewWorkflow(req WorkflowPreviewRequest) *workflowdomain.Workflow {
+	var spec *string
+	if req.SpecSource != "" {
+		spec = &req.SpecSource
+	}
+	now := time.Now().UTC()
+	return &workflowdomain.Workflow{
+		ID:         "preview",
+		DSLSource:  req.DSLSource,
+		SpecSource: spec,
+		Version:    1,
+		Status:     workflowdomain.StatusDraft,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+}
+
+func visualAuthoringWorkflowCandidate(existing *workflowdomain.Workflow, sources agent.VisualSourceResult) *workflowdomain.Workflow {
+	if existing == nil {
+		return previewWorkflow(WorkflowPreviewRequest{
+			DSLSource:  sources.DSLSource,
+			SpecSource: sources.SpecSource,
+		})
+	}
+	candidate := *existing
+	candidate.DSLSource = sources.DSLSource
+	if sources.SpecSource == "" {
+		candidate.SpecSource = nil
+	} else {
+		spec := sources.SpecSource
+		candidate.SpecSource = &spec
+	}
+	candidate.UpdatedAt = time.Now().UTC()
+	return &candidate
+}
+
+func workflowValidationFailureResponse(workflowID string, violations []agent.Violation) WorkflowValidateResponse {
+	return WorkflowValidateResponse{
+		WorkflowID: workflowID,
+		Passed:     false,
+		Diagnostics: WorkflowValidationDiagnostics{
+			Violations: violations,
+		},
+		Conformance: agent.ConformanceResult{Profile: agent.ConformanceProfileInvalid},
+	}
+}
+
+func optionalWorkflowString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func judgeViolations(result *agent.JudgeResult) []agent.Violation {
+	if result == nil {
+		return nil
+	}
+	return result.Violations
+}
+
+func judgeWarnings(result *agent.JudgeResult) []agent.Warning {
+	if result == nil {
+		return nil
+	}
+	return result.Warnings
+}
+
+func workflowDiffToResponse(req WorkflowDiffRequest) (WorkflowDiffResponse, error) {
+	before, err := agent.BuildWorkflowSemanticGraphFromDSL(req.Before.DSLSource)
+	if err != nil {
+		return WorkflowDiffResponse{}, err
+	}
+	after, err := agent.BuildWorkflowSemanticGraphFromDSL(req.After.DSLSource)
+	if err != nil {
+		return WorkflowDiffResponse{}, err
+	}
+	return WorkflowDiffResponse{
+		Diff: agent.DiffWorkflowSemanticGraphs(before, after),
+	}, nil
 }
 
 func (h *WorkflowHandler) isRuntimeConfigured() bool {

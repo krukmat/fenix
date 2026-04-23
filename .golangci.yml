@@ -192,6 +192,7 @@ issues:
     - ruleguard
     - vendor
     - bff/node_modules               # JS node_modules contain Go pkg (flatted) — not our code
+    - web/node_modules               # JS node_modules contain Go pkg (flatted) — not our code
   exclude-files:
     - ".*\\.pb\\.go$"  # Future protobuf generated files
     - ".*_test\\.go$"  # Test files (allowed to be complex, caught by gocyclo instead)

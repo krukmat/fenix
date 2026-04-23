@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 
 type mockWorkflowService struct {
 	items          map[string]*workflowdomain.Workflow
+	updateCalls    int
+	lastUpdate     workflowdomain.UpdateWorkflowInput
 	createErr      error
 	getErr         error
 	listErr        error
@@ -79,6 +82,8 @@ func (m *mockWorkflowService) Update(_ context.Context, _, workflowID string, in
 	if m.updateErr != nil {
 		return nil, m.updateErr
 	}
+	m.updateCalls++
+	m.lastUpdate = input
 	item, ok := m.items[workflowID]
 	if !ok {
 		return nil, workflowdomain.ErrWorkflowNotFound
@@ -367,6 +372,101 @@ func TestWorkflowHandler_List_InvalidStatus_Returns400(t *testing.T) {
 	}
 }
 
+func TestWorkflowHandler_Diff_ReturnsLayoutOnlyForWhitespaceChanges(t *testing.T) {
+	t.Parallel()
+
+	handler := NewWorkflowHandler(workflowServiceAdapter{newMockWorkflowService()})
+	r := chi.NewRouter()
+	r.Post("/workflows/diff", handler.Diff)
+
+	body, _ := json.Marshal(WorkflowDiffRequest{
+		Before: WorkflowDiffSource{DSLSource: "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"triaged\""},
+		After:  WorkflowDiffSource{DSLSource: "\nWORKFLOW resolve_support_case\nON case.created\n\nSET case.status = \"triaged\""},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/workflows/diff", bytes.NewReader(body))
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data WorkflowDiffResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Data.Diff.HasSemanticChanges {
+		t.Fatalf("HasSemanticChanges = true, diff = %#v", payload.Data.Diff)
+	}
+	if !payload.Data.Diff.LayoutOnly {
+		t.Fatalf("LayoutOnly = false, diff = %#v", payload.Data.Diff)
+	}
+}
+
+func TestWorkflowHandler_Diff_ReturnsSemanticChanges(t *testing.T) {
+	t.Parallel()
+
+	handler := NewWorkflowHandler(workflowServiceAdapter{newMockWorkflowService()})
+	r := chi.NewRouter()
+	r.Post("/workflows/diff", handler.Diff)
+
+	body, _ := json.Marshal(WorkflowDiffRequest{
+		Before: WorkflowDiffSource{DSLSource: "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"triaged\""},
+		After:  WorkflowDiffSource{DSLSource: "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\""},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/workflows/diff", bytes.NewReader(body))
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data WorkflowDiffResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !payload.Data.Diff.HasSemanticChanges {
+		t.Fatalf("HasSemanticChanges = false, diff = %#v", payload.Data.Diff)
+	}
+	if payload.Data.Diff.LayoutOnly {
+		t.Fatalf("LayoutOnly = true, diff = %#v", payload.Data.Diff)
+	}
+	if len(payload.Data.Diff.NodeChanges) == 0 {
+		t.Fatalf("NodeChanges = empty, diff = %#v", payload.Data.Diff)
+	}
+}
+
+func TestWorkflowHandler_Diff_Returns422ForInvalidSource(t *testing.T) {
+	t.Parallel()
+
+	handler := NewWorkflowHandler(workflowServiceAdapter{newMockWorkflowService()})
+	r := chi.NewRouter()
+	r.Post("/workflows/diff", handler.Diff)
+
+	body, _ := json.Marshal(WorkflowDiffRequest{
+		Before: WorkflowDiffSource{DSLSource: "ON case.created"},
+		After:  WorkflowDiffSource{DSLSource: "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"triaged\""},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/workflows/diff", bytes.NewReader(body))
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestWorkflowHandler_ListVersions_Returns200(t *testing.T) {
 	mock := newMockWorkflowService()
 	now := time.Now().UTC()
@@ -611,6 +711,469 @@ func TestWorkflowHandler_Verify_Returns404WhenWorkflowMissing(t *testing.T) {
 
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestWorkflowHandler_Graph_Returns200WithGraphAndConformance(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	spec := `CARTA resolve_support_case
+AGENT search_knowledge
+  GROUNDS
+    min_sources: 2
+  PERMIT update_case`
+	mock.items["wf_graph_1"] = &workflowdomain.Workflow{
+		ID:          "wf_graph_1",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		SpecSource:  &spec,
+		Version:     1,
+		Status:      workflowdomain.StatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Get("/workflows/{id}/graph", handler.Graph)
+
+	req := httptest.NewRequest(http.MethodGet, "/workflows/wf_graph_1/graph", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data WorkflowGraphResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Data.WorkflowID != "wf_graph_1" {
+		t.Fatalf("WorkflowID = %q, want wf_graph_1", payload.Data.WorkflowID)
+	}
+	if payload.Data.Conformance.Profile != agent.ConformanceProfileSafe {
+		t.Fatalf("Conformance.Profile = %q, want safe", payload.Data.Conformance.Profile)
+	}
+	if payload.Data.Conformance.Graph != nil {
+		t.Fatalf("Conformance.Graph = %#v, want nil in graph endpoint response", payload.Data.Conformance.Graph)
+	}
+	if payload.Data.SemanticGraph == nil || len(payload.Data.SemanticGraph.Nodes) == 0 {
+		t.Fatalf("SemanticGraph = %#v, want nodes", payload.Data.SemanticGraph)
+	}
+}
+
+func TestWorkflowHandler_Graph_ReturnsVisualProjectionWhenFormatVisual(t *testing.T) { // CLSF-61
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_visual_1"] = &workflowdomain.Workflow{
+		ID:          "wf_visual_1",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		Version:     1,
+		Status:      workflowdomain.StatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Get("/workflows/{id}/graph", handler.Graph)
+
+	req := httptest.NewRequest(http.MethodGet, "/workflows/wf_visual_1/graph?format=visual", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data agent.WorkflowVisualProjection `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Data.WorkflowName == "" {
+		t.Fatal("WorkflowName is empty, want non-empty")
+	}
+	if len(payload.Data.Nodes) == 0 {
+		t.Fatal("Nodes is empty, want visual nodes")
+	}
+	if payload.Data.Nodes[0].Color == "" {
+		t.Fatal("first node Color is empty, want a color")
+	}
+	if payload.Data.Conformance.Profile == "" {
+		t.Fatal("Conformance.Profile is empty")
+	}
+}
+
+func TestWorkflowHandler_Graph_Returns404WhenWorkflowMissing(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Get("/workflows/{id}/graph", handler.Graph)
+
+	req := httptest.NewRequest(http.MethodGet, "/workflows/missing/graph", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestWorkflowHandler_Validate_Returns200WhenWorkflowPasses(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	spec := `CARTA resolve_support_case
+AGENT search_knowledge
+  GROUNDS
+    min_sources: 2
+  PERMIT update_case`
+	mock.items["wf_validate_1"] = &workflowdomain.Workflow{
+		ID:          "wf_validate_1",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"",
+		SpecSource:  &spec,
+		Version:     1,
+		Status:      workflowdomain.StatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/validate", handler.Validate)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_validate_1/validate", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data WorkflowValidateResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !payload.Data.Passed {
+		t.Fatalf("Passed = false, response = %+v", payload.Data)
+	}
+	if payload.Data.Conformance.Profile != agent.ConformanceProfileSafe {
+		t.Fatalf("Conformance.Profile = %q, want safe", payload.Data.Conformance.Profile)
+	}
+	if payload.Data.Conformance.Graph != nil {
+		t.Fatalf("Conformance.Graph = %#v, want nil in validate endpoint response", payload.Data.Conformance.Graph)
+	}
+}
+
+func TestWorkflowHandler_Validate_Returns422WithDiagnosticsWhenJudgeFails(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	spec := `CARTA resolve_support_case
+AGENT search_knowledge
+  GROUNDS
+    min_sources: 2
+  PERMIT send_reply`
+	mock.items["wf_validate_bad"] = &workflowdomain.Workflow{
+		ID:          "wf_validate_bad",
+		WorkspaceID: "ws_test",
+		Name:        "resolve_support_case",
+		DSLSource:   "WORKFLOW resolve_support_case\nON case.created\nNOTIFY salesperson WITH \"review\"",
+		SpecSource:  &spec,
+		Version:     1,
+		Status:      workflowdomain.StatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/validate", handler.Validate)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_validate_bad/validate", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data WorkflowValidateResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Data.Passed {
+		t.Fatalf("Passed = true, response = %+v", payload.Data)
+	}
+	if !workflowValidationHasViolation(payload.Data, "tool_not_permitted") {
+		t.Fatalf("Violations = %#v, want tool_not_permitted", payload.Data.Diagnostics.Violations)
+	}
+	if payload.Data.Conformance.Profile != agent.ConformanceProfileSafe {
+		t.Fatalf("Conformance.Profile = %q, want safe", payload.Data.Conformance.Profile)
+	}
+}
+
+func TestWorkflowHandler_Validate_Returns404WhenWorkflowMissing(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/validate", handler.Validate)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/missing/validate", nil)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestWorkflowHandler_Preview_ReturnsVisualProjectionFromDraftSource(t *testing.T) {
+	t.Parallel()
+
+	handler := NewWorkflowHandler(workflowServiceAdapter{newMockWorkflowService()})
+	r := chi.NewRouter()
+	r.Post("/workflows/preview", handler.Preview)
+
+	body := strings.NewReader(`{"dsl_source":"WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\"","spec_source":"CARTA resolve_support_case\nAGENT search_knowledge\n  PERMIT update_case"}`)
+	req := httptest.NewRequest(http.MethodPost, "/workflows/preview", body)
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data WorkflowPreviewResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !payload.Data.Passed {
+		t.Fatalf("Passed = false, response = %+v", payload.Data)
+	}
+	if payload.Data.VisualGraph.WorkflowName != "resolve_support_case" {
+		t.Fatalf("VisualGraph.WorkflowName = %q, want resolve_support_case", payload.Data.VisualGraph.WorkflowName)
+	}
+	if len(payload.Data.VisualGraph.Nodes) == 0 {
+		t.Fatal("VisualGraph.Nodes is empty, want renderable nodes")
+	}
+	if payload.Data.Conformance.Graph != nil || payload.Data.VisualGraph.Conformance.Graph != nil {
+		t.Fatal("preview response should not embed semantic graph inside conformance")
+	}
+}
+
+func TestWorkflowHandler_Preview_Returns422WithDiagnosticsForInvalidSource(t *testing.T) {
+	t.Parallel()
+
+	handler := NewWorkflowHandler(workflowServiceAdapter{newMockWorkflowService()})
+	r := chi.NewRouter()
+	r.Post("/workflows/preview", handler.Preview)
+
+	req := httptest.NewRequest(http.MethodPost, "/workflows/preview", strings.NewReader(`{"dsl_source":"WORKFLOW"}`))
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var payload struct {
+		Data WorkflowPreviewResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Data.Passed {
+		t.Fatalf("Passed = true, response = %+v", payload.Data)
+	}
+	if len(payload.Data.Diagnostics.Violations) == 0 {
+		t.Fatalf("Violations is empty, response = %+v", payload.Data)
+	}
+	if payload.Data.Conformance.Profile != agent.ConformanceProfileInvalid {
+		t.Fatalf("Conformance.Profile = %q, want invalid", payload.Data.Conformance.Profile)
+	}
+}
+
+func TestWorkflowHandler_VisualAuthoring_PersistsGeneratedSourcesWhenValidationPasses(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_visual"] = &workflowdomain.Workflow{
+		ID:          "wf_visual",
+		WorkspaceID: "ws_test",
+		Name:        "old_workflow",
+		Description: stringPtrToOptional("keep description"),
+		DSLSource:   "WORKFLOW old_workflow\nON lead.created\nSET status = \"open\"",
+		Version:     1,
+		Status:      workflowdomain.StatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/visual-authoring", handler.VisualAuthoring)
+
+	body, _ := json.Marshal(WorkflowVisualAuthoringRequest{Graph: validWorkflowVisualAuthoringGraph("sales_followup")})
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_visual/visual-authoring", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if mock.updateCalls != 1 {
+		t.Fatalf("Update calls = %d, want 1", mock.updateCalls)
+	}
+	if !strings.Contains(mock.lastUpdate.DSLSource, "WORKFLOW sales_followup") {
+		t.Fatalf("DSLSource = %q, want generated workflow source", mock.lastUpdate.DSLSource)
+	}
+	if mock.lastUpdate.SpecSource != "" {
+		t.Fatalf("SpecSource = %q, want empty spec for graph without governance", mock.lastUpdate.SpecSource)
+	}
+
+	var payload struct {
+		Data WorkflowResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Data.ID != "wf_visual" || payload.Data.DSLSource != mock.lastUpdate.DSLSource {
+		t.Fatalf("unexpected response data = %+v, update = %+v", payload.Data, mock.lastUpdate)
+	}
+}
+
+func TestWorkflowHandler_VisualAuthoring_Returns422AndDoesNotPersistInvalidVisualGraph(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_visual"] = &workflowdomain.Workflow{
+		ID:          "wf_visual",
+		WorkspaceID: "ws_test",
+		Name:        "sales_followup",
+		DSLSource:   "WORKFLOW sales_followup\nON lead.created\nSET lead.status = \"new\"",
+		Version:     1,
+		Status:      workflowdomain.StatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/visual-authoring", handler.VisualAuthoring)
+
+	graph := validWorkflowVisualAuthoringGraph("sales_followup")
+	graph.Nodes = graph.Nodes[:1]
+	body, _ := json.Marshal(WorkflowVisualAuthoringRequest{Graph: graph})
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_visual/visual-authoring", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if mock.updateCalls != 0 {
+		t.Fatalf("Update calls = %d, want 0", mock.updateCalls)
+	}
+
+	var payload struct {
+		Data WorkflowValidateResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if payload.Data.Passed {
+		t.Fatalf("Passed = true, response = %+v", payload.Data)
+	}
+	if !workflowValidationHasViolation(payload.Data, "visual_trigger_missing") {
+		t.Fatalf("Violations = %#v, want visual_trigger_missing", payload.Data.Diagnostics.Violations)
+	}
+}
+
+func TestWorkflowHandler_VisualAuthoring_Returns422AndDoesNotPersistWhenGeneratedSourceFails(t *testing.T) {
+	t.Parallel()
+
+	mock := newMockWorkflowService()
+	now := time.Now().UTC()
+	mock.items["wf_visual"] = &workflowdomain.Workflow{
+		ID:          "wf_visual",
+		WorkspaceID: "ws_test",
+		Name:        "branching_workflow",
+		DSLSource:   "WORKFLOW branching_workflow\nON lead.created\nSET lead.status = \"new\"",
+		Version:     1,
+		Status:      workflowdomain.StatusDraft,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	handler := NewWorkflowHandler(workflowServiceAdapter{mock})
+	r := chi.NewRouter()
+	r.Post("/workflows/{id}/visual-authoring", handler.VisualAuthoring)
+
+	graph := validWorkflowVisualAuthoringGraph("branching_workflow")
+	graph.Nodes = append(graph.Nodes, agent.NewVisualAuthoringNode("decision", agent.SemanticNodeDecision, "deal.value > 1000", agent.WorkflowVisualPosition{Y: 320}))
+	body, _ := json.Marshal(WorkflowVisualAuthoringRequest{Graph: graph})
+	req := httptest.NewRequest(http.MethodPost, "/workflows/wf_visual/visual-authoring", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withWorkflowContext(req.Context()))
+	rr := httptest.NewRecorder()
+
+	r.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if mock.updateCalls != 0 {
+		t.Fatalf("Update calls = %d, want 0", mock.updateCalls)
 	}
 }
 
@@ -863,6 +1426,30 @@ func stringPtrToOptional(value string) *string {
 		return nil
 	}
 	return &value
+}
+
+func workflowValidationHasViolation(response WorkflowValidateResponse, code string) bool {
+	for _, violation := range response.Diagnostics.Violations {
+		if violation.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+func validWorkflowVisualAuthoringGraph(name string) *agent.VisualAuthoringGraph {
+	graph := agent.NewVisualAuthoringGraph(name)
+	graph.AddNode(agent.NewVisualAuthoringNode("workflow", agent.SemanticNodeWorkflow, name, agent.WorkflowVisualPosition{}))
+	trigger := agent.NewVisualAuthoringNode("trigger", agent.SemanticNodeTrigger, "lead.created", agent.WorkflowVisualPosition{X: 260})
+	trigger.Data.Event = "lead.created"
+	graph.AddNode(trigger)
+	action := agent.NewVisualAuthoringNode("set-status", agent.SemanticNodeAction, "lead.status", agent.WorkflowVisualPosition{Y: 160})
+	action.Data.Target = "lead.status"
+	action.Data.Value = "qualified"
+	graph.AddNode(action)
+	graph.AddEdge(agent.NewVisualAuthoringEdge("workflow-trigger", "workflow", "trigger", agent.SemanticEdgeContains))
+	graph.AddEdge(agent.NewVisualAuthoringEdge("trigger-action", "trigger", "set-status", agent.SemanticEdgeNext))
+	return graph
 }
 
 type workflowServiceAdapter struct{ *mockWorkflowService }

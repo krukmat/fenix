@@ -52,6 +52,7 @@ docs/plans/*
 !docs/plans/mobile_screenshots_runner_fix_plan.md
 !docs/plans/crm_list_centralized_crud_bulk_delete.md
 !docs/plans/ui_redesign_command_center_dark_theme.md
+!docs/plans/carta-language-server-flow.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/

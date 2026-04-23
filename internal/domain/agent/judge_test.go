@@ -146,6 +146,40 @@ func TestWorkflowJudgeVerify_PassesWhenBehaviorCoverageMatches(t *testing.T) {
 	}
 }
 
+func TestWorkflowJudgeVerify_LegacySpecMentioningCartaUsesLegacyPath(t *testing.T) {
+	t.Parallel()
+
+	judge := NewJudge()
+	spec := `CONTEXT
+  system = crm with CARTA migration notes
+ACTORS
+  admin
+BEHAVIOR notify_salesperson
+  GIVEN legacy free-form spec text
+CONSTRAINTS
+  do not parse as Carta unless source starts with CARTA`
+
+	result, err := judge.Verify(context.Background(), &workflowdomain.Workflow{
+		ID:         "wf-legacy-carta-mention",
+		DSLSource:  "WORKFLOW resolve_support_case\nON case.created\nNOTIFY salesperson WITH \"review\"",
+		SpecSource: &spec,
+	})
+	if err != nil {
+		t.Fatalf("Verify() error = %v", err)
+	}
+	if !result.Passed {
+		t.Fatalf("Passed = false, want true; violations = %#v", result.Violations)
+	}
+	for _, violation := range result.Violations {
+		if violation.Code == "carta_parse_error" {
+			t.Fatalf("legacy spec used Carta path: %#v", result.Violations)
+		}
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("Warnings = %#v, want none", result.Warnings)
+	}
+}
+
 func TestWorkflowJudgeVerify_AddsProtocolFindings(t *testing.T) {
 	t.Parallel()
 

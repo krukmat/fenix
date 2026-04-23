@@ -10,7 +10,7 @@ MODULE=github.com/matiasleandrokruk/fenix
 BUILD_DIR=.
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS=-ldflags "-X $(MODULE)/internal/version.Version=$(VERSION) -X $(MODULE)/internal/version.BuildTime=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)"
-TEST_COVERAGE_PACKAGES=$(shell go list ./... | grep -vE '^$(MODULE)/(ruleguard|scripts|internal/infra/sqlite/sqlcgen)$$')
+TEST_COVERAGE_PACKAGES=$(shell go list ./... | grep -vE '^$(MODULE)/(ruleguard|scripts|internal/infra/sqlite/sqlcgen)$$|/node_modules/')
 NON_COVERAGE_TEST_PACKAGES=$(shell go list ./... | grep -E '^$(MODULE)/(ruleguard|scripts|internal/infra/sqlite/sqlcgen)$$')
 
 # Default target

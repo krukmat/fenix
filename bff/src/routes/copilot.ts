@@ -8,50 +8,85 @@ const router = Router();
 
 type BffRequest = Request & { bearerToken?: string };
 
+const SSE_HEADERS = {
+  'Content-Type': 'text/event-stream',
+  'Cache-Control': 'no-cache',
+  'Connection': 'keep-alive',
+  'X-Accel-Buffering': 'no',
+};
+
 // POST /bff/copilot/chat → SSE relay to Go POST /api/v1/copilot/chat
 router.post('/chat', async (req: BffRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const token = req.bearerToken;
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
-    };
-    if (token) {
-      headers['Authorization'] = token;
-    }
-
-    const goRes = await axios.post(`${config.backendUrl}/api/v1/copilot/chat`, req.body, {
-      headers,
-      responseType: 'stream',
-      timeout: 60000, // SSE streams can be long
-    });
-
-    // Set SSE headers before streaming
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
-    res.flushHeaders();
-
-    // Relay chunks from Go to mobile client
-    const stream = goRes.data as import('stream').Readable;
-    stream.pipe(res);
-
-    stream.on('error', (err: Error) => {
-      // Stream error after headers sent — can only end the response
-      res.end();
-      next(err);
-    });
-
-    req.on('close', () => {
-      // Client disconnected — destroy Go stream
-      stream.destroy();
-    });
+    const stream = await openCopilotStream(req.body, req.bearerToken);
+    pipeSSE(req, res, stream, next);
   } catch (err) {
     next(err);
   }
 });
+
+// GET /bff/copilot/events → browser EventSource-compatible SSE wrapper.
+router.get('/events', async (req: BffRequest, res: Response): Promise<void> => {
+  try {
+    const stream = await openCopilotStream(eventSourcePayload(req), req.bearerToken);
+    pipeSSE(req, res, stream);
+  } catch (err) {
+    writeTerminalSSEError(res, err);
+  }
+});
+
+async function openCopilotStream(body: unknown, token?: string): Promise<import('stream').Readable> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'text/event-stream',
+  };
+  if (token) {
+    headers['Authorization'] = token;
+  }
+  const goRes = await axios.post(`${config.backendUrl}/api/v1/copilot/chat`, body, {
+    headers,
+    responseType: 'stream',
+    timeout: 60000,
+  });
+  return goRes.data as import('stream').Readable;
+}
+
+function pipeSSE(req: Request, res: Response, stream: import('stream').Readable, next?: NextFunction): void {
+  setSSEHeaders(res);
+  stream.pipe(res);
+  stream.on('error', (err: Error) => {
+    res.end();
+    next?.(err);
+  });
+  req.on('close', () => {
+    stream.destroy();
+  });
+}
+
+function setSSEHeaders(res: Response): void {
+  Object.entries(SSE_HEADERS).forEach(([key, value]) => res.setHeader(key, value));
+  res.flushHeaders();
+}
+
+function eventSourcePayload(req: Request): Record<string, string> {
+  return {
+    message: queryString(req.query['message']),
+    entity_id: queryString(req.query['entity_id']),
+    entity_type: queryString(req.query['entity_type']),
+  };
+}
+
+function queryString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function writeTerminalSSEError(res: Response, err: unknown): void {
+  setSSEHeaders(res);
+  const message = err instanceof Error ? err.message : 'SSE upstream unavailable';
+  res.write('retry: 0\n');
+  res.write(`event: error\ndata: ${JSON.stringify({ code: 'sse_upstream_error', message })}\n\n`);
+  res.end();
+}
 
 // Screenshot fixture — returned when screenshotMode is active to bypass LLM latency (~35s)
 // Activated at runtime via POST /bff/internal/screenshot-mode { enabled: true|false }

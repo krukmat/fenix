@@ -59,6 +59,61 @@ func TestLookupTokenTypeFallsBackToIdentifier(t *testing.T) {
 	}
 }
 
+func TestLookupTokenTypeRecognizesCallAndApprove(t *testing.T) { // CLSF-50
+	t.Parallel()
+
+	cases := map[string]TokenType{
+		"CALL":    TokenCall,
+		"call":    TokenCall,
+		"Call":    TokenCall,
+		"APPROVE": TokenApprove,
+		"approve": TokenApprove,
+		"Approve": TokenApprove,
+	}
+
+	for input, want := range cases {
+		if got := LookupTokenType(input); got != want {
+			t.Fatalf("LookupTokenType(%q) = %s, want %s", input, got, want)
+		}
+	}
+}
+
+func TestCallAndApproveAreReservedNotActive(t *testing.T) { // CLSF-50
+	t.Parallel()
+
+	if IsKeyword(TokenCall) {
+		t.Fatal("TokenCall must not be an active v0 keyword")
+	}
+	if IsKeyword(TokenApprove) {
+		t.Fatal("TokenApprove must not be an active v0 keyword")
+	}
+	if !IsReservedKeyword(TokenCall) {
+		t.Fatal("TokenCall must be a reserved keyword")
+	}
+	if !IsReservedKeyword(TokenApprove) {
+		t.Fatal("TokenApprove must be a reserved keyword")
+	}
+}
+
+func TestCallAndApproveDoNotBreakV0Identifiers(t *testing.T) { // CLSF-50
+	t.Parallel()
+
+	// Existing v0 keywords must be unaffected.
+	v0 := map[string]TokenType{
+		"WORKFLOW": TokenWorkflow,
+		"SET":      TokenSet,
+		"NOTIFY":   TokenNotify,
+		"AGENT":    TokenAgent,
+		"ON":       TokenOn,
+		"IF":       TokenIf,
+	}
+	for input, want := range v0 {
+		if got := LookupTokenType(input); got != want {
+			t.Fatalf("v0 regression: LookupTokenType(%q) = %s, want %s", input, got, want)
+		}
+	}
+}
+
 func TestTokenClassificationHelpers(t *testing.T) {
 	t.Parallel()
 

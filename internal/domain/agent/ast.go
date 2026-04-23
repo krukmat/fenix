@@ -111,6 +111,29 @@ type WaitStatement struct {
 func (n *WaitStatement) Pos() Position  { return n.Position }
 func (n *WaitStatement) statementNode() {}
 
+// CallStatement represents "CALL <tool> WITH <input> AS <alias>" (DSL v1). // CLSF-51
+// Input and Alias are optional — a bare CALL <tool> is valid syntax.
+type CallStatement struct {
+	Tool     *IdentifierExpr `json:"tool"`
+	Input    Expression      `json:"input,omitempty"`
+	Alias    *IdentifierExpr `json:"alias,omitempty"`
+	Position Position        `json:"position"`
+}
+
+func (n *CallStatement) Pos() Position  { return n.Position }
+func (n *CallStatement) statementNode() {}
+
+// ApproveStatement represents "APPROVE <stage> role <role>" (DSL v1). // CLSF-51
+// Role is optional — approval without a specific role targets the workflow owner.
+type ApproveStatement struct {
+	Stage    *IdentifierExpr `json:"stage"`
+	Role     *IdentifierExpr `json:"role,omitempty"`
+	Position Position        `json:"position"`
+}
+
+func (n *ApproveStatement) Pos() Position  { return n.Position }
+func (n *ApproveStatement) statementNode() {}
+
 type IdentifierExpr struct {
 	Name     string   `json:"name"`
 	Position Position `json:"position"`

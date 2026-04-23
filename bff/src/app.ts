@@ -2,6 +2,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import { config } from './config';
 
 import { authRelay } from './middleware/authRelay';
 import { mobileHeaders } from './middleware/mobileHeaders';
@@ -16,15 +17,25 @@ import metricsRouter, { incRequests } from './routes/metrics';
 import approvalsRouter from './routes/approvals';
 // W1-T3: inbox aggregation route
 import inboxRouter from './routes/inbox';
+import builderRouter from './routes/builder';
 
 const app = express();
 
 // Security middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || config.corsAllowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(null, false);
+  },
+}));
 
 // Body parsing
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 // Mobile header extraction (before any route)
 app.use(mobileHeaders);
@@ -43,6 +54,7 @@ app.use('/bff/health', healthRouter);
 app.use('/bff/metrics', metricsRouter);
 app.use('/bff/auth', authRouter);
 app.use('/bff/copilot', copilotRouter);
+app.use('/bff/builder', builderRouter);
 
 // F4-T2: JSON copilot routes that must bypass the transparent proxy
 app.use('/bff/api/v1/copilot', copilotRouter);

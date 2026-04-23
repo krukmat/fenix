@@ -79,6 +79,15 @@ func TestRunCartaPermitChecks_FlagsToolWithoutPermit(t *testing.T) {
 	if got.CheckID != CartaCheckPermit {
 		t.Fatalf("CheckID = %d, want %d", got.CheckID, CartaCheckPermit)
 	}
+	if got.Type != got.Code {
+		t.Fatalf("Type = %q, want %q", got.Type, got.Code)
+	}
+	if got.Location != "NOTIFY salesperson" {
+		t.Fatalf("Location = %q, want NOTIFY salesperson", got.Location)
+	}
+	if got.Line != 3 || got.Column != 1 {
+		t.Fatalf("position = %d:%d, want 3:1", got.Line, got.Column)
+	}
 }
 
 func TestRunCartaPermitChecks_AllowsPermittedTool(t *testing.T) {
@@ -148,6 +157,15 @@ func TestRunCartaCoverageChecks_FlagsBehaviorWithoutPermitOrDelegate(t *testing.
 	if got.CheckID != CartaCheckCoverage {
 		t.Fatalf("CheckID = %d, want %d", got.CheckID, CartaCheckCoverage)
 	}
+	if got.Type != got.Code {
+		t.Fatalf("Type = %q, want %q", got.Type, got.Code)
+	}
+	if got.Location != "BEHAVIOR escalate_unresolved" {
+		t.Fatalf("Location = %q, want BEHAVIOR escalate_unresolved", got.Location)
+	}
+	if got.Line != 7 {
+		t.Fatalf("Line = %d, want 7", got.Line)
+	}
 }
 
 func TestRunCartaCoverageChecks_AllowsCoveredBehaviorByPermit(t *testing.T) {
@@ -196,6 +214,9 @@ func TestRunCartaGroundsPresenceCheck_WarnsWhenGroundsMissing(t *testing.T) {
 	if got.CheckID != CartaCheckGrounds {
 		t.Fatalf("CheckID = %d, want %d", got.CheckID, CartaCheckGrounds)
 	}
+	if got.Location != "spec_source" {
+		t.Fatalf("Location = %q, want spec_source", got.Location)
+	}
 }
 
 func TestRunCartaGroundsPresenceCheck_NoWarningWhenGroundsExist(t *testing.T) {
@@ -229,5 +250,19 @@ func TestRunCartaSpecDSLChecks_CombinesViolationsAndWarnings(t *testing.T) {
 	}
 	if len(warnings) != 1 {
 		t.Fatalf("len(Warnings) = %d, want 1", len(warnings))
+	}
+	seen := map[int]bool{}
+	for _, violation := range violations {
+		if violation.CheckID == 0 || violation.Code == "" || violation.Type == "" {
+			t.Fatalf("violation is not distinguishable: %#v", violation)
+		}
+		seen[violation.CheckID] = true
+	}
+	if !seen[CartaCheckPermit] || !seen[CartaCheckCoverage] {
+		t.Fatalf("CheckIDs = %#v, want permit and coverage", seen)
+	}
+	warning := warnings[0]
+	if warning.CheckID != CartaCheckGrounds || warning.Code != "carta_missing_grounds" || warning.Location != "spec_source" {
+		t.Fatalf("warning is not distinguishable: %#v", warning)
 	}
 }

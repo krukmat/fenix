@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -194,6 +195,63 @@ AGENT search_knowledge
 	}
 }
 
+func TestDSLRunnerRunDelegatesBeforeGroundsWhenBothCartaPreflightsExist(t *testing.T) {
+	t.Parallel()
+
+	db := setupDSLRunnerDB(t)
+	mustExecDSLRunner(t, db, `INSERT INTO user_account (id, workspace_id, email, display_name, status, created_at, updated_at)
+	VALUES ('user_delegate_order', 'ws_dsl', 'delegate-order@example.com', 'Delegate Order Owner', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	mustExecDSLRunner(t, db, `INSERT INTO case_ticket (id, workspace_id, owner_id, subject, priority, status, created_at, updated_at)
+	VALUES ('case-order', 'ws_dsl', 'user_delegate_order', 'Delegate Order Case', 'high', 'open', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	mustExecDSLRunner(t, db, `INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
+	VALUES ('agent_dsl_preflight_order', 'ws_dsl', 'dsl preflight order', 'dsl', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+	mustExecDSLRunner(t, db, `INSERT INTO workflow (id, workspace_id, agent_definition_id, name, dsl_source, spec_source, version, status, created_at, updated_at)
+	VALUES ('wf_dsl_preflight_order', 'ws_dsl', 'agent_dsl_preflight_order', 'resolve_support_case', 'WORKFLOW resolve_support_case
+ON case.created
+SET case.status = "resolved"', 'CARTA resolve_support_case
+AGENT search_knowledge
+  GROUNDS
+    min_sources: 2
+  DELEGATE TO HUMAN
+    when: case.tier == "enterprise"
+    reason: "Enterprise review required"
+    package: [evidence_ids, case_summary]', 1, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+
+	orch := NewOrchestratorWithRegistry(db, NewRunnerRegistry())
+	runner := NewDSLRunner(db)
+	groundsValidator := NewGroundsValidator(stubGroundsEvidenceBuilder{
+		err: errors.New("grounds should not run before matching delegate"),
+	})
+
+	run, err := runner.Run(context.Background(), &RunContext{
+		Orchestrator:     orch,
+		GroundsValidator: groundsValidator,
+		DB:               db,
+	}, TriggerAgentInput{
+		AgentID:        "agent_dsl_preflight_order",
+		WorkspaceID:    "ws_dsl",
+		TriggerType:    TriggerTypeEvent,
+		TriggerContext: json.RawMessage(`{"case":{"id":"case-order","tier":"enterprise"}}`),
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if run.Status != StatusDelegated {
+		t.Fatalf("status = %s, want %s", run.Status, StatusDelegated)
+	}
+	if run.AbstentionReason == nil || *run.AbstentionReason != "Enterprise review required" {
+		t.Fatalf("AbstentionReason = %v, want Enterprise review required", run.AbstentionReason)
+	}
+
+	steps, err := orch.ListRunSteps(context.Background(), "ws_dsl", run.ID)
+	if err != nil {
+		t.Fatalf("ListRunSteps() error = %v", err)
+	}
+	if dslSteps := filterRunStepsByType(steps, StepTypeDSLStatement); len(dslSteps) != 0 {
+		t.Fatalf("DSL steps = %#v, want none before delegated preflight", dslSteps)
+	}
+}
+
 func TestDSLRunnerRunAbstainsBeforeDSLExecutionWhenGroundsFail(t *testing.T) {
 	t.Parallel()
 
@@ -226,7 +284,7 @@ AGENT search_knowledge
 		AgentID:        "agent_dsl_grounds",
 		WorkspaceID:    "ws_dsl",
 		TriggerType:    TriggerTypeEvent,
-		TriggerContext: json.RawMessage(`{"case":{"priority":"high"}}`),
+		TriggerContext: json.RawMessage(`{"case":{"id":"case-1","priority":"high","summary":"Cannot resolve billing issue"}}`),
 	})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
@@ -236,6 +294,39 @@ AGENT search_knowledge
 	}
 	if run.AbstentionReason == nil || *run.AbstentionReason == "" {
 		t.Fatalf("AbstentionReason = %v, want non-empty", run.AbstentionReason)
+	}
+	if len(run.RetrievalQueries) == 0 {
+		t.Fatal("RetrievalQueries = empty, want grounds query")
+	}
+	var queries []string
+	if err := json.Unmarshal(run.RetrievalQueries, &queries); err != nil {
+		t.Fatalf("unmarshal RetrievalQueries: %v", err)
+	}
+	if len(queries) != 1 {
+		t.Fatalf("RetrievalQueries = %#v, want one query", queries)
+	}
+	for _, want := range []string{"case-1", "high", "Cannot resolve billing issue"} {
+		if !strings.Contains(queries[0], want) {
+			t.Fatalf("RetrievalQueries = %#v, want value %q", queries, want)
+		}
+	}
+	if string(run.RetrievedEvidenceIDs) != `["ev-1"]` {
+		t.Fatalf("RetrievedEvidenceIDs = %s, want ev-1", run.RetrievedEvidenceIDs)
+	}
+	var output map[string]any
+	if err := json.Unmarshal(run.Output, &output); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if output["status"] != "abstained" || output["reason"] == "" || output["query"] == "" {
+		t.Fatalf("unexpected abstention output = %#v", output)
+	}
+
+	steps, err := orch.ListRunSteps(context.Background(), "ws_dsl", run.ID)
+	if err != nil {
+		t.Fatalf("ListRunSteps() error = %v", err)
+	}
+	if dslSteps := filterRunStepsByType(steps, StepTypeDSLStatement); len(dslSteps) != 0 {
+		t.Fatalf("DSL steps = %#v, want none before grounds abstention", dslSteps)
 	}
 }
 
