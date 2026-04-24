@@ -3060,6 +3060,10 @@ components:
           type: string
         sizeSegment:
           type: string
+          enum:
+          - smb
+          - mid
+          - enterprise
         ownerId:
           type: string
           enum:
@@ -3080,6 +3084,10 @@ components:
           type: string
         sizeSegment:
           type: string
+          enum:
+          - smb
+          - mid
+          - enterprise
         ownerId:
           type: string
           enum:
@@ -3116,6 +3124,10 @@ components:
           type: string
         status:
           type: string
+          enum:
+          - active
+          - inactive
+          - churned
         ownerId:
           type: string
           enum:
@@ -3143,6 +3155,10 @@ components:
           type: string
         status:
           type: string
+          enum:
+          - active
+          - inactive
+          - churned
         ownerId:
           type: string
           enum:
@@ -3715,6 +3731,8 @@ components:
       properties:
         agent_definition_id:
           type: string
+          enum:
+          - contract-agent
         name:
           type: string
           minLength: 1
@@ -3732,6 +3750,8 @@ components:
       properties:
         agent_definition_id:
           type: string
+          enum:
+          - contract-agent
         description:
           type: string
         dsl_source:
