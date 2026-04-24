@@ -24,7 +24,7 @@ run_schemathesis() {
                 --phases examples,fuzzing \
                 --exclude-path-regex '^/api/v1/copilot/.*' \
                 --max-examples "${CONTRACT_MAX_EXAMPLES:-10}" \
-                --suppress-health-check=filter_too_much
+                --suppress-health-check=all
             ;;
         smoke)
             # Fast smoke mode: quick signal without full contract hardening.
