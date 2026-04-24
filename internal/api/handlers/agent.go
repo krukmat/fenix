@@ -526,17 +526,25 @@ func (h *SupportAgentHandler) TriggerSupportAgent(w http.ResponseWriter, r *http
 
 	run, err := h.supportAgent.Run(r.Context(), config)
 	if err != nil {
-		if errors.Is(err, agents.ErrCaseIDRequired) {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "failed to run support agent")
+		handleSupportRunError(w, err)
 		return
 	}
 
 	w.Header().Set(headerContentType, mimeJSON)
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": agentRunToResponse(run)})
+}
+
+func handleSupportRunError(w http.ResponseWriter, err error) {
+	if errors.Is(err, agents.ErrCaseIDRequired) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "case not found")
+		return
+	}
+	writeError(w, http.StatusInternalServerError, "failed to run support agent")
 }
 
 // extractAgentContext pulls workspace and user IDs from the request context.

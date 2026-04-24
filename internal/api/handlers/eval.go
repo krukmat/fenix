@@ -2,6 +2,8 @@
 package handlers
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -40,7 +42,7 @@ type CreateSuiteRequest struct {
 }
 
 func isCreateSuiteRequestValid(req CreateSuiteRequest) bool {
-	return req.Name != "" && req.Domain != ""
+	return req.Name != "" && req.Domain != "" && len(req.TestCases) > 0
 }
 
 // CreateSuite — POST /api/v1/admin/eval/suites
@@ -150,6 +152,10 @@ func (h *EvalHandler) RunEval(w http.ResponseWriter, r *http.Request) {
 		PromptVersionID: req.PromptVersionID,
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, errEvalSuiteNotFound)
+			return
+		}
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to run eval: %v", err))
 		return
 	}

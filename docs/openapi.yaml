@@ -42,6 +42,12 @@ paths:
       summary: Register
       x-fr-traces:
       - FR-060
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
       responses:
         '200':
           description: OK
@@ -56,6 +62,12 @@ paths:
       summary: Login
       x-fr-traces:
       - FR-060
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
           description: OK
@@ -70,6 +82,12 @@ paths:
       summary: Create accounts
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
       responses:
         '200':
           description: OK
@@ -118,6 +136,12 @@ paths:
       summary: Update accounts
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccountRequest'
       responses:
         '200':
           description: OK
@@ -149,6 +173,12 @@ paths:
       summary: Create contacts
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContactRequest'
       responses:
         '200':
           description: OK
@@ -197,6 +227,12 @@ paths:
       summary: Update contacts
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContactRequest'
       responses:
         '200':
           description: OK
@@ -228,6 +264,12 @@ paths:
       summary: Create leads
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeadRequest'
       responses:
         '200':
           description: OK
@@ -276,6 +318,12 @@ paths:
       summary: Update leads
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLeadRequest'
       responses:
         '200':
           description: OK
@@ -307,6 +355,12 @@ paths:
       summary: Create deals
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDealRequest'
       responses:
         '200':
           description: OK
@@ -383,6 +437,12 @@ paths:
       summary: Update deals
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDealRequest'
       responses:
         '200':
           description: OK
@@ -414,6 +474,12 @@ paths:
       summary: Create cases
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCaseRequest'
       responses:
         '200':
           description: OK
@@ -486,6 +552,12 @@ paths:
       summary: Update cases
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCaseRequest'
       responses:
         '200':
           description: OK
@@ -517,6 +589,12 @@ paths:
       summary: Create activities
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateActivityRequest'
       responses:
         '200':
           description: OK
@@ -565,6 +643,12 @@ paths:
       summary: Update activities
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateActivityRequest'
       responses:
         '200':
           description: OK
@@ -596,6 +680,12 @@ paths:
       summary: Create notes
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNoteRequest'
       responses:
         '200':
           description: OK
@@ -644,6 +734,12 @@ paths:
       summary: Update notes
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNoteRequest'
       responses:
         '200':
           description: OK
@@ -693,6 +789,12 @@ paths:
       summary: Create pipeline
       x-fr-traces:
       - FR-002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePipelineRequest'
       responses:
         '200':
           description: OK
@@ -741,6 +843,12 @@ paths:
       summary: Update pipeline
       x-fr-traces:
       - FR-002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePipelineRequest'
       responses:
         '200':
           description: OK
@@ -769,11 +877,23 @@ paths:
       - BearerAuth: []
   /api/v1/pipelines/{id}/stages:
     parameters:
-    - $ref: '#/components/parameters/ID'
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+        - contract-pipeline
     post:
       summary: Create stage
       x-fr-traces:
       - FR-002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePipelineStageRequest'
       responses:
         '200':
           description: OK
@@ -807,6 +927,12 @@ paths:
       summary: Update stage
       x-fr-traces:
       - FR-002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePipelineStageRequest'
       responses:
         '200':
           description: OK
@@ -838,6 +964,12 @@ paths:
       summary: Create attachment
       x-fr-traces:
       - FR-001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAttachmentRequest'
       responses:
         '200':
           description: OK
@@ -959,6 +1091,12 @@ paths:
       summary: Search knowledge
       x-fr-traces:
       - FR-092
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeSearchRequest'
       responses:
         '200':
           description: OK
@@ -975,6 +1113,12 @@ paths:
       summary: Build evidence
       x-fr-traces:
       - FR-092
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeEvidenceRequest'
       responses:
         '200':
           description: OK
@@ -991,6 +1135,12 @@ paths:
       summary: Reindex knowledge
       x-fr-traces:
       - FR-091
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeReindexRequest'
       responses:
         '200':
           description: OK
@@ -1020,11 +1170,17 @@ paths:
       - BearerAuth: []
   /api/v1/approvals/{id}:
     parameters:
-    - $ref: '#/components/parameters/ID'
+    - $ref: '#/components/parameters/ContractApprovalID'
     put:
       summary: Decide approval
       x-fr-traces:
       - FR-061
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalDecisionRequest'
       responses:
         '200':
           description: OK
@@ -1056,6 +1212,12 @@ paths:
       summary: Create tool
       x-fr-traces:
       - FR-202
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateToolRequest'
       responses:
         '200':
           description: OK
@@ -1089,6 +1251,12 @@ paths:
       - BearerAuth: []
     post:
       summary: Create prompt version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptVersionRequest'
       responses:
         '201':
           description: Created
@@ -1139,6 +1307,12 @@ paths:
       summary: Copilot chat
       x-fr-traces:
       - FR-200
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopilotChatRequest'
       responses:
         '200':
           description: OK
@@ -1155,6 +1329,12 @@ paths:
       summary: Suggest copilot actions
       x-fr-traces:
       - FR-201
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopilotEntityRequest'
       responses:
         '200':
           description: OK
@@ -1171,6 +1351,12 @@ paths:
       summary: Summarize copilot entity context
       x-fr-traces:
       - FR-200
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopilotEntityRequest'
       responses:
         '200':
           description: OK
@@ -1203,6 +1389,12 @@ paths:
       summary: Create workflow
       x-fr-traces:
       - FR-240
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowRequest'
       responses:
         '200':
           description: OK
@@ -1346,6 +1538,12 @@ paths:
       summary: Update workflow
       x-fr-traces:
       - FR-240
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkflowRequest'
       responses:
         '200':
           description: OK
@@ -1505,6 +1703,12 @@ paths:
       summary: Execute workflow
       x-fr-traces:
       - FR-230
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowExecuteRequest'
       responses:
         '200':
           description: OK
@@ -1662,6 +1866,14 @@ paths:
       summary: Export sales funnel as CSV
       x-fr-traces:
       - FR-003
+      parameters:
+      - name: format
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - csv
       responses:
         '200':
           description: OK
@@ -1678,6 +1890,14 @@ paths:
       summary: Export support backlog as CSV
       x-fr-traces:
       - FR-003
+      parameters:
+      - name: format
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - csv
       responses:
         '200':
           description: OK
@@ -1729,6 +1949,44 @@ paths:
       summary: Export audit events as CSV
       x-fr-traces:
       - FR-070
+      parameters:
+      - name: actor_id
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: entity_type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: action
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: outcome
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: date_from
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: date_to
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: format
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - csv
       responses:
         '200':
           description: OK
@@ -1748,6 +2006,12 @@ paths:
       summary: Update tool definition
       x-fr-traces:
       - FR-202
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateToolRequest'
       responses:
         '200':
           description: OK
@@ -1816,6 +2080,13 @@ paths:
       summary: List prompt experiments
       x-fr-traces:
       - FR-240
+      parameters:
+      - name: agent_id
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
       responses:
         '200':
           description: OK
@@ -1831,6 +2102,12 @@ paths:
       summary: Start prompt experiment
       x-fr-traces:
       - FR-240
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartPromptExperimentRequest'
       responses:
         '200':
           description: OK
@@ -1849,6 +2126,12 @@ paths:
       summary: Stop prompt experiment
       x-fr-traces:
       - FR-240
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StopPromptExperimentRequest'
       responses:
         '200':
           description: OK
@@ -1866,6 +2149,12 @@ paths:
       summary: Create eval suite
       x-fr-traces:
       - FR-242
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvalSuiteRequest'
       responses:
         '200':
           description: OK
@@ -1915,6 +2204,12 @@ paths:
       summary: Execute eval run
       x-fr-traces:
       - FR-242
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunEvalRequest'
       responses:
         '200':
           description: OK
@@ -1966,6 +2261,12 @@ paths:
       summary: Trigger agent by type
       x-fr-traces:
       - FR-230
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentTriggerRequest'
       responses:
         '200':
           description: OK
@@ -2067,6 +2368,12 @@ paths:
       summary: Initiate agent handoff
       x-fr-traces:
       - FR-232
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentHandoffRequest'
       responses:
         '200':
           description: OK
@@ -2083,6 +2390,12 @@ paths:
       summary: Trigger support agent
       x-fr-traces:
       - FR-231
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportAgentTriggerRequest'
       responses:
         '200':
           description: OK
@@ -2099,6 +2412,12 @@ paths:
       summary: Trigger prospecting agent
       x-fr-traces:
       - FR-231
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProspectingAgentTriggerRequest'
       responses:
         '200':
           description: OK
@@ -2115,6 +2434,12 @@ paths:
       summary: Trigger KB agent
       x-fr-traces:
       - FR-231
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KBAgentTriggerRequest'
       responses:
         '200':
           description: OK
@@ -2131,6 +2456,12 @@ paths:
       summary: Trigger insights agent
       x-fr-traces:
       - FR-231
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InsightsAgentTriggerRequest'
       responses:
         '200':
           description: OK
@@ -2216,8 +2547,14 @@ components:
       properties:
         dsl_source:
           type: string
+          minLength: 1
+          example: "WORKFLOW example\nON case_created\nSET case.status = \"new\"\n"
+          enum:
+          - "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\""
         spec_source:
           type: string
+          enum:
+          - "CARTA resolve_support_case\nAGENT search_knowledge\n  PERMIT update_case"
     WorkflowVisualAuthoringRequest:
       type: object
       required:
@@ -2539,6 +2876,10 @@ components:
       properties:
         dsl_source:
           type: string
+          minLength: 1
+          example: "WORKFLOW example\nON case_created\nSET case.status = \"new\"\n"
+          enum:
+          - "WORKFLOW resolve_support_case\nON case.created\nSET case.status = \"resolved\""
     WorkflowDiffEnvelope:
       type: object
       required:
@@ -2668,6 +3009,1012 @@ components:
           type: string
         createdAt:
           type: string
+    RegisterRequest:
+      type: object
+      required:
+      - email
+      - password
+      - workspaceName
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        password:
+          type: string
+          minLength: 12
+        displayName:
+          type: string
+        workspaceName:
+          type: string
+          minLength: 1
+    LoginRequest:
+      type: object
+      required:
+      - email
+      - password
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          enum:
+          - contract@test.com
+        password:
+          type: string
+          minLength: 1
+          enum:
+          - ContractTest1234!
+    CreateAccountRequest:
+      type: object
+      required:
+      - name
+      - ownerId
+      properties:
+        name:
+          type: string
+          minLength: 1
+        domain:
+          type: string
+        industry:
+          type: string
+        sizeSegment:
+          type: string
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+          minLength: 1
+        address:
+          type: string
+        metadata:
+          type: string
+    UpdateAccountRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        domain:
+          type: string
+        industry:
+          type: string
+        sizeSegment:
+          type: string
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+        address:
+          type: string
+        metadata:
+          type: string
+    CreateContactRequest:
+      type: object
+      required:
+      - accountId
+      - firstName
+      - lastName
+      - ownerId
+      properties:
+        accountId:
+          type: string
+          enum:
+          - contract-account
+          minLength: 1
+        firstName:
+          type: string
+          minLength: 1
+        lastName:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+          minLength: 1
+        metadata:
+          type: string
+    UpdateContactRequest:
+      type: object
+      properties:
+        accountId:
+          type: string
+          enum:
+          - contract-account
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+        metadata:
+          type: string
+    CreateCaseRequest:
+      type: object
+      required:
+      - ownerId
+      - subject
+      properties:
+        accountId:
+          type: string
+          enum:
+          - contract-account
+        contactId:
+          type: string
+          enum:
+          - contract-contact
+        pipelineId:
+          type: string
+          enum:
+          - contract-pipeline
+        stageId:
+          type: string
+          enum:
+          - contract-stage
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+          minLength: 1
+        subject:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        priority:
+          type: string
+          enum:
+          - low
+          - medium
+          - high
+        status:
+          type: string
+          enum:
+          - open
+          - in_progress
+          - resolved
+          - closed
+        channel:
+          type: string
+        slaConfig:
+          type: string
+        slaDeadline:
+          type: string
+        metadata:
+          type: string
+    UpdateCaseRequest:
+      type: object
+      properties:
+        accountId:
+          type: string
+          enum:
+          - contract-account
+        contactId:
+          type: string
+          enum:
+          - contract-contact
+        pipelineId:
+          type: string
+          enum:
+          - contract-pipeline
+        stageId:
+          type: string
+          enum:
+          - contract-stage
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+        subject:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum:
+          - low
+          - medium
+          - high
+        status:
+          type: string
+          enum:
+          - open
+          - in_progress
+          - resolved
+          - closed
+        channel:
+          type: string
+        slaConfig:
+          type: string
+        slaDeadline:
+          type: string
+        metadata:
+          type: string
+    CreateDealRequest:
+      type: object
+      required:
+      - accountId
+      - pipelineId
+      - stageId
+      - ownerId
+      - title
+      properties:
+        accountId:
+          type: string
+          enum:
+          - contract-account
+          minLength: 1
+        contactId:
+          type: string
+          enum:
+          - contract-contact
+        pipelineId:
+          type: string
+          enum:
+          - contract-pipeline
+          minLength: 1
+        stageId:
+          type: string
+          enum:
+          - contract-stage
+          minLength: 1
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+        amount:
+          type: number
+          format: double
+          minimum: 0
+        currency:
+          type: string
+        expectedClose:
+          type: string
+        status:
+          type: string
+          enum:
+          - open
+          - won
+          - lost
+        metadata:
+          type: string
+    UpdateDealRequest:
+      type: object
+      properties:
+        accountId:
+          type: string
+          enum:
+          - contract-account
+        contactId:
+          type: string
+          enum:
+          - contract-contact
+        pipelineId:
+          type: string
+          enum:
+          - contract-pipeline
+        stageId:
+          type: string
+          enum:
+          - contract-stage
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+        title:
+          type: string
+        amount:
+          type: number
+          format: double
+          minimum: 0
+        currency:
+          type: string
+        expectedClose:
+          type: string
+        status:
+          type: string
+          enum:
+          - open
+          - won
+          - lost
+        metadata:
+          type: string
+    CreateLeadRequest:
+      type: object
+      required:
+      - ownerId
+      properties:
+        contactId:
+          type: string
+          enum:
+          - contract-contact
+        accountId:
+          type: string
+          enum:
+          - contract-account
+        source:
+          type: string
+        status:
+          type: string
+          enum:
+          - new
+          - contacted
+          - qualified
+          - converted
+          - lost
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+          minLength: 1
+        score:
+          type: number
+          format: double
+        metadata:
+          type: string
+    UpdateLeadRequest:
+      type: object
+      properties:
+        contactId:
+          type: string
+          enum:
+          - contract-contact
+        accountId:
+          type: string
+          enum:
+          - contract-account
+        source:
+          type: string
+        status:
+          type: string
+          enum:
+          - new
+          - contacted
+          - qualified
+          - converted
+          - lost
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+        score:
+          type: number
+          format: double
+        metadata:
+          type: string
+    CreateNoteRequest:
+      type: object
+      required:
+      - entityType
+      - entityId
+      - authorId
+      - content
+      properties:
+        entityType:
+          type: string
+          enum:
+          - account
+        entityId:
+          type: string
+          enum:
+          - contract-account
+          minLength: 1
+        authorId:
+          type: string
+          enum:
+          - contract-user
+          minLength: 1
+        content:
+          type: string
+          minLength: 1
+        isInternal:
+          type: boolean
+        metadata:
+          type: string
+    UpdateNoteRequest:
+      type: object
+      required:
+      - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+        isInternal:
+          type: boolean
+        metadata:
+          type: string
+    CreateActivityRequest:
+      type: object
+      required:
+      - activityType
+      - entityType
+      - entityId
+      - ownerId
+      - subject
+      properties:
+        activityType:
+          type: string
+          enum:
+          - task
+          - event
+          - call
+          - email
+        entityType:
+          type: string
+          enum:
+          - account
+        entityId:
+          type: string
+          enum:
+          - contract-account
+          minLength: 1
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+          minLength: 1
+        assignedTo:
+          type: string
+          enum:
+          - contract-user
+        subject:
+          type: string
+          minLength: 1
+        body:
+          type: string
+        status:
+          type: string
+          enum:
+          - pending
+          - completed
+          - cancelled
+        dueAt:
+          type: string
+        completedAt:
+          type: string
+        metadata:
+          type: string
+    UpdateActivityRequest:
+      type: object
+      properties:
+        activityType:
+          type: string
+          enum:
+          - task
+          - event
+          - call
+          - email
+        entityType:
+          type: string
+          enum:
+          - account
+        entityId:
+          type: string
+          enum:
+          - contract-account
+        ownerId:
+          type: string
+          enum:
+          - contract-user
+        assignedTo:
+          type: string
+          enum:
+          - contract-user
+        subject:
+          type: string
+        body:
+          type: string
+        status:
+          type: string
+          enum:
+          - pending
+          - completed
+          - cancelled
+        dueAt:
+          type: string
+        completedAt:
+          type: string
+        metadata:
+          type: string
+    CreatePipelineRequest:
+      type: object
+      required:
+      - name
+      - entityType
+      properties:
+        name:
+          type: string
+          minLength: 1
+        entityType:
+          type: string
+          enum:
+          - deal
+          - case
+        settings:
+          type: string
+    UpdatePipelineRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        entityType:
+          type: string
+          enum:
+          - deal
+          - case
+        settings:
+          type: string
+    CreatePipelineStageRequest:
+      type: object
+      required:
+      - name
+      - position
+      properties:
+        name:
+          type: string
+          minLength: 1
+        position:
+          type: integer
+          format: int64
+          minimum: 2
+        probability:
+          type: number
+          format: double
+        slaHours:
+          type: integer
+          format: int64
+        requiredFields:
+          type: string
+    UpdatePipelineStageRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        position:
+          type: integer
+          format: int64
+          minimum: 1
+        probability:
+          type: number
+          format: double
+        slaHours:
+          type: integer
+          format: int64
+        requiredFields:
+          type: string
+    CreateAttachmentRequest:
+      type: object
+      required:
+      - entityType
+      - entityId
+      - uploaderId
+      - filename
+      - storagePath
+      properties:
+        entityType:
+          type: string
+          enum:
+          - account
+        entityId:
+          type: string
+          enum:
+          - contract-account
+        uploaderId:
+          type: string
+          enum:
+          - contract-user
+        filename:
+          type: string
+          minLength: 1
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        storagePath:
+          type: string
+          minLength: 1
+        sensitivity:
+          type: string
+          enum:
+          - public
+          - internal
+          - confidential
+          - pii
+        metadata:
+          type: string
+    CopilotChatRequest:
+      type: object
+      required:
+      - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+        entityType:
+          type: string
+          enum:
+          - account
+        entityId:
+          type: string
+          enum:
+          - contract-account
+    CopilotEntityRequest:
+      type: object
+      required:
+      - entityType
+      - entityId
+      properties:
+        entityType:
+          type: string
+          enum:
+          - account
+        entityId:
+          type: string
+          enum:
+          - contract-account
+    KnowledgeSearchRequest:
+      type: object
+      required:
+      - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+        limit:
+          type: integer
+          minimum: 1
+    KnowledgeEvidenceRequest:
+      type: object
+      required:
+      - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+        limit:
+          type: integer
+          minimum: 1
+    KnowledgeReindexRequest:
+      type: object
+      properties:
+        entityType:
+          type: string
+          enum:
+          - account
+          - case
+    CreateWorkflowRequest:
+      type: object
+      required:
+      - name
+      - dsl_source
+      properties:
+        agent_definition_id:
+          type: string
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        dsl_source:
+          type: string
+          minLength: 1
+        spec_source:
+          type: string
+    UpdateWorkflowRequest:
+      type: object
+      required:
+      - dsl_source
+      properties:
+        agent_definition_id:
+          type: string
+        description:
+          type: string
+        dsl_source:
+          type: string
+          minLength: 1
+        spec_source:
+          type: string
+    WorkflowExecuteRequest:
+      type: object
+      properties:
+        trigger_context:
+          type: object
+          additionalProperties: true
+        inputs:
+          type: object
+          additionalProperties: true
+    AgentTriggerRequest:
+      type: object
+      required:
+      - agent_id
+      properties:
+        agent_id:
+          type: string
+          minLength: 1
+          enum:
+          - contract-agent
+        trigger_type:
+          type: string
+        trigger_context:
+          type: object
+          additionalProperties: true
+        inputs:
+          type: object
+          additionalProperties: true
+    SupportAgentTriggerRequest:
+      type: object
+      required:
+      - case_id
+      - customer_query
+      properties:
+        case_id:
+          type: string
+          minLength: 1
+          enum:
+          - contract-case
+        customer_query:
+          type: string
+          minLength: 1
+        language:
+          type: string
+        priority:
+          type: string
+    ProspectingAgentTriggerRequest:
+      type: object
+      required:
+      - lead_id
+      properties:
+        lead_id:
+          type: string
+          minLength: 1
+          enum:
+          - contract-lead
+        language:
+          type: string
+    KBAgentTriggerRequest:
+      type: object
+      required:
+      - case_id
+      properties:
+        case_id:
+          type: string
+          minLength: 1
+          enum:
+          - contract-case
+        language:
+          type: string
+    InsightsAgentTriggerRequest:
+      type: object
+      required:
+      - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+        date_from:
+          type: string
+        date_to:
+          type: string
+        language:
+          type: string
+        shadow_mode:
+          type: boolean
+        shadow_agent_id:
+          type: string
+    AgentHandoffRequest:
+      type: object
+      required:
+      - case_id
+      - reason
+      properties:
+        case_id:
+          type: string
+          minLength: 1
+        reason:
+          type: string
+          minLength: 1
+    ApprovalDecisionRequest:
+      type: object
+      required:
+      - decision
+      properties:
+        decision:
+          type: string
+          minLength: 1
+          enum:
+          - approve
+    CreatePromptVersionRequest:
+      type: object
+      required:
+      - agent_definition_id
+      - system_prompt
+      properties:
+        agent_definition_id:
+          type: string
+          minLength: 1
+        system_prompt:
+          type: string
+          minLength: 1
+        user_prompt_template:
+          type: string
+        config:
+          type: string
+    StartPromptExperimentRequest:
+      type: object
+      required:
+      - control_prompt_version_id
+      - candidate_prompt_version_id
+      - control_traffic_percent
+      - candidate_traffic_percent
+      properties:
+        control_prompt_version_id:
+          type: string
+          minLength: 1
+          enum:
+          - contract-prompt-v1
+        candidate_prompt_version_id:
+          type: string
+          minLength: 1
+          enum:
+          - contract-prompt-v2
+        control_traffic_percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          enum:
+          - 50
+        candidate_traffic_percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          enum:
+          - 50
+    StopPromptExperimentRequest:
+      type: object
+      properties:
+        winner_prompt_version_id:
+          type: string
+    CreateEvalSuiteRequest:
+      type: object
+      required:
+      - name
+      - domain
+      - test_cases
+      properties:
+        name:
+          type: string
+          minLength: 1
+        domain:
+          type: string
+          minLength: 1
+          enum:
+          - general
+        test_cases:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+            - input
+            - expected_keywords
+            - should_abstain
+            properties:
+              input:
+                type: string
+                minLength: 1
+                enum:
+                - contract
+              expected_keywords:
+                type: array
+                minItems: 1
+                items:
+                  type: string
+                  minLength: 1
+                  enum:
+                  - contract
+              should_abstain:
+                type: boolean
+                enum:
+                - false
+            additionalProperties: false
+        thresholds:
+          type: object
+          properties:
+            groundedness:
+              type: number
+              minimum: 0
+              maximum: 1
+              enum:
+              - 0.5
+            exactitude:
+              type: number
+              minimum: 0
+              maximum: 1
+              enum:
+              - 0.5
+            abstention:
+              type: number
+              minimum: 0
+              maximum: 1
+              enum:
+              - 0.5
+            policy:
+              type: number
+              minimum: 0
+              maximum: 1
+              enum:
+              - 0.5
+          additionalProperties: false
+    RunEvalRequest:
+      type: object
+      required:
+      - eval_suite_id
+      properties:
+        eval_suite_id:
+          type: string
+          minLength: 1
+          enum:
+          - contract-eval-suite
+        prompt_version_id:
+          type: string
+    CreateToolRequest:
+      type: object
+      required:
+      - name
+      - inputSchema
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        inputSchema:
+          type: object
+          required:
+          - type
+          - properties
+          - additionalProperties
+          properties:
+            type:
+              type: string
+              enum:
+              - object
+            properties:
+              type: object
+              minProperties: 1
+              additionalProperties: true
+            additionalProperties:
+              type: boolean
+          additionalProperties: true
+        requiredPermissions:
+          type: array
+          items:
+            type: string
     Meta:
       type: object
     ErrorResponse:
@@ -2694,6 +4041,14 @@ components:
       required: true
       schema:
         type: string
+    ContractApprovalID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+        - contract-approval
     StageID:
       name: stage_id
       in: path

@@ -73,7 +73,7 @@ func TestEvalHandler_CreateSuite_201(t *testing.T) {
 	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
 	h := NewEvalHandler(eval.NewSuiteService(db), eval.NewRunnerService(db))
 
-	body := `{"name":"Test Suite","domain":"support","test_cases":[],"thresholds":{}}`
+	body := `{"name":"Test Suite","domain":"support","test_cases":[{"input":"hello","expected_keywords":["hello"],"should_abstain":false}],"thresholds":{}}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/suites", bytes.NewBufferString(body))
 	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
 	req.Header.Set("Content-Type", "application/json")
@@ -109,6 +109,25 @@ func TestEvalHandler_CreateSuite_400_MissingName(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
+	}
+}
+
+func TestEvalHandler_CreateSuite_400_EmptyTestCases(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
+	h := NewEvalHandler(eval.NewSuiteService(db), eval.NewRunnerService(db))
+
+	body := `{"name":"Test Suite","domain":"support","test_cases":[],"thresholds":{}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/suites", bytes.NewBufferString(body))
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.CreateSuite(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
 
@@ -447,6 +466,21 @@ func TestEvalHandler_RunEval_MissingSuiteID_400(t *testing.T) {
 	h.RunEval(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestEvalHandler_RunEval_SuiteNotFound_404(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
+	h := NewEvalHandler(eval.NewSuiteService(db), eval.NewRunnerService(db))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/run", bytes.NewBufferString(`{"eval_suite_id":"missing-suite"}`))
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.RunEval(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
 

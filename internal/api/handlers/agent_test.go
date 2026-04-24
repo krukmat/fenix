@@ -2200,6 +2200,30 @@ func TestSupportAgentHandler_TriggerSupportAgent_RunError(t *testing.T) {
 	}
 }
 
+func TestSupportAgentHandler_TriggerSupportAgent_CaseNotFound(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	insertTestAgentDef(t, db, "support-agent", wsID)
+	orch := agent.NewOrchestrator(db)
+	reg := tool.NewToolRegistry(db)
+	supportAgent := agents.NewSupportAgentWithDB(orch, reg, &mockKnowledgeSearchHandler{}, db)
+	h := NewSupportAgentHandler(supportAgent)
+
+	body, _ := json.Marshal(map[string]any{"case_id": "missing-case", "customer_query": "how do I reset my password?"})
+	req := httptest.NewRequest(http.MethodPost, "/agents/support/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerSupportAgent(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestProspectingAndKBHandlerSuccessPaths(t *testing.T) {
 	t.Parallel()
 
