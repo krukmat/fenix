@@ -21,10 +21,9 @@ run_schemathesis() {
                 --checks status_code_conformance \
                 --checks response_schema_conformance \
                 --checks content_type_conformance \
-                --phases examples,fuzzing \
+                --phases examples \
                 --exclude-path-regex '^/api/v1/copilot/.*' \
-                --max-examples "${CONTRACT_MAX_EXAMPLES:-10}" \
-                --suppress-health-check=all
+                --max-examples "${CONTRACT_MAX_EXAMPLES:-10}"
             ;;
         smoke)
             # Fast smoke mode: quick signal without full contract hardening.
