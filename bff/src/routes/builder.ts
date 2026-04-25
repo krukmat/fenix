@@ -1,6 +1,14 @@
 // CLSF-62-65: Web builder shell served by the BFF with HTMX loaded from CDN.
 import { Router, Request, Response } from 'express';
+import {
+  BUILDER_SCRIPT,
+  GENERATED_SOURCE_DIFF,
+  GRAPH_AUTHORING_CONTROLS,
+  GRAPH_AUTHORING_STYLES,
+  GRAPH_CANVAS_PLACEHOLDER,
+} from './builderCanvas';
 import builderPreviewRouter from './builderPreview';
+import builderVisualAuthoringRouter from './builderVisualAuthoring';
 
 const HTMX_CDN = 'https://unpkg.com/htmx.org@2.0.4';
 
@@ -86,6 +94,7 @@ const builderHtml = `<!doctype html>
       .graph-label { fill: var(--text); font: 700 13px Inter, ui-sans-serif, system-ui, sans-serif; }
       .graph-meta { fill: var(--muted); font: 12px Inter, ui-sans-serif, system-ui, sans-serif; }
       .graph-caption { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+      ${GRAPH_AUTHORING_STYLES}
       .inspector { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; background: #ffffff; }
       .inspector-header { padding: 10px 12px; border-bottom: 1px solid var(--line); }
       .inspector-title { margin: 0; font-size: 13px; font-weight: 700; color: var(--text); }
@@ -134,7 +143,9 @@ const builderHtml = `<!doctype html>
         <div class="panel-header">
           <h2 class="panel-title" id="graph-title">Graph</h2>
         </div>
+        ${GRAPH_AUTHORING_CONTROLS}
         <div class="graph-shell" id="builder-graph" data-projection-source="fixture">
+          ${GRAPH_CANVAS_PLACEHOLDER}
           <svg class="graph-canvas" viewBox="0 0 640 380" role="img" aria-labelledby="builder-graph-title builder-graph-desc">
             <title id="builder-graph-title">Read-only workflow graph preview</title>
             <desc id="builder-graph-desc">Fixture graph with workflow, trigger, action, and governance nodes connected by read-only edges.</desc>
@@ -155,6 +166,7 @@ const builderHtml = `<!doctype html>
             </div>
           </aside>
         </div>
+        ${GENERATED_SOURCE_DIFF}
       </section>
     </main>
     <script>
@@ -174,12 +186,14 @@ const builderHtml = `<!doctype html>
         });
       }());
     </script>
+    ${BUILDER_SCRIPT}
   </body>
 </html>`;
 
 const router = Router();
 
 router.use('/preview', builderPreviewRouter);
+router.use('/visual-authoring', builderVisualAuthoringRouter);
 
 router.get('/', (_req: Request, res: Response): void => {
   res.type('html').status(200).send(builderHtml);

@@ -2,6 +2,29 @@
 import { apiClient } from './api.client';
 import type { Workflow, WorkflowStatus } from './api';
 
+export type WorkflowGraphNode = {
+  id: string;
+  kind: string;
+  label: string;
+};
+
+export type WorkflowGraphEdge = {
+  id?: string;
+  from: string;
+  to: string;
+  connection_type?: string;
+};
+
+export type WorkflowGraph = {
+  workflow_id: string;
+  conformance: {
+    profile: string;
+    details: { code?: string; description?: string; message?: string }[];
+  };
+  nodes: WorkflowGraphNode[];
+  edges: WorkflowGraphEdge[];
+};
+
 export const workflowApi = {
   list: async (params?: { status?: WorkflowStatus; page?: number; limit?: number }) => {
     const response = await apiClient.get('/bff/api/v1/workflows', { params });
@@ -51,5 +74,11 @@ export const workflowApi = {
   verifyWorkflow: async (id: string) => {
     const response = await apiClient.post(`/bff/api/v1/workflows/${id}/verify`);
     return response.data as { valid: boolean; errors?: string[] };
+  },
+
+  getGraph: async (id: string): Promise<WorkflowGraph> => {
+    const response = await apiClient.get(`/bff/api/v1/workflows/${id}/graph`);
+    const payload = response.data as { data?: WorkflowGraph } | WorkflowGraph;
+    return 'data' in payload && payload.data ? payload.data : payload as WorkflowGraph;
   },
 };

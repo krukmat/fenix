@@ -175,4 +175,144 @@ describe('GET /bff/builder', () => {
     expect(second.status).toBe(502);
     expect(second.text).toContain('Preview request failed');
   });
+
+  it('saves a visual graph and returns HTMX graph fragments', async () => {
+    const post = jest.fn().mockResolvedValue({ status: 200, data: { data: { id: 'wf-1' } } });
+    const get = jest.fn().mockResolvedValue({
+      data: {
+        data: {
+          visual_graph: {
+            conformance: { profile: 'safe' },
+            nodes: [
+              { id: 'wf', kind: 'workflow', label: 'sales <followup>', color: '#2563eb', position: { x: 0, y: 0 } },
+              { id: 'act', kind: 'action', label: 'notify owner', color: '#16a34a', position: { x: 220, y: 0 } },
+              { id: 'permit', kind: 'permit', label: 'send_reply', color: '#d97706', position: { x: 440, y: 0 } },
+            ],
+            edges: [
+              { id: 'edge-ok', from: 'wf', to: 'act', connection_type: 'execution' },
+              { id: 'edge-missing', from: 'missing', to: 'permit', connection_type: 'requirement' },
+            ],
+          },
+        },
+      },
+    });
+    mockCreateGoClient.mockReturnValue({ post, get } as unknown as ReturnType<typeof createGoClient>);
+
+    const res = await request(app)
+      .post('/bff/builder/visual-authoring/wf-1')
+      .set('Authorization', 'Bearer builder-token')
+      .send({ graph: { workflow_name: 'sales_followup', nodes: [], edges: [] } });
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/html/);
+    expect(res.text).toContain('Graph saved');
+    expect(res.text).toContain('hx-swap-oob="true"');
+    expect(res.text).toContain('graph-node action');
+    expect(res.text).toContain('graph-node governance');
+    expect(res.text).toContain('sales &lt;followup&gt;');
+    expect(res.text).toContain('safe');
+    expect(mockCreateGoClient).toHaveBeenCalledWith('Bearer builder-token');
+    expect(post).toHaveBeenCalledWith(
+      '/api/v1/workflows/wf-1/visual-authoring',
+      { graph: { workflow_name: 'sales_followup', nodes: [], edges: [] } },
+      expect.objectContaining({ validateStatus: expect.any(Function) }),
+    );
+    expect(get).toHaveBeenCalledWith('/api/v1/workflows/wf-1/graph', { params: { format: 'visual' } });
+    const options = post.mock.calls[0][2] as { validateStatus: (status: number) => boolean };
+    expect(options.validateStatus(499)).toBe(true);
+    expect(options.validateStatus(500)).toBe(false);
+  });
+
+  it('returns JSON for visual authoring saves when requested', async () => {
+    const post = jest.fn().mockResolvedValue({ status: 200, data: { data: { id: 'wf-json' } } });
+    const get = jest.fn().mockResolvedValue({ data: { data: { visual_graph: {} } } });
+    mockCreateGoClient.mockReturnValue({ post, get } as unknown as ReturnType<typeof createGoClient>);
+
+    const res = await request(app)
+      .post('/bff/builder/visual-authoring/wf-json')
+      .set('Accept', 'application/json')
+      .send({ graph: { workflow_name: 'wf-json', nodes: [], edges: [] } });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: 'saved', projection: {} });
+  });
+
+  it('renders visual authoring validation diagnostics for HTML and JSON clients', async () => {
+    const post = jest.fn()
+      .mockResolvedValueOnce({
+        status: 422,
+        data: {
+          data: {
+            diagnostics: {
+              violations: [{ code: 'bad_node', description: 'bad <node>' }],
+              warnings: [{ message: 'warning detail' }],
+            },
+            conformance: { details: [{ code: 'extended', description: 'extended detail' }] },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        status: 422,
+        data: { data: { diagnostics: { violations: [{ code: 'json_bad', message: 'json bad' }] } } },
+      });
+    mockCreateGoClient.mockReturnValue({ post } as unknown as ReturnType<typeof createGoClient>);
+
+    const html = await request(app)
+      .post('/bff/builder/visual-authoring/wf-bad')
+      .send({ graph: { workflow_name: 'wf-bad', nodes: [], edges: [] } });
+    expect(html.status).toBe(422);
+    expect(html.text).toContain('Save failed');
+    expect(html.text).toContain('<strong>bad_node</strong>: bad &lt;node&gt;');
+    expect(html.text).toContain('<strong>diagnostic</strong>: warning detail');
+    expect(html.text).toContain('<strong>extended</strong>: extended detail');
+
+    const json = await request(app)
+      .post('/bff/builder/visual-authoring/wf-bad')
+      .set('Accept', 'application/json')
+      .send({ graph: { workflow_name: 'wf-bad', nodes: [], edges: [] } });
+    expect(json.status).toBe(422);
+    expect(json.body).toEqual({
+      status: 'validation_error',
+      diagnostics: [{ code: 'json_bad', message: 'json bad' }],
+    });
+  });
+
+  it('passes through non-validation upstream responses and handles graph refresh fallback', async () => {
+    const post = jest.fn()
+      .mockResolvedValueOnce({ status: 403, data: { error: 'forbidden' } })
+      .mockResolvedValueOnce({ status: 200, data: { data: { id: 'wf-empty' } } });
+    const get = jest.fn().mockRejectedValue(new Error('graph unavailable'));
+    mockCreateGoClient.mockReturnValue({ post, get } as unknown as ReturnType<typeof createGoClient>);
+
+    const forbidden = await request(app)
+      .post('/bff/builder/visual-authoring/wf-forbidden')
+      .send({ graph: { workflow_name: 'wf-forbidden', nodes: [], edges: [] } });
+    expect(forbidden.status).toBe(403);
+    expect(forbidden.body).toEqual({ error: 'forbidden' });
+
+    const empty = await request(app)
+      .post('/bff/builder/visual-authoring/wf-empty')
+      .send({ graph: { workflow_name: 'wf-empty', nodes: [], edges: [] } });
+    expect(empty.status).toBe(200);
+    expect(empty.text).toContain('No graph nodes returned for current draft.');
+    expect(empty.text).toContain('No node selected');
+    expect(empty.text).toContain('unknown');
+  });
+
+  it('returns JSON relay errors for visual authoring transport failures', async () => {
+    const post = jest.fn().mockRejectedValueOnce(new Error('visual exploded')).mockRejectedValueOnce('boom');
+    mockCreateGoClient.mockReturnValue({ post } as unknown as ReturnType<typeof createGoClient>);
+
+    const first = await request(app)
+      .post('/bff/builder/visual-authoring/wf-error')
+      .send({ graph: { workflow_name: 'wf-error', nodes: [], edges: [] } });
+    expect(first.status).toBe(502);
+    expect(first.body).toEqual({ error: 'visual exploded' });
+
+    const second = await request(app)
+      .post('/bff/builder/visual-authoring/wf-error')
+      .send({ graph: { workflow_name: 'wf-error', nodes: [], edges: [] } });
+    expect(second.status).toBe(502);
+    expect(second.body).toEqual({ error: 'Visual authoring request failed' });
+  });
 });

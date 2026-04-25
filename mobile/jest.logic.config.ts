@@ -11,6 +11,7 @@ const config: Config = {
     '<rootDir>/__tests__/services/**/*.test.ts',
     '<rootDir>/__tests__/stores/**/*.test.ts',
     '<rootDir>/__tests__/hooks/**/*.test.ts',
+    '<rootDir>/__tests__/lib/**/*.test.ts',
     '<rootDir>/__tests__/components/**/*.test.ts',
     '<rootDir>/__tests__/components/**/*.test.tsx',
     '<rootDir>/__tests__/app/**/*.test.tsx',
@@ -21,6 +22,7 @@ const config: Config = {
   ],
   collectCoverageFrom: [
     'src/hooks/**/*.{ts,tsx}',
+    'src/lib/**/*.{ts,tsx}',
     'src/services/**/*.{ts,tsx}',
     'src/stores/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
