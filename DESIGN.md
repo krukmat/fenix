@@ -170,7 +170,7 @@ Screens use the dark canvas and standard `base` padding. Cards use `surface`, `o
 
 Primary buttons use operator blue for the decisive action in a local workflow. Secondary buttons use dark surfaces and borders when the action is available but not dominant.
 
-Status chips should stay compact and semantic. Use helper-driven status colors from `mobile/src/theme/semantic.ts` when state-specific meaning matters; use the neutral chip component token for non-semantic filters, labels, or metadata.
+Status chips should stay compact and semantic. Use helper-driven status colors from `mobile/src/theme/semantic.ts` when state-specific meaning matters; use the neutral chip component token for non-semantic filters, labels, or metadata. Compact chip and badge text must use an AA-safe text/fill pair; do not pair white text with direct light semantic fills such as success, warning, info, or primary when the runtime token provides a darker `on*` or container alternative.
 
 Data code surfaces use monospace type, dark secondary surface, and a border. They are appropriate for IDs, trace details, timestamps, JSON, quota numbers, and values that operators compare visually.
 
