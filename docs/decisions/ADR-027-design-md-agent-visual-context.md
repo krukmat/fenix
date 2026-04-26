@@ -3,7 +3,7 @@ doc_type: adr
 id: ADR-027
 title: "DESIGN.md as agent visual context contract"
 date: 2026-04-26
-status: proposed
+status: accepted
 deciders: [matias]
 tags: [adr, design-system, governance, agents, mobile, documentation]
 related_frs: [FR-300]
@@ -14,7 +14,7 @@ related_tasks: [design-md-adoption-plan]
 
 ## Status
 
-`proposed`
+`accepted`
 
 ## Context
 
@@ -46,3 +46,32 @@ no user-facing presentation surface.
 
 The initial adoption is documentation-only. It does not change mobile runtime tokens,
 screen styling, navigation, API behavior, or product workflows.
+
+## Consequences
+
+Future UI work has a stable first-read design contract. Agents can inspect
+`DESIGN.md` for colors, typography, spacing, radii, component conventions, and
+practical constraints before editing frontend or mobile surfaces.
+
+`mobile/src/theme/*` remains the runtime source of truth. If `DESIGN.md` conflicts
+with implemented tokens in `mobile/src/theme/colors.ts`, `typography.ts`,
+`spacing.ts`, or `semantic.ts`, the runtime token wins and `DESIGN.md` must be
+corrected unless the task explicitly changes the runtime theme first.
+
+Intentional runtime design-token changes must update `DESIGN.md` in the same turn so
+future agents do not inherit stale visual guidance.
+
+This ADR does not make the alpha public `DESIGN.md` convention a hard dependency for
+backend-only work. It applies where visual context matters.
+
+## Conflict Policy
+
+Resolve visual-context conflicts in this order:
+
+1. Implemented runtime tokens and helpers in `mobile/src/theme/*`.
+2. Root `DESIGN.md`.
+3. Existing component usage patterns in mobile screens and reusable UI components.
+4. Screenshots, mockups, and older plan prose.
+
+When a conflict affects design governance, update this ADR or create a follow-up ADR
+instead of leaving the rule implicit.
