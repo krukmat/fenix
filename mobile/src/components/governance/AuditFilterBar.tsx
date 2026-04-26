@@ -31,7 +31,7 @@ export function AuditFilterBar({ filters, onChange }: AuditFilterBarProps) {
               style={[styles.chip, active && { backgroundColor: colors.primary }]}
               onPress={() => onChange({ ...filters, outcome: filter.value })}
             >
-              <Text style={[styles.chipText, { color: active ? '#FFF' : colors.onSurfaceVariant }]}>
+              <Text style={[styles.chipText, { color: active ? colors.onPrimary : colors.onSurfaceVariant }]}>
                 {filter.label}
               </Text>
             </TouchableOpacity>

@@ -1,7 +1,7 @@
 // ui-redesign-command-center: dark Command Center palette
 export const brandColors = {
   primary:              '#3B82F6',
-  onPrimary:            '#FFFFFF',
+  onPrimary:            '#0A0D12',
   primaryContainer:     '#1E3A5F',
   onPrimaryContainer:   '#93C5FD',
   secondary:            '#F59E0B',

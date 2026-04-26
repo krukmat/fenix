@@ -54,6 +54,8 @@ docs/plans/*
 !docs/plans/ui_redesign_command_center_dark_theme.md
 !docs/plans/carta-language-server-flow.md
 !docs/plans/design-md-adoption-plan.md
+!docs/plans/design-md-validation-warnings-response-plan.md
+!docs/plans/mobile-primary-button-contrast-response-plan.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/

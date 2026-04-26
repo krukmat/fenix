@@ -41,7 +41,7 @@ function InboxBadge({ router, colors }: { router: ReturnType<typeof useRouter>; 
       style={[styles.inboxBadge, { backgroundColor: colors.primary }]}
       onPress={() => router.push(wedgeHref('/inbox'))}
     >
-      <Text style={styles.inboxBadgeText}>{count > 99 ? '99+' : count} pending</Text>
+      <Text style={[styles.inboxBadgeText, { color: colors.onPrimary }]}>{count > 99 ? '99+' : count} pending</Text>
     </TouchableOpacity>
   );
 }
@@ -146,5 +146,5 @@ const styles = StyleSheet.create({
   caseStatus: { fontSize: 12, marginTop: 4 },
   badgeRow: { alignItems: 'flex-start', marginTop: 8 },
   inboxBadge: { margin: 12, padding: 10, borderRadius: 8, alignItems: 'center' },
-  inboxBadgeText: { color: '#FFF', fontWeight: '700', fontSize: 13 },
+  inboxBadgeText: { fontWeight: '700', fontSize: 13 },
 });

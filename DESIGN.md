@@ -1,7 +1,7 @@
 ---
 colors:
   brandPrimary: "#3B82F6"
-  brandOnPrimary: "#FFFFFF"
+  brandOnPrimary: "#0A0D12"
   brandPrimaryContainer: "#1E3A5F"
   brandOnPrimaryContainer: "#93C5FD"
   brandSecondary: "#F59E0B"
