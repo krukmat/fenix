@@ -53,15 +53,11 @@ docs/plans/*
 !docs/plans/crm_list_centralized_crud_bulk_delete.md
 !docs/plans/ui_redesign_command_center_dark_theme.md
 !docs/plans/carta-language-server-flow.md
+!docs/plans/design-md-adoption-plan.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/
 docs/templates/*
-docs/decisions/*
-!docs/decisions/ADR-019-product-category-governed-ai-layer.md
-!docs/decisions/ADR-020-cost-governance-runtime-concern.md
-!docs/decisions/ADR-021-integration-first-context-strategy.md
-!docs/decisions/ADR-022-mobile-deprioritized-for-wedge.md
 docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md
 coverage.out
 fenix.db
