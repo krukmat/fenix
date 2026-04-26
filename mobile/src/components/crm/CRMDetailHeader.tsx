@@ -3,6 +3,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from 'react-native-paper';
+import { elevation, radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/types';
 
 export interface CRMDetailHeaderProps {
@@ -44,18 +46,17 @@ export function CRMDetailHeader({ title, subtitle, metadata, testIDPrefix = 'crm
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
-    borderRadius: 12,
-    margin: 16,
-    elevation: 2,
+    padding: spacing.base,
+    borderRadius: radius.md,
+    margin: spacing.base,
+    ...elevation.card,
   },
   titleContainer: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '600',
-    marginBottom: 4,
+    ...typography.headingLG,
+    marginBottom: spacing.xs,
   },
   subtitle: {
     fontSize: 14,
@@ -63,15 +64,14 @@ const styles = StyleSheet.create({
   metadataContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: spacing.base,
   },
   metadataItem: {
     minWidth: 100,
   },
   metadataLabel: {
-    fontSize: 12,
+    ...typography.eyebrow,
     marginBottom: 2,
-    textTransform: 'uppercase',
   },
   metadataValue: {
     fontSize: 14,

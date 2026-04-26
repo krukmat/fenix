@@ -2,6 +2,8 @@ import React from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import type { AuditFilters, AuditOutcome } from '../../services/api.types';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 
 interface AuditFilterBarProps {
   filters: AuditFilters;
@@ -28,7 +30,10 @@ export function AuditFilterBar({ filters, onChange }: AuditFilterBarProps) {
             <TouchableOpacity
               key={testValue}
               testID={`audit-filter-outcome-${testValue}`}
-              style={[styles.chip, active && { backgroundColor: colors.primary }]}
+              style={[
+                styles.chip,
+                { backgroundColor: active ? colors.primary : colors.surfaceVariant },
+              ]}
               onPress={() => onChange({ ...filters, outcome: filter.value })}
             >
               <Text style={[styles.chipText, { color: active ? colors.onPrimary : colors.onSurfaceVariant }]}>
@@ -44,21 +49,19 @@ export function AuditFilterBar({ filters, onChange }: AuditFilterBarProps) {
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: 12,
-    paddingHorizontal: 16,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.base,
   },
   scrollContent: {
-    paddingBottom: 4,
+    paddingBottom: spacing.xs,
   },
   chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-    backgroundColor: '#E5E7EB',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    marginRight: spacing.sm,
   },
   chipText: {
-    fontSize: 13,
-    fontWeight: '500',
+    ...typography.labelMD,
   },
 });

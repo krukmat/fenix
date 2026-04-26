@@ -17,6 +17,10 @@ import { EntitySignalsSection } from '../../../src/components/signals/EntitySign
 import { useDeal } from '../../../src/hooks/useCRM';
 import { useTriggerDealRiskAgent } from '../../../src/hooks/useWedge';
 import { wedgeHref, wedgeHrefObject } from '../../../src/utils/navigation';
+import { brandColors } from '../../../src/theme/colors';
+import { radius, spacing } from '../../../src/theme/spacing';
+import { getAgentStatusColor } from '../../../src/theme/semantic';
+import { typography } from '../../../src/theme/typography';
 import type { ThemeColors } from '../../../src/theme/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -86,9 +90,7 @@ function getMetadata(d: DealDetailData) {
 }
 
 function getStatusColor(status: string): string {
-  if (status === 'won') return '#10B981';
-  if (status === 'lost') return '#EF4444';
-  return '#3B82F6';
+  return getAgentStatusColor(status);
 }
 
 // ─── Section components ───────────────────────────────────────────────────────
@@ -246,10 +248,10 @@ export default function SalesDealDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  statusBanner: { padding: 8, alignItems: 'center' },
-  statusText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
-  section: { padding: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
-  card: { padding: 16, borderRadius: 8 },
-  actionButton: { marginBottom: 12 },
+  statusBanner: { padding: spacing.sm, alignItems: 'center' },
+  statusText: { color: brandColors.onError, fontWeight: '600', fontSize: 14 },
+  section: { padding: spacing.base },
+  sectionTitle: { ...typography.headingMD, marginBottom: spacing.md },
+  card: { padding: spacing.base, borderRadius: radius.md },
+  actionButton: { marginBottom: spacing.md },
 });

@@ -3,13 +3,16 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 
 import { type FlowConnectorSegment } from '../../lib/flowLayout';
+import { brandColors } from '../../theme/colors';
 
+// Workflow connector colors are DSL-domain exceptions, parallel to FlowNode kind
+// colors. They distinguish execution flow from requirement dependencies.
 const CONNECTION_COLOR: Record<string, string> = {
   execution: '#6B7280',
   requirement: '#7C3AED',
 };
 
-const DEFAULT_COLOR = '#9CA3AF';
+const DEFAULT_COLOR = brandColors.onSurfaceVariant;
 
 type Props = {
   connector: FlowConnectorSegment;

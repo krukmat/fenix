@@ -8,6 +8,9 @@ import { Stack, useRouter } from 'expo-router';
 import { useGovernanceSummary } from '../../../src/hooks/useWedge';
 import { UsageDetailCard } from '../../../src/components/governance/UsageDetailCard';
 import { wedgeHref } from '../../../src/utils/navigation';
+import { semanticColors } from '../../../src/theme/colors';
+import { radius, spacing } from '../../../src/theme/spacing';
+import { typography } from '../../../src/theme/typography';
 import type { ThemeColors } from '../../../src/theme/types';
 import type { UsageEvent, QuotaStateItem, GovernanceSummary } from '../../../src/services/api.types';
 
@@ -19,8 +22,8 @@ function useColors(): ThemeColors {
   return useTheme().colors as ThemeColors;
 }
 
-function SectionHeader({ title }: { title: string; colors: ThemeColors }) {
-  return <Text style={styles.sectionTitle}>{title}</Text>;
+function SectionHeader({ title, colors }: { title: string; colors: ThemeColors }) {
+  return <Text style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>{title}</Text>;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -62,7 +65,7 @@ function UsageList({
 
 function QuotaItem({ quota, index, colors }: { quota: QuotaStateItem; index: number; colors: ThemeColors }) {
   const pct = quota.limitValue > 0 ? Math.round((quota.currentValue / quota.limitValue) * 100) : 0;
-  const fillColor = pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#3B82F6';
+  const fillColor = pct >= 90 ? colors.error : pct >= 70 ? semanticColors.warning : colors.primary;
   return (
     <View testID={`governance-quota-item-${index}`} style={[styles.quotaCard, { backgroundColor: colors.surface }]}>
       <View style={styles.quotaHeader}>
@@ -116,7 +119,7 @@ function GovernanceContent({ summary, colors }: { summary: GovernanceSummary; co
         <TouchableOpacity
           testID="governance-audit-trail-link"
           onPress={() => router.push(wedgeHref('/governance/audit'))}
-          style={[styles.auditLinkRow, { backgroundColor: colors.surface, borderLeftWidth: 3, borderLeftColor: '#3B82F6' }]}
+          style={[styles.auditLinkRow, { backgroundColor: colors.surface, borderLeftWidth: 3, borderLeftColor: colors.primary }]}
           accessibilityRole="button"
         >
           <Text style={[styles.auditLinkText, { color: colors.onSurface }]}>Audit Trail</Text>
@@ -166,15 +169,15 @@ export default function GovernanceScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  section: { padding: 16 },
-  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: '#8899AA', marginBottom: 12 },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: SPACE_BETWEEN, alignItems: 'center', marginBottom: 12 },
+  section: { padding: spacing.base },
+  sectionTitle: { ...typography.eyebrow, marginBottom: spacing.md },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: SPACE_BETWEEN, alignItems: 'center', marginBottom: spacing.md },
   viewAllLink: { fontSize: 13, fontWeight: '600' },
   auditLinkSection: { paddingTop: 0 },
-  auditLinkRow: { flexDirection: 'row', justifyContent: SPACE_BETWEEN, alignItems: 'center', padding: 14, borderRadius: 8 },
+  auditLinkRow: { flexDirection: 'row', justifyContent: SPACE_BETWEEN, alignItems: 'center', padding: spacing.base, borderRadius: radius.md },
   auditLinkText: { fontSize: 15, fontWeight: '600' },
-  quotaCard: { padding: 14, borderRadius: 8, marginBottom: 10 },
-  quotaHeader: { flexDirection: 'row', justifyContent: SPACE_BETWEEN, alignItems: 'center', marginBottom: 8 },
-  quotaBar: { height: 4, borderRadius: 3, backgroundColor: '#E5E7EB', overflow: 'hidden' },
-  quotaFill: { height: 4, borderRadius: 3 },
+  quotaCard: { padding: spacing.base, borderRadius: radius.md, marginBottom: radius.md },
+  quotaHeader: { flexDirection: 'row', justifyContent: SPACE_BETWEEN, alignItems: 'center', marginBottom: spacing.sm },
+  quotaBar: { height: 4, borderRadius: radius.xs, backgroundColor: semanticColors.confidenceLow, overflow: 'hidden' },
+  quotaFill: { height: 4, borderRadius: radius.xs },
 });

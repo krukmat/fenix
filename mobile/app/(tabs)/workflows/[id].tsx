@@ -16,12 +16,15 @@ import {
 } from '../../../src/hooks/useAgentSpec';
 import { workflowApi } from '../../../src/services/api';
 import type { WorkflowStatus, Workflow } from '../../../src/services/api';
+import { brandColors, semanticColors } from '../../../src/theme/colors';
+import { radius, spacing } from '../../../src/theme/spacing';
+import { typography } from '../../../src/theme/typography';
 
 const STATUS_COLORS: Record<WorkflowStatus, string> = {
-  draft: '#616161',
-  testing: '#1565c0',
-  active: '#2e7d32',
-  archived: '#795548',
+  draft: brandColors.onSurfaceVariant,
+  testing: brandColors.primary,
+  active: semanticColors.success,
+  archived: brandColors.onSurfaceVariant,
 };
 
 function WorkflowActions({
@@ -104,7 +107,7 @@ function VersionHistory({
         Version History
       </Text>
       {versions.map((version) => {
-        const statusColor = STATUS_COLORS[version.status] ?? '#616161';
+        const statusColor = STATUS_COLORS[version.status];
         const canRollback = version.status === 'archived' && workflow.id === version.id;
 
         return (
@@ -257,7 +260,7 @@ export default function WorkflowDetailScreen() {
   if (isLoading) return <WorkflowDetailLoading backgroundColor={theme.colors.background} primaryColor={theme.colors.primary} />;
   if (error || !workflow) return <WorkflowDetailError backgroundColor={theme.colors.background} color={theme.colors.error} message={error?.message ?? 'Workflow not found'} />;
 
-  const statusColor = STATUS_COLORS[workflow.status] ?? '#616161';
+  const statusColor = STATUS_COLORS[workflow.status];
 
   return (
     <>
@@ -284,26 +287,26 @@ export default function WorkflowDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { padding: spacing.base, paddingBottom: spacing.xxl },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 4 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: radius.md, flexWrap: 'wrap', marginBottom: spacing.xs },
   name: { flex: 1 },
   statusChip: { height: 24 },
-  statusText: { color: '#ffffff', fontSize: 11 },
-  description: { marginTop: 8 },
-  divider: { marginVertical: 16 },
-  sectionLabel: { marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-  actions: { gap: 10, marginTop: 4 },
+  statusText: { ...typography.labelMD, color: brandColors.onError },
+  description: { marginTop: spacing.sm },
+  divider: { marginVertical: spacing.base },
+  sectionLabel: { ...typography.eyebrow, marginBottom: spacing.sm },
+  actions: { gap: radius.md, marginTop: spacing.xs },
   actionBtn: { width: '100%' },
   versionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
+    gap: spacing.md,
+    marginBottom: spacing.md,
   },
   versionMeta: { flex: 1 },
   versionTitle: { fontSize: 14, fontWeight: '600' },
-  versionTimestamp: { fontSize: 12, color: '#666', marginTop: 2 },
-  versionActions: { alignItems: 'flex-end', gap: 8 },
+  versionTimestamp: { ...typography.monoSM, color: brandColors.onSurfaceVariant, marginTop: 2 },
+  versionActions: { alignItems: 'flex-end', gap: spacing.sm },
 });

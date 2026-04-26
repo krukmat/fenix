@@ -11,6 +11,7 @@ docs/refactors/*
 bff/node_modules/
 bff/coverage/
 bff/dist/
+bff/artifacts/http-snapshots/
 .hypothesis/*
 fenixcrm
 data/fenixcrm.db
@@ -56,6 +57,8 @@ docs/plans/*
 !docs/plans/design-md-adoption-plan.md
 !docs/plans/design-md-validation-warnings-response-plan.md
 !docs/plans/mobile-primary-button-contrast-response-plan.md
+!docs/plans/design-md-mobile-application-plan.md
+!docs/plans/bff-http-snapshots-plan.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/

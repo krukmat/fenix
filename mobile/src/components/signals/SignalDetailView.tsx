@@ -6,22 +6,14 @@ import { Text, Divider, useTheme } from 'react-native-paper';
 import { EvidenceCard } from '../copilot/EvidenceCard';
 import type { Signal } from '../../services/api';
 import type { EvidenceSource } from '../../services/sse';
+import { brandColors } from '../../theme/colors';
+import { getConfidenceColor, getConfidenceLabel } from '../../theme/semantic';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 
 interface SignalDetailViewProps {
   signal: Signal;
   testIDPrefix?: string;
-}
-
-function confidenceColor(confidence: number): string {
-  if (confidence >= 0.8) return '#2e7d32';
-  if (confidence >= 0.5) return '#e65100';
-  return '#757575';
-}
-
-function confidenceLabel(confidence: number): string {
-  if (confidence >= 0.8) return 'High';
-  if (confidence >= 0.5) return 'Medium';
-  return 'Low';
 }
 
 /** Map signal evidence_ids to minimal EvidenceSource stubs for EvidenceCard */
@@ -37,7 +29,7 @@ function toEvidenceSources(signal: Signal): EvidenceSource[] {
 
 export function SignalDetailView({ signal, testIDPrefix = 'signal-detail' }: SignalDetailViewProps) {
   const theme = useTheme();
-  const color = confidenceColor(signal.confidence);
+  const color = getConfidenceColor(signal.confidence);
   const sources = toEvidenceSources(signal);
 
   return (
@@ -56,7 +48,7 @@ export function SignalDetailView({ signal, testIDPrefix = 'signal-detail' }: Sig
           style={[styles.confidenceBadge, { backgroundColor: color }]}
         >
           <Text style={styles.confidenceText}>
-            {`${confidenceLabel(signal.confidence)} · ${(signal.confidence * 100).toFixed(0)}%`}
+            {`${getConfidenceLabel(signal.confidence)} · ${(signal.confidence * 100).toFixed(0)}%`}
           </Text>
         </View>
       </View>
@@ -110,11 +102,11 @@ export function SignalDetailView({ signal, testIDPrefix = 'signal-detail' }: Sig
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 32 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 4 },
-  confidenceBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  confidenceText: { color: '#ffffff', fontSize: 11, fontWeight: '700' },
-  divider: { marginVertical: 12 },
-  summary: { marginBottom: 16 },
-  sectionLabel: { marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  content: { padding: spacing.base, paddingBottom: spacing.xxl },
+  header: { flexDirection: 'row', alignItems: 'center', gap: radius.md, flexWrap: 'wrap', marginBottom: spacing.xs },
+  confidenceBadge: { borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  confidenceText: { color: brandColors.onError, ...typography.labelMD },
+  divider: { marginVertical: spacing.md },
+  summary: { marginBottom: spacing.base },
+  sectionLabel: { ...typography.eyebrow, marginBottom: spacing.sm },
 });

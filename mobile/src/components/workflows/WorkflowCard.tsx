@@ -1,14 +1,24 @@
 // Task Mobile P1.4 — T4: WorkflowCard component
+// Task T8.1 - Workflow status colors migrated to semantic tokens
 import React from 'react';
 import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import { useTheme } from 'react-native-paper';
+import { brandColors, semanticColors } from '../../theme/colors';
+import { elevation, radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 import type { Workflow, WorkflowStatus } from '../../services/api';
 
+// Workflow status colors mapped to Command Center semantic tokens:
+// - draft: onSurfaceVariant (neutral, indicates inactive/non-production)
+// - testing: primary (blue, indicates active development/testing)
+// - active: success (green, indicates production/active status)
+// - archived: onSurfaceVariant (neutral, indicates retired status)
+// All map to existing theme tokens; no exceptions needed.
 const STATUS_COLORS: Record<WorkflowStatus, string> = {
-  draft: '#616161',
-  testing: '#1565c0',
-  active: '#2e7d32',
-  archived: '#795548',
+  draft: brandColors.onSurfaceVariant,
+  testing: brandColors.primary,
+  active: semanticColors.success,
+  archived: brandColors.onSurfaceVariant,
 };
 
 interface WorkflowCardProps {
@@ -19,7 +29,7 @@ interface WorkflowCardProps {
 
 export function WorkflowCard({ workflow, onPress, testIDPrefix = 'workflow-card' }: WorkflowCardProps) {
   const theme = useTheme();
-  const statusColor = STATUS_COLORS[workflow.status] ?? '#616161';
+  const statusColor = STATUS_COLORS[workflow.status];
 
   return (
     <TouchableOpacity
@@ -54,11 +64,11 @@ export function WorkflowCard({ workflow, onPress, testIDPrefix = 'workflow-card'
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 16, marginHorizontal: 16, marginBottom: 12, borderRadius: 8, elevation: 2 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  name: { fontSize: 16, fontWeight: '600', flex: 1 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, marginLeft: 8 },
-  statusText: { color: '#ffffff', fontSize: 11, fontWeight: '600' },
-  description: { fontSize: 13, marginTop: 4, marginBottom: 4 },
-  version: { fontSize: 12, marginTop: 2 },
+  card: { padding: spacing.base, marginHorizontal: spacing.base, marginBottom: spacing.md, borderRadius: radius.md, ...elevation.card },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
+  name: { ...typography.headingMD, flex: 1 },
+  statusBadge: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.full, marginLeft: spacing.sm },
+  statusText: { ...typography.labelMD, color: brandColors.onError },
+  description: { ...typography.monoSM, marginTop: spacing.xs, marginBottom: spacing.xs },
+  version: { ...typography.monoSM, marginTop: spacing.xs },
 });

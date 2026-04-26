@@ -1,6 +1,9 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
+import { brandColors } from '../../theme/colors';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 
 interface SignalCountBadgeProps {
   count?: number;
@@ -24,14 +27,13 @@ const styles = StyleSheet.create({
   badge: {
     minWidth: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: spacing.sm,
   },
   text: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '700',
+    color: brandColors.onError,
+    ...typography.labelMD,
   },
 });

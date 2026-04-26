@@ -4,19 +4,16 @@ import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text, IconButton, Dialog, Portal, Button, useTheme } from 'react-native-paper';
 import type { Signal } from '../../services/api';
-import { getConfidenceColor, confidenceGlowStyle } from '../../theme/semantic';
+import { brandColors } from '../../theme/colors';
+import { confidenceGlowStyle, getConfidenceColor, getConfidenceLabel } from '../../theme/semantic';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 
 interface SignalCardProps {
   signal: Signal;
   onDismiss: (id: string) => void;
   onPress?: (signal: Signal) => void;
   testIDPrefix?: string;
-}
-
-function confidenceLabel(confidence: number): string {
-  if (confidence >= 0.8) return 'High';
-  if (confidence >= 0.5) return 'Medium';
-  return 'Low';
 }
 
 function formatTimestamp(iso: string): string {
@@ -75,7 +72,7 @@ export function SignalCard({ signal, onDismiss, onPress, testIDPrefix = 'signal-
               <Text variant="labelLarge" testID={`${testIDPrefix}-type`}>{signal.signal_type}</Text>
               <View testID={`${testIDPrefix}-confidence`} style={[styles.confidenceBadge, { backgroundColor: color }]}>
                 <Text style={styles.confidenceText}>
-                  {`${confidenceLabel(signal.confidence)} ${(signal.confidence * 100).toFixed(0)}%`}
+                  {`${getConfidenceLabel(signal.confidence)} ${(signal.confidence * 100).toFixed(0)}%`}
                 </Text>
               </View>
             </View>
@@ -102,11 +99,11 @@ export function SignalCard({ signal, onDismiss, onPress, testIDPrefix = 'signal-
 }
 
 const styles = StyleSheet.create({
-  card: { marginBottom: 8, marginHorizontal: 16 },
+  card: { marginBottom: spacing.sm, marginHorizontal: spacing.base },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  titleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  confidenceBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  confidenceText: { color: '#ffffff', fontSize: 11, fontWeight: '700' },
-  entity: { marginTop: 2, marginBottom: 4 },
-  snippet: { marginBottom: 6 },
+  titleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+  confidenceBadge: { borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  confidenceText: { color: brandColors.onError, ...typography.labelMD },
+  entity: { marginTop: 2, marginBottom: spacing.xs },
+  snippet: { marginBottom: spacing.sm },
 });

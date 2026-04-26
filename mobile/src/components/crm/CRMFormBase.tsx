@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useTheme } from 'react-native-paper';
 
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/types';
 
 export type FieldProps = {
@@ -102,14 +104,14 @@ export function LoadingView({ testID, colors }: { testID: string; colors: ThemeC
 
 export const baseFormStyles = StyleSheet.create({
   container: { flex: 1 } satisfies ViewStyle,
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 } satisfies ViewStyle,
-  card: { margin: 16, padding: 16, borderRadius: 8 } satisfies ViewStyle,
-  field: { marginBottom: 14 } satisfies ViewStyle,
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6 } satisfies TextStyle,
-  input: { borderWidth: 1, borderRadius: 8, minHeight: 44, paddingHorizontal: 12, fontSize: 16 } satisfies TextStyle,
-  multiline: { minHeight: 96, paddingTop: 10, textAlignVertical: 'top' } satisfies TextStyle,
-  error: { fontSize: 14, marginBottom: 12 } satisfies TextStyle,
-  submit: { minHeight: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center' } satisfies ViewStyle,
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl } satisfies ViewStyle,
+  card: { margin: spacing.base, padding: spacing.base, borderRadius: radius.md } satisfies ViewStyle,
+  field: { marginBottom: spacing.base } satisfies ViewStyle,
+  label: { ...typography.labelMD, marginBottom: spacing.sm } satisfies TextStyle,
+  input: { borderWidth: 1, borderRadius: radius.sm, minHeight: 44, paddingHorizontal: spacing.md, fontSize: 16 } satisfies TextStyle,
+  multiline: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: 'top' } satisfies TextStyle,
+  error: { fontSize: 14, marginBottom: spacing.md } satisfies TextStyle,
+  submit: { minHeight: 48, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' } satisfies ViewStyle,
   disabled: { opacity: 0.7 } satisfies ViewStyle,
   submitText: { fontSize: 16, fontWeight: '700' } satisfies TextStyle,
 });

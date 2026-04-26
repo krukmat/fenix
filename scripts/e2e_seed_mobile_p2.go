@@ -52,6 +52,8 @@ var cleanupWorkspaceQueries = map[string]string{
 	"knowledge_item":     "DELETE FROM knowledge_item WHERE workspace_id = ?",
 	"case_ticket":        "DELETE FROM case_ticket WHERE workspace_id = ?",
 	cleanupTableDeal:     "DELETE FROM deal WHERE workspace_id = ?",
+	"pipeline_stage":     "DELETE FROM pipeline_stage WHERE pipeline_id IN (SELECT id FROM pipeline WHERE workspace_id = ?)",
+	"pipeline":           "DELETE FROM pipeline WHERE workspace_id = ?",
 	"contact":            "DELETE FROM contact WHERE workspace_id = ?",
 	"lead":               "DELETE FROM lead WHERE workspace_id = ?",
 	"account":            "DELETE FROM account WHERE workspace_id = ?",
@@ -117,8 +119,9 @@ type seedOutput struct {
 		DeniedByPolicyID string `json:"deniedByPolicyId"`
 	} `json:"agentRuns"`
 	Inbox struct {
-		ApprovalID string `json:"approvalId"`
-		SignalID   string `json:"signalId"`
+		ApprovalID       string `json:"approvalId"`
+		RejectApprovalID string `json:"rejectApprovalId"`
+		SignalID         string `json:"signalId"`
 	} `json:"inbox"`
 	Workflow struct {
 		ID string `json:"id"`
@@ -223,7 +226,7 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		return nil, err
 	}
 
-	approvalID, signalID, err := seedGovernanceAndApproval(ctx, db, auth, runs.completedID, baseFixtures.dealID, caseFixtures.caseID, suffix, baseNow)
+	approvalID, rejectApprovalID, signalID, err := seedGovernanceAndApproval(ctx, db, auth, runs.completedID, baseFixtures.dealID, caseFixtures.caseID, suffix, baseNow)
 	if err != nil {
 		return nil, fmt.Errorf("seedApproval: %w", err)
 	}
@@ -248,6 +251,7 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		caseFixtures.resolvedCaseSubject,
 		runs,
 		approvalID,
+		rejectApprovalID,
 		signalID,
 		workflowID,
 	), nil
@@ -345,8 +349,11 @@ func cleanupExistingFixtures(ctx context.Context, db *sql.DB, workspaceID string
 		"knowledge_item",
 		"case_ticket",
 		cleanupTableDeal,
+		"pipeline_stage",
+		"pipeline",
 		"contact",
 		"account",
+		"workflow",
 		"agent_definition",
 	}
 
@@ -461,7 +468,7 @@ func seedPairedRuns(ctx context.Context, db *sql.DB, auth authResponse, params [
 	return ids, nil
 }
 
-func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, pipelineID, stageID, staleDealID, caseID, caseSubject, resolvedCaseID, resolvedCaseSubject string, runs wedgeRunIDs, approvalID, signalID, workflowID string) *seedOutput {
+func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, pipelineID, stageID, staleDealID, caseID, caseSubject, resolvedCaseID, resolvedCaseSubject string, runs wedgeRunIDs, approvalID, rejectApprovalID, signalID, workflowID string) *seedOutput {
 	out := &seedOutput{}
 	out.Account.ID = accountID
 	out.Contact.ID = contactID
@@ -483,6 +490,7 @@ func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, pipelin
 		out.AgentRuns.DeniedByPolicyID = runs.deniedIDs[0]
 	}
 	out.Inbox.ApprovalID = approvalID
+	out.Inbox.RejectApprovalID = rejectApprovalID
 	out.Inbox.SignalID = signalID
 	out.Workflow.ID = workflowID
 	return out
@@ -718,31 +726,32 @@ func seedResolvedCase(ctx context.Context, db *sql.DB, auth authResponse, accoun
 
 // seedGovernanceAndApproval seeds usage events, quota policy, and inbox approval in one call.
 // W6-T3: extracted to reduce seedFixtures cognitive complexity below gocognit threshold.
-func seedGovernanceAndApproval(ctx context.Context, db *sql.DB, auth authResponse, runID, dealID, caseID, suffix string, baseNow time.Time) (string, string, error) {
+func seedGovernanceAndApproval(ctx context.Context, db *sql.DB, auth authResponse, runID, dealID, caseID, suffix string, baseNow time.Time) (string, string, string, error) {
 	if err := seedUsageEvents(ctx, db, auth, runID); err != nil {
-		return "", "", fmt.Errorf("seedUsageEvents: %w", err)
+		return "", "", "", fmt.Errorf("seedUsageEvents: %w", err)
 	}
 	if err := seedQuotaPolicy(ctx, db, auth); err != nil {
-		return "", "", fmt.Errorf("seedQuotaPolicy: %w", err)
+		return "", "", "", fmt.Errorf("seedQuotaPolicy: %w", err)
 	}
 	if err := ensureSignalAccessRole(ctx, db, auth); err != nil {
-		return "", "", fmt.Errorf("ensureSignalAccessRole: %w", err)
+		return "", "", "", fmt.Errorf("ensureSignalAccessRole: %w", err)
 	}
 	signalIDs, err := seedInboxSignals(ctx, db, auth, dealID, caseID, runID, suffix, baseNow)
 	if err != nil {
-		return "", "", fmt.Errorf("seedInboxSignals: %w", err)
+		return "", "", "", fmt.Errorf("seedInboxSignals: %w", err)
 	}
 	approvalIDs, err := seedInboxApprovals(ctx, db, auth, caseID, suffix, baseNow)
 	if err != nil {
-		return "", "", fmt.Errorf("seedApproval: %w", err)
+		return "", "", "", fmt.Errorf("seedApproval: %w", err)
 	}
-	if len(approvalIDs) == 0 {
-		return "", "", errors.New("seedApproval: expected at least one approval")
+	if len(approvalIDs) < 2 {
+		return "", "", "", errors.New("seedApproval: expected at least two approvals")
 	}
 	if len(signalIDs) == 0 {
-		return "", "", errors.New("seedInboxSignals: expected at least one signal")
+		return "", "", "", errors.New("seedInboxSignals: expected at least one signal")
 	}
-	return approvalIDs[0], signalIDs[0], nil
+	// approvalIDs[0] → used for approve flow; approvalIDs[1] → used for reject flow
+	return approvalIDs[0], approvalIDs[1], signalIDs[0], nil
 }
 
 // ─── Agent run fixtures ───────────────────────────────────────────────────────

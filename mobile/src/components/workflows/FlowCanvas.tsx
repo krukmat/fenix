@@ -3,6 +3,7 @@ import React from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
 
 import { type FlowLayoutResult } from '../../lib/flowLayout';
+import { brandColors } from '../../theme/colors';
 import { FlowNode } from './FlowNode';
 import { FlowConnector } from './FlowConnector';
 
@@ -39,6 +40,6 @@ const styles = StyleSheet.create({
   },
   canvas: {
     position: 'relative',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: brandColors.background,
   },
 });

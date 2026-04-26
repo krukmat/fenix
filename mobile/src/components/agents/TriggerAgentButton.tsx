@@ -7,6 +7,8 @@ import { useTheme, Button, Dialog, Portal, Paragraph, RadioButton } from 'react-
 import { useRouter } from 'expo-router';
 import { useAgentDefinitions } from '../../hooks/useCRM';
 import { agentApi } from '../../services/api';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 import { wedgeHref } from '../../utils/navigation';
 import type { ThemeColors } from '../../theme/types';
 
@@ -140,15 +142,15 @@ export default function TriggerAgentButton() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16 },
+  container: { padding: spacing.base },
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: spacing.base,
   },
-  loadingText: { marginLeft: 8, fontSize: 14 },
-  triggerButton: { borderRadius: 8, elevation: 2 },
-  buttonContent: { paddingVertical: 8, paddingHorizontal: 16 },
-  triggerButtonText: { fontSize: 16, fontWeight: '600' },
+  loadingText: { marginLeft: spacing.sm, fontSize: 14 },
+  triggerButton: { borderRadius: radius.sm },
+  buttonContent: { paddingVertical: spacing.sm, paddingHorizontal: spacing.base },
+  triggerButtonText: typography.headingMD,
 });

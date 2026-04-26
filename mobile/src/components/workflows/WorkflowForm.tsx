@@ -2,6 +2,8 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, TextInput, useTheme } from 'react-native-paper';
+import { spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 
 type WorkflowFormValue = {
   name: string;
@@ -108,9 +110,9 @@ export function WorkflowForm({
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 4 },
-  field: { marginBottom: 12 },
-  error: { fontSize: 12, marginTop: 4 },
-  submitError: { marginTop: 8, textAlign: 'center' },
-  dslInput: { fontFamily: 'monospace' },
+  container: { gap: spacing.xs },
+  field: { marginBottom: spacing.md },
+  error: { fontSize: 12, marginTop: spacing.xs },
+  submitError: { marginTop: spacing.sm, textAlign: 'center' },
+  dslInput: typography.mono,
 });

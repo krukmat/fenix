@@ -205,3 +205,5 @@ All architectural decisions are in `docs/decisions/`:
 | ADR-024 | Defer TYPE, ENUM, ACTION, CONNECTOR — no implementation until runtime contracts exist | DSL / Language Design |
 | ADR-025 | BFF as unified client gateway — web, mobile, and future clients all route through BFF | Architecture / Security |
 | ADR-026 | Web builder stack: HTMX + Express (BFF) over separate React SPA — avoids 4th stack | Architecture / Web / Maintenance |
+| ADR-027 | DESIGN.md visual contract — agent reads design token file before any mobile UI change | Mobile / Design / Agent |
+| ADR-028 | Dual approval seed for snapshot runner approve/reject coverage — re-evaluate on runner parallelism or FSM reset | Testing / Snapshots / BFF |

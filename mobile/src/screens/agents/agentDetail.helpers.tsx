@@ -2,6 +2,10 @@
 
 import React from 'react';
 import { View, Text } from 'react-native';
+import { semanticColors } from '../../theme/colors';
+import { getAgentStatusColor } from '../../theme/semantic';
+import { spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/types';
 import { styles } from './agentDetail.styles';
 
@@ -78,18 +82,14 @@ export function getStatusLabel(status: string): string {
 }
 
 export function getStatusColor(status: string): string {
-  const colors: Record<string, string> = {
-    running: '#3B82F6',
-    success: '#10B981',
-    failed: '#EF4444',
-    abstained: '#F59E0B',
-    partial: '#F97316',
-    escalated: '#8B5CF6',
-    accepted: '#16A34A',
-    rejected: '#DC2626',
-    delegated: '#0EA5E9',
+  const agentStatusColors: Record<string, string> = {
+    partial: semanticColors.warning,
+    escalated: semanticColors.info,
+    accepted: semanticColors.success,
+    rejected: getAgentStatusColor('error'),
+    delegated: semanticColors.info,
   };
-  return colors[status] || '#999';
+  return agentStatusColors[status] ?? getAgentStatusColor(status);
 }
 
 function renderSection(title: string, children: React.ReactNode, colors: ThemeColors, testID?: string) {
@@ -105,7 +105,7 @@ function renderInputSection(inputs: Record<string, unknown>, colors: ThemeColors
   const inputsJson = JSON.stringify(inputs, null, 2);
   return (
     <View style={[styles.codeBlock, { backgroundColor: colors.surface }]}>
-      <Text style={{ color: colors.onSurfaceVariant, fontSize: 12 }}>{inputsJson}</Text>
+      <Text style={[typography.mono, { color: colors.onSurfaceVariant }]}>{inputsJson}</Text>
     </View>
   );
 }
@@ -124,7 +124,7 @@ function renderEvidenceSection(evidence: EvidenceItem[], colors: ThemeColors) {
               <Text style={styles.scoreBadgeText}>{item.score.toFixed(2)}</Text>
             </View>
           </View>
-          <Text style={{ color: colors.onSurfaceVariant, fontSize: 12, marginTop: 8 }}>
+          <Text style={{ color: colors.onSurfaceVariant, fontSize: 12, marginTop: spacing.sm }}>
             {item.snippet}
           </Text>
         </View>
@@ -157,13 +157,13 @@ function renderToolCallsSection(toolCalls: ToolCall[], colors: ThemeColors) {
       {toolCalls.map((call, idx) => (
         <View key={idx} style={[styles.toolCallCard, { backgroundColor: colors.surface }]}>
           <Text style={[styles.toolName, { color: colors.primary }]}>{call.tool_name}</Text>
-          <View style={[styles.codeBlock, { marginTop: 8, backgroundColor: colors.background }]}>
-            <Text style={{ color: colors.onSurfaceVariant, fontSize: 12 }}>
+          <View style={[styles.codeBlock, { marginTop: spacing.sm, backgroundColor: colors.background }]}>
+            <Text style={[typography.mono, { color: colors.onSurfaceVariant }]}>
               {JSON.stringify(call.params, null, 2)}
             </Text>
           </View>
           {call.latency_ms > 0 && (
-            <Text style={{ color: colors.onSurfaceVariant, fontSize: 10, marginTop: 4 }}>
+            <Text style={[typography.monoSM, { color: colors.onSurfaceVariant, marginTop: spacing.xs }]}>
               Latency: {formatLatency(call.latency_ms)}
             </Text>
           )}
@@ -205,7 +205,7 @@ function renderAuditSection(auditEvents: AuditEvent[], colors: ThemeColors) {
         <View key={idx} style={[styles.auditEvent, { backgroundColor: colors.surface }]}>
           <View style={styles.auditHeader}>
             <Text style={{ color: colors.onSurface }}>{event.action}</Text>
-            <Text style={{ color: colors.onSurfaceVariant, fontSize: 10 }}>
+            <Text style={[typography.monoSM, { color: colors.onSurfaceVariant }]}>
               {new Date(event.timestamp).toLocaleString()}
             </Text>
           </View>
@@ -215,12 +215,7 @@ function renderAuditSection(auditEvents: AuditEvent[], colors: ThemeColors) {
               style={[
                 styles.outcomeBadge,
                 {
-                  backgroundColor:
-                    event.outcome === 'success'
-                      ? '#4CAF50'
-                      : event.outcome === 'denied'
-                      ? '#FF9800'
-                      : '#F44336',
+                  backgroundColor: getAgentStatusColor(event.outcome),
                 },
               ]}
             >
@@ -255,7 +250,7 @@ export function renderContent(run: AgentRunData, colors: ThemeColors) {
           </Text>
         </View>
         {run.status === 'delegated' ? (
-          <Text testID="agent-run-delegated-note" style={[styles.summaryMetric, { color: colors.primary, marginTop: 8 }]}>
+          <Text testID="agent-run-delegated-note" style={[styles.summaryMetric, { color: colors.primary, marginTop: spacing.sm }]}>
             Delegated to another agent. This is not a human handoff.
           </Text>
         ) : null}

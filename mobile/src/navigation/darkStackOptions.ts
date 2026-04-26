@@ -1,16 +1,18 @@
 // ui-redesign-command-center: shared dark header options for nested stacks
+import { brandColors } from '../theme/colors';
+import { typography } from '../theme/typography';
+
 export const darkStackScreenOptions = {
   headerShown: false,
   animation: 'slide_from_right' as const,
   headerShadowVisible: false,
-  headerStyle: { backgroundColor: '#111620' },
-  headerTintColor: '#F0F4FF',
+  headerStyle: { backgroundColor: brandColors.surface },
+  headerTintColor: brandColors.onBackground,
   headerTitleAlign: 'left' as const,
   headerTitleStyle: {
-    color: '#F0F4FF',
-    fontSize: 18,
-    fontWeight: '700' as const,
-    letterSpacing: -0.3,
+    color: brandColors.onBackground,
+    ...typography.headingLG,
+    fontSize: typography.headingMD.fontSize,
   },
-  contentStyle: { backgroundColor: '#0A0D12' },
+  contentStyle: { backgroundColor: brandColors.background },
 } as const;

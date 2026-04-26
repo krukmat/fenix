@@ -1,6 +1,8 @@
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from 'react-native-paper';
+import { elevation, radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/types';
 import { CRMDetailHeader } from './CRMDetailHeader';
 
@@ -129,23 +131,21 @@ export function CRMDetailSection({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   errorText: { fontSize: 16, textAlign: 'center' },
   row: {
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#1E2B3E',
-    elevation: 0,
+    padding: spacing.base,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.md,
+    borderRadius: radius.md,
+    ...elevation.card,
   },
   rowTitle: { fontSize: 16, fontWeight: '700', marginBottom: 3 },
   rowSub: { fontSize: 14 },
-  rowMeta: { fontSize: 12, marginTop: 4 },
-  section: { paddingHorizontal: 16, paddingBottom: 16 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 10 },
-  emptyCard: { padding: 14, borderRadius: 8 },
-  primaryAction: { minHeight: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginHorizontal: 16, marginBottom: 16 },
+  rowMeta: { ...typography.monoSM, marginTop: spacing.xs },
+  section: { paddingHorizontal: spacing.base, paddingBottom: spacing.base },
+  sectionTitle: { ...typography.headingMD, marginBottom: spacing.sm },
+  emptyCard: { padding: spacing.md, borderRadius: radius.sm },
+  primaryAction: { minHeight: 44, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', marginHorizontal: spacing.base, marginBottom: spacing.base },
   primaryActionText: { fontSize: 15, fontWeight: '700' },
 });

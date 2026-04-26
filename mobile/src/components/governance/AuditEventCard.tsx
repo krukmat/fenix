@@ -2,7 +2,9 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 import type { AuditEvent, AuditOutcome } from '../../services/api.types';
+import { brandColors } from '../../theme/colors';
 import { getAgentStatusColor } from '../../theme/semantic';
+import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 
 interface AuditEventCardProps {
@@ -111,34 +113,32 @@ export function AuditEventCard({
 
 const styles = StyleSheet.create({
   card: {
-    marginBottom: 8,
-    marginHorizontal: 16,
+    marginBottom: spacing.sm,
+    marginHorizontal: spacing.base,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: spacing.md,
   },
   headerText: {
     flex: 1,
   },
   outcomeBadge: {
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   outcomeText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '700',
+    color: brandColors.onError,
+    ...typography.eyebrow,
     textTransform: 'uppercase',
   },
   expandedContent: {
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   detailsText: {
-    marginTop: 8,
-    fontFamily: 'monospace',
+    marginTop: spacing.sm,
   },
 });

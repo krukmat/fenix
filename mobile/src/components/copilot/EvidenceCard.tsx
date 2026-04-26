@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { TouchableOpacity, View, StyleSheet } from 'react-native';
-import { Card, Text } from 'react-native-paper';
+import { Card, Text, useTheme } from 'react-native-paper';
 import type { EvidenceSource } from '../../services/sse';
+import { brandColors } from '../../theme/colors';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 
 interface EvidenceCardProps {
   source: EvidenceSource;
@@ -16,6 +19,7 @@ function truncate(value: string, len = 80): string {
 
 export function EvidenceCard({ source, index, testIDPrefix = 'evidence' }: EvidenceCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const { colors } = useTheme();
 
   const collapsedTitle = useMemo(() => {
     const base = source.title?.trim() || source.snippet;
@@ -33,15 +37,15 @@ export function EvidenceCard({ source, index, testIDPrefix = 'evidence' }: Evide
       <TouchableOpacity testID={`${testIDPrefix}-card`} onPress={() => setExpanded((v) => !v)}>
         <Card.Content>
           <View style={styles.header}>
-            <Text variant="titleSmall">{collapsedTitle}</Text>
+            <Text variant="titleSmall" style={{ color: colors.onSurface }}>{collapsedTitle}</Text>
             <View testID={`${testIDPrefix}-score`} style={styles.scoreBadge}>
               <Text style={styles.scoreBadgeText}>{source.score.toFixed(2)}</Text>
             </View>
           </View>
-          <Text variant="bodySmall" testID={`${testIDPrefix}-snippet`}>
+          <Text variant="bodySmall" style={{ color: colors.onSurfaceVariant }} testID={`${testIDPrefix}-snippet`}>
             {expanded ? source.snippet : truncate(source.snippet)}
           </Text>
-          <Text variant="labelSmall">{timestamp}</Text>
+          <Text variant="labelSmall" style={[typography.monoSM, { color: colors.onSurfaceVariant }]}>{timestamp}</Text>
         </Card.Content>
       </TouchableOpacity>
     </Card>
@@ -49,20 +53,19 @@ export function EvidenceCard({ source, index, testIDPrefix = 'evidence' }: Evide
 }
 
 const styles = StyleSheet.create({
-  card: { marginBottom: 8 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  card: { marginBottom: spacing.sm },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
   scoreBadge: {
     minWidth: 56,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#DBEAFE',
+    backgroundColor: brandColors.primaryContainer,
   },
   scoreBadgeText: {
-    color: '#1E3A8A',
-    fontSize: 12,
-    fontWeight: '700',
+    color: brandColors.onPrimaryContainer,
+    ...typography.labelMD,
   },
 });

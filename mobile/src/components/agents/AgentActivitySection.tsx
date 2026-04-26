@@ -3,6 +3,9 @@ import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useAgentRunsByEntity } from '../../hooks/useAgentSpec';
+import { brandColors } from '../../theme/colors';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 import { formatLatency, getStatusColor, getStatusLabel } from '../../screens/agents/agentDetail.helpers';
 import { wedgeHref } from '../../utils/navigation';
 
@@ -65,11 +68,11 @@ export function AgentActivitySection({ entityType, entityId, testIDPrefix = 'age
 }
 
 const styles = StyleSheet.create({
-  section: { padding: 16 },
-  title: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
-  card: { padding: 12, borderRadius: 8, marginBottom: 10 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  name: { fontSize: 14, fontWeight: '600', flex: 1, marginRight: 8 },
-  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  badgeText: { color: '#FFF', fontSize: 11, fontWeight: '600' },
+  section: { padding: spacing.base },
+  title: { ...typography.headingMD, marginBottom: spacing.md },
+  card: { padding: spacing.md, borderRadius: radius.md, marginBottom: radius.md },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  name: { fontSize: 14, fontWeight: '600', flex: 1, marginRight: spacing.sm },
+  badge: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.full },
+  badgeText: { color: brandColors.onError, ...typography.labelMD },
 });

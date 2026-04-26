@@ -6,9 +6,10 @@ import { config } from '../config';
 const GO_TIMEOUT_MS = 120000;
 const GO_HEALTH_TIMEOUT_MS = 2000;
 
-export function createGoClient(token?: string): AxiosInstance {
+export function createGoClient(token?: string, extraHeaders: Record<string, string> = {}): AxiosInstance {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...extraHeaders,
   };
   if (token) {
     headers['Authorization'] = token;

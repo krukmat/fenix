@@ -11,7 +11,8 @@
     "test": "jest --forceExit",
     "test:bdd": "jest --runInBand --testPathPattern=tests/bdd",
     "test:coverage": "jest --coverage --forceExit",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "http-snapshots": "ts-node scripts/http-snapshots.ts"
   },
   "dependencies": {
     "axios": "^1.7.9",

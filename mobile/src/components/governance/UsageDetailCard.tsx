@@ -5,8 +5,9 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 import type { UsageEvent } from '../../services/api.types';
+import { brandColors, semanticColors } from '../../theme/colors';
+import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
-import { semanticColors } from '../../theme/colors';
 
 interface UsageDetailCardProps {
   event: UsageEvent;
@@ -40,10 +41,10 @@ export function UsageDetailCard({ event, testIDPrefix = 'udc', onPress }: UsageD
       <Card.Content>
         {/* Row 1: actor type badge + tool name */}
         <View style={styles.headerRow}>
-          <View style={[styles.badge, { backgroundColor: ((colors as unknown) as Record<string, string>).primaryContainer ?? '#E8DEF8' }]}>
+          <View style={[styles.badge, { backgroundColor: brandColors.primaryContainer }]}>
             <Text
               testID={`${testIDPrefix}-actor-type`}
-              style={[styles.badgeText, { color: ((colors as unknown) as Record<string, string>).onPrimaryContainer ?? '#21005D' }]}
+              style={[styles.badgeText, { color: brandColors.onPrimaryContainer }]}
             >
               {event.actorType ?? '—'}
             </Text>
@@ -97,25 +98,23 @@ export function UsageDetailCard({ event, testIDPrefix = 'udc', onPress }: UsageD
 
 const styles = StyleSheet.create({
   card: {
-    marginBottom: 8,
-    marginHorizontal: 16,
+    marginBottom: spacing.sm,
+    marginHorizontal: spacing.base,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-    gap: 8,
+    marginBottom: spacing.xs,
+    gap: spacing.sm,
   },
   badge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: radius.xs,
   },
   badgeText: {
-    fontSize: 11,
-    fontWeight: '700',
+    ...typography.eyebrow,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
   },
   toolName: {
     flex: 1,
@@ -124,6 +123,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
-    gap: 4,
+    gap: spacing.xs,
   },
 });

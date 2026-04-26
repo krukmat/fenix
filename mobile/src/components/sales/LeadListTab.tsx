@@ -2,6 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useLeads } from '../../hooks/useCRM';
+import { brandColors } from '../../theme/colors';
+import { elevation, radius, spacing } from '../../theme/spacing';
+import { getAgentStatusColor } from '../../theme/semantic';
+import { typography } from '../../theme/typography';
 import { wedgeHref } from '../../utils/navigation';
 import type { ThemeColors } from '../../theme/types';
 
@@ -14,7 +18,7 @@ interface LeadItem {
 }
 
 function getLeadStatusColor(status: string): string {
-  return status === 'qualified' ? '#10B981' : '#3B82F6';
+  return status === 'qualified' ? getAgentStatusColor('success') : getAgentStatusColor('open');
 }
 
 function parseLeadHeadline(item: LeadItem): { title: string; subtitle?: string } {
@@ -106,12 +110,12 @@ export function LeadListTab({ colors, router }: { colors: ThemeColors; router: R
 }
 
 const styles = StyleSheet.create({
-  listContent: { padding: 16 },
-  row: { padding: 16, borderRadius: 8, marginBottom: 12, elevation: 1 },
+  listContent: { padding: spacing.base },
+  row: { padding: spacing.base, borderRadius: radius.md, marginBottom: spacing.md, ...elevation.card },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
   title: { fontSize: 16, fontWeight: '600', marginBottom: 2, flex: 1 },
   sub: { fontSize: 14, marginTop: 2 },
-  statusChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
-  statusText: { color: '#FFF', fontSize: 12, fontWeight: '500' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  statusChip: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.full },
+  statusText: { color: brandColors.onError, ...typography.labelMD },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
 });

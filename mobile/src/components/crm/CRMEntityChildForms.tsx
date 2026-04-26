@@ -4,6 +4,9 @@ import { CRMDetailSection } from './CoreCRMReadOnly';
 import { Field, SubmitButton, baseFormStyles, useCRMColors } from './CRMFormBase';
 import { useCreateActivity, useCreateAttachment, useCreateNote } from '../../hooks/useCRM';
 import { useAuthStore } from '../../stores/authStore';
+import { brandColors } from '../../theme/colors';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 
 type EntityChildFormsProps = {
   entityType: string;
@@ -83,8 +86,8 @@ function ActivityForm({ entityType, entityId, userId }: EntityChildFormsProps & 
   };
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Activity</Text>
+    <View style={[styles.card, { backgroundColor: colors.surface }]}>
+      <Text style={[styles.cardTitle, { color: colors.onSurface }]}>Activity</Text>
       <Field label="Type" value={values.activityType} onChangeText={(value) => setField('activityType', value)} testID="crm-entity-child-activity-type" />
       <Field label="Subject" value={values.subject} onChangeText={(value) => setField('subject', value)} testID="crm-entity-child-activity-subject" />
       <Field label="Body" value={values.body} onChangeText={(value) => setField('body', value)} testID="crm-entity-child-activity-body" multiline />
@@ -123,12 +126,18 @@ function NoteForm({ entityType, entityId, userId }: EntityChildFormsProps & { us
   };
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Note</Text>
+    <View style={[styles.card, { backgroundColor: colors.surface }]}>
+      <Text style={[styles.cardTitle, { color: colors.onSurface }]}>Note</Text>
       <Field label="Content" value={content} onChangeText={(value) => { setError(null); setContent(value); }} testID="crm-entity-child-note-content" multiline />
       <TouchableOpacity
         testID="crm-entity-child-note-internal"
-        style={[styles.toggle, { borderColor: isInternal ? colors.primary : colors.outline }]}
+        style={[
+          styles.toggle,
+          {
+            backgroundColor: colors.surfaceVariant,
+            borderColor: isInternal ? colors.primary : colors.outline,
+          },
+        ]}
         onPress={() => setIsInternal((current) => !current)}
       >
         <Text style={[styles.toggleText, { color: colors.onSurface }]}>{isInternal ? 'Internal' : 'Public'}</Text>
@@ -177,8 +186,8 @@ function AttachmentForm({ entityType, entityId, userId }: EntityChildFormsProps 
   };
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Attachment Metadata</Text>
+    <View style={[styles.card, { backgroundColor: colors.surface }]}>
+      <Text style={[styles.cardTitle, { color: colors.onSurface }]}>Attachment Metadata</Text>
       <Field label="Filename" value={values.filename} onChangeText={(value) => setField('filename', value)} testID="crm-entity-child-attachment-filename" />
       <Field label="Storage Path" value={values.storagePath} onChangeText={(value) => setField('storagePath', value)} testID="crm-entity-child-attachment-storage-path" />
       <Field label="Content Type" value={values.contentType} onChangeText={(value) => setField('contentType', value)} testID="crm-entity-child-attachment-content-type" />
@@ -203,9 +212,9 @@ export function CRMEntityChildForms({ entityType, entityId }: EntityChildFormsPr
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 12 },
-  card: { padding: 14, borderRadius: 8, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#D0D5DD' },
-  cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 12 },
-  toggle: { borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 12 },
+  container: { gap: spacing.md },
+  card: { padding: spacing.base, borderRadius: radius.md, borderWidth: 1, borderColor: brandColors.outlineVariant },
+  cardTitle: { ...typography.headingMD, marginBottom: spacing.md },
+  toggle: { borderWidth: 1, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.md },
   toggleText: { fontSize: 15, fontWeight: '600' },
 });

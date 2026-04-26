@@ -29,6 +29,12 @@ export function getConfidenceColor(confidence: number): string {
   return semanticColors.confidenceLow;
 }
 
+export function getConfidenceLabel(confidence: number): 'High' | 'Medium' | 'Low' {
+  if (confidence >= 0.8) return 'High';
+  if (confidence >= 0.5) return 'Medium';
+  return 'Low';
+}
+
 export function confidenceGlowStyle(confidence: number): object {
   if (confidence >= 0.8) return {
     borderWidth: 1, borderColor: 'rgba(16,185,129,0.6)',

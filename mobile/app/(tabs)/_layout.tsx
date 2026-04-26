@@ -8,6 +8,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useInbox } from '../../src/hooks/useWedge';
+import { brandColors } from '../../src/theme/colors';
+import { elevation, radius, spacing } from '../../src/theme/spacing';
+import { typography } from '../../src/theme/typography';
 
 // ─── Inbox badge ──────────────────────────────────────────────────────────────
 
@@ -31,47 +34,41 @@ const WEDGE_TAB_SCREENS: { name: string; title: string; icon: TabIconName; testI
 const TAB_SCREEN_OPTIONS = {
   headerShown: true,
   headerShadowVisible: false,
-  headerStyle: { backgroundColor: '#111620' },
-  headerTintColor: '#F0F4FF',
+  headerStyle: { backgroundColor: brandColors.surface },
+  headerTintColor: brandColors.onBackground,
   headerTitleAlign: 'left' as const,
   headerTitleStyle: {
-    color: '#F0F4FF',
-    fontSize: 18,
-    fontWeight: '700' as const,
-    letterSpacing: -0.3,
+    color: brandColors.onBackground,
+    ...typography.headingLG,
+    fontSize: typography.headingMD.fontSize,
   },
-  tabBarActiveTintColor: '#3B82F6',
-  tabBarInactiveTintColor: '#8899AA',
+  tabBarActiveTintColor: brandColors.primary,
+  tabBarInactiveTintColor: brandColors.onSurfaceVariant,
   tabBarShowLabel: true,
   tabBarHideOnKeyboard: true,
   tabBarStyle: {
-    backgroundColor: '#111620',
-    borderTopColor: '#1E2B3E',
+    backgroundColor: brandColors.surface,
+    borderTopColor: brandColors.outlineVariant,
     borderTopWidth: 1,
     height: 68,
     paddingTop: 6,
-    paddingBottom: 8,
-    shadowColor: '#000000',
-    shadowOpacity: 0.4,
-    shadowOffset: { width: 0, height: -2 },
-    shadowRadius: 12,
-    elevation: 12,
+    paddingBottom: spacing.sm,
+    ...elevation.tabBar,
   },
   tabBarLabelStyle: {
-    fontSize: 11,
-    fontWeight: '600' as const,
+    ...typography.labelMD,
     marginTop: 2,
     letterSpacing: 0.2,
   },
   tabBarItemStyle: { paddingVertical: 2 },
   tabBarBadgeStyle: {
-    backgroundColor: '#EF4444',
-    color: '#FFFFFF',
+    backgroundColor: brandColors.error,
+    color: brandColors.onError,
     fontSize: 10,
     fontWeight: '700' as const,
     minWidth: 18,
     height: 18,
-    borderRadius: 9,
+    borderRadius: radius.full,
   },
 };
 

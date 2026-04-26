@@ -4,6 +4,10 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SignalCountBadge } from '../signals/SignalCountBadge';
+import { brandColors } from '../../theme/colors';
+import { elevation, radius, spacing } from '../../theme/spacing';
+import { getAgentStatusColor } from '../../theme/semantic';
+import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/types';
 
 export interface DealData {
@@ -20,9 +24,7 @@ export interface DealData {
 }
 
 function getStatusColor(status: string, colors: ThemeColors): string {
-  if (status === 'won') return '#10B981';
-  if (status === 'lost') return '#EF4444';
-  return colors.primary;
+  return status === 'open' ? colors.primary : getAgentStatusColor(status);
 }
 
 export function renderDealItem(
@@ -44,7 +46,7 @@ export function renderDealItem(
           style={[styles.statusChip, { backgroundColor: getStatusColor(item.status, colors) }]}
           testID={`deal-status-${item.status}`}
         >
-          <Text style={[styles.statusChipText, { color: '#FFFFFF' }]}>{item.status}</Text>
+          <Text style={[styles.statusChipText, { color: brandColors.onError }]}>{item.status}</Text>
         </View>
       </View>
       {item.accountName && (
@@ -66,16 +68,16 @@ export function renderDealItem(
 
 const styles = StyleSheet.create({
   dealItem: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 8,
-    elevation: 2,
+    padding: spacing.base,
+    marginBottom: spacing.md,
+    borderRadius: radius.md,
+    ...elevation.card,
   },
   dealHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   dealName: {
     fontSize: 16,
@@ -83,12 +85,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statusChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
   },
   statusChipText: {
-    fontSize: 12,
+    ...typography.labelMD,
     fontWeight: '500',
   },
   dealAccount: {
@@ -97,10 +99,10 @@ const styles = StyleSheet.create({
   dealValue: {
     fontSize: 14,
     fontWeight: '500',
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   badgeRow: {
     alignItems: 'flex-start',
-    marginTop: 8,
+    marginTop: spacing.sm,
   },
 });

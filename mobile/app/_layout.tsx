@@ -12,6 +12,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Sentry from '@sentry/react-native';
 
 import { fenixTheme } from '../src/theme';
+import { brandColors } from '../src/theme/colors';
 import { useAuthStore } from '../src/stores/authStore';
 
 const isE2E = process.env.EXPO_PUBLIC_E2E_MODE === '1';
@@ -70,8 +71,8 @@ function RootLayout() {
 
   if (!isReady || isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0D12' }}>
-        <ActivityIndicator size="large" color="#FFFFFF" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: brandColors.background }}>
+        <ActivityIndicator size="large" color={brandColors.onBackground} />
       </View>
     );
   }

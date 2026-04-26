@@ -9,6 +9,9 @@ import { useCases } from '../../../src/hooks/useCRM';
 import { wedgeHref } from '../../../src/utils/navigation';
 import { useInbox } from '../../../src/hooks/useWedge';
 import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
+import { brandColors, semanticColors } from '../../../src/theme/colors';
+import { elevation, radius, spacing } from '../../../src/theme/spacing';
+import { typography } from '../../../src/theme/typography';
 import type { ThemeColors } from '../../../src/theme/types';
 
 interface CaseData {
@@ -26,9 +29,9 @@ function useColors(): ThemeColors {
 }
 
 function getPriorityColor(priority: string): string {
-  if (priority === 'high') return '#EF4444';
-  if (priority === 'medium') return '#F59E0B';
-  return '#10B981';
+  if (priority === 'high') return brandColors.error;
+  if (priority === 'medium') return semanticColors.warning;
+  return semanticColors.success;
 }
 
 function InboxBadge({ router, colors }: { router: ReturnType<typeof useRouter>; colors: ThemeColors }) {
@@ -137,14 +140,14 @@ export default function SupportScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  caseItem: { padding: 16, marginHorizontal: 16, marginBottom: 12, borderRadius: 8, elevation: 2 },
-  caseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  caseItem: { padding: spacing.base, marginHorizontal: spacing.base, marginBottom: spacing.md, borderRadius: radius.md, ...elevation.card },
+  caseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
   caseSubject: { fontSize: 16, fontWeight: '600', flex: 1 },
-  priorityBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  priorityText: { color: '#FFFFFF', fontSize: 12, fontWeight: '500' },
+  priorityBadge: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.full },
+  priorityText: { color: brandColors.onError, ...typography.labelMD },
   caseAccount: { fontSize: 14 },
-  caseStatus: { fontSize: 12, marginTop: 4 },
-  badgeRow: { alignItems: 'flex-start', marginTop: 8 },
-  inboxBadge: { margin: 12, padding: 10, borderRadius: 8, alignItems: 'center' },
+  caseStatus: { fontSize: 12, marginTop: spacing.xs },
+  badgeRow: { alignItems: 'flex-start', marginTop: spacing.sm },
+  inboxBadge: { margin: spacing.md, padding: radius.md, borderRadius: radius.sm, alignItems: 'center' },
   inboxBadgeText: { fontWeight: '700', fontSize: 13 },
 });

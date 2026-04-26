@@ -10,6 +10,9 @@ import { useCase } from '../../../src/hooks/useCRM';
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import { useTriggerSupportAgent, useTriggerKBAgent, useAgentRuns } from '../../../src/hooks/useWedge';
 import { wedgeHref, wedgeHrefObject } from '../../../src/utils/navigation';
+import { brandColors, semanticColors } from '../../../src/theme/colors';
+import { radius, spacing } from '../../../src/theme/spacing';
+import { typography } from '../../../src/theme/typography';
 import type { ThemeColors } from '../../../src/theme/types';
 import type { AgentRun } from '../../../src/services/api';
 
@@ -37,9 +40,9 @@ function useColors(): ThemeColors {
 }
 
 function getPriorityColor(priority: string): string {
-  if (priority === 'high') return '#EF4444';
-  if (priority === 'medium') return '#F59E0B';
-  return '#10B981';
+  if (priority === 'high') return brandColors.error;
+  if (priority === 'medium') return semanticColors.warning;
+  return semanticColors.success;
 }
 
 function getMetadata(c: CaseDetailData) {
@@ -306,20 +309,20 @@ export default function SupportCaseDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  priorityBanner: { padding: 8, alignItems: 'center' },
-  priorityText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
-  section: { padding: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
+  priorityBanner: { padding: spacing.sm, alignItems: 'center' },
+  priorityText: { color: brandColors.onError, fontWeight: '600', fontSize: 14 },
+  section: { padding: spacing.base },
+  sectionTitle: { ...typography.headingMD, marginBottom: spacing.md },
   sectionTitleNoMargin: { marginBottom: 0 },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   signalSummaryChip: {
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   signalSummaryText: {
     fontSize: 12,
     fontWeight: '700',
   },
-  card: { padding: 16, borderRadius: 8 },
+  card: { padding: spacing.base, borderRadius: radius.md },
 });

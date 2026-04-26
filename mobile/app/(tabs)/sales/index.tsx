@@ -17,6 +17,8 @@ import { SignalCountBadge } from '../../../src/components/signals/SignalCountBad
 import { LeadListTab } from '../../../src/components/sales/LeadListTab';
 import { ContactsListContent } from '../../../src/components/contacts/ContactsListContent';
 import type { ThemeColors } from '../../../src/theme/types';
+import { brandColors } from '../../../src/theme/colors';
+import { elevation, radius, spacing } from '../../../src/theme/spacing';
 import { getAgentStatusColor } from '../../../src/theme/semantic';
 import { typography } from '../../../src/theme/typography';
 
@@ -54,7 +56,7 @@ function TabBar({ active, onSelect, colors }: { active: Tab; onSelect: (t: Tab) 
     <View style={[styles.tabBar, { backgroundColor: colors.surface }]}>
       <TouchableOpacity
         testID="sales-tab-accounts"
-        style={[styles.tab, active === 'accounts' && { borderBottomColor: '#3B82F6', borderBottomWidth: 2 }]}
+        style={[styles.tab, active === 'accounts' && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
         onPress={() => onSelect('accounts')}
       >
         <Text style={[styles.tabText, { color: active === 'accounts' ? colors.primary : colors.onSurfaceVariant }]}>
@@ -63,7 +65,7 @@ function TabBar({ active, onSelect, colors }: { active: Tab; onSelect: (t: Tab) 
       </TouchableOpacity>
       <TouchableOpacity
         testID="sales-tab-deals"
-        style={[styles.tab, active === 'deals' && { borderBottomColor: '#3B82F6', borderBottomWidth: 2 }]}
+        style={[styles.tab, active === 'deals' && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
         onPress={() => onSelect('deals')}
       >
         <Text style={[styles.tabText, { color: active === 'deals' ? colors.primary : colors.onSurfaceVariant }]}>
@@ -72,7 +74,7 @@ function TabBar({ active, onSelect, colors }: { active: Tab; onSelect: (t: Tab) 
       </TouchableOpacity>
       <TouchableOpacity
         testID="sales-tab-leads"
-        style={[styles.tab, active === 'leads' && { borderBottomColor: '#3B82F6', borderBottomWidth: 2 }]}
+        style={[styles.tab, active === 'leads' && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
         onPress={() => onSelect('leads')}
       >
         <Text style={[styles.tabText, { color: active === 'leads' ? colors.primary : colors.onSurfaceVariant }]}>
@@ -81,7 +83,7 @@ function TabBar({ active, onSelect, colors }: { active: Tab; onSelect: (t: Tab) 
       </TouchableOpacity>
       <TouchableOpacity
         testID="sales-tab-contacts"
-        style={[styles.tab, active === 'contacts' && { borderBottomColor: '#3B82F6', borderBottomWidth: 2 }]}
+        style={[styles.tab, active === 'contacts' && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
         onPress={() => onSelect('contacts')}
       >
         <Text style={[styles.tabText, { color: active === 'contacts' ? colors.primary : colors.onSurfaceVariant }]}>
@@ -247,15 +249,15 @@ export default function SalesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  tabBar: { flexDirection: 'row', elevation: 2 },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  tabBar: { flexDirection: 'row', ...elevation.card },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
   tabText: { fontSize: 14, fontWeight: '600' },
-  listContent: { padding: 16 },
-  row: { padding: 16, borderRadius: 8, marginBottom: 12, elevation: 1 },
+  listContent: { padding: spacing.base },
+  row: { padding: spacing.base, borderRadius: radius.md, marginBottom: spacing.md, ...elevation.card },
   rowTitle: { fontSize: 16, fontWeight: '600', marginBottom: 2 },
   rowSub: { fontSize: 14, marginTop: 2 },
   dealHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
-  statusChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
-  statusChipText: { color: '#FFF', fontSize: 12, fontWeight: '500' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  statusChip: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.full },
+  statusChipText: { color: brandColors.onError, ...typography.labelMD },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
 });

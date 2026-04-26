@@ -1,6 +1,9 @@
 // Task 4.5 — FR-230: Agent Run Detail Screen styles
 
 import { StyleSheet } from 'react-native';
+import { brandColors } from '../../theme/colors';
+import { elevation, radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 
 const SPACE_BETWEEN = 'space-between' as const;
 
@@ -8,30 +11,28 @@ export const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { justifyContent: 'center', alignItems: 'center', flex: 1 },
   summaryCard: {
-    margin: 16,
-    padding: 16,
-    borderRadius: 8,
-    elevation: 2,
+    margin: spacing.base,
+    padding: spacing.base,
+    borderRadius: radius.md,
+    ...elevation.card,
   },
   summaryHeader: {
     flexDirection: 'row',
     justifyContent: SPACE_BETWEEN,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   agentName: {
-    fontSize: 20,
-    fontWeight: '600',
+    ...typography.headingMD,
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
   },
   statusBadgeText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '600',
+    color: brandColors.onError,
+    ...typography.labelMD,
   },
   summaryMetrics: {
     flexDirection: 'row',
@@ -40,70 +41,66 @@ export const styles = StyleSheet.create({
   summaryMetric: {
     fontSize: 12,
   },
-  section: { padding: 16 },
+  section: { padding: spacing.base },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    ...typography.eyebrow,
+    marginBottom: spacing.md,
   },
   codeBlock: {
-    padding: 12,
-    borderRadius: 6,
-    fontFamily: 'monospace',
+    padding: spacing.md,
+    borderRadius: radius.xs,
   },
   evidenceCard: {
-    padding: 12,
-    borderRadius: 6,
-    marginBottom: 8,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
   },
   evidenceHeader: {
     flexDirection: 'row',
     justifyContent: SPACE_BETWEEN,
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   scoreBadge: {
-    paddingHorizontal: 6,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: radius.full,
   },
   scoreBadgeText: {
-    color: '#FFF',
+    color: brandColors.onError,
     fontSize: 10,
     fontWeight: '600',
   },
   reasoningStep: {
-    padding: 12,
-    borderRadius: 6,
-    marginBottom: 8,
+    padding: spacing.md,
+    borderRadius: radius.sm,
+    marginBottom: spacing.sm,
     borderLeftWidth: 3,
-    borderLeftColor: '#2196F3',
+    borderLeftColor: brandColors.primary,
   },
   toolCallCard: {
-    padding: 12,
-    borderRadius: 6,
-    marginBottom: 8,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
   },
   toolName: {
     fontSize: 14,
     fontWeight: '600',
   },
   outputBlock: {
-    padding: 16,
-    borderRadius: 6,
+    padding: spacing.base,
+    borderRadius: radius.md,
   },
   auditEvent: {
-    padding: 12,
-    borderRadius: 6,
-    marginBottom: 8,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
   },
   auditHeader: {
     flexDirection: 'row',
     justifyContent: SPACE_BETWEEN,
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   auditFooter: {
     flexDirection: 'row',
@@ -111,22 +108,22 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   outcomeBadge: {
-    paddingHorizontal: 6,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: radius.full,
   },
   outcomeBadgeText: {
-    color: '#FFF',
+    color: brandColors.onError,
     fontSize: 10,
     fontWeight: '600',
   },
   backButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xl,
+    borderRadius: radius.sm,
   },
   backButtonText: {
-    color: '#FFF',
+    color: brandColors.onError,
     fontSize: 14,
     fontWeight: '600',
   },

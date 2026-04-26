@@ -2,9 +2,11 @@
 
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Banner, Text, ActivityIndicator } from 'react-native-paper';
+import { Banner, Text, ActivityIndicator, useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useHandoffPackage } from '../../hooks/useAgentSpec';
+import { spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 import { resolveWedgeHandoffPackageDestination, wedgeHref } from '../../utils/navigation';
 
 interface HandoffBannerProps {
@@ -15,6 +17,7 @@ interface HandoffBannerProps {
 
 export function HandoffBanner({ runId, caseId, testIDPrefix = 'handoff-banner' }: HandoffBannerProps) {
   const router = useRouter();
+  const { colors } = useTheme();
   const { data: handoff, isLoading } = useHandoffPackage(runId, caseId, true);
 
   if (isLoading) {
@@ -49,11 +52,11 @@ export function HandoffBanner({ runId, caseId, testIDPrefix = 'handoff-banner' }
           {handoff.reason}
         </Text>
         {handoff.conversation_context ? (
-          <Text style={styles.context} testID={`${testIDPrefix}-context`} numberOfLines={2}>
+          <Text style={[styles.context, { color: colors.onSurfaceVariant }]} testID={`${testIDPrefix}-context`} numberOfLines={2}>
             {handoff.conversation_context}
           </Text>
         ) : null}
-        <Text style={styles.evidence} testID={`${testIDPrefix}-evidence-count`}>
+        <Text style={[styles.evidence, { color: colors.onSurfaceVariant }]} testID={`${testIDPrefix}-evidence-count`}>
           {handoff.evidence_count} evidence item{handoff.evidence_count !== 1 ? 's' : ''} preserved
         </Text>
       </View>
@@ -62,8 +65,8 @@ export function HandoffBanner({ runId, caseId, testIDPrefix = 'handoff-banner' }
 }
 
 const styles = StyleSheet.create({
-  loading: { padding: 12, alignItems: 'center' },
-  title: { fontWeight: '600', fontSize: 14, marginBottom: 4 },
-  context: { fontSize: 12, color: '#555', marginBottom: 4 },
-  evidence: { fontSize: 11, color: '#888' },
+  loading: { padding: spacing.md, alignItems: 'center' },
+  title: { fontWeight: '600', fontSize: 14, marginBottom: spacing.xs },
+  context: { ...typography.monoSM, marginBottom: spacing.xs },
+  evidence: typography.labelMD,
 });

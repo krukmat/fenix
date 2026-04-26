@@ -14,9 +14,14 @@ const SSE_HEADERS = {
   'Connection': 'keep-alive',
   'X-Accel-Buffering': 'no',
 };
+const FIXTURE_TIMESTAMP = '<timestamp>';
 
 // POST /bff/copilot/chat → SSE relay to Go POST /api/v1/copilot/chat
 router.post('/chat', async (req: BffRequest, res: Response, next: NextFunction): Promise<void> => {
+  if (screenshotMode) {
+    writeFixtureSSE(res);
+    return;
+  }
   try {
     const stream = await openCopilotStream(req.body, req.bearerToken);
     pipeSSE(req, res, stream, next);
@@ -27,6 +32,10 @@ router.post('/chat', async (req: BffRequest, res: Response, next: NextFunction):
 
 // GET /bff/copilot/events → browser EventSource-compatible SSE wrapper.
 router.get('/events', async (req: BffRequest, res: Response): Promise<void> => {
+  if (screenshotMode) {
+    writeFixtureSSE(res);
+    return;
+  }
   try {
     const stream = await openCopilotStream(eventSourcePayload(req), req.bearerToken);
     pipeSSE(req, res, stream);
@@ -85,6 +94,31 @@ function writeTerminalSSEError(res: Response, err: unknown): void {
   const message = err instanceof Error ? err.message : 'SSE upstream unavailable';
   res.write('retry: 0\n');
   res.write(`event: error\ndata: ${JSON.stringify({ code: 'sse_upstream_error', message })}\n\n`);
+  res.end();
+}
+
+function writeFixtureSSE(res: Response): void {
+  setSSEHeaders(res);
+  res.write(`data: ${JSON.stringify({
+    type: 'evidence',
+    sources: [{
+      ID: 'fixture-source-001',
+      Method: 'fixture',
+      Score: 1,
+      Snippet: 'Snapshot fixture evidence for deterministic copilot capture.',
+      PiiRedacted: false,
+      Metadata: null,
+      CreatedAt: FIXTURE_TIMESTAMP,
+    }],
+    meta: {
+      schema_version: 'v1',
+      source_count: 1,
+      retrieval_methods_used: ['fixture'],
+      built_at: FIXTURE_TIMESTAMP,
+    },
+  })}\n\n`);
+  res.write(`data: ${JSON.stringify({ type: 'token', delta: 'Snapshot fixture response.' })}\n\n`);
+  res.write(`data: ${JSON.stringify({ type: 'done', done: true, meta: { answer_type: 'grounded_answer', at: FIXTURE_TIMESTAMP } })}\n\n`);
   res.end();
 }
 

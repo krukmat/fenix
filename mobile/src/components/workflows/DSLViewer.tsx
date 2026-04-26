@@ -2,6 +2,8 @@
 import React from 'react';
 import { ScrollView, Text, StyleSheet, View } from 'react-native';
 import { useTheme } from 'react-native-paper';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 
 interface DSLViewerProps {
   dsl: string;
@@ -13,7 +15,7 @@ export function DSLViewer({ dsl, testIDPrefix = 'dsl-viewer' }: DSLViewerProps) 
 
   return (
     <View
-      style={[styles.container, { backgroundColor: theme.colors.surfaceVariant ?? '#f5f5f5' }]}
+      style={[styles.container, { backgroundColor: theme.colors.surfaceVariant }]}
       testID={`${testIDPrefix}-container`}
     >
       <ScrollView horizontal showsHorizontalScrollIndicator>
@@ -32,6 +34,6 @@ export function DSLViewer({ dsl, testIDPrefix = 'dsl-viewer' }: DSLViewerProps) 
 }
 
 const styles = StyleSheet.create({
-  container: { borderRadius: 8, padding: 12, maxHeight: 200 },
-  code: { fontFamily: 'monospace', fontSize: 12, lineHeight: 18 },
+  container: { borderRadius: radius.sm, padding: spacing.md, maxHeight: 200 },
+  code: { ...typography.mono, lineHeight: 18 },
 });

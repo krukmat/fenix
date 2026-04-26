@@ -1,18 +1,30 @@
 // Task Mobile P1.7 — FR-200/UC-A5: signal-aware context banner
+// Task T8.2 - Copilot panel migrated to dark operational surface tokens
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { IconButton, Text, TextInput, Banner } from 'react-native-paper';
 import { useSSE, type CopilotMessage, type SendContext } from '../../hooks/useSSE';
+import { brandColors } from '../../theme/colors';
+import { radius, spacing } from '../../theme/spacing';
 import { toolApi } from '../../services/api';
 import { ActionButton, type SuggestedAction } from './ActionButton';
 import { EvidenceCard } from './EvidenceCard';
 
-function MessageBubble({ item }: { item: CopilotMessage }) {
+interface MessageBubbleProps {
+  item: CopilotMessage;
+}
+
+function MessageBubble({ item }: MessageBubbleProps) {
   const isUser = item.role === 'user';
+  // Use dark operational surfaces: user messages on surface, assistant on surfaceVariant
+  // This aligns with Command Center design while keeping bubbles distinguishable
+  const bubbleBg = isUser ? brandColors.surfaceVariant : brandColors.surface;
+  const bubbleColor = isUser ? brandColors.onSurface : brandColors.onSurface;
+
   return (
     <View style={[styles.messageRow, isUser ? styles.userRow : styles.assistantRow]}>
-      <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-        <Text>{item.content || (item.isStreaming ? '…' : '')}</Text>
+      <View style={[styles.bubble, { backgroundColor: bubbleBg }]}>
+        <Text style={{ color: bubbleColor }}>{item.content || (item.isStreaming ? '…' : '')}</Text>
       </View>
     </View>
   );
@@ -153,14 +165,12 @@ export function CopilotPanel({ initialContext }: CopilotPanelProps = {}) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  listContent: { padding: 12, gap: 8 },
+  listContent: { padding: spacing.base, gap: spacing.sm },
   messageRow: { flexDirection: 'row' },
   userRow: { justifyContent: 'flex-end' },
   assistantRow: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '85%', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
-  userBubble: { backgroundColor: '#D8E8FF' },
-  assistantBubble: { backgroundColor: '#F0F0F0' },
-  footer: { marginTop: 8, gap: 8 },
-  inputBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 8 },
+  bubble: { maxWidth: '85%', borderRadius: radius.sm, paddingHorizontal: spacing.base, paddingVertical: spacing.sm },
+  footer: { marginTop: spacing.sm, gap: spacing.sm },
+  inputBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.sm, paddingBottom: spacing.sm },
   input: { flex: 1 },
 });

@@ -3,6 +3,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { useTheme } from 'react-native-paper';
+import { semanticColors } from '../../theme/colors';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/types';
 
 export interface TimelineEvent {
@@ -30,11 +33,11 @@ function getEventColor(type: TimelineEvent['type'], colors: ThemeColors): string
     case 'note':
       return colors.primary;
     case 'activity':
-      return '#10B981'; // Green
+      return semanticColors.success;
     case 'status_change':
-      return '#F59E0B'; // Amber
+      return semanticColors.warning;
     case 'created':
-      return '#3B82F6'; // Blue
+      return colors.primary;
     case 'updated':
       return colors.onSurfaceVariant;
     default:
@@ -119,52 +122,52 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    padding: spacing.xxl,
   },
   emptyText: {
     fontSize: 14,
   },
   listContent: {
-    padding: 16,
+    padding: spacing.base,
   },
   timelineItem: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: spacing.base,
   },
   timelineIndicator: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: radius.full,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: spacing.md,
   },
   timelineIcon: {
     fontSize: 14,
   },
   timelineContent: {
     flex: 1,
-    padding: 12,
-    borderRadius: 8,
+    padding: spacing.md,
+    borderRadius: radius.md,
   },
   eventTitle: {
     fontSize: 14,
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   eventDescription: {
     fontSize: 13,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   eventMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   eventTimestamp: {
-    fontSize: 12,
+    ...typography.monoSM,
   },
   eventUser: {
-    fontSize: 12,
+    fontSize: typography.monoSM.fontSize,
   },
 });
 
