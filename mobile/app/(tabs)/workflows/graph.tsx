@@ -23,7 +23,8 @@ function makeStyles(theme: MD3Theme) {
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
     statusText: { color: theme.colors.onSurface, marginTop: 8, textAlign: 'center' },
     errorText: { color: theme.colors.error, marginTop: 8, textAlign: 'center' },
-    header: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 8 },
+    header: { padding: 12 },
+    headerContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     canvas: { flex: 1 },
   });
 }
@@ -76,9 +77,9 @@ export default function WorkflowGraphScreen(): React.ReactElement {
       )}
       {state.status === 'ready' && (
         <>
-          <ScrollView horizontal={false} style={styles.header} contentContainerStyle={styles.header}>
+          <ScrollView horizontal={false} style={styles.header} contentContainerStyle={styles.headerContent}>
             <Chip>{state.conformance.profile}</Chip>
-            {state.conformance.details.map((d) => (
+            {(state.conformance.details ?? []).map((d) => (
               <Chip key={d.code}>{d.code}</Chip>
             ))}
           </ScrollView>

@@ -389,11 +389,85 @@ Deal risk is part of the deal flow. The user can review risk signals without lea
 
 Analytical questions do not need to start from a dashboard. The Insights screen gives mobile users a direct entry point for grounded ad hoc queries.
 
+---
+
+### 14. Workflows list - declarative logic as a first-class entity
+
+![Workflows list](mobile/artifacts/screenshots/18_workflows_list.png)
+
+Workflows are not hidden code. They are named, versioned, and inspectable from the mobile app. The list shows status badges (active, draft, testing, archived) and lets operators review what automation is running.
+
+---
+
+### 15. Workflow graph - execution logic made visible
+
+![Workflow graph](mobile/artifacts/screenshots/18b_workflow_graph.png)
+
+The graph screen renders the semantic projection of a workflow's DSL and Carta source as a read-only canvas. Nodes show kind labels (WORKFLOW, TRIGGER, ACTION) and are connected by directed edges. The conformance badge (`safe`, `extended`) tells the operator whether the workflow is within the stable tooling contract. This is the mobile surface for Wave 8 of the Carta Language Server and Visual Flow plan (CLSF-84).
+
+---
+
+### 16. CRM hub - unified entity navigation
+
+![CRM hub](mobile/artifacts/screenshots/19_crm_hub.png)
+
+The CRM hub gives operators a single navigation point for all entity types: Accounts, Contacts, Leads, Deals, and Cases. This surface complements the operational inbox without replacing it — the hub is for inspection and maintenance, the inbox is for governed work.
+
+---
+
+### 17. Account detail - full context in one place
+
+![Account detail](mobile/artifacts/screenshots/21_crm_account_detail.png)
+
+The account detail screen surfaces related contacts, deals, and a timeline of activity. Operators can review full context without switching between isolated lists.
+
+---
+
+### 18. CRM mutation - create and verify in one flow
+
+![Cases list after mutation verified](mobile/artifacts/screenshots/25_crm_cases_mutation_verified.png)
+
+CRM writes go through the same governed path as AI-triggered actions. The case creation flow — form → submit → list — is verified end-to-end in the Maestro screenshot suite, confirming that the mutation persisted correctly and is immediately visible in the list.
+
+---
+
 ![The main operating surfaces in FenixCRM](docs/article-assets/diagram-10-operating-surfaces.png)
 
 Each surface above is reachable from the inbox or from the CRM hub. The inbox is the operational center for governed work. The CRM hub is the place to inspect and maintain customer records. Screenshots are generated from the mobile app with Maestro and stored in `mobile/artifacts/screenshots/`.
 
 > Full article: [When CRM Begins to Operate, Not Just Record](https://medium.com/@iotforce/when-crm-begins-to-operate-not-just-record-84248b080ee7)
+
+---
+
+## Carta Language Server and Visual Flow (CLSF)
+
+Eight waves covering the full authoring and tooling layer for Carta-backed workflows.
+
+**Waves 0–1** audited and locked the Carta parser, judge, runtime preflight order (Delegate → Grounds → DSL), and activation bridges (`BUDGET`, `INVARIANT`) with deterministic tests.
+
+**Wave 2** added a `WorkflowSemanticGraph` projection with stable node IDs, semantic diff, and a conformance evaluator that classifies every workflow as `safe`, `extended`, or `invalid`.
+
+**Wave 3** exposed three tooling endpoints: `GET /workflows/{id}/graph`, `POST /workflows/{id}/validate`, and `POST /workflows/diff`.
+
+**Wave 4** added `cmd/fenixlsp`, a stdio LSP shell with diagnostics, completion, and hover backed by the parser, judge, and conformance validator.
+
+**Wave 5** introduced `CALL` and `APPROVE` tokens, AST nodes, and parser rules. Both are classified `extended` until a runtime contract exists.
+
+**Wave 6** shipped a web builder at `/bff/builder` with a text editor and a live graph refresh loop through `POST /bff/builder/preview`.
+
+**Wave 7** added full visual authoring: users create and connect nodes on a canvas, the graph converts to canonical DSL/Carta source, and every save passes through the full lexer → parser → judge → conformance gate before persisting.
+
+**Wave 8** added a mobile read-only graph viewer that renders the backend visual projection as a `FlowCanvas` with conformance badge. Verified in the Maestro screenshot suite as `18b_workflow_graph` (CLSF-84).
+
+| Layer | Files |
+|---|---|
+| Semantic graph | `internal/domain/agent/semantic_*.go`, `conformance.go` |
+| Visual authoring | `internal/domain/agent/visual_projection.go`, `visual_authoring.go`, `visual_source_generator.go` |
+| Tooling API | `internal/api/handlers/workflow.go` |
+| Language server | `internal/lsp/`, `cmd/fenixlsp/` |
+| BFF builder | `bff/src/routes/builder*.ts` |
+| Mobile graph | `mobile/app/(tabs)/workflows/graph.tsx`, `mobile/src/lib/flowLayout.ts` |
+| Plan | `docs/plans/carta-language-server-flow.md` |
 
 ---
 

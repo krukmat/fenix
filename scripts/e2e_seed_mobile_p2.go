@@ -1027,37 +1027,32 @@ func seedSignal(
 }
 
 func ensureSignalAccessRole(ctx context.Context, db *sql.DB, auth authResponse) error {
-	const roleName = "E2E Signal Access"
-	const permissions = `{"api":["signals.list","signals.dismiss"]}`
+	// CLSF-84: expanded to include workflows.get and workflows.list for graph screen screenshots.
+	// INSERT OR REPLACE keeps permissions in sync on re-runs without branching.
+	const roleName = "E2E Screenshot Access v2"
+	const permissions = `{"api":["signals.list","signals.dismiss","workflows.get","workflows.list"]}`
 
 	now := time.Now().UTC().Truncate(time.Second)
-	var roleID string
-	err := db.QueryRowContext(ctx, `
-		SELECT id
-		FROM role
-		WHERE workspace_id = ? AND name = ?
-		LIMIT 1
-	`, auth.WorkspaceID, roleName).Scan(&roleID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return err
-		}
-		roleID = uuid.NewV7().String()
-		if _, execErr := db.ExecContext(ctx, `
-			INSERT INTO role (
-				id, workspace_id, name, description, permissions, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?)
-		`,
-			roleID, auth.WorkspaceID, roleName,
-			"Grants signal list/dismiss for deterministic screenshot fixtures",
-			permissions,
-			now.Format(time.RFC3339), now.Format(time.RFC3339),
-		); execErr != nil {
-			return execErr
-		}
+	roleID := uuid.NewV7().String()
+
+	var existing string
+	if scanErr := db.QueryRowContext(ctx, `SELECT id FROM role WHERE workspace_id = ? AND name = ? LIMIT 1`,
+		auth.WorkspaceID, roleName).Scan(&existing); scanErr == nil {
+		roleID = existing
 	}
 
-	_, err = db.ExecContext(ctx, `
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO role (id, workspace_id, name, description, permissions, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET permissions = excluded.permissions, updated_at = excluded.updated_at
+	`, roleID, auth.WorkspaceID, roleName,
+		"Grants signal and workflow read permissions for deterministic screenshot fixtures",
+		permissions, now.Format(time.RFC3339), now.Format(time.RFC3339),
+	); err != nil {
+		return err
+	}
+
+	_, err := db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO user_role (id, user_id, role_id, created_at)
 		VALUES (?, ?, ?, ?)
 	`, uuid.NewV7().String(), auth.UserID, roleID, now.Format(time.RFC3339))

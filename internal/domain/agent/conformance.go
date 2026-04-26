@@ -23,7 +23,7 @@ const (
 
 type ConformanceResult struct {
 	Profile ConformanceProfile     `json:"profile"`
-	Details []ConformanceDetail    `json:"details,omitempty"`
+	Details []ConformanceDetail    `json:"details"`
 	Graph   *WorkflowSemanticGraph `json:"graph,omitempty"`
 }
 
@@ -41,7 +41,7 @@ func EvaluateWorkflowConformance(dslSource string, specSource string) Conformanc
 		return invalidConformance("invalid_dsl", err.Error(), errPosition(err))
 	}
 
-	result := ConformanceResult{Profile: ConformanceProfileSafe}
+	result := ConformanceResult{Profile: ConformanceProfileSafe, Details: []ConformanceDetail{}}
 	var carta *CartaSummary
 	trimmedSpec := strings.TrimSpace(specSource)
 	switch {
@@ -73,6 +73,7 @@ func EvaluateWorkflowConformance(dslSource string, specSource string) Conformanc
 func EvaluateGraphConformance(graph *WorkflowSemanticGraph) ConformanceResult {
 	result := ConformanceResult{
 		Profile: ConformanceProfileSafe,
+		Details: []ConformanceDetail{},
 		Graph:   graph,
 	}
 	result.applyGraphConformance()
