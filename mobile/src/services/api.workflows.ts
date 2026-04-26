@@ -16,7 +16,8 @@ export type WorkflowGraphEdge = {
 };
 
 export type WorkflowGraph = {
-  workflow_id: string;
+  workflow_id?: string;
+  workflow_name?: string;
   conformance: {
     profile: string;
     details: { code?: string; description?: string; message?: string }[];
@@ -77,7 +78,7 @@ export const workflowApi = {
   },
 
   getGraph: async (id: string): Promise<WorkflowGraph> => {
-    const response = await apiClient.get(`/bff/api/v1/workflows/${id}/graph`);
+    const response = await apiClient.get(`/bff/api/v1/workflows/${id}/graph`, { params: { format: 'visual' } });
     const payload = response.data as { data?: WorkflowGraph } | WorkflowGraph;
     return 'data' in payload && payload.data ? payload.data : payload as WorkflowGraph;
   },

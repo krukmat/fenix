@@ -25,6 +25,7 @@ func TestSeedOutputExposesAuthBlock(t *testing.T) {
 	out.Auth.WorkspaceID = "ws-xyz"
 	out.Pipeline.ID = "pipe-xyz"
 	out.Stage.ID = "stage-xyz"
+	out.Workflow.ID = "workflow-xyz"
 
 	encoded, err := json.Marshal(out)
 	if err != nil {
@@ -76,6 +77,45 @@ func TestSeedOutputExposesAuthBlock(t *testing.T) {
 	}
 	if stage["id"] != "stage-xyz" {
 		t.Errorf("stage.id = %v, want stage-xyz", stage["id"])
+	}
+
+	workflow, ok := decoded["workflow"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected seedOutput JSON to contain a 'workflow' object, got: %s", string(encoded))
+	}
+	if workflow["id"] != "workflow-xyz" {
+		t.Errorf("workflow.id = %v, want workflow-xyz", workflow["id"])
+	}
+}
+
+func TestSeedWorkflowGraphFixtureCreatesRenderableWorkflow(t *testing.T) {
+	db := mustOpenScriptTestDB(t)
+	workspaceID, userID := seedScriptTestWorkspaceAndUser(t, db)
+
+	workflowID, err := seedWorkflowGraphFixture(context.Background(), db, authResponse{
+		UserID:      userID,
+		WorkspaceID: workspaceID,
+	}, "test")
+	if err != nil {
+		t.Fatalf("seedWorkflowGraphFixture() error = %v", err)
+	}
+
+	var name, dslSource, specSource, status string
+	if err := db.QueryRow(`
+		SELECT name, dsl_source, spec_source, status
+		FROM workflow
+		WHERE id = ? AND workspace_id = ?
+	`, workflowID, workspaceID).Scan(&name, &dslSource, &specSource, &status); err != nil {
+		t.Fatalf("query seeded workflow: %v", err)
+	}
+	if name == "" {
+		t.Fatal("expected seeded workflow to have name")
+	}
+	if status != "active" {
+		t.Fatalf("status = %q, want active", status)
+	}
+	if dslSource == "" || specSource == "" {
+		t.Fatalf("expected DSL and spec sources, got dsl=%q spec=%q", dslSource, specSource)
 	}
 }
 

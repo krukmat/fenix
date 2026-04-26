@@ -12,6 +12,7 @@ export default function WorkflowsLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="new" options={{ title: 'New Workflow', headerShown: true }} />
       <Stack.Screen name="[id]" options={{ title: 'Workflow', headerShown: true }} />
+      <Stack.Screen name="graph" options={{ title: 'Workflow Graph', headerShown: true }} />
       <Stack.Screen name="edit/[id]" options={{ title: 'Edit Workflow', headerShown: true }} />
     </Stack>
   );

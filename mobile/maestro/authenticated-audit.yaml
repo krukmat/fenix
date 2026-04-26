@@ -240,6 +240,14 @@ tags:
 - takeScreenshot:
     path: "18_workflows_list"
 
+- openLink: "fenixcrm:///workflows/graph?id=${SEED_WORKFLOW_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "flow-canvas"
+    timeout: 20000
+- takeScreenshot:
+    path: "18b_workflow_graph"
+
 # ── 10. Core CRM no-AI surface (Mobile Core CRM Validation 8C) ───────────────
 
 - openLink: "fenixcrm:///crm"

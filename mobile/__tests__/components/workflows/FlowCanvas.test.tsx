@@ -36,8 +36,9 @@ const fixture: FlowLayoutResult = {
 
 describe('FlowCanvas', () => {
   it('renders all node labels', () => {
-    const { getByText } = render(<FlowCanvas layout={fixture} />);
+    const { getByTestId, getByText } = render(<FlowCanvas layout={fixture} />);
 
+    expect(getByTestId('flow-canvas')).toBeTruthy();
     expect(getByText('sales_followup')).toBeTruthy();
     expect(getByText('deal.updated')).toBeTruthy();
     expect(getByText('notify owner')).toBeTruthy();

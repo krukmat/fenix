@@ -55,6 +55,7 @@ var cleanupWorkspaceQueries = map[string]string{
 	"contact":            "DELETE FROM contact WHERE workspace_id = ?",
 	"lead":               "DELETE FROM lead WHERE workspace_id = ?",
 	"account":            "DELETE FROM account WHERE workspace_id = ?",
+	"workflow":           "DELETE FROM workflow WHERE workspace_id = ?",
 	"agent_definition":   "DELETE FROM agent_definition WHERE workspace_id = ?",
 }
 
@@ -119,6 +120,9 @@ type seedOutput struct {
 		ApprovalID string `json:"approvalId"`
 		SignalID   string `json:"signalId"`
 	} `json:"inbox"`
+	Workflow struct {
+		ID string `json:"id"`
+	} `json:"workflow"`
 }
 
 type requestError struct {
@@ -224,6 +228,11 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		return nil, fmt.Errorf("seedApproval: %w", err)
 	}
 
+	workflowID, err := seedWorkflowGraphFixture(ctx, db, auth, suffix)
+	if err != nil {
+		return nil, fmt.Errorf("seedWorkflowGraphFixture: %w", err)
+	}
+
 	return buildSeedOutput(
 		baseFixtures.accountID,
 		baseFixtures.contactID,
@@ -240,6 +249,7 @@ func seedFixtures(ctx context.Context, db *sql.DB, auth authResponse) (*seedOutp
 		runs,
 		approvalID,
 		signalID,
+		workflowID,
 	), nil
 }
 
@@ -451,7 +461,7 @@ func seedPairedRuns(ctx context.Context, db *sql.DB, auth authResponse, params [
 	return ids, nil
 }
 
-func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, pipelineID, stageID, staleDealID, caseID, caseSubject, resolvedCaseID, resolvedCaseSubject string, runs wedgeRunIDs, approvalID, signalID string) *seedOutput {
+func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, pipelineID, stageID, staleDealID, caseID, caseSubject, resolvedCaseID, resolvedCaseSubject string, runs wedgeRunIDs, approvalID, signalID, workflowID string) *seedOutput {
 	out := &seedOutput{}
 	out.Account.ID = accountID
 	out.Contact.ID = contactID
@@ -474,7 +484,39 @@ func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, pipelin
 	}
 	out.Inbox.ApprovalID = approvalID
 	out.Inbox.SignalID = signalID
+	out.Workflow.ID = workflowID
 	return out
+}
+
+// ─── Workflow graph fixture ──────────────────────────────────────────────────
+
+func seedWorkflowGraphFixture(ctx context.Context, db *sql.DB, auth authResponse, suffix string) (string, error) {
+	workflowID := uuid.NewV7().String()
+	name := "e2e_graph_followup_" + suffix
+	description := "Deterministic workflow graph fixture for Maestro screenshots"
+	dslSource := `WORKFLOW ` + name + `
+ON deal.updated
+SET deal.status = "reviewing"
+NOTIFY owner WITH "Review graph follow-up"
+`
+	specSource := `CARTA ` + name + `
+AGENT visual_auditor
+  PERMIT send_reply
+  GROUNDS
+    min_sources: 1
+`
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO workflow (
+			id, workspace_id, name, description, dsl_source, spec_source,
+			version, status, created_by_user_id, created_at, updated_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, 1, 'active', ?, datetime('now'), datetime('now'))
+	`, workflowID, auth.WorkspaceID, name, description, dslSource, specSource, auth.UserID)
+	if err != nil {
+		return "", err
+	}
+	return workflowID, nil
 }
 
 // ─── CRM fixtures ────────────────────────────────────────────────────────────

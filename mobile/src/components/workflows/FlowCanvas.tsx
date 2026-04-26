@@ -15,6 +15,7 @@ export function FlowCanvas({ layout }: Props): React.ReactElement {
     <ScrollView horizontal style={styles.scroll} contentContainerStyle={styles.scrollContent}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View
+          testID="flow-canvas"
           style={[styles.canvas, { width: layout.bounds.width, height: layout.bounds.height }]}
         >
           {layout.connectors.map((connector) => (

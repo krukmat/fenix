@@ -22,6 +22,7 @@ import {
   governanceApi,
   copilotApi,
   salesBriefApi,
+  workflowApi,
 } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
 
@@ -558,6 +559,21 @@ describe('api.ts', () => {
         expect(result).toEqual({ summary: 'text' });
       });
 
+    });
+
+    describe('workflowApi', () => {
+      it('getGraph should request visual graph projection', async () => {
+        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+          data: { data: { workflow_id: 'wf-1', conformance: { profile: 'safe', details: [] }, nodes: [], edges: [] } },
+        } as never);
+
+        const result = await workflowApi.getGraph('wf-1');
+
+        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1/graph', {
+          params: { format: 'visual' },
+        });
+        expect(result.workflow_id).toBe('wf-1');
+      });
     });
 
     describe('salesBriefApi', () => {
