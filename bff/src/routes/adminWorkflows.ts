@@ -16,23 +16,14 @@ interface WorkflowRow {
   updated_at: string;
 }
 
+const STATUS_COLORS: Record<string, string> = { active: 'background:#d1fae5;color:#065f46', draft: 'background:#f3f4f6;color:#374151', testing: 'background:#dbeafe;color:#1e40af', archived: 'background:#fef3c7;color:#92400e' };
 function statusBadge(status: string): string {
-  const colors: Record<string, string> = {
-    active:   'background:#d1fae5;color:#065f46',
-    draft:    'background:#f3f4f6;color:#374151',
-    testing:  'background:#dbeafe;color:#1e40af',
-    archived: 'background:#fef3c7;color:#92400e',
-  };
-  const style = colors[status] ?? 'background:#f3f4f6;color:#374151';
+  const style = STATUS_COLORS[status] ?? 'background:#f3f4f6;color:#374151';
   return `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;${style}">${escHtml(status)}</span>`;
 }
 
 function escHtml(s: string): string {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function renderRows(workflows: WorkflowRow[]): string {
@@ -66,14 +57,8 @@ function buildBody(workflows: WorkflowRow[], status: string, name: string): stri
         (s) => `<option value="${s}"${status === s ? ' selected' : ''}>${s}</option>`,
       ).join('')}
     </select>
-    <button type="submit"
-      style="height:34px;padding:0 14px;border:0;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer">
-      Filter
-    </button>
-    <a href="/bff/admin/workflows"
-      style="height:34px;line-height:34px;padding:0 12px;border:1px solid var(--line);border-radius:6px;font-size:13px;color:var(--muted);text-decoration:none">
-      Clear
-    </a>
+    <button type="submit" style="height:34px;padding:0 14px;border:0;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer">Filter</button>
+    <a href="/bff/admin/workflows" style="height:34px;line-height:34px;padding:0 12px;border:1px solid var(--line);border-radius:6px;font-size:13px;color:var(--muted);text-decoration:none">Clear</a>
   </form>
   <div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden">
     <table style="width:100%;border-collapse:collapse;font-size:14px">
@@ -86,23 +71,22 @@ function buildBody(workflows: WorkflowRow[], status: string, name: string): stri
           <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:700;color:var(--muted)">Updated</th>
         </tr>
       </thead>
-      <tbody id="workflows-tbody">
-        ${renderRows(workflows)}
-      </tbody>
+      <tbody id="workflows-tbody">${renderRows(workflows)}</tbody>
     </table>
   </div>`;
 }
-
-const router = Router();
-
-router.get('/', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const token = res.locals['adminToken'] as string | undefined;
-  const statusFilter = typeof req.query['status'] === 'string' ? req.query['status'] : '';
-  const nameFilter   = typeof req.query['name']   === 'string' ? req.query['name']   : '';
-
+function extractListParams(q: Record<string, unknown>): { statusFilter: string; nameFilter: string; params: Record<string, string> } {
+  const statusFilter = typeof q['status'] === 'string' ? q['status'] : '';
+  const nameFilter   = typeof q['name']   === 'string' ? q['name']   : '';
   const params: Record<string, string> = {};
   if (statusFilter) params['status'] = statusFilter;
   if (nameFilter)   params['name']   = nameFilter;
+  return { statusFilter, nameFilter, params };
+}
+const router = Router();
+router.get('/', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const token = res.locals['adminToken'] as string | undefined;
+  const { statusFilter, nameFilter, params } = extractListParams(req.query);
 
   try {
     const client = createGoClient(token);
@@ -111,14 +95,10 @@ router.get('/', async (req: Request, res: Response, next: NextFunction): Promise
     res.type('html').status(200).send(adminLayout('Workflows', buildBody(body.data ?? [], statusFilter, nameFilter)));
   } catch (err: unknown) {
     const status = (err as { response?: { status?: number } }).response?.status;
-    if (status === 401) {
-      res.redirect(ADMIN_ROOT);
-      return;
-    }
+    if (status === 401) { res.redirect(ADMIN_ROOT); return; }
     next(err);
   }
 });
-
 // BFF-ADMIN-11: workflow detail page (read-only)
 interface WorkflowDetail extends WorkflowRow {
   dsl_source: string;
@@ -128,7 +108,6 @@ interface WorkflowDetail extends WorkflowRow {
 }
 
 const MONO = 'ui-monospace,SFMono-Regular,Menlo,monospace';
-
 function detailMeta(wf: WorkflowDetail): string {
   return `
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
@@ -144,17 +123,13 @@ function detailMeta(wf: WorkflowDetail): string {
     <div style="background:var(--panel);padding:14px"><span style="display:block;color:var(--muted);font-size:11px;font-weight:700;margin-bottom:4px">Updated</span><p style="margin:0;font-size:13px;color:var(--muted)">${escHtml(wf.updated_at.slice(0, 10))}</p></div>
   </div>`;
 }
-
 function detailSources(wf: WorkflowDetail): string {
   const PRE = `style="margin:0;white-space:pre-wrap;word-break:break-all;font:13px/1.6 ${MONO};color:var(--text)"`;
   const specContent = wf.spec_source
     ? `<pre ${PRE}>${escHtml(wf.spec_source)}</pre>`
     : `<p style="color:var(--muted);font-size:13px;margin:0">No spec source</p>`;
   const panel = (title: string, content: string) =>
-    `<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden">
-      <div style="padding:10px 14px;border-bottom:1px solid var(--line);background:var(--bg)"><h3 style="margin:0;font-size:13px;font-weight:700">${title}</h3></div>
-      <div style="padding:14px;overflow:auto;max-height:320px">${content}</div>
-    </div>`;
+    `<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden"><div style="padding:10px 14px;border-bottom:1px solid var(--line);background:var(--bg)"><h3 style="margin:0;font-size:13px;font-weight:700">${title}</h3></div><div style="padding:14px;overflow:auto;max-height:320px">${content}</div></div>`;
   return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
     ${panel('DSL Source', `<pre ${PRE}>${escHtml(wf.dsl_source)}</pre>`)}
     ${panel('Spec Source', specContent)}
@@ -175,9 +150,7 @@ function detailActivation(wf: WorkflowDetail): string {
   </div>`;
 }
 
-function buildDetailBody(wf: WorkflowDetail): string {
-  return detailMeta(wf) + detailSources(wf) + detailActivation(wf);
-}
+function buildDetailBody(wf: WorkflowDetail): string { return detailMeta(wf) + detailSources(wf) + detailActivation(wf); }
 
 router.get('/:id', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const token = res.locals['adminToken'] as string | undefined;
@@ -224,5 +197,4 @@ router.post('/:id/activate', async (req: Request, res: Response, next: NextFunct
     next(err);
   }
 });
-
 export default router;
