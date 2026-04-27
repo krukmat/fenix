@@ -228,19 +228,28 @@ All architectural decisions are in `docs/decisions/`:
 | G — Tools | BFF-ADMIN-60 | ✅ Done |
 | H — Metrics | BFF-ADMIN-70 | ✅ Done |
 | I — Closeout | BFF-ADMIN-90, BFF-ADMIN-91, BFF-ADMIN-92 | ✅ Done |
-| J — Mobile regression | BFF-ADMIN-J4 | ⚠️ Deferred (see below) |
+| J — Mobile regression | BFF-ADMIN-J4 | ✅ Done (2026-04-27) |
 
 ### BFF-ADMIN-J4 — Mobile screenshot regression sanity
 
-**Status: Deferred — emulator not available at closeout time (2026-04-27).**
+**Status: COMPLETED 2026-04-27. Exit 0. 36/36 screenshots captured on Pixel_7_API_33.**
 
-The BFF admin work (Phases A–H) did not modify `scripts/e2e_seed_mobile_p2.go` or any
-Maestro flow file. The shared seeder surface was not touched during this handoff. The
-deferred status is recorded here per the handoff rule (do not block closeout when the
-emulator is unavailable).
+`bash mobile/maestro/seed-and-run.sh` passed both phases:
 
-**Reopen condition**: run `bash mobile/maestro/seed-and-run.sh` with an attached emulator
-and archive the output in a follow-up task when the emulator is next available.
+- **Phase 1** (`auth-surface.yaml`): `01_auth_login.png` ✅
+- **Phase 2** (`authenticated-audit.yaml`): 35 screenshots ✅ — all COMPLETED
+
+**Fix applied during run**: Android ANR dialog ("Process system isn't responding")
+appeared on cold-start and at governance route transitions under emulator load.
+Added `repeat: times: 8 / runFlow: when: visible / tapOn: Wait` dismiss loops in
+`auth-surface.yaml` (cold start) and `authenticated-audit.yaml` (`governance/audit`
+and `governance/usage` steps). Commit: `a09dd9e`.
+
+**Seeder unchanged**: `scripts/e2e_seed_mobile_p2.go` — 0 lines diff from BFF admin
+commits. No cross-track contamination confirmed.
+
+**Screenshots archived**: `mobile/artifacts/screenshots/` (36 files, `01_auth_login`
+through `32_crm_contacts_after_bulk_delete`).
 
 ### FR coverage added by admin shell
 
