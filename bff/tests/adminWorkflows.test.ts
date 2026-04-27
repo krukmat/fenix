@@ -43,7 +43,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
   describe('GET /bff/admin/workflows', () => {
     it('returns 200 with HTML content-type', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_LIST, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_LIST }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows')
@@ -54,7 +54,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
     });
 
     it('calls Go GET /api/v1/workflows', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_LIST, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_LIST }, status: 200 });
 
       await request(app)
         .get('/bff/admin/workflows')
@@ -67,7 +67,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
     });
 
     it('renders workflow names in the table', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_LIST, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_LIST }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows')
@@ -78,7 +78,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
     });
 
     it('renders workflow status values', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_LIST, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_LIST }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows')
@@ -89,7 +89,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
     });
 
     it('renders a link to each workflow detail', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_LIST, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_LIST }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows')
@@ -100,7 +100,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
     });
 
     it('relays status filter query param to Go backend', async () => {
-      mockGoClient.get.mockResolvedValue({ data: [WORKFLOW_LIST[0]], status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: [WORKFLOW_LIST[0]] }, status: 200 });
 
       await request(app)
         .get('/bff/admin/workflows?status=active')
@@ -113,7 +113,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
     });
 
     it('relays name filter query param to Go backend', async () => {
-      mockGoClient.get.mockResolvedValue({ data: [WORKFLOW_LIST[0]], status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: [WORKFLOW_LIST[0]] }, status: 200 });
 
       await request(app)
         .get('/bff/admin/workflows?name=sales')
@@ -126,7 +126,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
     });
 
     it('renders an empty-state message when the list is empty', async () => {
-      mockGoClient.get.mockResolvedValue({ data: [], status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: [] }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows')
@@ -162,7 +162,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
     });
 
     it('includes filter form in the page', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_LIST, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_LIST }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows')
@@ -194,7 +194,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
   describe('GET /bff/admin/workflows/:id', () => {
     it('returns 200 with HTML content-type', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_DETAIL, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
@@ -205,7 +205,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
     });
 
     it('calls Go GET /api/v1/workflows/:id', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_DETAIL, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
 
       await request(app)
         .get('/bff/admin/workflows/wf-001')
@@ -215,7 +215,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
     });
 
     it('renders workflow name and status', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_DETAIL, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
@@ -226,7 +226,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
     });
 
     it('renders DSL source in a code block', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_DETAIL, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
@@ -236,7 +236,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
     });
 
     it('renders spec source when present', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_DETAIL, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
@@ -246,7 +246,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
     });
 
     it('renders version number', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_DETAIL, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
@@ -256,7 +256,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
     });
 
     it('includes a link to the builder for this workflow', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_DETAIL, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
@@ -266,7 +266,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
     });
 
     it('includes a back link to the workflows list', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_DETAIL, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
@@ -276,7 +276,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
     });
 
     it('renders activation section with activate form wired (BFF-ADMIN-12)', async () => {
-      mockGoClient.get.mockResolvedValue({ data: WORKFLOW_DETAIL, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
@@ -287,7 +287,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
     it('handles missing spec_source gracefully', async () => {
       const noSpec = { ...WORKFLOW_DETAIL, spec_source: null };
-      mockGoClient.get.mockResolvedValue({ data: noSpec, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: { data: noSpec }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
@@ -362,7 +362,7 @@ describe('BFF admin workflow activation — BFF-ADMIN-12', () => {
       });
       mockGoClient.put = jest.fn().mockRejectedValue(err);
       // detail GET needed for re-render
-      mockGoClient.get = jest.fn().mockResolvedValue({ data: WORKFLOW_DETAIL, status: 200 });
+      mockGoClient.get = jest.fn().mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
 
       const res = await request(app)
         .post('/bff/admin/workflows/wf-001/activate')
@@ -401,7 +401,7 @@ describe('BFF admin workflow activation — BFF-ADMIN-12', () => {
 
   describe('GET /bff/admin/workflows/:id (with BFF-ADMIN-12 form wired)', () => {
     it('renders the activate button in the activation section', async () => {
-      mockGoClient.get = jest.fn().mockResolvedValue({ data: WORKFLOW_DETAIL, status: 200 });
+      mockGoClient.get = jest.fn().mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')

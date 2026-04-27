@@ -208,9 +208,9 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
 
   try {
     const client = createGoClient(token);
-    // BFF-ADMIN-Task6: Go route is /audit/events/{id}, not /audit/{id}
-    const { data: event } = await client.get<AuditDetail>(`/api/v1/audit/events/${id}`);
-    res.type('html').status(200).send(adminLayout('Audit Event', buildDetailBody(event)));
+    // BFF-ADMIN-Task6: Go route is /audit/events/{id} and returns { data: {...} } envelope
+    const { data: resp } = await client.get<{ data: AuditDetail }>(`/api/v1/audit/events/${id}`);
+    res.type('html').status(200).send(adminLayout('Audit Event', buildDetailBody(resp.data)));
   } catch (err: unknown) {
     if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
     next(err);
