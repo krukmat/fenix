@@ -195,20 +195,44 @@ tags:
 # ── 6. Governance Audit Trail ────────────────────────────────────────────────
 
 - openLink: "fenixcrm:///governance/audit"
+# BFF-ADMIN-J4: dismiss Android ANR dialog (may reappear; loop up to 8 times)
+- repeat:
+    times: 8
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: "Process system isn't responding"
+          commands:
+            - tapOn:
+                text: "Wait"
+            - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "audit-screen"
-    timeout: 20000
+    timeout: 45000
 - takeScreenshot:
     path: "09_governance_audit"
 
 # ── 7. Governance Usage Drilldown ────────────────────────────────────────────
 
 - openLink: "fenixcrm:///governance/usage"
+# BFF-ADMIN-J4: dismiss Android ANR dialog (may reappear; loop up to 8 times)
+- repeat:
+    times: 8
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: "Process system isn't responding"
+          commands:
+            - tapOn:
+                text: "Wait"
+            - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "usage-screen"
-    timeout: 20000
+    timeout: 45000
 - takeScreenshot:
     path: "10_governance_usage"
 

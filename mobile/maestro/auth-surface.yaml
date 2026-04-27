@@ -11,6 +11,18 @@ tags:
 
 ---
 
+# BFF-ADMIN-J4: dismiss Android ANR dialog (may reappear; loop up to 8 times)
+- repeat:
+    times: 8
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: "Process system isn't responding"
+          commands:
+            - tapOn:
+                text: "Wait"
+            - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "login-screen"

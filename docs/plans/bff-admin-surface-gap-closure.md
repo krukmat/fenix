@@ -400,9 +400,9 @@ fragments rendered independently.
   plan; renders governance data), `bff/tests/adminPolicy.test.ts`.
 - **QA gate**: focused jest run.
 
-#### `BFF-ADMIN-51` — Policy sets and versions detail (unblocked by GO-POLICY-READ-01)
+#### `BFF-ADMIN-51` — Policy sets and versions detail ✅ DONE
 
-- **Status**: READY — Go endpoints now exist (GO-POLICY-READ-01 completed 2026-04-27).
+- **Status**: COMPLETED 2026-04-27.
 - **Real endpoints**:
   - `GET /api/v1/policy/sets` — list with optional `?is_active=true|false` filter
   - `GET /api/v1/policy/sets/{id}/versions` — versions for a set
@@ -410,8 +410,10 @@ fragments rendered independently.
 - **Reasoning**: HTMX page proxying the two new Go endpoints. Read-only; same pattern as
   BFF-ADMIN-50 (governance page). No new decisions needed.
 - **Depends on**: `BFF-ADMIN-02`, `GO-POLICY-READ-01` ✅.
-- **Files**: `bff/src/routes/adminPolicy.ts` (extend alongside BFF-ADMIN-50),
-  `bff/tests/adminPolicy.test.ts`.
+- **Files**: `bff/src/routes/adminPolicy.ts` (routes `/bff/admin/policy` and
+  `/bff/admin/policy/:id/versions` — implemented alongside BFF-ADMIN-50),
+  `bff/tests/adminPolicy.test.ts` (22 tests — 11 BFF-ADMIN-50 + 11 BFF-ADMIN-51).
+- **QA gate**: 22/22 focused tests pass (`npm test -- --testPathPattern=adminPolicy`).
 
 ### Phase G — Tools registry (read-only)
 
@@ -480,23 +482,27 @@ shared** between BFF backend work and the mobile screenshot pipeline
 (`scripts/e2e_seed_mobile_p2.go`). Any inadvertent change there during
 Phases A–H must be caught before closing the handoff.
 
-#### `BFF-ADMIN-J4` — Mobile screenshot regression sanity
+#### `BFF-ADMIN-J4` — Mobile screenshot regression sanity ✅ DONE
 
 - **Effort**: Low
 - **Reasoning**: Confirm `mobile/maestro/seed-and-run.sh` and
   `visual-audit.yaml` still pass after Phases A–H land. Admin work
   should not touch mobile, but the shared seeder
   (`scripts/e2e_seed_mobile_p2.go`) is a known cross-track surface.
-  No flow changes; just a documented run with output archived in the
-  closeout report.
-- **Depends on**: every Phase B–H task (so the BFF backend used by the
-  seeder is stable before cross-checking mobile).
-- **Files**: none under change; result recorded in `BFF-ADMIN-92`
-  dashboard update.
-- **QA gate**: `bash mobile/maestro/seed-and-run.sh` against the
-  emulator. **Pre-authorized**: run without requesting per-action
-  approval. If the emulator is unavailable, mark this task as deferred
-  and note it in the closeout — do not block the handoff.
+- **Completed**: 2026-04-27. All 36 screenshots captured. Both phases
+  passed 100% on `Pixel_7_API_33` (Pixel 7, API 33).
+- **Fix applied**: Android ANR dialog ("Process system isn't responding")
+  appeared on cold-start and at governance route transitions due to
+  emulator load. Added `repeat: times: 8 / runFlow: when: / tapOn: Wait`
+  dismiss loops in `auth-surface.yaml` (Phase 1) and
+  `authenticated-audit.yaml` (governance/audit + governance/usage steps).
+  No regressions in existing flow logic.
+- **Seeder unchanged**: `scripts/e2e_seed_mobile_p2.go` — 0 lines of diff
+  from BFF admin commits. Confirmed no cross-track contamination.
+- **Files changed**: `mobile/maestro/auth-surface.yaml`,
+  `mobile/maestro/authenticated-audit.yaml`.
+- **QA gate**: `bash mobile/maestro/seed-and-run.sh` — exit 0, 36/36
+  screenshots in `mobile/artifacts/screenshots/`.
 
 ### Phase I — Closeout
 
