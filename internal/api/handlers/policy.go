@@ -45,10 +45,10 @@ type policyVersionRow struct {
 }
 
 const (
-	errPolicySetIDRequired    = "policy set id is required"
+	errPolicySetIDRequired     = "policy set id is required"
 	errFailedToQueryPolicySets = "failed to query policy sets: %v"
-	errFailedToQueryVersions  = "failed to query policy versions: %v"
-	queryParamIsActive        = "is_active"
+	errFailedToQueryVersions   = "failed to query policy versions: %v"
+	queryParamIsActive         = "is_active"
 )
 
 // ListPolicySets handles GET /api/v1/policy/sets.
