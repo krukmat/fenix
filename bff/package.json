@@ -12,7 +12,8 @@
     "test:bdd": "jest --runInBand --testPathPattern=tests/bdd",
     "test:coverage": "jest --coverage --forceExit",
     "test:watch": "jest --watch",
-    "http-snapshots": "ts-node scripts/http-snapshots.ts"
+    "http-snapshots": "ts-node scripts/http-snapshots.ts",
+    "admin-screenshots": "ts-node scripts/admin-screenshots.ts"
   },
   "dependencies": {
     "axios": "^1.7.9",
@@ -36,6 +37,7 @@
     "jest": "^29.7.0",
     "nock": "^14.0.11",
     "nodemon": "^3.1.9",
+    "puppeteer": "^24.42.0",
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",

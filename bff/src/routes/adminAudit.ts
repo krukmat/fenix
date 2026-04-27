@@ -6,19 +6,21 @@ import { upstreamStatus } from './adminAuth';
 
 const ADMIN_ROOT = '/bff/admin';
 
+// BFF-ADMIN-Task6: fields match Go response (snake_case, entity_type/entity_id, actor_id)
 interface AuditRow {
   id: string;
-  actor: string;
+  actor_id: string;
+  actor_type: string;
   action: string;
-  resourceType: string;
-  resourceId: string;
+  entity_type: string;
+  entity_id: string;
   outcome: string;
-  createdAt: string;
+  created_at: string;
 }
 
 interface AuditDetail extends AuditRow {
-  policyChecks?: Array<{ rule: string; result: string }>;
-  metadata?: Record<string, unknown>;
+  details?: Record<string, unknown>;
+  permissions_checked?: Array<{ rule: string; result: string }>;
 }
 
 interface AuditBackendResponse {
@@ -53,11 +55,11 @@ function renderRows(rows: AuditRow[]): string {
       <td style="padding:10px 14px;font-family:ui-monospace,monospace;font-size:12px;font-weight:600;color:var(--accent)">
         <a href="/bff/admin/audit/${esc(e.id)}" style="color:var(--accent);text-decoration:none">${esc(e.id)}</a>
       </td>
-      <td style="padding:10px 14px;font-size:13px;color:var(--muted)">${esc(e.actor)}</td>
+      <td style="padding:10px 14px;font-size:13px;color:var(--muted)">${esc(e.actor_id)}</td>
       <td style="padding:10px 14px;font-family:ui-monospace,monospace;font-size:13px">${esc(e.action)}</td>
-      <td style="padding:10px 14px;font-size:13px;color:var(--muted)">${esc(e.resourceType)}</td>
+      <td style="padding:10px 14px;font-size:13px;color:var(--muted)">${esc(e.entity_type)}</td>
       <td style="padding:10px 14px">${outcomeBadge(e.outcome)}</td>
-      <td style="padding:10px 14px;font-size:12px;color:var(--muted)">${esc(e.createdAt.slice(0, 16).replace('T', ' '))}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted)">${esc((e.created_at ?? '').slice(0, 16).replace('T', ' '))}</td>
     </tr>`).join('');
 }
 
@@ -124,14 +126,14 @@ function buildDetailBody(e: AuditDetail): string {
   const mono = (v: string) =>
     `<span style="font-family:ui-monospace,monospace;font-size:13px">${esc(v)}</span>`;
 
-  const policyRows = (e.policyChecks ?? []).map((p) =>
+  const policyRows = (e.permissions_checked ?? []).map((p) =>
     `<tr style="border-bottom:1px solid var(--line)">
       <td style="padding:8px 12px;font-family:ui-monospace,monospace;font-size:12px">${esc(p.rule)}</td>
       <td style="padding:8px 12px">${outcomeBadge(p.result)}</td>
     </tr>`
   ).join('');
 
-  const policySection = e.policyChecks && e.policyChecks.length > 0 ? `
+  const policySection = e.permissions_checked && e.permissions_checked.length > 0 ? `
   <div style="${PANEL}">
     <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Policy Checks</h3>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -155,11 +157,11 @@ function buildDetailBody(e: AuditDetail): string {
     </div>
     <dl style="display:grid;grid-template-columns:140px 1fr;gap:8px 16px;margin:0">
       ${dt('ID', mono(e.id))}
-      ${dt('Actor', esc(e.actor))}
+      ${dt('Actor', esc(e.actor_id))}
       ${dt('Action', mono(e.action))}
-      ${dt('Resource type', esc(e.resourceType))}
-      ${dt('Resource ID', mono(e.resourceId))}
-      ${dt('Timestamp', esc(e.createdAt))}
+      ${dt('Resource type', esc(e.entity_type))}
+      ${dt('Resource ID', mono(e.entity_id))}
+      ${dt('Timestamp', esc(e.created_at))}
     </dl>
   </div>
   ${policySection}`;
@@ -188,7 +190,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction): Promise
 
   try {
     const client = createGoClient(token);
-    const { data: body } = await client.get<AuditBackendResponse>('/api/v1/audit', { params });
+    // BFF-ADMIN-Task6: Go route is /audit/events, not /audit
+    const { data: body } = await client.get<AuditBackendResponse>('/api/v1/audit/events', { params });
     const rows = Array.isArray(body?.data) ? body.data : [];
     const nextCursor = body?.meta?.nextCursor;
     res.type('html').status(200).send(adminLayout('Audit Trail', buildListBody(rows, nextCursor, filterParams)));
@@ -205,7 +208,8 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
 
   try {
     const client = createGoClient(token);
-    const { data: event } = await client.get<AuditDetail>(`/api/v1/audit/${id}`);
+    // BFF-ADMIN-Task6: Go route is /audit/events/{id}, not /audit/{id}
+    const { data: event } = await client.get<AuditDetail>(`/api/v1/audit/events/${id}`);
     res.type('html').status(200).send(adminLayout('Audit Event', buildDetailBody(event)));
   } catch (err: unknown) {
     if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }

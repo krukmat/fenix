@@ -106,8 +106,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction): Promise
 
   try {
     const client = createGoClient(token);
-    const { data } = await client.get<WorkflowRow[]>('/api/v1/workflows', { params });
-    res.type('html').status(200).send(adminLayout('Workflows', buildBody(data, statusFilter, nameFilter)));
+    // BFF-ADMIN-Task6: Go returns envelope { data: [...] } — extract the array
+    const { data: body } = await client.get<{ data: WorkflowRow[] }>('/api/v1/workflows', { params });
+    res.type('html').status(200).send(adminLayout('Workflows', buildBody(body.data ?? [], statusFilter, nameFilter)));
   } catch (err: unknown) {
     const status = (err as { response?: { status?: number } }).response?.status;
     if (status === 401) {
@@ -184,8 +185,9 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
 
   try {
     const client = createGoClient(token);
-    const { data } = await client.get<WorkflowDetail>(`/api/v1/workflows/${id}`);
-    res.type('html').status(200).send(adminLayout(`Workflow: ${data.name}`, buildDetailBody(data)));
+    // BFF-ADMIN-Task6: Go returns envelope { data: {...} } — extract the workflow object
+    const { data: resp } = await client.get<{ data: WorkflowDetail }>(`/api/v1/workflows/${id}`);
+    res.type('html').status(200).send(adminLayout(`Workflow: ${resp.data.name}`, buildDetailBody(resp.data)));
   } catch (err: unknown) {
     if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
     next(err);
@@ -207,7 +209,8 @@ router.post('/:id/activate', async (req: Request, res: Response, next: NextFunct
     // 4xx from backend (e.g. 422 invalid transition): re-render detail with inline error
     if (status !== undefined && status >= 400 && status < 500) {
       try {
-        const { data: wf } = await client.get<WorkflowDetail>(`/api/v1/workflows/${id}`);
+        const { data: wfResp } = await client.get<{ data: WorkflowDetail }>(`/api/v1/workflows/${id}`);
+        const wf = wfResp.data;
         const errorBanner = `
           <div style="margin-bottom:16px;padding:12px 16px;border:1px solid #fca5a5;background:#fef2f2;border-radius:6px;color:#991b1b;font-size:13px">
             <strong>Activation failed:</strong> ${escHtml(upstreamMessage(err))}
