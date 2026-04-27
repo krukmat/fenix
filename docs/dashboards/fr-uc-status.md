@@ -1,12 +1,12 @@
 ---
 title: FenixCRM — FR & UC Implementation Status
-last_updated: 2026-04-21
+last_updated: 2026-04-27
 tags: [dashboard, status]
 ---
 
 # FenixCRM — FR & UC Implementation Status
 
-> Last updated: 2026-04-21
+> Last updated: 2026-04-27
 > Source of truth for current wedge priority: `docs/architecture.md` + `docs/plans/fenixcrm_strategic_repositioning_spec.md`
 > Source of truth for detailed requirement inventory: `docs/requirements.md` + BDD feature files in `features/`
 >
@@ -92,9 +92,9 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 
 | FR | Title | Priority | Status | Implementing Task | BDD Coverage |
 |----|-------|----------|--------|-------------------|--------------|
-| FR-060 | RBAC / ABAC + policy engine | P0 | ✅ | task_1.6, task_3.1 | uc-g1 |
-| FR-070 | Immutable audit trail | P0 | ✅ | task_1.7, task_4.6 | uc-g1, uc-a7 |
-| FR-071 | Approval chains | P0 | ✅ | task_3.2 | uc-c1 (approval scenario), uc-a7 |
+| FR-060 | RBAC / ABAC + policy engine | P0 | ✅ | task_1.6, task_3.1, BFF-ADMIN-50/51 (governance + policy sets web surface) | uc-g1 |
+| FR-070 | Immutable audit trail | P0 | ✅ | task_1.7, task_4.6, BFF-ADMIN-40/41 (audit trail web surface) | uc-g1, uc-a7 |
+| FR-071 | Approval chains | P0 | ✅ | task_3.2, BFF-ADMIN-30/31 (approvals queue + decision form web surface) | uc-c1 (approval scenario), uc-a7 |
 | FR-072 | PII redaction (no-cloud policy) | P0 | ✅ | task_3.1 | — |
 
 ### Mobile & BFF
@@ -116,7 +116,7 @@ Legend: ✅ Implemented | ⏳ Partial | ❌ Not implemented | 🔒 P1/P2 (deferr
 | UC-S1 | Sales Copilot | `uc-s1-sales-copilot.feature` + `uc-s1-sales-copilot-mobile-smoke.feature` | ✅ canonical backend | ⏳ | ⏳ smoke | ✅ UC_S1.yml | Mobile remains smoke-only, not canonical |
 | UC-S2 | Prospecting Agent | `uc-s2-prospecting-agent.feature` + `uc-s2-prospecting-agent-mobile.feature` | ✅ | ⏳ | ⏳ defined (runner blocked) | ✅ UC_S2.yml | Mobile trigger implemented; mobile feature coverage added, runner still blocked |
 | UC-S3 | Deal Risk Agent | `uc-s3-deal-risk-agent.feature` + `uc-s3-deal-risk-agent-mobile.feature` | ✅ canonical backend | ⏳ | ⏳ active trigger flow defined | ✅ UC_S3.yml | Backend runner and mobile trigger are active; Maestro flow now targets a stale seeded deal |
-| UC-C1 | Support Agent | `uc-c1-support-agent.feature` | ✅ canonical backend | ⏳ | ❌ | ✅ UC_C1.yml | — |
+| UC-C1 | Support Agent | `uc-c1-support-agent.feature` | ✅ canonical backend | ⏳ | ❌ | ✅ UC_C1.yml | BFF admin shell (approvals, audit, agent runs, governance) provides web operator surface for governance flows in this UC |
 | UC-K1 | KB Agent | `uc-k1-kb-agent.feature` + `uc-k1-kb-agent-mobile.feature` | ✅ | ⏳ | ⏳ defined (runner blocked) | ✅ UC_K1.yml | Mobile KB trigger implemented; mobile feature coverage added, runner still blocked |
 | UC-D1 | Data Insights Agent | `uc-d1-data-insights-agent.feature` + `uc-d1-data-insights-agent-mobile.feature` | ✅ | ⏳ | ⏳ defined (runner blocked) | ✅ UC_D1.yml | Mobile Insights screen implemented; mobile feature coverage added, runner still blocked |
 | UC-G1 | Governance | `uc-g1-governance.feature` | ✅ canonical backend | ⏳ | ❌ | ✅ UC_G1.yml | Replay/rollback scenarios deferred |
@@ -207,3 +207,56 @@ All architectural decisions are in `docs/decisions/`:
 | ADR-026 | Web builder stack: HTMX + Express (BFF) over separate React SPA — avoids 4th stack | Architecture / Web / Maintenance |
 | ADR-027 | DESIGN.md visual contract — agent reads design token file before any mobile UI change | Mobile / Design / Agent |
 | ADR-028 | Dual approval seed for snapshot runner approve/reject coverage — re-evaluate on runner parallelism or FSM reset | Testing / Snapshots / BFF |
+| ADR-029 | BFF admin shell: HTMX read-only surface at `/bff/admin/*` over existing Go governance endpoints — no 4th stack, read-only constraint, governance-for-policy substitute | Architecture / Web / Admin |
+
+---
+
+## 6. BFF Admin Shell — Closeout Record (BFF-ADMIN-GAP handoff)
+
+> Completed 2026-04-27. See `docs/plans/bff-admin-surface-gap-closure.md` for full task graph.
+
+### Phase completion summary
+
+| Phase | Tasks | Status |
+|-------|-------|--------|
+| A — Foundation | BFF-ADMIN-01, BFF-ADMIN-02, BFF-ADMIN-03 | ✅ Done |
+| B — Workflows | BFF-ADMIN-10, BFF-ADMIN-11, BFF-ADMIN-12 | ✅ Done |
+| C — Agent runs | BFF-ADMIN-20, BFF-ADMIN-21a–21d | ✅ Done |
+| D — Approvals | BFF-ADMIN-30, BFF-ADMIN-31 | ✅ Done |
+| E — Audit trail | BFF-ADMIN-40, BFF-ADMIN-41 | ✅ Done |
+| F — Governance / Policy | BFF-ADMIN-50, BFF-ADMIN-51 | ✅ Done |
+| G — Tools | BFF-ADMIN-60 | ✅ Done |
+| H — Metrics | BFF-ADMIN-70 | ✅ Done |
+| I — Closeout | BFF-ADMIN-90, BFF-ADMIN-91, BFF-ADMIN-92 | ✅ Done |
+| J — Mobile regression | BFF-ADMIN-J4 | ⚠️ Deferred (see below) |
+
+### BFF-ADMIN-J4 — Mobile screenshot regression sanity
+
+**Status: Deferred — emulator not available at closeout time (2026-04-27).**
+
+The BFF admin work (Phases A–H) did not modify `scripts/e2e_seed_mobile_p2.go` or any
+Maestro flow file. The shared seeder surface was not touched during this handoff. The
+deferred status is recorded here per the handoff rule (do not block closeout when the
+emulator is unavailable).
+
+**Reopen condition**: run `bash mobile/maestro/seed-and-run.sh` with an attached emulator
+and archive the output in a follow-up task when the emulator is next available.
+
+### FR coverage added by admin shell
+
+| FR | New web surface |
+|----|----------------|
+| FR-060 | Governance page (`/bff/admin/policy`) — quota states + policy sets |
+| FR-070 | Audit trail page (`/bff/admin/audit`) — paginated list + record detail |
+| FR-071 | Approvals queue + decision form (`/bff/admin/approvals`) |
+| FR-200 | Agent runs review (`/bff/admin/agent-runs`) — list, detail, trace, evidence, tool calls, cost |
+| FR-230 | Workflow administration (`/bff/admin/workflows`) — list, detail, activation |
+| FR-233 | Governance quota monitoring (`/bff/admin/policy` → governance summary) |
+
+### Test suite state at closeout
+
+| Suite | Tests | Status |
+|-------|-------|--------|
+| Full BFF Jest suite | 375 | ✅ Passing |
+| Admin navigation smoke (`admin.e2e.test.ts`) | 16 | ✅ Passing |
+| Per-route admin unit tests | ~200 (across admin*.test.ts) | ✅ Passing |

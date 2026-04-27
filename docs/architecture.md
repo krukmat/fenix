@@ -898,6 +898,28 @@ flowchart TB
 - reverse proxy and deployment assets: `deploy/`
 - local orchestration: `docker-compose.yml`, `docker-compose.prod.yml`
 
+### BFF web shell routes
+
+The BFF serves two HTMX web surfaces in addition to its JSON proxy role:
+
+| Mount | Purpose | ADR |
+|---|---|---|
+| `/bff/builder/*` | Workflow authoring shell (DSL editor, graph pane, inspector) | ADR-026 |
+| `/bff/admin/*` | Governance admin shell (workflows, agent runs, approvals, audit, policy, tools, metrics) | ADR-029 |
+
+Both surfaces share the same HTMX CDN pattern, bearer-token localStorage relay, and
+BFF thin-proxy constraint (zero business logic, zero DB access). The admin shell is
+**read-only** in this iteration; write paths for policy and tool registration require
+a separate ADR.
+
+Key route files: `bff/src/routes/admin.ts`, `bff/src/routes/adminLayout.ts`,
+`bff/src/routes/adminAuth.ts`, and per-section handlers (`adminWorkflows.ts`,
+`adminAgentRuns.ts`, `adminAgentRunsFragments.ts`, `adminApprovals.ts`,
+`adminApprovalsFragments.ts`, `adminAudit.ts`, `adminPolicy.ts`, `adminTools.ts`,
+`adminMetrics.ts`).
+
+Navigation regression: `bff/tests/admin.e2e.test.ts` (BFF-ADMIN-90).
+
 ---
 
 ## Appendix: Project Directory Structure

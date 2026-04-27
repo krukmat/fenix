@@ -18,6 +18,8 @@ import approvalsRouter from './routes/approvals';
 // W1-T3: inbox aggregation route
 import inboxRouter from './routes/inbox';
 import builderRouter from './routes/builder';
+// BFF-ADMIN-01: web admin surface
+import adminRouter from './routes/admin';
 
 const app = express();
 
@@ -55,6 +57,7 @@ app.use('/bff/metrics', metricsRouter);
 app.use('/bff/auth', authRouter);
 app.use('/bff/copilot', copilotRouter);
 app.use('/bff/builder', builderRouter);
+app.use('/bff/admin', adminRouter);
 
 // F4-T2: JSON copilot routes that must bypass the transparent proxy
 app.use('/bff/api/v1/copilot', copilotRouter);

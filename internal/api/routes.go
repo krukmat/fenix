@@ -277,6 +277,13 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 		governanceHandler := handlers.NewGovernanceHandler(usageService)
 		r.Get("/governance/summary", governanceHandler.GetGovernanceSummary)
 
+		// GO-POLICY-READ-01: read-only policy_set and policy_version endpoints (unblocks BFF-ADMIN-51)
+		policyHandler := handlers.NewPolicyHandler(db)
+		r.Route("/policy", func(r chi.Router) {
+			r.Get("/sets", policyHandler.ListPolicySets)                     // GET /api/v1/policy/sets
+			r.Get("/sets/{id}/versions", policyHandler.GetPolicyVersions)   // GET /api/v1/policy/sets/{id}/versions
+		})
+
 		knowledgeIngestHandler := handlers.NewKnowledgeIngestHandler(ingestSvc)
 		knowledgeSearchHandler := handlers.NewKnowledgeSearchHandler(searchSvc)
 		knowledgeEvidenceHandler := handlers.NewKnowledgeEvidenceHandler(evidenceSvc)

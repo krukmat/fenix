@@ -465,3 +465,26 @@ the team decides to use it for CI diff (future decision, out of scope).
 - OpenAPI spec generation from the catalog.
 - Equivalent for the Go backend directly (without going through BFF).
 - PNG rendering under flag (only if real use case appears, not preventive).
+
+## Decision: admin HTML routes are NOT covered by this suite
+
+**Decided 2026-04-27 during BFF-ADMIN-GAP handoff.**
+
+The admin web surface (`/bff/admin/*`) is covered by **per-route Jest/Supertest tests**
+in `bff/tests/admin*.test.ts` and the navigation smoke test in
+`bff/tests/admin.e2e.test.ts` (BFF-ADMIN-90). These provide sufficient regression
+coverage for the admin shell.
+
+Extending `npm run http-snapshots` to capture admin HTML pages was explicitly evaluated
+and rejected:
+
+- The snapshot suite is designed for JSON API responses and SSE streams, not HTMX HTML pages.
+- Admin pages require a valid bearer token; the seeder-based approach would need
+  non-trivial auth wiring to produce meaningful HTML output.
+- Per-route Supertest tests already assert 200 status, content-type, and landmark
+  presence — the same signal the snapshot suite would provide.
+
+**Reopen condition**: if a future audit requirement or external client review demands
+black-box HTML captures of admin pages (e.g., for compliance evidence or accessibility
+tooling), open a separate task rather than amending this plan. The per-route test
+coverage remains valid regardless of whether a capture pipeline is added.

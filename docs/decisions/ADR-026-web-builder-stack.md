@@ -127,6 +127,20 @@ without requiring a full SPA framework.
 | Delete `web/` directory | CLSF-62 cleanup (immediate) |
 | Add `bff/src/routes/builder.ts` + HTMX shell | CLSF-62 re-implementation |
 | Re-evaluate Wave 7 graph authoring stack | ADR-027 before CLSF-76 |
+| Admin surface at `/bff/admin/*` (HTMX, same pattern) | BFF-ADMIN-01..92 |
+
+## CORS note — admin surface (BFF-ADMIN-03)
+
+The admin web surface (`/bff/admin/*`) is served by the BFF itself on the same
+origin as the API routes it proxies. Browser HTMX requests are therefore
+**same-origin** and carry no `Origin` header. The existing CORS allowlist in
+`bff/src/config.ts` (`parseAllowedOrigins`) requires no new entry for the admin
+surface.
+
+If the admin surface is ever served from a separate origin (e.g. a reverse-proxy
+path rewrite that changes the effective origin), add that origin to
+`BFF_CORS_ALLOWED_ORIGINS` and update this note. Until then, no allowlist change
+is needed and none should be added to avoid spurious CORS grants.
 
 ## References
 

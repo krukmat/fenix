@@ -34,4 +34,21 @@ describe('BFF CORS allowlist', () => {
     expect(res.status).toBe(200);
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
+
+  // BFF-ADMIN-03: admin surface is same-origin (served by the BFF itself) — no CORS entry needed
+  it('serves /bff/admin without CORS headers when no Origin header (same-origin request)', async () => {
+    const res = await request(app).get('/bff/admin');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('does not set CORS headers for admin preflight from an unlisted origin', async () => {
+    const res = await request(app)
+      .options('/bff/admin')
+      .set('Origin', 'https://attacker.example.com')
+      .set('Access-Control-Request-Method', 'GET');
+
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
 });
