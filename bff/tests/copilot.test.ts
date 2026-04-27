@@ -58,12 +58,12 @@ describe('POST /bff/copilot/chat (SSE relay)', () => {
         res.on('error', callback);
       });
 
-    // Emit SSE data after a tick (simulates Go streaming)
-    setImmediate(() => {
+    // Emit SSE data after a short delay — setImmediate is too tight under parallel test load
+    setTimeout(() => {
       mockStream.write('data: {"type":"token","content":"Hello"}\n\n');
       mockStream.write('data: {"type":"token","content":" world"}\n\n');
       mockStream.end();
-    });
+    }, 20);
 
     req.then((res) => {
       expect(res.status).toBe(200);
