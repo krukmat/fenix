@@ -262,6 +262,19 @@ through `32_crm_contacts_after_bulk_delete`).
 | FR-230 | Workflow administration (`/bff/admin/workflows`) — list, detail, activation |
 | FR-233 | Governance quota monitoring (`/bff/admin/policy` → governance summary) |
 
+### BFF-ADMIN-Task6 — Puppeteer admin screenshot suite
+
+**Status: COMPLETED 2026-04-27. Exit 0. 12/12 screenshots captured.**
+
+`cd bff && npm run admin-screenshots` passed all 7 phases:
+
+- 12 PNGs generated in `bff/artifacts/admin-screenshots/`
+- `report.html` (CSS image grid) + `index.md` (Markdown table) generated
+- Fixes applied: `adminWorkflows` envelope crash, `adminAudit` wrong Go routes + field names, seeder NULL scan, DB path
+
+Commit: `f6f303a`
+Task doc: `docs/tasks/task_bff_admin_screenshots.md`
+
 ### Test suite state at closeout
 
 | Suite | Tests | Status |
@@ -269,3 +282,4 @@ through `32_crm_contacts_after_bulk_delete`).
 | Full BFF Jest suite | 375 | ✅ Passing |
 | Admin navigation smoke (`admin.e2e.test.ts`) | 16 | ✅ Passing |
 | Per-route admin unit tests | ~200 (across admin*.test.ts) | ✅ Passing |
+| Puppeteer admin screenshot suite | 12 routes | ✅ Passing (exit 0) |
