@@ -77,43 +77,21 @@ async function fetchVisualGraph(
 
 function renderSaved(id: string, projection: VisualProjection): string {
   const nodes = projection.nodes ?? [];
-  const edges = projection.edges ?? [];
   const profile = projection.conformance?.profile ?? 'unknown';
   return [
     `<span id="builder-preview-status" hx-swap-oob="true">Graph saved</span>`,
-    renderGraphFragment(nodes, edges),
-    renderInspectorFragment(id, nodes[0], profile),
+    renderGraphFragment(id, projection, nodes[0], profile),
   ].join('');
 }
 
-function renderGraphFragment(nodes: VisualNode[], edges: VisualEdge[]): string {
-  const content = nodes.length === 0 ? renderEmptyGraph() : renderGraphSvg(nodes, edges);
-  return `<div class="graph-shell" id="builder-graph" data-projection-source="api" hx-swap-oob="true">${content}</div>`;
+function renderGraphFragment(id: string, projection: VisualProjection, node: VisualNode | undefined, profile: string): string {
+  const payload = escapeHtml(JSON.stringify(projection));
+  return `<div class="graph-shell" id="builder-graph" data-projection-source="api" data-workflow-id="${escapeHtml(id)}" data-workflow-name="${escapeHtml(projection.workflow_name ?? id)}" data-projection-payload="${payload}" hx-swap-oob="true"><div id="builder-canvas-root" role="img" aria-label="Dynamic workflow graph canvas"></div><p class="graph-caption">Live workflow projection loaded for the bound workflow.</p>${renderInspectorInline(node, profile)}</div>`;
 }
 
-function renderGraphSvg(nodes: VisualNode[], edges: VisualEdge[]): string {
-  const width = Math.max(...nodes.map((n) => n.position.x)) + 230;
-  const height = Math.max(...nodes.map((n) => n.position.y)) + 150;
-  const index = new Map(nodes.map((n) => [n.id, n]));
-  const defs = `<defs><marker id="arrowhead" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#8590a3"></path></marker></defs>`;
-  return `<svg class="graph-canvas" viewBox="0 0 ${width} ${height}" role="img" aria-label="Live workflow graph">${defs}${edges.map((e) => renderEdge(e, index)).join('')}${nodes.map(renderNode).join('')}</svg>`;
-}
-
-function renderEdge(edge: VisualEdge, index: Map<string, VisualNode>): string {
-  const from = index.get(edge.from);
-  const to = index.get(edge.to);
-  if (!from || !to) return '';
-  return `<line class="graph-edge" x1="${from.position.x + 140}" y1="${from.position.y + 66}" x2="${to.position.x + 30}" y2="${to.position.y + 66}"></line>`;
-}
-
-function renderNode(node: VisualNode): string {
-  const kindClass = graphNodeClass(node.kind);
-  return `<rect class="${kindClass}" x="${node.position.x + 30}" y="${node.position.y + 30}" width="170" height="72" style="stroke:${escapeHtml(node.color)}"></rect><text class="graph-label" x="${node.position.x + 50}" y="${node.position.y + 62}">${escapeHtml(node.label)}</text><text class="graph-meta" x="${node.position.x + 50}" y="${node.position.y + 84}">${escapeHtml(node.kind)}</text>`;
-}
-
-function renderInspectorFragment(id: string, node: VisualNode | undefined, profile: string): string {
+function renderInspectorInline(node: VisualNode | undefined, profile: string): string {
   const selected = node ? `${node.kind} / ${node.label}` : 'No node selected';
-  return `<aside class="inspector" id="builder-inspector" aria-labelledby="inspector-title" hx-swap-oob="true"><div class="inspector-header"><h3 class="inspector-title" id="inspector-title">Inspector — ${escapeHtml(id)}</h3></div><div class="inspector-grid"><div class="inspector-block"><span class="inspector-label">Selected node</span><p class="inspector-value">${escapeHtml(selected)}</p></div><div class="inspector-block"><span class="inspector-label">Conformance</span><p class="inspector-value">${escapeHtml(profile)}</p></div><div class="inspector-block"><span class="inspector-label">Status</span><p class="inspector-value">Saved</p></div></div></aside>`;
+  return `<aside class="inspector" id="builder-inspector" aria-labelledby="inspector-title"><div class="inspector-header"><h3 class="inspector-title" id="inspector-title">Inspector</h3></div><div class="inspector-grid"><div class="inspector-block"><span class="inspector-label">Selected node</span><p class="inspector-value">${escapeHtml(selected)}</p></div><div class="inspector-block"><span class="inspector-label">Conformance</span><p class="inspector-value">${escapeHtml(profile)}</p></div><div class="inspector-block"><span class="inspector-label">Diagnostics</span><p class="inspector-value">Projection loaded from workflow context.</p></div></div></aside>`;
 }
 
 function renderErrors(data: ValidateData): string {
@@ -143,16 +121,6 @@ function renderDiagnosticItem(item: Diagnostic): string {
   const label = item.code ?? 'diagnostic';
   const text = item.description ?? item.message ?? 'Validation diagnostic';
   return `<li><strong>${escapeHtml(label)}</strong>: ${escapeHtml(text)}</li>`;
-}
-
-function renderEmptyGraph(): string {
-  return '<div class="graph-canvas" role="img" aria-label="Empty workflow graph">No graph nodes returned for current draft.</div>';
-}
-
-function graphNodeClass(kind: string): string {
-  if (kind === 'action') return 'graph-node action';
-  if (['grounds', 'permit', 'delegate', 'invariant', 'budget'].includes(kind)) return 'graph-node governance';
-  return 'graph-node';
 }
 
 function escapeHtml(value: string): string {

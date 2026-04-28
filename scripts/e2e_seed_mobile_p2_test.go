@@ -111,11 +111,14 @@ func TestSeedWorkflowGraphFixtureCreatesRenderableWorkflow(t *testing.T) {
 	if name == "" {
 		t.Fatal("expected seeded workflow to have name")
 	}
-	if status != "testing" {
-		t.Fatalf("status = %q, want testing", status)
+	if status != "draft" {
+		t.Fatalf("status = %q, want draft", status)
 	}
 	if dslSource == "" || specSource == "" {
 		t.Fatalf("expected DSL and spec sources, got dsl=%q spec=%q", dslSource, specSource)
+	}
+	if dslSource != "WORKFLOW e2e_draft_followup_test\nON case.created\nSET case.status = \"open\"\nNOTIFY owner WITH \"Review new workflow draft\"\n" {
+		t.Fatalf("dslSource = %q, want create-draft scaffold", dslSource)
 	}
 }
 

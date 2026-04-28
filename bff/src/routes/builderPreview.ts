@@ -60,31 +60,13 @@ function renderDiagnostic(item: Diagnostic): string {
 function renderGraph(data: PreviewData): string {
   const graph = data.visual_graph;
   const nodes = graph?.nodes ?? [];
-  const edges = graph?.edges ?? [];
-  const content = nodes.length === 0 ? renderEmptyGraph() : renderGraphSvg(nodes, edges);
-  return `<div class="graph-shell" id="builder-graph" data-projection-source="api" hx-swap-oob="true">${content}${renderInspector(data, nodes[0])}</div>`;
-}
-
-function renderGraphSvg(nodes: VisualNode[], edges: VisualEdge[]): string {
-  const width = Math.max(...nodes.map((node) => node.position.x)) + 230;
-  const height = Math.max(...nodes.map((node) => node.position.y)) + 150;
-  const index = new Map(nodes.map((node) => [node.id, node]));
-  return `<svg class="graph-canvas" viewBox="0 0 ${width} ${height}" role="img" aria-label="Live workflow graph">${edges.map((edge) => renderEdge(edge, index)).join('')}${nodes.map(renderNode).join('')}</svg>`;
-}
-
-function renderEdge(edge: VisualEdge, index: Map<string, VisualNode>): string {
-  const from = index.get(edge.from);
-  const to = index.get(edge.to);
-  if (!from || !to) {
-    return '';
-  }
-  return `<line class="graph-edge" x1="${from.position.x + 140}" y1="${from.position.y + 66}" x2="${to.position.x + 30}" y2="${to.position.y + 66}"></line>`;
-}
-
-function renderNode(node: VisualNode): string {
-  const kindClass = graphNodeClass(node.kind);
-  const label = escapeHtml(node.label);
-  return `<rect class="${kindClass}" x="${node.position.x + 30}" y="${node.position.y + 30}" width="170" height="72" style="stroke:${escapeHtml(node.color)}"></rect><text class="graph-label" x="${node.position.x + 50}" y="${node.position.y + 62}">${label}</text><text class="graph-meta" x="${node.position.x + 50}" y="${node.position.y + 84}">${escapeHtml(node.kind)}</text>`;
+  const projectionPayload = escapeHtml(JSON.stringify({
+    workflow_name: graph?.workflow_name ?? '',
+    nodes,
+    edges: graph?.edges ?? [],
+    conformance: data.conformance,
+  }));
+  return `<div class="graph-shell" id="builder-graph" data-projection-source="api" data-workflow-name="${escapeHtml(graph?.workflow_name ?? '')}" data-projection-payload="${projectionPayload}" hx-swap-oob="true"><div id="builder-canvas-root" role="img" aria-label="Dynamic workflow graph canvas"></div><p class="graph-caption">Live workflow projection loaded for the bound workflow.</p>${renderInspector(data, nodes[0])}</div>`;
 }
 
 function renderInspector(data: PreviewData, node?: VisualNode): string {
@@ -100,10 +82,6 @@ function collectDiagnostics(data: PreviewData): Diagnostic[] {
   ];
 }
 
-function renderEmptyGraph(): string {
-  return '<div class="graph-canvas" role="img" aria-label="Empty workflow graph">No graph nodes returned for current draft.</div>';
-}
-
 function renderPreviewError(err: unknown): string {
   const message = err instanceof Error ? err.message : 'Preview request failed';
   return `<span>Preview unavailable</span><ul class="diagnostics-list" id="builder-diagnostics" aria-live="polite" hx-swap-oob="true"><li><strong>preview_error</strong>: ${escapeHtml(message)}</li></ul>`;
@@ -115,16 +93,6 @@ function formValue(body: unknown, key: string): string {
   }
   const value = (body as Record<string, unknown>)[key];
   return typeof value === 'string' ? value : '';
-}
-
-function graphNodeClass(kind: string): string {
-  if (kind === 'action') {
-    return 'graph-node action';
-  }
-  if (['grounds', 'permit', 'delegate', 'invariant', 'budget'].includes(kind)) {
-    return 'graph-node governance';
-  }
-  return 'graph-node';
 }
 
 function escapeHtml(value: string): string {

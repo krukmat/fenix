@@ -398,7 +398,7 @@ health verdict.
 | `bff/src/routes/adminTools.ts` | `77` | Tools page previously failed because the seeded operator lacked `admin.tools.list`. | Yes - the corrected fixture grants the permission and `R10` now returns `200`. |
 | `bff/src/routes/adminWorkflows.ts` | `189-202` | Workflow activation was previously unverifiable because the seeded operator hit `403` and the fixture workflow was already `active`. | Yes - the corrected fixture grants `workflows.activate` and seeds the verification workflow in `testing`, allowing `M1` to pass. |
 | `bff/src/routes/adminApprovals.ts` | `175` | Approvals decision route previously posted to `/api/v1/approvals/{id}/decision`, but the live backend only accepts `PUT /api/v1/approvals/{id}`. | Yes - `M2` now succeeds through the corrected BFF relay. |
-| `bff/scripts/admin-screenshots/catalog.ts` | `1-47` | Screenshot catalog and smoke-run were revalidated against the R1-R11 scope; the residual `policy_versions` dependency was removed from the runner and the 11-route catalog completed without failures. | Yes |
+| `bff/scripts/admin-screenshots/catalog.ts` | `1-66` | Screenshot catalog and smoke-run were revalidated against the admin surface, and the workflow authoring flow now captures `list -> create draft -> builder -> detail` as part of a 13-route catalog without failures. | Yes |
 
 ## Replay notes
 

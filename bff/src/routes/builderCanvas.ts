@@ -1,9 +1,13 @@
 // CLSF-77b-78: client-side SVG canvas render, visual edits, save, and generated-source diff.
 import { SOURCE_DIFF_SCRIPT } from './builderSourceDiff';
 export const GRAPH_AUTHORING_STYLES = `.graph-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line); background: #fbfcfe; } .graph-toolbar input, .graph-toolbar select { height: 34px; border: 1px solid var(--line); border-radius: 6px; padding: 0 10px; color: var(--text); background: #ffffff; } .graph-toolbar button { height: 34px; border: 0; border-radius: 6px; padding: 0 10px; background: var(--accent); color: #ffffff; font-weight: 700; cursor: pointer; } .graph-toolbar button:disabled { cursor: not-allowed; opacity: 0.48; } .graph-node-shell[data-selected="true"] .graph-node { stroke-width: 4; } .graph-node-shell[data-connecting-source="true"] .graph-node { stroke-dasharray: 6 4; } .source-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--line); background: #fbfcfe; } .source-diff pre { min-height: 120px; margin: 0; padding: 10px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: #ffffff; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }`;
-export const GRAPH_AUTHORING_CONTROLS = `<div class="graph-toolbar" aria-label="Graph authoring controls"><select id="builder-add-node-kind" aria-label="Node kind"><option value="workflow">workflow</option><option value="trigger">trigger</option><option value="action">action</option><option value="decision">decision</option><option value="grounds">grounds</option><option value="permit">permit</option><option value="delegate">delegate</option><option value="invariant">invariant</option><option value="budget">budget</option></select><input id="builder-add-node-label" type="text" placeholder="Node label" aria-label="Node label"><button id="builder-add-node" type="button">Add</button><button id="builder-delete-node" type="button" disabled>Delete</button><button id="builder-connect-node" type="button" disabled>Connect</button><button id="builder-save-graph" type="button" data-workflow-id="sales_followup" data-save-action="/bff/builder/visual-authoring/sales_followup">Save graph</button><span class="preview-status" id="builder-connect-status">Connect idle</span></div>`;
 export const GENERATED_SOURCE_DIFF = `<div class="source-diff" aria-label="Generated source diff"><pre id="builder-generated-dsl"></pre><pre id="builder-generated-spec"></pre></div>`;
 export const GRAPH_CANVAS_PLACEHOLDER = `<div id="builder-canvas-root" role="img" aria-label="Dynamic workflow graph canvas"></div>`;
+const escAttr = (v: string) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+export function renderGraphAuthoringControls(workflowId: string): string {
+  return `<div class="graph-toolbar" aria-label="Graph authoring controls"><select id="builder-add-node-kind" aria-label="Node kind"><option value="workflow">workflow</option><option value="trigger">trigger</option><option value="action">action</option><option value="decision">decision</option><option value="grounds">grounds</option><option value="permit">permit</option><option value="delegate">delegate</option><option value="invariant">invariant</option><option value="budget">budget</option></select><input id="builder-add-node-label" type="text" placeholder="Node label" aria-label="Node label"><button id="builder-add-node" type="button">Add</button><button id="builder-delete-node" type="button" disabled>Delete</button><button id="builder-connect-node" type="button" disabled>Connect</button><button id="builder-save-graph" type="button" data-workflow-id="${escAttr(workflowId)}" data-save-action="/bff/builder/visual-authoring/${encodeURIComponent(workflowId)}">Save graph</button><span class="preview-status" id="builder-connect-status">Connect idle</span></div>`;
+}
+
 export const BUILDER_SCRIPT = `<script>
       (function () {
         var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -15,11 +19,34 @@ export const BUILDER_SCRIPT = `<script>
           nodes: [{ id: 'vnode-workflow-1', kind: 'workflow', label: 'sales_followup', position: { x: 40, y: 40 } }, { id: 'vnode-trigger-1', kind: 'trigger', label: 'deal.updated', position: { x: 250, y: 40 } }, { id: 'vnode-action-1', kind: 'action', label: 'notify owner', position: { x: 470, y: 40 } }, { id: 'vnode-grounds-1', kind: 'grounds', label: 'permit + grounds', position: { x: 242, y: 215 } }],
           edges: [{ id: 'vedge-1', from: 'vnode-workflow-1', to: 'vnode-trigger-1', connection_type: 'execution' }, { id: 'vedge-2', from: 'vnode-trigger-1', to: 'vnode-action-1', connection_type: 'execution' }, { id: 'vedge-3', from: 'vnode-trigger-1', to: 'vnode-grounds-1', connection_type: 'execution' }]
         };
+        var graphShell = document.getElementById('builder-graph');
+        var initialProjection = readInitialProjection();
+        var activeWorkflowName = inferWorkflowName(initialProjection);
         var graphState = createGraphState();
+        var canvasRoot = null;
         var connectingSourceId = null;
         var dragState = null;
         var suppressNextClick = false;
-        graphState.loadFromProjection(fixtureGraph);
+        graphState.loadFromProjection(initialProjection || fixtureGraph);
+        function readInitialProjection() {
+          if (graphShell) {
+            var payload = graphShell.getAttribute('data-projection-payload');
+            if (payload) {
+              try { return JSON.parse(payload); } catch (_payloadError) {}
+            }
+          }
+          var raw = document.getElementById('builder-initial-projection');
+          if (!raw || !raw.textContent) return null;
+          try { return JSON.parse(raw.textContent); } catch (_error) { return null; }
+        }
+        function inferWorkflowName(projection) {
+          if (projection && projection.workflow_name) return projection.workflow_name;
+          if (graphShell) {
+            var shellName = graphShell.getAttribute('data-workflow-name');
+            if (shellName) return shellName;
+          }
+          return fixtureGraph.workflow_name;
+        }
         function createGraphState() {
           var nodes = [];
           var edges = [];
@@ -52,7 +79,7 @@ export const BUILDER_SCRIPT = `<script>
               edgeCounter += 1; var id = 'vedge-' + edgeCounter; edges.push({ id: id, from: from, to: to, connection_type: connectionType }); return id;
             },
             generatedSources: function () {
-              var graph = this.toPayload(fixtureGraph.workflow_name).graph;
+              var graph = this.toPayload(activeWorkflowName).graph;
               return { dsl_source: generateDslSource(graph), spec_source: generateSpecSource(graph) };
             },
             toPayload: function (workflowName) {
@@ -65,8 +92,17 @@ export const BUILDER_SCRIPT = `<script>
             setSelectedNodeId: function (id) { selectedNodeId = id; }
           };
         }
-        function currentGraph() { return graphState.toPayload(fixtureGraph.workflow_name).graph; }
-        function currentPayload() { return graphState.toPayload(fixtureGraph.workflow_name); }
+        function currentGraph() { return graphState.toPayload(activeWorkflowName).graph; }
+        function currentPayload() { return graphState.toPayload(activeWorkflowName); }
+        function updateProjectionPayload(projection) {
+          graphShell = document.getElementById('builder-graph');
+          if (!graphShell) return;
+          graphShell.setAttribute('data-projection-source', 'api');
+          graphShell.setAttribute('data-workflow-name', projection.workflow_name || activeWorkflowName);
+          graphShell.setAttribute('data-projection-payload', JSON.stringify(projection));
+          var raw = document.getElementById('builder-initial-projection');
+          if (raw) raw.textContent = JSON.stringify(projection);
+        }
         function ordinalFromId(id, kind) { var match = new RegExp('^vnode-' + kind + '-(\\\\d+)$').exec(id); return match ? Number(match[1]) : 0; }
         function findNode(id) { return currentGraph().nodes.find(function (node) { return node.id === id; }) || null; }
         function svgElement(name, attrs) { var element = document.createElementNS(SVG_NS, name); Object.keys(attrs).forEach(function (key) { element.setAttribute(key, String(attrs[key])); }); return element; }
@@ -165,7 +201,14 @@ export const BUILDER_SCRIPT = `<script>
           if (!items || items.length === 0) { var empty = document.createElement('li'); empty.className = 'diagnostic-empty'; empty.textContent = 'No validation diagnostics for current draft.'; list.appendChild(empty); return; }
           items.forEach(function (item) { var li = document.createElement('li'); li.textContent = (item.code || 'diagnostic') + ': ' + (item.description || item.message || 'Validation diagnostic'); list.appendChild(li); });
         }
-        function applySaveProjection(data) { if (data.projection) graphState.loadFromProjection(data.projection); connectingSourceId = null; setStatus('Graph saved'); rerenderCanvas(); }
+        function applySaveProjection(data) {
+          if (data.projection) {
+            activeWorkflowName = data.projection.workflow_name || activeWorkflowName;
+            graphState.loadFromProjection(data.projection);
+            updateProjectionPayload(data.projection);
+          }
+          connectingSourceId = null; setStatus('Graph saved'); rerenderCanvas();
+        }
         function handleSaveGraph() {
           var button = document.getElementById('builder-save-graph'); var workflowId = button.getAttribute('data-workflow-id');
           if (!workflowId) return; button.disabled = true; setStatus('Saving graph...');
@@ -173,25 +216,54 @@ export const BUILDER_SCRIPT = `<script>
         }
         function syncToolbar() { var selected = graphState.getSelectedNodeId(); document.getElementById('builder-delete-node').disabled = !selected; document.getElementById('builder-connect-node').disabled = !selected || Boolean(connectingSourceId); document.getElementById('builder-connect-status').textContent = connectingSourceId ? 'Connecting from ' + connectingSourceId : 'Connect idle'; }
 ${SOURCE_DIFF_SCRIPT}
+        function bindCanvasRoot() {
+          var nextRoot = document.getElementById('builder-canvas-root');
+          if (!nextRoot || nextRoot === canvasRoot) return;
+          if (canvasRoot) {
+            canvasRoot.removeEventListener('click', handleCanvasClick);
+            canvasRoot.removeEventListener('pointerdown', handlePointerDown);
+            canvasRoot.removeEventListener('pointermove', handlePointerMove);
+            canvasRoot.removeEventListener('pointerup', handlePointerUp);
+            canvasRoot.removeEventListener('pointercancel', handlePointerUp);
+          }
+          canvasRoot = nextRoot;
+          canvasRoot.addEventListener('click', handleCanvasClick);
+          canvasRoot.addEventListener('pointerdown', handlePointerDown);
+          canvasRoot.addEventListener('pointermove', handlePointerMove);
+          canvasRoot.addEventListener('pointerup', handlePointerUp);
+          canvasRoot.addEventListener('pointercancel', handlePointerUp);
+        }
+        function refreshProjectionFromDom() {
+          graphShell = document.getElementById('builder-graph');
+          var projection = readInitialProjection();
+          if (!projection) return;
+          activeWorkflowName = inferWorkflowName(projection);
+          graphState.loadFromProjection(projection);
+          connectingSourceId = null;
+          rerenderCanvas();
+        }
         function initAuth() { var tokenInput = document.getElementById('builder-token'); var authForm = document.getElementById('builder-auth-form'); tokenInput.value = localStorage.getItem('fenix.builder.bearerToken') || ''; authForm.addEventListener('submit', function (event) { event.preventDefault(); localStorage.setItem('fenix.builder.bearerToken', tokenInput.value.trim()); }); }
         initAuth();
-        var canvasRoot = document.getElementById('builder-canvas-root');
+        bindCanvasRoot();
         document.getElementById('builder-add-node').addEventListener('click', handleAddNode);
         document.getElementById('builder-delete-node').addEventListener('click', handleDeleteSelected);
         document.getElementById('builder-connect-node').addEventListener('click', handleConnectSelected);
         document.getElementById('builder-save-graph').addEventListener('click', handleSaveGraph);
         document.getElementById('builder-editor').addEventListener('input', renderSourceDiff);
         document.getElementById('builder-spec-source').addEventListener('input', renderSourceDiff);
-        canvasRoot.addEventListener('click', handleCanvasClick);
-        canvasRoot.addEventListener('pointerdown', handlePointerDown);
-        canvasRoot.addEventListener('pointermove', handlePointerMove);
-        canvasRoot.addEventListener('pointerup', handlePointerUp);
-        canvasRoot.addEventListener('pointercancel', handlePointerUp);
         document.addEventListener('keydown', handleKeyDown);
         document.body.addEventListener('htmx:configRequest', function (event) {
           var token = localStorage.getItem('fenix.builder.bearerToken');
           if (token) {
             event.detail.headers.Authorization = 'Bearer ' + token;
+          }
+        });
+        document.body.addEventListener('htmx:afterSwap', function (event) {
+          var target = event.target;
+          if (!(target instanceof Element)) return;
+          if (target.id === 'builder-graph' || target.querySelector('#builder-graph')) {
+            bindCanvasRoot();
+            refreshProjectionFromDom();
           }
         });
         window.fenixBuilderCanvas = { getSelectedNodeId: getSelectedNodeId, rerenderCanvas: rerenderCanvas };

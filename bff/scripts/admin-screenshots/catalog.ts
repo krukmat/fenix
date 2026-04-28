@@ -1,4 +1,4 @@
-// admin-screenshots Task 2: route catalog — 11 canonical admin pages to capture
+// admin-screenshots Task 2: route catalog — canonical admin workflow capture set
 import type { SeederOutput } from '../snapshots/types';
 
 export type ResolvedIds = {
@@ -20,39 +20,47 @@ export const catalog: AdminScreenshotEntry[] = [
     url: (base) => `${base}/bff/admin/workflows`,
   },
   {
-    name: '03_workflow_detail',
+    name: '03_workflow_create_draft',
+    url: (base) => `${base}/bff/admin/workflows/new`,
+  },
+  {
+    name: '04_workflow_builder_bound',
+    url: (base, seed) => `${base}/bff/builder?workflowId=${encodeURIComponent(seed.workflow.id)}`,
+  },
+  {
+    name: '05_workflow_detail',
     url: (base, seed) => `${base}/bff/admin/workflows/${seed.workflow.id}`,
   },
   {
-    name: '04_agent_runs_list',
+    name: '06_agent_runs_list',
     url: (base) => `${base}/bff/admin/agent-runs`,
   },
   {
-    name: '05_agent_run_detail',
+    name: '07_agent_run_detail',
     url: (base, seed) => `${base}/bff/admin/agent-runs/${seed.agentRuns.completedId}`,
   },
   {
-    name: '06_approvals_list',
+    name: '08_approvals_list',
     url: (base) => `${base}/bff/admin/approvals`,
   },
   {
-    name: '07_audit_list',
+    name: '09_audit_list',
     url: (base) => `${base}/bff/admin/audit`,
   },
   {
-    name: '08_audit_detail',
+    name: '10_audit_detail',
     url: (base, _seed, resolved) => `${base}/bff/admin/audit/${resolved.firstAuditEventId}`,
   },
   {
-    name: '09_policy',
+    name: '11_policy',
     url: (base) => `${base}/bff/admin/policy`,
   },
   {
-    name: '10_tools',
+    name: '12_tools',
     url: (base) => `${base}/bff/admin/tools`,
   },
   {
-    name: '11_metrics',
+    name: '13_metrics',
     url: (base) => `${base}/bff/admin/metrics`,
   },
 ];

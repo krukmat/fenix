@@ -30,6 +30,11 @@ Your job: build the missing HTMX admin pages inside the BFF that surface
 the existing Go governance endpoints (workflows, agent runs, approvals,
 audit, policy, tools, metrics).
 
+Follow-up note `2026-04-28`: workflow authoring inside the BFF admin is now
+tracked separately in `docs/plans/bff-admin-workflow-authoring-plan.md`. This
+handoff remains the source of truth for the original admin read/operate shell,
+while create/edit builder integration moved into that follow-up plan.
+
 ## Read these first (non-negotiable)
 
 1. `CLAUDE.md` (project root) — architecture rules, reporting cadence,

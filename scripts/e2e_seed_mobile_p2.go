@@ -500,12 +500,12 @@ func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, pipelin
 
 func seedWorkflowGraphFixture(ctx context.Context, db *sql.DB, auth authResponse, suffix string) (string, error) {
 	workflowID := uuid.NewV7().String()
-	name := "e2e_graph_followup_" + suffix
-	description := "Deterministic workflow graph fixture for admin-shell verification"
+	name := "e2e_draft_followup_" + suffix
+	description := "Deterministic workflow draft fixture for admin-shell workflow authoring screenshots"
 	dslSource := `WORKFLOW ` + name + `
-ON deal.updated
-SET deal.status = "reviewing"
-NOTIFY owner WITH "Review graph follow-up"
+ON case.created
+SET case.status = "open"
+NOTIFY owner WITH "Review new workflow draft"
 `
 	specSource := `CARTA ` + name + `
 AGENT visual_auditor
@@ -519,7 +519,7 @@ AGENT visual_auditor
 			id, workspace_id, name, description, dsl_source, spec_source,
 			version, status, created_by_user_id, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, 1, 'testing', ?, datetime('now'), datetime('now'))
+		VALUES (?, ?, ?, ?, ?, ?, 1, 'draft', ?, datetime('now'), datetime('now'))
 	`, workflowID, auth.WorkspaceID, name, description, dslSource, specSource, auth.UserID)
 	if err != nil {
 		return "", err

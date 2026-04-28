@@ -7,7 +7,7 @@ jest.mock('http-proxy-middleware', () => ({
   createProxyMiddleware: jest.fn(() => proxyStub),
 }));
 
-const mockGoClient = { get: jest.fn(), put: jest.fn() };
+const mockGoClient = { get: jest.fn(), post: jest.fn(), put: jest.fn() };
 jest.mock('../src/services/goClient', () => ({
   createGoClient: jest.fn(() => mockGoClient),
   pingGoBackend: jest.fn().mockResolvedValue({ reachable: true, latencyMs: 5 }),
@@ -171,6 +171,140 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
       expect(res.text).toContain('name="status"');
       expect(res.text).toContain('name="name"');
     });
+
+    it('includes a create workflow action', async () => {
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_LIST }, status: 200 });
+
+      const res = await request(app)
+        .get('/bff/admin/workflows')
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.text).toContain('/bff/admin/workflows/new');
+    });
+  });
+});
+
+describe('BFF admin workflow draft creation — WFA-01', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('GET /bff/admin/workflows/new', () => {
+    it('renders the create draft form', async () => {
+      const res = await request(app)
+        .get('/bff/admin/workflows/new')
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/text\/html/);
+      expect(res.text).toContain('Create workflow draft');
+      expect(res.text).toContain('name="name"');
+      expect(res.text).toContain('name="description"');
+      expect(res.text).toContain('name="authoring_mode"');
+    });
+  });
+
+  describe('POST /bff/admin/workflows', () => {
+    it('calls Go POST /api/v1/workflows with the draft scaffold', async () => {
+      mockGoClient.post.mockResolvedValue({ data: { data: { id: 'wf-new', name: 'sales_followup' } }, status: 201 });
+
+      await request(app)
+        .post('/bff/admin/workflows')
+        .type('form')
+        .send({ name: 'sales_followup', description: 'Follow up on deals', authoring_mode: 'visual' })
+        .set('Authorization', 'Bearer test-token');
+
+      expect(mockGoClient.post).toHaveBeenCalledWith('/api/v1/workflows', {
+        name: 'sales_followup',
+        description: 'Follow up on deals',
+        dsl_source: 'WORKFLOW sales_followup\nON case.created',
+      });
+    });
+
+    it('redirects to the builder with the workflow context after create', async () => {
+      mockGoClient.post.mockResolvedValue({ data: { data: { id: 'wf-new', name: 'sales_followup' } }, status: 201 });
+
+      const res = await request(app)
+        .post('/bff/admin/workflows')
+        .type('form')
+        .send({ name: 'sales_followup', description: 'Follow up on deals', authoring_mode: 'visual' })
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.status).toBe(302);
+      expect(res.headers['location']).toBe('/bff/builder?workflowId=wf-new');
+    });
+
+    it('re-renders the form with inline error on 422 from backend', async () => {
+      const err = Object.assign(new Error('Unprocessable'), {
+        isAxiosError: true,
+        response: {
+          status: 422,
+          data: { message: 'workflow name is required' },
+        },
+      });
+      mockGoClient.post.mockRejectedValue(err);
+
+      const res = await request(app)
+        .post('/bff/admin/workflows')
+        .type('form')
+        .send({ name: '', description: 'Follow up on deals', authoring_mode: 'visual' })
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/text\/html/);
+      expect(res.text).toContain('Create draft failed');
+      expect(res.text).toContain('workflow name is required');
+    });
+
+    it('re-renders the form with inline error on 403 from backend', async () => {
+      const err = Object.assign(new Error('Forbidden'), {
+        isAxiosError: true,
+        response: {
+          status: 403,
+          data: { message: 'forbidden' },
+        },
+      });
+      mockGoClient.post.mockRejectedValue(err);
+
+      const res = await request(app)
+        .post('/bff/admin/workflows')
+        .type('form')
+        .send({ name: 'sales_followup', description: 'Follow up on deals', authoring_mode: 'visual' })
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('forbidden');
+      expect(res.text).toContain('name="name"');
+    });
+
+    it('redirects to /bff/admin on 401 from upstream', async () => {
+      const err = Object.assign(new Error('Unauthorized'), {
+        isAxiosError: true,
+        response: { status: 401, data: { message: 'Unauthorized' } },
+      });
+      mockGoClient.post.mockRejectedValue(err);
+
+      const res = await request(app)
+        .post('/bff/admin/workflows')
+        .type('form')
+        .send({ name: 'sales_followup', description: 'Follow up on deals', authoring_mode: 'visual' })
+        .set('Authorization', 'Bearer expired');
+
+      expect(res.status).toBe(302);
+      expect(res.headers['location']).toBe('/bff/admin');
+    });
+
+    it('returns 500 on unexpected upstream error', async () => {
+      mockGoClient.post.mockRejectedValue(new Error('network timeout'));
+
+      const res = await request(app)
+        .post('/bff/admin/workflows')
+        .type('form')
+        .send({ name: 'sales_followup', description: 'Follow up on deals', authoring_mode: 'visual' })
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.status).toBe(500);
+    });
   });
 });
 
@@ -262,7 +396,29 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
         .get('/bff/admin/workflows/wf-001')
         .set('Authorization', 'Bearer test-token');
 
-      expect(res.text).toContain('/bff/builder');
+      expect(res.text).toContain('/bff/builder?workflowId=wf-001');
+    });
+
+    it('includes a link back to the workflow list from detail actions', async () => {
+      mockGoClient.get.mockResolvedValue({ data: { data: WORKFLOW_DETAIL }, status: 200 });
+
+      const res = await request(app)
+        .get('/bff/admin/workflows/wf-001')
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.text).toContain('Back to workflow list');
+    });
+
+    it('renders a status hint for draft workflows', async () => {
+      const draftDetail = { ...WORKFLOW_DETAIL, status: 'draft' };
+      mockGoClient.get.mockResolvedValue({ data: { data: draftDetail }, status: 200 });
+
+      const res = await request(app)
+        .get('/bff/admin/workflows/wf-001')
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.text).toContain('Workflow status');
+      expect(res.text).toContain('Draft: editable in builder and not yet ready for activation.');
     });
 
     it('includes a back link to the workflows list', async () => {

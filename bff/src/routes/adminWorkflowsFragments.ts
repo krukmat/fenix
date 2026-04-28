@@ -22,6 +22,12 @@ export interface WorkflowCreateResponse {
 }
 
 const STATUS_COLORS: Record<string, string> = { active: 'background:#d1fae5;color:#065f46', draft: 'background:#f3f4f6;color:#374151', testing: 'background:#dbeafe;color:#1e40af', archived: 'background:#fef3c7;color:#92400e' };
+const STATUS_HINTS: Record<string, string> = {
+  draft: 'Draft: editable in builder and not yet ready for activation.',
+  testing: 'Testing: validate behavior before promoting this workflow to active.',
+  active: 'Active: currently promoted. Create or edit a draft version before changing behavior.',
+  archived: 'Archived: retained for history and not part of the active operator flow.',
+};
 
 function statusBadge(status: string): string {
   const style = STATUS_COLORS[status] ?? 'background:#f3f4f6;color:#374151';
@@ -184,9 +190,15 @@ function detailSources(wf: WorkflowDetail): string {
 }
 
 function detailActivation(wf: WorkflowDetail): string {
+  const statusHint = STATUS_HINTS[wf.status] ?? 'Unknown workflow state.';
   return `
   <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px">
     <a href="/bff/builder?workflowId=${encodeURIComponent(wf.id)}" style="display:inline-block;padding:8px 16px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-weight:600;color:var(--accent);text-decoration:none">Open in Builder</a>
+    <a href="/bff/admin/workflows" style="display:inline-block;padding:8px 16px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-weight:600;color:var(--muted);text-decoration:none">Back to workflow list</a>
+  </div>
+  <div style="margin-bottom:20px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px">
+    <h3 style="margin:0 0 8px;font-size:14px;font-weight:700">Workflow status</h3>
+    <p style="margin:0;color:var(--muted);font-size:13px"><strong style="color:var(--text)">${escHtml(wf.status)}</strong> — ${escHtml(statusHint)}</p>
   </div>
   <div id="activation-section" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px">
     <h3 style="margin:0 0 8px;font-size:14px;font-weight:700">Activation</h3>
