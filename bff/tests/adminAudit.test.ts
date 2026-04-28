@@ -279,7 +279,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
   describe('GET /bff/admin/audit/:id', () => {
     it('returns 200 with HTML content-type', async () => {
-      mockGoClient.get.mockResolvedValue({ data: { data: AUDIT_DETAIL }, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: AUDIT_DETAIL, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
@@ -290,7 +290,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
     });
 
     it('calls Go GET /api/v1/audit/:id', async () => {
-      mockGoClient.get.mockResolvedValue({ data: { data: AUDIT_DETAIL }, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: AUDIT_DETAIL, status: 200 });
 
       await request(app)
         .get('/bff/admin/audit/evt-001')
@@ -300,7 +300,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
     });
 
     it('renders the audit event id', async () => {
-      mockGoClient.get.mockResolvedValue({ data: { data: AUDIT_DETAIL }, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: AUDIT_DETAIL, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
@@ -310,7 +310,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
     });
 
     it('renders actor and action', async () => {
-      mockGoClient.get.mockResolvedValue({ data: { data: AUDIT_DETAIL }, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: AUDIT_DETAIL, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
@@ -321,7 +321,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
     });
 
     it('renders resource type and id', async () => {
-      mockGoClient.get.mockResolvedValue({ data: { data: AUDIT_DETAIL }, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: AUDIT_DETAIL, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
@@ -332,7 +332,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
     });
 
     it('renders outcome', async () => {
-      mockGoClient.get.mockResolvedValue({ data: { data: AUDIT_DETAIL }, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: AUDIT_DETAIL, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
@@ -342,7 +342,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
     });
 
     it('renders back link to audit list', async () => {
-      mockGoClient.get.mockResolvedValue({ data: { data: AUDIT_DETAIL }, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: AUDIT_DETAIL, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
@@ -352,7 +352,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
     });
 
     it('renders no mutation affordance (read-only — no POST form in content)', async () => {
-      mockGoClient.get.mockResolvedValue({ data: { data: AUDIT_DETAIL }, status: 200 });
+      mockGoClient.get.mockResolvedValue({ data: AUDIT_DETAIL, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
@@ -360,6 +360,17 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
       // The shared layout auth-bar uses method="GET" (default); no content-area POST form exists
       expect(res.text).not.toContain('method="POST"');
+    });
+
+    it('accepts legacy envelope responses without crashing', async () => {
+      mockGoClient.get.mockResolvedValue({ data: { data: AUDIT_DETAIL }, status: 200 });
+
+      const res = await request(app)
+        .get('/bff/admin/audit/evt-001')
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('evt-001');
     });
 
     it('redirects to /bff/admin when Go backend returns 401', async () => {

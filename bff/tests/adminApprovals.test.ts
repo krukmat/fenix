@@ -1,4 +1,4 @@
-// BFF-ADMIN-30 / BFF-ADMIN-31: admin approvals queue list + decision form
+// BFF-ADMIN-30 / BFF-ADMIN-31: admin approvals queue with inline decision relay
 import request from 'supertest';
 import { makeProxyStub } from './helpers/proxyStub';
 
@@ -7,7 +7,7 @@ jest.mock('http-proxy-middleware', () => ({
   createProxyMiddleware: jest.fn(() => proxyStub),
 }));
 
-const mockGoClient = { get: jest.fn(), post: jest.fn() };
+const mockGoClient = { get: jest.fn(), put: jest.fn() };
 jest.mock('../src/services/goClient', () => ({
   createGoClient: jest.fn(() => mockGoClient),
   pingGoBackend: jest.fn().mockResolvedValue({ reachable: true, latencyMs: 5 }),
@@ -182,131 +182,87 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
   });
 });
 
-const APPROVAL_DETAIL = {
-  id: 'apr-001',
-  requestedBy: 'user-abc',
-  action: 'send_email',
-  status: 'pending',
-  reason: null,
-  proposedPayload: { to: 'customer@example.com', templateId: 'tmpl-01' },
-  createdAt: '2026-04-25T10:00:00Z',
-};
-
-// BFF-ADMIN-31: decision form — GET detail + POST decision relay
-describe('BFF admin approval decision form — BFF-ADMIN-31', () => {
+describe('BFF admin approval decisions — BFF-ADMIN-31', () => {
   beforeEach(() => { jest.clearAllMocks(); });
 
-  describe('GET /bff/admin/approvals/:id', () => {
-    it('returns 200 with HTML content-type', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_DETAIL, status: 200 });
+  describe('queue rendering', () => {
+    it('renders inline decision controls for pending approvals', async () => {
+      mockGoClient.get.mockResolvedValue({ data: BACKEND_RESPONSE, status: 200 });
 
       const res = await request(app)
-        .get('/bff/admin/approvals/apr-001')
+        .get('/bff/admin/approvals')
         .set('Authorization', 'Bearer test-token');
 
-      expect(res.status).toBe(200);
-      expect(res.headers['content-type']).toMatch(/text\/html/);
-    });
-
-    it('calls Go GET /api/v1/approvals/:id', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_DETAIL, status: 200 });
-
-      await request(app)
-        .get('/bff/admin/approvals/apr-001')
-        .set('Authorization', 'Bearer test-token');
-
-      expect(mockGoClient.get).toHaveBeenCalledWith('/api/v1/approvals/apr-001');
-    });
-
-    it('renders the approval id', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_DETAIL, status: 200 });
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-001')
-        .set('Authorization', 'Bearer test-token');
-
-      expect(res.text).toContain('apr-001');
-    });
-
-    it('renders the action name', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_DETAIL, status: 200 });
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-001')
-        .set('Authorization', 'Bearer test-token');
-
-      expect(res.text).toContain('send_email');
-    });
-
-    it('renders approve and reject buttons', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_DETAIL, status: 200 });
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-001')
-        .set('Authorization', 'Bearer test-token');
-
+      expect(res.text).toContain('/bff/admin/approvals/apr-001/decision');
+      expect(res.text).toContain('name="reason"');
       expect(res.text).toContain('approve');
       expect(res.text).toContain('reject');
     });
 
-    it('renders a reason textarea in the form', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_DETAIL, status: 200 });
+    it('documents that no separate approval detail route exists', async () => {
+      mockGoClient.get.mockResolvedValue({ data: BACKEND_RESPONSE, status: 200 });
 
+      const res = await request(app)
+        .get('/bff/admin/approvals')
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.text).toContain('There is no separate approval detail route');
+    });
+
+    it('does not render decision controls for non-pending approvals', async () => {
+      mockGoClient.get.mockResolvedValue({ data: BACKEND_RESPONSE, status: 200 });
+
+      const res = await request(app)
+        .get('/bff/admin/approvals')
+        .set('Authorization', 'Bearer test-token');
+
+      expect(res.text).toContain('Already decided');
+      expect(res.text).not.toContain('/bff/admin/approvals/apr-002/decision');
+    });
+  });
+
+  describe('GET /bff/admin/approvals/:id', () => {
+    it('returns 404 because approval detail is not part of the canonical contract', async () => {
       const res = await request(app)
         .get('/bff/admin/approvals/apr-001')
         .set('Authorization', 'Bearer test-token');
 
-      expect(res.text).toContain('textarea');
-      expect(res.text).toContain('name="reason"');
-    });
-
-    it('redirects to /bff/admin when Go backend returns 401 on detail GET', async () => {
-      const err = Object.assign(new Error('Unauthorized'), {
-        isAxiosError: true,
-        response: { status: 401, data: { message: 'Unauthorized' } },
-      });
-      mockGoClient.get.mockRejectedValue(err);
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-001')
-        .set('Authorization', 'Bearer expired');
-
-      expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.status).toBe(404);
+      expect(mockGoClient.get).not.toHaveBeenCalled();
     });
   });
 
   describe('POST /bff/admin/approvals/:id/decision', () => {
-    it('relays decision=approve to Go POST /api/v1/approvals/:id/decision', async () => {
-      mockGoClient.post.mockResolvedValue({ data: { status: 'approved' }, status: 200 });
+    it('relays decision=approve to Go PUT /api/v1/approvals/:id', async () => {
+      mockGoClient.put.mockResolvedValue({ data: { status: 'approved' }, status: 200 });
 
       await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
         .set('Authorization', 'Bearer test-token')
         .send('decision=approve&reason=Looks+good');
 
-      expect(mockGoClient.post).toHaveBeenCalledWith(
-        '/api/v1/approvals/apr-001/decision',
+      expect(mockGoClient.put).toHaveBeenCalledWith(
+        '/api/v1/approvals/apr-001',
         expect.objectContaining({ decision: 'approve' }),
       );
     });
 
     it('relays decision=reject and reason verbatim to Go', async () => {
-      mockGoClient.post.mockResolvedValue({ data: { status: 'rejected' }, status: 200 });
+      mockGoClient.put.mockResolvedValue({ data: { status: 'rejected' }, status: 200 });
 
       await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
         .set('Authorization', 'Bearer test-token')
         .send('decision=reject&reason=Not+authorized');
 
-      expect(mockGoClient.post).toHaveBeenCalledWith(
-        '/api/v1/approvals/apr-001/decision',
+      expect(mockGoClient.put).toHaveBeenCalledWith(
+        '/api/v1/approvals/apr-001',
         expect.objectContaining({ decision: 'reject', reason: 'Not authorized' }),
       );
     });
 
     it('redirects to approvals list after successful decision', async () => {
-      mockGoClient.post.mockResolvedValue({ data: { status: 'approved' }, status: 200 });
+      mockGoClient.put.mockResolvedValue({ data: { status: 'approved' }, status: 200 });
 
       const res = await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
@@ -322,7 +278,7 @@ describe('BFF admin approval decision form — BFF-ADMIN-31', () => {
         isAxiosError: true,
         response: { status: 422, data: { message: 'decision field required' } },
       });
-      mockGoClient.post = jest.fn().mockRejectedValue(err);
+      mockGoClient.put = jest.fn().mockRejectedValue(err);
 
       const res = await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
@@ -338,7 +294,7 @@ describe('BFF admin approval decision form — BFF-ADMIN-31', () => {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
       });
-      mockGoClient.post = jest.fn().mockRejectedValue(err);
+      mockGoClient.put = jest.fn().mockRejectedValue(err);
 
       const res = await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
@@ -349,7 +305,7 @@ describe('BFF admin approval decision form — BFF-ADMIN-31', () => {
     });
 
     it('returns 500 on unexpected upstream error during decision POST', async () => {
-      mockGoClient.post = jest.fn().mockRejectedValue(new Error('network error'));
+      mockGoClient.put = jest.fn().mockRejectedValue(new Error('network error'));
 
       const res = await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
@@ -357,117 +313,6 @@ describe('BFF admin approval decision form — BFF-ADMIN-31', () => {
         .send('decision=approve');
 
       expect(res.status).toBe(500);
-    });
-  });
-});
-
-// ─── BFF-ADMIN-70: approval detail with reasoning trace ──────────────────────
-
-const APPROVAL_WITH_TRACE = {
-  id: 'apr-003',
-  requestedBy: 'user-abc',
-  action: 'send_email',
-  status: 'pending',
-  reason: null,
-  proposedPayload: { to: 'customer@example.com', templateId: 'tmpl-01' },
-  reasoningTrace: 'Agent analyzed context and determined action is safe based on evidence.',
-  toolCalls: [
-    { toolName: 'retrieve_context', args: { entityId: 'case-123' }, result: 'success' },
-    { toolName: 'validate_recipient', args: { email: 'customer@example.com' }, result: 'success' },
-  ],
-  createdAt: '2026-04-25T10:00:00Z',
-};
-
-describe('BFF admin approval detail with trace — BFF-ADMIN-70', () => {
-  beforeEach(() => { jest.clearAllMocks(); });
-
-  describe('GET /bff/admin/approvals/:id (with reasoning trace)', () => {
-    it('renders reasoning trace section', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_WITH_TRACE, status: 200 });
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-003')
-        .set('Authorization', 'Bearer test-token');
-
-      expect(res.text).toContain('Agent analyzed context');
-    });
-
-    it('renders tool calls table when present', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_WITH_TRACE, status: 200 });
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-003')
-        .set('Authorization', 'Bearer test-token');
-
-      expect(res.text).toContain('retrieve_context');
-      expect(res.text).toContain('validate_recipient');
-    });
-
-    it('renders tool call args', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_WITH_TRACE, status: 200 });
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-003')
-        .set('Authorization', 'Bearer test-token');
-
-      expect(res.text).toContain('case-123');
-      expect(res.text).toContain('customer@example.com');
-    });
-
-    it('renders tool call results', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_WITH_TRACE, status: 200 });
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-003')
-        .set('Authorization', 'Bearer test-token');
-
-      const successCount = (res.text.match(/success/g) || []).length;
-      expect(successCount).toBeGreaterThanOrEqual(2);
-    });
-
-    it('renders proposed payload as JSON', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_WITH_TRACE, status: 200 });
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-003')
-        .set('Authorization', 'Bearer test-token');
-
-      expect(res.text).toContain('tmpl-01');
-    });
-
-    it('does not render reasoning section when trace is absent', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_DETAIL, status: 200 });
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-001')
-        .set('Authorization', 'Bearer test-token');
-
-      expect(res.status).toBe(200);
-      // Should still render the basic approval detail
-      expect(res.text).toContain('apr-001');
-    });
-
-    it('does not render tool calls section when empty', async () => {
-      const noToolsApproval = { ...APPROVAL_WITH_TRACE, toolCalls: [] };
-      mockGoClient.get.mockResolvedValue({ data: noToolsApproval, status: 200 });
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-003')
-        .set('Authorization', 'Bearer test-token');
-
-      expect(res.status).toBe(200);
-      // Reasoning trace should still be there
-      expect(res.text).toContain('Agent analyzed context');
-    });
-
-    it('renders back link to approval list', async () => {
-      mockGoClient.get.mockResolvedValue({ data: APPROVAL_WITH_TRACE, status: 200 });
-
-      const res = await request(app)
-        .get('/bff/admin/approvals/apr-003')
-        .set('Authorization', 'Bearer test-token');
-
-      expect(res.text).toContain('/bff/admin/approvals');
     });
   });
 });

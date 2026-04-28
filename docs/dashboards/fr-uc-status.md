@@ -264,11 +264,11 @@ through `32_crm_contacts_after_bulk_delete`).
 
 ### BFF-ADMIN-Task6 — Puppeteer admin screenshot suite
 
-**Status: COMPLETED 2026-04-27. Exit 0. 12/12 screenshots captured.**
+**Status: COMPLETED 2026-04-28. Exit 0. 11/11 screenshots captured.**
 
 `cd bff && npm run admin-screenshots` passed all 7 phases:
 
-- 12 PNGs generated in `bff/artifacts/admin-screenshots/`
+- 11 PNGs generated in `bff/artifacts/admin-screenshots/`
 - `report.html` (CSS image grid) + `index.md` (Markdown table) generated
 - Fixes applied: `adminWorkflows` envelope crash, `adminAudit` wrong Go routes + field names, seeder NULL scan, DB path
 

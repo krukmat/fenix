@@ -59,6 +59,7 @@ docs/plans/*
 !docs/plans/mobile-primary-button-contrast-response-plan.md
 !docs/plans/design-md-mobile-application-plan.md
 !docs/plans/bff-http-snapshots-plan.md
+!docs/plans/adr-029-e2e-real-verification-plan.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/

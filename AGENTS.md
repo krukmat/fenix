@@ -45,14 +45,16 @@ Preferred shortcut:
   - `Resumen: <what will be done in 1-2 sentences>`
   - `Código afectado: <expected files or areas>`
   - `Esfuerzo/razonamiento: Bajo | Medio | Alto - <brief reason>`
+  - `Modelo recomendado: <model id>`
   - `Tokens estimado: ~N`
 - When closing a task, report the outcome with:
   - `Resultado: <what changed>`
   - `Verificación: <commands run, or why QA was not applicable>`
   - `Archivos afectados: <files changed>`
   - `Esfuerzo/razonamiento: Bajo | Medio | Alto - <forensic note on reasoning effort used>`
+  - `Modelo recomendado: <model id>`
   - `Tokens: ~N`
-- After the closing report, proactively present the next task card using the same starting-task format, but do not begin that next task until the user explicitly confirms.
+- After the closing report, proactively present the next task card using the same starting-task format, including `Modelo recomendado`, but do not begin that next task until the user explicitly confirms.
 - Every substantive report to the user must include:
   - `Esfuerzo/razonamiento: Bajo | Medio | Alto - <forensic note on reasoning effort used>`
   - `Tokens: ~N` (approximate estimate of the response/report size)

@@ -1,14 +1,8 @@
-// BFF-ADMIN-30 / BFF-ADMIN-31: approvals queue list + decision form
+// BFF-ADMIN-30 / BFF-ADMIN-31: approvals queue with inline decision actions
 import { Router, Request, Response, NextFunction } from 'express';
 import { createGoClient } from '../services/goClient';
 import { adminLayout } from './adminLayout';
 import { upstreamStatus, upstreamMessage } from './adminAuth';
-import {
-  PANEL,
-  ApprovalDetail,
-  buildProposedPayloadSection,
-  buildReasoningTraceSection,
-} from './adminApprovalsFragments';
 
 const ADMIN_ROOT = '/bff/admin';
 
@@ -44,9 +38,27 @@ function statusBadge(status: string): string {
   return `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;${style}">${esc(status)}</span>`;
 }
 
+function renderDecisionControls(approval: ApprovalRow): string {
+  if (approval.status !== 'pending') {
+    return `<span style="font-size:12px;color:var(--muted)">Already decided</span>`;
+  }
+
+  const action = `/bff/admin/approvals/${encodeURIComponent(approval.id)}/decision`;
+  return `<form method="POST" action="${action}" style="display:flex;flex-direction:column;gap:8px;min-width:220px">
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--muted)">
+      Reason
+      <textarea name="reason" rows="2" style="margin-top:4px;width:100%;border:1px solid var(--line);border-radius:6px;padding:8px;font-size:12px;color:var(--text);resize:vertical"></textarea>
+    </label>
+    <div style="display:flex;gap:8px">
+      <button name="decision" value="approve" type="submit" style="padding:0 12px;height:32px;border:0;border-radius:6px;background:#065f46;color:#fff;font-size:12px;font-weight:700;cursor:pointer">approve</button>
+      <button name="decision" value="reject" type="submit" style="padding:0 12px;height:32px;border:0;border-radius:6px;background:#991b1b;color:#fff;font-size:12px;font-weight:700;cursor:pointer">reject</button>
+    </div>
+  </form>`;
+}
+
 function renderRows(rows: ApprovalRow[]): string {
   if (rows.length === 0) {
-    return `<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted)">No approvals found</td></tr>`;
+    return `<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted)">No approvals found</td></tr>`;
   }
   return rows.map((a) => `
     <tr style="border-bottom:1px solid var(--line)">
@@ -55,6 +67,7 @@ function renderRows(rows: ApprovalRow[]): string {
       <td style="padding:10px 14px;font-family:ui-monospace,monospace;font-size:13px">${esc(a.action)}</td>
       <td style="padding:10px 14px">${statusBadge(a.status)}</td>
       <td style="padding:10px 14px;font-size:12px;color:var(--muted)">${esc(a.createdAt.slice(0, 16).replace('T', ' '))}</td>
+      <td style="padding:10px 14px">${renderDecisionControls(a)}</td>
     </tr>`).join('');
 }
 
@@ -74,6 +87,10 @@ function buildFilterForm(currentStatus: string): string {
 function buildBody(rows: ApprovalRow[], total: number, currentStatus: string): string {
   return `
   <h2 class="page-title">Approvals <span style="color:var(--muted);font-size:16px;font-weight:400">(${total})</span></h2>
+  <p style="margin:0 0 16px;color:var(--muted);font-size:13px;line-height:1.5">
+    The approvals contract is queue-first: operators review pending requests and decide them directly from this page.
+    There is no separate approval detail route because the backend exposes only list and decide endpoints.
+  </p>
   ${buildFilterForm(currentStatus)}
   <div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden">
     <table style="width:100%;border-collapse:collapse;font-size:14px">
@@ -84,42 +101,11 @@ function buildBody(rows: ApprovalRow[], total: number, currentStatus: string): s
           <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:700;color:var(--muted)">Action</th>
           <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:700;color:var(--muted)">Status</th>
           <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:700;color:var(--muted)">Created</th>
+          <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:700;color:var(--muted)">Decision</th>
         </tr>
       </thead>
       <tbody>${renderRows(rows)}</tbody>
     </table>
-  </div>`;
-}
-
-function buildDecisionForm(approval: ApprovalDetail): string {
-  const dt = (label: string, val: string) => `<dt style="color:var(--muted);font-weight:600">${label}</dt><dd style="margin:0;font-size:14px">${val}</dd>`;
-  const mono = (v: string) => `<span style="font-family:ui-monospace,monospace;font-size:13px">${esc(v)}</span>`;
-  const action = `POST /bff/admin/approvals/${esc(approval.id)}/decision`;
-  const payloadSection = buildProposedPayloadSection(approval);
-  const traceSection = buildReasoningTraceSection(approval);
-  return `<div style="margin-bottom:20px"><a href="/bff/admin/approvals" style="font-size:13px;color:var(--muted);text-decoration:none">&larr; Approvals</a></div>
-  <div style="${PANEL}">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px">
-      <h2 style="margin:0;font-size:18px">Approval Request</h2>${statusBadge(approval.status)}
-    </div>
-    <dl style="display:grid;grid-template-columns:140px 1fr;gap:8px 16px;margin:0">
-      ${dt('ID', mono(approval.id))}${dt('Action', mono(approval.action))}${dt('Requested by', esc(approval.requestedBy))}${dt('Created', esc(approval.createdAt))}
-    </dl>
-  </div>
-  ${payloadSection}
-  ${traceSection}
-  <div style="${PANEL}">
-    <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Decision</h3>
-    <form method="POST" action="${action}" style="display:flex;flex-direction:column;gap:14px;max-width:480px">
-      <div>
-        <label style="display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px">Reason (optional)</label>
-        <textarea name="reason" rows="3" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:10px;font-size:13px;color:var(--text);resize:vertical"></textarea>
-      </div>
-      <div style="display:flex;gap:10px">
-        <button name="decision" value="approve" type="submit" style="padding:0 20px;height:36px;border:0;border-radius:6px;background:#065f46;color:#fff;font-size:13px;font-weight:700;cursor:pointer">approve</button>
-        <button name="decision" value="reject" type="submit" style="padding:0 20px;height:36px;border:0;border-radius:6px;background:#991b1b;color:#fff;font-size:13px;font-weight:700;cursor:pointer">reject</button>
-      </div>
-    </form>
   </div>`;
 }
 
@@ -150,21 +136,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction): Promise
   }
 });
 
-// BFF-ADMIN-31: approval detail + decision form
-router.get('/:id', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const token = res.locals['adminToken'] as string | undefined;
-  const { id } = req.params;
-  try {
-    const client = createGoClient(token);
-    const { data: approval } = await client.get<ApprovalDetail>(`/api/v1/approvals/${id}`);
-    res.type('html').status(200).send(adminLayout('Approval', buildDecisionForm(approval)));
-  } catch (err: unknown) {
-    if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
-    next(err);
-  }
-});
-
-// BFF-ADMIN-31: relay decision to Go POST /api/v1/approvals/:id/decision
+// BFF-ADMIN-31: relay queue decision to Go PUT /api/v1/approvals/:id
 router.post('/:id/decision', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const token = res.locals['adminToken'] as string | undefined;
   const { id } = req.params;
@@ -172,7 +144,7 @@ router.post('/:id/decision', async (req: Request, res: Response, next: NextFunct
   const { decision, reason } = body;
   try {
     const client = createGoClient(token);
-    await client.post(`/api/v1/approvals/${id}/decision`, { decision, reason });
+    await client.put(`/api/v1/approvals/${id}`, { decision, reason });
     res.redirect('/bff/admin/approvals');
   } catch (err: unknown) {
     const st = upstreamStatus(err);

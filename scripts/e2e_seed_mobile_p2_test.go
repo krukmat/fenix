@@ -111,8 +111,8 @@ func TestSeedWorkflowGraphFixtureCreatesRenderableWorkflow(t *testing.T) {
 	if name == "" {
 		t.Fatal("expected seeded workflow to have name")
 	}
-	if status != "active" {
-		t.Fatalf("status = %q, want active", status)
+	if status != "testing" {
+		t.Fatalf("status = %q, want testing", status)
 	}
 	if dslSource == "" || specSource == "" {
 		t.Fatalf("expected DSL and spec sources, got dsl=%q spec=%q", dslSource, specSource)

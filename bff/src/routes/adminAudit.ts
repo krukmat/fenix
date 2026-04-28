@@ -28,6 +28,10 @@ interface AuditBackendResponse {
   meta: { total?: number; nextCursor?: string };
 }
 
+interface AuditDetailEnvelope {
+  data?: AuditDetail;
+}
+
 const OUTCOME_COLORS: Record<string, string> = {
   success: 'background:#d1fae5;color:#065f46',
   failure: 'background:#fee2e2;color:#991b1b',
@@ -167,6 +171,12 @@ function buildDetailBody(e: AuditDetail): string {
   ${policySection}`;
 }
 
+function extractAuditDetail(body: AuditDetail | AuditDetailEnvelope | undefined): AuditDetail | undefined {
+  if (!body) return undefined;
+  if ('data' in body && body.data) return body.data;
+  return body as AuditDetail;
+}
+
 function extractAuditParams(q: Record<string, string>): { params: Record<string, string>; filterParams: Record<string, string> } {
   const filterParams: Record<string, string> = {};
   if (q['actor'])         filterParams['actor']         = q['actor'];
@@ -208,9 +218,12 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
 
   try {
     const client = createGoClient(token);
-    // BFF-ADMIN-Task6: Go route is /audit/events/{id} and returns { data: {...} } envelope
-    const { data: resp } = await client.get<{ data: AuditDetail }>(`/api/v1/audit/events/${id}`);
-    res.type('html').status(200).send(adminLayout('Audit Event', buildDetailBody(resp.data)));
+    const { data: resp } = await client.get<AuditDetail | AuditDetailEnvelope>(`/api/v1/audit/events/${id}`);
+    const detail = extractAuditDetail(resp);
+    if (!detail) {
+      throw new Error('Audit detail response missing body');
+    }
+    res.type('html').status(200).send(adminLayout('Audit Event', buildDetailBody(detail)));
   } catch (err: unknown) {
     if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
     next(err);

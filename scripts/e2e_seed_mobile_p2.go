@@ -501,7 +501,7 @@ func buildSeedOutput(accountID, contactID, contactEmail, leadID, dealID, pipelin
 func seedWorkflowGraphFixture(ctx context.Context, db *sql.DB, auth authResponse, suffix string) (string, error) {
 	workflowID := uuid.NewV7().String()
 	name := "e2e_graph_followup_" + suffix
-	description := "Deterministic workflow graph fixture for Maestro screenshots"
+	description := "Deterministic workflow graph fixture for admin-shell verification"
 	dslSource := `WORKFLOW ` + name + `
 ON deal.updated
 SET deal.status = "reviewing"
@@ -519,7 +519,7 @@ AGENT visual_auditor
 			id, workspace_id, name, description, dsl_source, spec_source,
 			version, status, created_by_user_id, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, 1, 'active', ?, datetime('now'), datetime('now'))
+		VALUES (?, ?, ?, ?, ?, ?, 1, 'testing', ?, datetime('now'), datetime('now'))
 	`, workflowID, auth.WorkspaceID, name, description, dslSource, specSource, auth.UserID)
 	if err != nil {
 		return "", err
@@ -733,8 +733,8 @@ func seedGovernanceAndApproval(ctx context.Context, db *sql.DB, auth authRespons
 	if err := seedQuotaPolicy(ctx, db, auth); err != nil {
 		return "", "", "", fmt.Errorf("seedQuotaPolicy: %w", err)
 	}
-	if err := ensureSignalAccessRole(ctx, db, auth); err != nil {
-		return "", "", "", fmt.Errorf("ensureSignalAccessRole: %w", err)
+	if err := ensureOperatorVerificationRole(ctx, db, auth); err != nil {
+		return "", "", "", fmt.Errorf("ensureOperatorVerificationRole: %w", err)
 	}
 	signalIDs, err := seedInboxSignals(ctx, db, auth, dealID, caseID, runID, suffix, baseNow)
 	if err != nil {
@@ -1035,11 +1035,12 @@ func seedSignal(
 	return signalID, nil
 }
 
-func ensureSignalAccessRole(ctx context.Context, db *sql.DB, auth authResponse) error {
-	// CLSF-84: expanded to include workflows.get and workflows.list for graph screen screenshots.
+func ensureOperatorVerificationRole(ctx context.Context, db *sql.DB, auth authResponse) error {
+	// ADR-029 T10: the seeded operator must cover the admin-shell verification slice,
+	// not just screenshot reads. Keep the fixture permissions explicit and minimal.
 	// INSERT OR REPLACE keeps permissions in sync on re-runs without branching.
-	const roleName = "E2E Screenshot Access v2"
-	const permissions = `{"api":["signals.list","signals.dismiss","workflows.get","workflows.list"]}`
+	const roleName = "E2E Operator Verification Access v3"
+	const permissions = `{"api":["signals.list","signals.dismiss","workflows.get","workflows.list","workflows.activate","admin.tools.list"]}`
 
 	now := time.Now().UTC().Truncate(time.Second)
 	roleID := uuid.NewV7().String()
@@ -1055,7 +1056,7 @@ func ensureSignalAccessRole(ctx context.Context, db *sql.DB, auth authResponse) 
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET permissions = excluded.permissions, updated_at = excluded.updated_at
 	`, roleID, auth.WorkspaceID, roleName,
-		"Grants signal and workflow read permissions for deterministic screenshot fixtures",
+		"Grants the minimum operator permissions needed to verify the ADR-029 admin shell",
 		permissions, now.Format(time.RFC3339), now.Format(time.RFC3339),
 	); err != nil {
 		return err

@@ -1,9 +1,8 @@
-// admin-screenshots Task 2: route catalog — 12 admin pages to capture
+// admin-screenshots Task 2: route catalog — 11 canonical admin pages to capture
 import type { SeederOutput } from '../snapshots/types';
 
 export type ResolvedIds = {
   firstAuditEventId: string;
-  firstPolicySetId: string;
 };
 
 export type AdminScreenshotEntry = {
@@ -49,16 +48,11 @@ export const catalog: AdminScreenshotEntry[] = [
     url: (base) => `${base}/bff/admin/policy`,
   },
   {
-    name: '10_policy_versions',
-    url: (base, _seed, resolved) =>
-      `${base}/bff/admin/policy/${resolved.firstPolicySetId}/versions`,
-  },
-  {
-    name: '11_tools',
+    name: '10_tools',
     url: (base) => `${base}/bff/admin/tools`,
   },
   {
-    name: '12_metrics',
+    name: '11_metrics',
     url: (base) => `${base}/bff/admin/metrics`,
   },
 ];

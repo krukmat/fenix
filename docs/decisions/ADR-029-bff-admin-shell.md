@@ -72,8 +72,7 @@ the governance summary and the new policy set endpoints, rendering them on the s
 | `POST /bff/admin/workflows/:id/activate` | `PUT /api/v1/workflows/{id}/activate` | Activation form |
 | `GET /bff/admin/agent-runs` | `GET /api/v1/agents/runs` | Agent run list + filter |
 | `GET /bff/admin/agent-runs/:id` | `GET /api/v1/agents/runs/{id}` | Run detail (header, trace, evidence, tool calls, cost) |
-| `GET /bff/admin/approvals` | `GET /api/v1/approvals` | Pending approvals queue |
-| `GET /bff/admin/approvals/:id` | `GET /api/v1/approvals/{id}` | Decision form |
+| `GET /bff/admin/approvals` | `GET /api/v1/approvals` | Pending approvals queue with inline decision controls |
 | `POST /bff/admin/approvals/:id/decision` | `PUT /api/v1/approvals/{id}` | Approve / reject relay |
 | `GET /bff/admin/audit` | `GET /api/v1/audit/events` | Paginated audit trail |
 | `GET /bff/admin/audit/:id` | `GET /api/v1/audit/events/{id}` | Audit record detail |
@@ -96,6 +95,18 @@ the governance summary and the new policy set endpoints, rendering them on the s
 5. **CORS**: the admin shell is served from the BFF on the same origin as its API proxies.
    HTMX requests are same-origin and carry no `Origin` header. No new CORS allowlist
    entry is needed (see ADR-026 CORS note).
+
+### Canonical approvals contract
+
+The approvals surface is **queue-first**. The backend exposes only:
+
+- `GET /api/v1/approvals`
+- `PUT /api/v1/approvals/{id}`
+
+Therefore the canonical admin contract does **not** include
+`GET /bff/admin/approvals/:id`. Operators review the queue and submit approve/reject
+decisions inline from `GET /bff/admin/approvals`. This keeps the BFF aligned with the
+real route table and preserves the "no new Go endpoints" constraint.
 
 ### Shared layout contract
 
