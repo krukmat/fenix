@@ -282,4 +282,4 @@ Task doc: `docs/tasks/task_bff_admin_screenshots.md`
 | Full BFF Jest suite | 375 | ✅ Passing |
 | Admin navigation smoke (`admin.e2e.test.ts`) | 16 | ✅ Passing |
 | Per-route admin unit tests | ~200 (across admin*.test.ts) | ✅ Passing |
-| Puppeteer admin screenshot suite | 12 routes | ✅ Passing (exit 0) |
+| Puppeteer admin screenshot suite | 13 routes | ✅ Passing (exit 0) |

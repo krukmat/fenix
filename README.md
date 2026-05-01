@@ -459,6 +459,43 @@ Eight waves covering the full authoring and tooling layer for Carta-backed workf
 
 **Wave 8** added a mobile read-only graph viewer that renders the backend visual projection as a `FlowCanvas` with conformance badge. Verified in the Maestro screenshot suite as `18b_workflow_graph` (CLSF-84).
 
+The authoring surface is no longer just a standalone builder. The BFF admin now
+exposes a real operator loop for workflow authoring: create a draft from the
+admin workflows list, land in a builder already bound to a real `workflowId`,
+save text or graph changes against that workflow, return to workflow detail, and
+activate from the existing admin surface.
+
+```mermaid
+flowchart LR
+    L[Workflows list] --> C[Create draft]
+    C --> B[Bound builder]
+    B --> D[Workflow detail]
+    D --> A[Activate]
+    D --> B
+```
+
+![Create draft from the admin workflows surface](bff/artifacts/admin-screenshots/03_workflow_create_draft.png)
+
+The flow starts from a real admin entry point. Operators create a draft with a
+minimal scaffold and immediately move into an editable workflow context instead
+of starting from a detached builder shell.
+
+![Bound workflow builder in the BFF admin flow](bff/artifacts/admin-screenshots/04_workflow_builder_bound.png)
+
+Inside the builder, both text and graph changes are bound to the real
+`workflowId`. The editor, projection, save actions, and navigation all stay in
+that workflow context.
+
+![Return to workflow detail for review and activation](bff/artifacts/admin-screenshots/05_workflow_detail.png)
+
+The operator loop closes on workflow detail, which remains the review surface
+for status, source inspection, builder re-entry, and activation.
+
+The admin screenshot suite captures this loop through
+`03_workflow_create_draft`, `04_workflow_builder_bound`, and
+`05_workflow_detail`. The full report is generated in
+`bff/artifacts/admin-screenshots/report.html`.
+
 | Layer | Files |
 |---|---|
 | Semantic graph | `internal/domain/agent/semantic_*.go`, `conformance.go` |
