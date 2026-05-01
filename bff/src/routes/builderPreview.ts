@@ -57,15 +57,20 @@ function renderDiagnostic(item: Diagnostic): string {
   return `<li><strong>${escapeHtml(label)}</strong>: ${escapeHtml(text)}</li>`;
 }
 
-function renderGraph(data: PreviewData): string {
+function buildProjectionPayload(data: PreviewData): string {
   const graph = data.visual_graph;
-  const nodes = graph?.nodes ?? [];
-  const projectionPayload = escapeHtml(JSON.stringify({
+  return escapeHtml(JSON.stringify({
     workflow_name: graph?.workflow_name ?? '',
-    nodes,
+    nodes: graph?.nodes ?? [],
     edges: graph?.edges ?? [],
     conformance: data.conformance,
   }));
+}
+
+function renderGraph(data: PreviewData): string {
+  const graph = data.visual_graph;
+  const nodes = graph?.nodes ?? [];
+  const projectionPayload = buildProjectionPayload(data);
   return `<div class="graph-shell" id="builder-graph" data-projection-source="api" data-workflow-name="${escapeHtml(graph?.workflow_name ?? '')}" data-projection-payload="${projectionPayload}" hx-swap-oob="true"><div id="builder-canvas-root" role="img" aria-label="Dynamic workflow graph canvas"></div><p class="graph-caption">Live workflow projection loaded for the bound workflow.</p>${renderInspector(data, nodes[0])}</div>`;
 }
 
