@@ -68,6 +68,10 @@ type ActualRunTrace struct {
 
 	// Contract validation results (populated by TraceBuilder)
 	ContractValidation TraceContractValidation `json:"contract_validation"`
+
+	// FinalStateRaw is the observed final state of entities after the run.
+	// Populated externally (e.g. by the eval runner); compared against GoldenScenario.Expected.FinalState.
+	FinalStateRaw json.RawMessage `json:"final_state,omitempty"`
 }
 
 // TracePolicyDecision captures a single policy evaluation extracted from audit events.

@@ -124,5 +124,27 @@ Golden scenarios are **not** a replacement for BDD scenarios in `features/*.feat
 |---|---|---|
 | Purpose | Live execution against real agent | Deterministic trace comparison |
 | LLM required | Yes | No |
-| Makefile target | `make test-bdd-go` | `make eval-regression` (Wave F7) |
+| Makefile target | `make test-bdd-go` | `make eval-regression` |
 | Assertion style | Gherkin steps | Struct comparison |
+
+---
+
+## Regression Suite
+
+Wave F7 adds a deterministic regression runner for golden scenarios:
+
+- `RegressionRunner.Run([]RegressionCase)` evaluates multiple scenario/trace fixtures
+- `RegressionReport` aggregates pass/fail counts, score range, verdict distribution, hard-gate counts, and actionable failed dimensions per scenario
+- `RegressionReport.ToBaselineSnapshot()` plus `LoadRegressionBaseline` / `SaveRegressionBaseline` support baseline storage and regression comparison
+- `CompareToBaseline` marks new failures, score regressions, verdict regressions, and hard-gate regressions deterministically
+
+Local execution:
+
+```bash
+make eval-regression
+```
+
+CI integration:
+
+- `make ci` now includes `make eval-regression`
+- `make test-bdd-go` remains independent and is not replaced by the regression suite

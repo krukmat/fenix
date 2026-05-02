@@ -2,7 +2,7 @@
 # Task 1.1: Project Setup
 # Following implementation plan exactly
 
-.PHONY: all test build run lint fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd bench-critical bench-all check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check bdd-trace-check test-bdd-go test-bdd-bff test-bdd-mobile test-bdd _ci-traceability contract-test contract-test-strict trace-report install-hooks
+.PHONY: all test build run lint fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd bench-critical bench-all check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check bdd-trace-check test-bdd-go test-bdd-bff test-bdd-mobile test-bdd eval-regression _ci-traceability contract-test contract-test-strict trace-report install-hooks
 
 # Variables
 BINARY_NAME=fenix
@@ -331,6 +331,10 @@ test-bdd-mobile:
 test-bdd: bdd-trace-check test-bdd-go test-bdd-bff test-bdd-mobile
 	@echo "BDD entrypoints completed"
 
+eval-regression:
+	@echo "Running deterministic eval regression suite..."
+	go test -count=1 -run '^TestRegressionFixtureSuite$$' ./internal/domain/eval/...
+
 contract-test: build
 	@echo "Running API contract tests..."
 	@CONTRACT_MODE=smoke bash tests/contract/run.sh
@@ -342,7 +346,7 @@ contract-test-strict: build
 trace-report:
 	@./.venv/bin/doorstop publish all ./docs/trace-report
 
-ci: fmt-check complexity pattern-refactor-gate _ci-traceability bdd-trace-check lint test test-bdd-go race-stability coverage-gate coverage-tdd build contract-test-strict
+ci: fmt-check complexity pattern-refactor-gate _ci-traceability bdd-trace-check lint test test-bdd-go eval-regression race-stability coverage-gate coverage-tdd build contract-test-strict
 	@echo "All CI checks passed!"
 
 # Version info
@@ -374,6 +378,7 @@ help:
 	@echo "  make bench-all         - Run all endpoint handler benchmarks"
 	@echo "  make doorstop-check    - Validate Doorstop requirement integrity"
 	@echo "  make trace-check       - Check FR-to-test traceability (Go scanner)"
+	@echo "  make eval-regression   - Run deterministic golden-scenario regression suite"
 	@echo "  make contract-test     - Run API contract tests (Schemathesis)"
 	@echo "  make trace-report      - Publish traceability HTML report"
 	@echo "  make check             - Run all quality gates (complexity + lint + tests)"

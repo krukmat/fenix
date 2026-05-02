@@ -12,6 +12,8 @@ import (
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
+const statusFailed = "failed"
+
 // Run — Task 4.7: FR-242 execution record for an eval suite.
 type Run struct {
 	ID              string           `json:"id"`
@@ -29,10 +31,27 @@ type Run struct {
 
 // Scores — computed metric scores (0.0 to 1.0).
 type Scores struct {
-	Groundedness    float64 `json:"groundedness"`
-	Exactitude      float64 `json:"exactitude"`
-	Abstention      float64 `json:"abstention"`
-	PolicyAdherence float64 `json:"policy_adherence"`
+	Groundedness            float64 `json:"groundedness"`
+	Exactitude              float64 `json:"exactitude"`
+	Abstention              float64 `json:"abstention"`
+	PolicyAdherence         float64 `json:"policy_adherence"`
+	OutcomeAccuracy         float64 `json:"outcome_accuracy"`
+	ToolCallPrecision       float64 `json:"tool_call_precision"`
+	ToolCallRecall          float64 `json:"tool_call_recall"`
+	ToolCallF1              float64 `json:"tool_call_f1"`
+	ForbiddenToolViolations int     `json:"forbidden_tool_violations"`
+	PolicyCompliance        float64 `json:"policy_compliance"`
+	ApprovalAccuracy        float64 `json:"approval_accuracy"`
+	EvidenceCoverage        float64 `json:"evidence_coverage"`
+	ForbiddenEvidenceCount  int     `json:"forbidden_evidence_count"`
+	StateMutationAccuracy   float64 `json:"state_mutation_accuracy"`
+	AuditCompleteness       float64 `json:"audit_completeness"`
+	ContractValidity        float64 `json:"contract_validity"`
+	AbstentionAccuracy      float64 `json:"abstention_accuracy"`
+	LatencyCompliance       float64 `json:"latency_compliance"`
+	ToolBudgetCompliance    float64 `json:"tool_budget_compliance"`
+	ScorecardScore          float64 `json:"scorecard_score"`
+	ScorecardVerdict        Verdict `json:"scorecard_verdict"`
 }
 
 // TestCaseResult — per-case evaluation result.
@@ -221,7 +240,7 @@ func evalStatus(scores Scores, thr Thresholds) string {
 		scores.PolicyAdherence >= thr.Policy {
 		return "passed"
 	}
-	return "failed"
+	return statusFailed
 }
 
 // rowToRun builds a Run from freshly-created row + computed values.
