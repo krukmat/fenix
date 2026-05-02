@@ -90,8 +90,8 @@ lint-all: lint lint-mobile lint-bff
 # Usage: make complexity
 COMPLEXITY_THRESHOLD=7
 GOCYCLO=$(shell go env GOPATH)/bin/gocyclo
-# Find production Go files (exclude *_test.go) under internal/
-PROD_GO_FILES=$(shell find ./internal -name '*.go' ! -name '*_test.go')
+# Find production Go files (exclude *_test.go and sqlc-generated files) under internal/
+PROD_GO_FILES=$(shell find ./internal -name '*.go' ! -name '*_test.go' ! -path '*/sqlcgen/*')
 complexity:
 	@echo "Checking cyclomatic complexity (threshold: $(COMPLEXITY_THRESHOLD), production code only)..."
 	@test -f $(GOCYCLO) || go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
