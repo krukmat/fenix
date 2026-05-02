@@ -38,6 +38,10 @@
 
 _None_
 
+## Denied Actions
+
+_None_
+
 ## Metrics
 
 | Metric | Value |
@@ -119,3 +123,4 @@ _None_
 | --- | --- | --- | --- | --- |
 | `mutators_traceable` | true | true | `pass` | trace.contract_validation.mutators_traceable |
 | `policys_traceable` | true | true | `pass` | trace.contract_validation.policys_traceable |
+

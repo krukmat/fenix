@@ -69,8 +69,19 @@ type ReviewPacketEvaluation struct {
 	TotalScore         float64             `json:"total_score"`
 	HardGateFailed     bool                `json:"hard_gate_failed"`
 	HardGateViolations []HardGateViolation `json:"hard_gate_violations,omitempty"`
+	DeniedActions      []ReviewPacketDeniedAction `json:"denied_actions,omitempty"`
 	Metrics            Metrics             `json:"metrics"`
 	Mismatches         []Mismatch          `json:"mismatches,omitempty"`
+}
+
+type ReviewPacketDeniedAction struct {
+	ActorID   string    `json:"actor_id"`
+	Action    string    `json:"action"`
+	Target    string    `json:"target,omitempty"`
+	Policy    string    `json:"policy,omitempty"`
+	Reason    string    `json:"reason,omitempty"`
+	Outcome   string    `json:"outcome"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // ReviewPacketComparison groups expected-vs-actual deterministic checks.
@@ -136,6 +147,7 @@ func BuildReviewPacket(
 			TotalScore:         assessment.Scorecard.TotalScore,
 			HardGateFailed:     len(assessment.Violations) > 0,
 			HardGateViolations: cloneHardGateViolations(assessment.Violations),
+			DeniedActions:      buildDeniedActionSummaries(trace),
 			Metrics:            assessment.Scorecard.Metrics,
 			Mismatches:         append([]Mismatch(nil), result.Mismatches...),
 		},
@@ -485,6 +497,13 @@ func writeEvaluationMarkdown(buf *bytes.Buffer, evaluation ReviewPacketEvaluatio
 		writeHardGateTable(buf, evaluation.HardGateViolations)
 	}
 
+	fmt.Fprintf(buf, "## Denied Actions\n\n")
+	if len(evaluation.DeniedActions) == 0 {
+		fmt.Fprintf(buf, "_None_\n\n")
+	} else {
+		writeDeniedActionsTable(buf, evaluation.DeniedActions)
+	}
+
 	fmt.Fprintf(buf, "## Metrics\n\n")
 	writeMetricTable(buf, evaluation.Metrics)
 }
@@ -649,6 +668,100 @@ func sortReviewPacketChecks(items []ReviewPacketCheck) {
 		}
 		return left.Actual < right.Actual
 	})
+}
+
+type packetAuditMetadata struct {
+	Action    string `json:"action,omitempty"`
+	Policy    string `json:"policy,omitempty"`
+	PolicyID  string `json:"policy_id,omitempty"`
+	PolicySet string `json:"policy_set,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+	ErrorCode string `json:"error_code,omitempty"`
+	Target    string `json:"target,omitempty"`
+	ToolName  string `json:"tool_name,omitempty"`
+}
+
+type packetAuditDetails struct {
+	Metadata packetAuditMetadata `json:"metadata"`
+}
+
+func buildDeniedActionSummaries(trace ActualRunTrace) []ReviewPacketDeniedAction {
+	out := make([]ReviewPacketDeniedAction, 0, len(trace.AuditEvents))
+	for _, event := range trace.AuditEvents {
+		if event.Outcome != "denied" {
+			continue
+		}
+		details := decodeAuditDetails(event.Details)
+		policy := firstNonEmpty(details.Metadata.Policy, details.Metadata.PolicyID, details.Metadata.PolicySet)
+		target := firstNonEmpty(details.Metadata.Target, derefString(event.EntityID), details.Metadata.ToolName)
+		reason := firstNonEmpty(details.Metadata.Reason, details.Metadata.ErrorCode)
+		action := firstNonEmpty(details.Metadata.Action, event.Action)
+		out = append(out, ReviewPacketDeniedAction{
+			ActorID:   event.ActorID,
+			Action:    action,
+			Target:    target,
+			Policy:    policy,
+			Reason:    reason,
+			Outcome:   event.Outcome,
+			Timestamp: event.At,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Timestamp.Equal(out[j].Timestamp) {
+			return out[i].Timestamp.Before(out[j].Timestamp)
+		}
+		if out[i].Action != out[j].Action {
+			return out[i].Action < out[j].Action
+		}
+		return out[i].Target < out[j].Target
+	})
+	return out
+}
+
+func decodeAuditDetails(raw json.RawMessage) packetAuditDetails {
+	if len(raw) == 0 {
+		return packetAuditDetails{}
+	}
+	var details packetAuditDetails
+	if err := json.Unmarshal(raw, &details); err != nil {
+		return packetAuditDetails{}
+	}
+	return details
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func writeDeniedActionsTable(buf *bytes.Buffer, items []ReviewPacketDeniedAction) {
+	fmt.Fprintf(buf, "| Actor | Action | Target | Policy | Reason | Outcome | Timestamp |\n")
+	fmt.Fprintf(buf, "| --- | --- | --- | --- | --- | --- | --- |\n")
+	for _, item := range items {
+		fmt.Fprintf(
+			buf,
+			"| `%s` | `%s` | `%s` | `%s` | %s | `%s` | `%s` |\n",
+			item.ActorID,
+			item.Action,
+			item.Target,
+			item.Policy,
+			safeMarkdownText(item.Reason),
+			item.Outcome,
+			item.Timestamp.UTC().Format(time.RFC3339),
+		)
+	}
+	fmt.Fprintf(buf, "\n")
 }
 
 func requiredToolExpectation(item ExpectedToolCall) string {

@@ -1,0 +1,130 @@
+{
+  "scenario_fixture": "scenarios/sc_support_policy_denial.yaml",
+  "trace": {
+    "run_id": "run-demo-policy-denial-001",
+    "workspace_id": "ws-demo-001",
+    "agent_definition_id": "agent-support-copilot-demo",
+    "scenario_id": "sc-support-002",
+    "trigger_type": "event",
+    "input_event": {
+      "event": "case.created",
+      "case_id": "case-abc-002",
+      "workspace_id": "ws-demo-001",
+      "priority": "medium"
+    },
+    "context_inputs": {
+      "case_id": "case-abc-002",
+      "customer_query": "Email the customer directly with a workaround and close the case."
+    },
+    "retrieval_queries": [
+      "support case case-abc-002",
+      "account acc-002"
+    ],
+    "evidence_sources": [
+      "case:case-abc-002",
+      "account:acc-002"
+    ],
+    "policy_decisions": [
+      {
+        "action": "tool:send_email",
+        "outcome": "deny"
+      },
+      {
+        "action": "tool:escalate_to_human",
+        "outcome": "allow"
+      }
+    ],
+    "approval_events": [],
+    "tool_calls": [
+      {
+        "tool_name": "escalate_to_human",
+        "status": "executed",
+        "params": {
+          "reason": "policy_denial"
+        }
+      }
+    ],
+    "audit_events": [
+      {
+        "id": "evt-denial-001",
+        "action": "agent.run.started",
+        "outcome": "success",
+        "actor_id": "run-demo-policy-denial-001",
+        "at": "2026-05-02T13:00:00Z"
+      },
+      {
+        "id": "evt-denial-002",
+        "action": "policy.evaluated",
+        "outcome": "success",
+        "actor_id": "run-demo-policy-denial-001",
+        "at": "2026-05-02T13:00:01Z"
+      },
+      {
+        "id": "evt-denial-003",
+        "action": "tool.denied",
+        "outcome": "denied",
+        "actor_id": "run-demo-policy-denial-001",
+        "entity_id": "send_email",
+        "details": {
+          "metadata": {
+            "action": "tool.denied",
+            "tool_name": "send_email",
+            "target": "external-contact:dana.chen@acme.example",
+            "policy": "external-contact-policy",
+            "reason": "External contact outreach requires manager approval and is denied in this path."
+          }
+        },
+        "at": "2026-05-02T13:00:02Z"
+      },
+      {
+        "id": "evt-denial-004",
+        "action": "tool.executed",
+        "outcome": "success",
+        "actor_id": "run-demo-policy-denial-001",
+        "entity_id": "escalate_to_human",
+        "at": "2026-05-02T13:00:03Z"
+      },
+      {
+        "id": "evt-denial-005",
+        "action": "agent.run.completed",
+        "outcome": "success",
+        "actor_id": "run-demo-policy-denial-001",
+        "at": "2026-05-02T13:00:04Z"
+      }
+    ],
+    "final_outcome": "escalated",
+    "output": {
+      "summary": "Email attempt denied by policy; case escalated to a human operator.",
+      "next_step": "Operator must review and choose an approved communication channel."
+    },
+    "reasoning_trace": [
+      {
+        "step": 1,
+        "thought": "Customer request implies external communication."
+      },
+      {
+        "step": 2,
+        "thought": "Policy denied send_email for this path."
+      },
+      {
+        "step": 3,
+        "thought": "Escalated to human instead of executing the denied action."
+      }
+    ],
+    "latency_ms": 2100,
+    "total_tokens": 544,
+    "total_cost": 0.0042,
+    "retries": 0,
+    "started_at": "2026-05-02T13:00:00Z",
+    "completed_at": "2026-05-02T13:00:04Z",
+    "contract_validation": {
+      "checked_at": "2026-05-02T13:00:04Z",
+      "mutators_traceable": true,
+      "policys_traceable": true
+    },
+    "final_state": {
+      "case.status": "Escalated",
+      "case.last_action": "Policy denial — escalated to human"
+    }
+  }
+}

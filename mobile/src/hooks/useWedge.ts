@@ -135,13 +135,29 @@ export function useAgentRuns(filters?: { status?: AgentRunPublicStatus }) {
 // ─── Support agent trigger ────────────────────────────────────────────────────
 
 /** Triggers the support agent for a case. Invalidates agent runs on success. */
+// F9.A5: canonical contract { caseId, customerQuery, language?, priority? }
 export function useTriggerSupportAgent() {
   const workspaceId = useWorkspaceId();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ entityType, entityId }: { entityType: string; entityId: string }) =>
-      agentApi.triggerSupportRun({ entity_type: entityType, entity_id: entityId }),
+    mutationFn: ({
+      caseId,
+      customerQuery,
+      language,
+      priority,
+    }: {
+      caseId: string;
+      customerQuery: string;
+      language?: string;
+      priority?: string;
+    }) =>
+      agentApi.triggerSupportRun({
+        case_id: caseId,
+        customer_query: customerQuery,
+        language,
+        priority,
+      }),
     onSuccess: () => {
       if (workspaceId) {
         queryClient.invalidateQueries({ queryKey: wedgeQueryKeys.agentRuns(workspaceId) });

@@ -66,6 +66,8 @@ export interface CopilotInitialContext {
 
 interface CopilotPanelProps {
   initialContext?: CopilotInitialContext;
+  // F9.A5: optional callback fires with the submitted query so callers can trigger a support run
+  onSupportTrigger?: (customerQuery: string) => void;
 }
 
 function ContextBanner({ context }: { context: CopilotInitialContext }) {
@@ -86,7 +88,7 @@ function ContextBanner({ context }: { context: CopilotInitialContext }) {
   );
 }
 
-export function CopilotPanel({ initialContext }: CopilotPanelProps = {}) {
+export function CopilotPanel({ initialContext, onSupportTrigger }: CopilotPanelProps = {}) {
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList<CopilotMessage>>(null);
   const { messages, isStreaming, error, sendQuery } = useSSE();
@@ -116,6 +118,8 @@ export function CopilotPanel({ initialContext }: CopilotPanelProps = {}) {
     const trimmed = inputText.trim();
     if (!trimmed || isStreaming) return;
     sendQuery(trimmed, buildContext());
+    // F9.A5: fire support trigger with the submitted query when wired (does not block on streaming)
+    onSupportTrigger?.(trimmed);
     setInputText('');
   };
 

@@ -194,6 +194,28 @@ describe('useTriggerSupportAgent', () => {
       queryKey: wedgeQueryKeys.agentRuns(WORKSPACE_ID),
     });
   });
+
+  // F9.A5: assert canonical contract { case_id, customer_query } — not generic entity fields
+  it('mutationFn calls agentApi.triggerSupportRun with canonical shape', async () => {
+    // Access the mock registered in the jest.mock factory above
+    const { agentApi } = jest.requireMock('../../src/services/api') as {
+      agentApi: { triggerSupportRun: jest.Mock };
+    };
+    agentApi.triggerSupportRun.mockResolvedValue({ run_id: 'run-1', status: 'queued', agent: 'support' });
+    mockUseMutation.mockReturnValue({ mutate: jest.fn() });
+
+    useTriggerSupportAgent();
+    const [opts] = mockUseMutation.mock.calls[0] as [{ mutationFn: (args: { caseId: string; customerQuery: string; language?: string; priority?: string }) => Promise<unknown> }];
+
+    await opts.mutationFn({ caseId: 'case-42', customerQuery: 'screen is broken', language: 'es' });
+
+    expect(agentApi.triggerSupportRun).toHaveBeenCalledWith({
+      case_id: 'case-42',
+      customer_query: 'screen is broken',
+      language: 'es',
+      priority: undefined,
+    });
+  });
 });
 
 describe('useTriggerProspectingAgent', () => {

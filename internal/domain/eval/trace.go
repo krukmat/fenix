@@ -102,6 +102,7 @@ type TraceAuditEvent struct {
 	Outcome  string    `json:"outcome"`
 	ActorID  string    `json:"actor_id"`
 	EntityID *string   `json:"entity_id,omitempty"`
+	Details  json.RawMessage `json:"details,omitempty"`
 	At       time.Time `json:"at"`
 }
 
@@ -221,6 +222,7 @@ func projectAuditEvents(events []sqlcgen.AuditEvent) []TraceAuditEvent {
 			Outcome:  e.Outcome,
 			ActorID:  e.ActorID,
 			EntityID: e.EntityID,
+			Details:  e.Details,
 			At:       e.CreatedAt,
 		})
 	}

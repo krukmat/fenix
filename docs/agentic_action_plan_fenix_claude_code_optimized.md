@@ -14,9 +14,9 @@
 | F7 — Scenario Regression Suite | ⬜ Pending | [task_eval_wave_f7.md](../tasks/task_eval_wave_f7.md) | — |
 | F8 — Governed Agent Run Review Packet | ✅ Done | [task_eval_wave_f8.md](../tasks/task_eval_wave_f8.md) | `internal/domain/eval/packet.go`, packet fixtures, `README.md` |
 | F9 — Support Copilot Demo | ✅ Done | [task_eval_wave_f9.md](../tasks/task_eval_wave_f9.md) | fixture-driven demo, packet fixtures, demo notes |
-| F10 — Workflow Activation Conformance | ⬜ Pending | [task_eval_wave_f10.md](../tasks/task_eval_wave_f10.md) | — |
-| F11 — Policy Denial as Product Event | ⬜ Pending | [task_eval_wave_f11.md](../tasks/task_eval_wave_f11.md) | — |
-| F12 — Workflow Graph + Governance Metrics | ⬜ Pending | [task_eval_wave_f12.md](../tasks/task_eval_wave_f12.md) | — |
+| F10 — Workflow Activation Conformance | ✅ Done | [task_eval_wave_f10.md](../tasks/task_eval_wave_f10.md) | `docs/plans/deterministic-eval/workflow-activation-story.md` |
+| F11 — Policy Denial as Product Event | ✅ Done | [task_eval_wave_f11.md](../tasks/task_eval_wave_f11.md) | `internal/domain/eval/testdata/demo/policy_denial_demo.json`, `docs/plans/deterministic-eval/policy-denial-story.md` |
+| F12 — Workflow Graph + Governance Metrics | ✅ Done | [task_eval_wave_f12.md](../tasks/task_eval_wave_f12.md) | `internal/domain/agent/workflow_inspection.go`, `internal/domain/eval/governance_metrics_report.go`, `docs/plans/deterministic-eval/governance-metrics-report.md` |
 
 ---
 
@@ -1393,11 +1393,11 @@ A FenixCRM wave is done only when:
 | 6 | Wave F5 — Hard Safety Gates | ⬜ Pending | Governance-first credibility |
 | 7 | Wave F6 — Text Output Validation | ⬜ Pending | Keeps text evaluation non-LLM-based |
 | 8 | Wave F7 — Scenario Regression Suite | ⬜ Pending | Enables CI/regression story |
-| 9 | Wave F8 — Review Packet | ⬜ Pending | Human-readable product artifact |
-| 10 | Wave F9 — Support Copilot Demo | ⬜ Pending | Strongest public product story |
-| 11 | Wave F10 — Workflow Activation | ⬜ Pending | Strong architecture narrative |
-| 12 | Wave F11 — Policy Denial | ⬜ Pending | Strong safety narrative |
-| 13 | Wave F12 — Workflow/Governance Surface | ⬜ Pending | Strong visual and operational narrative |
+| 9 | Wave F8 — Review Packet | ✅ Done | Human-readable product artifact |
+| 10 | Wave F9 — Support Copilot Demo | ✅ Done | Strongest public product story |
+| 11 | Wave F10 — Workflow Activation | ✅ Done | Strong architecture narrative |
+| 12 | Wave F11 — Policy Denial | ✅ Done | Strong safety narrative |
+| 13 | Wave F12 — Workflow/Governance Surface | ✅ Done | Strong visual and operational narrative |
 
 ---
 

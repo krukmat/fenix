@@ -160,7 +160,8 @@ function TriggerSection({
 }: {
   caseData: CaseDetailData;
   colors: ThemeColors;
-  triggerAgent: { mutate: (context: { entityType: string; entityId: string }) => void; isPending: boolean };
+  // F9.A5: updated to canonical contract { caseId, customerQuery }
+  triggerAgent: { mutate: (context: { caseId: string; customerQuery: string }) => void; isPending: boolean };
   triggerKBIsPending: boolean;
   onTriggerKB: () => void;
 }) {
@@ -171,7 +172,7 @@ function TriggerSection({
           mode="contained"
           testID="support-trigger-agent-button"
           disabled={triggerAgent.isPending}
-          onPress={() => triggerAgent.mutate({ entityType: 'case', entityId: caseData.id })}
+          onPress={() => triggerAgent.mutate({ caseId: caseData.id, customerQuery: caseData.subject ?? '' })}
         >
           {triggerAgent.isPending ? 'Running…' : 'Run Support Agent'}
         </Button>

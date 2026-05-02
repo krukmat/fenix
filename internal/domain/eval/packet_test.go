@@ -21,6 +21,7 @@ func TestReviewPacketMarkdownExportContainsRequiredSections(t *testing.T) {
 		"## Run",
 		"## Evaluation",
 		"## Hard Gates",
+		"## Denied Actions",
 		"## Metrics",
 		"## Expected vs Actual",
 		"### Final Outcome",
@@ -78,6 +79,29 @@ func TestReviewPacketHardGateViolationVisibleInPacket(t *testing.T) {
 	}
 	if !strings.Contains(markdown, "failed_validation") {
 		t.Fatalf("expected markdown to contain failed_validation\n%s", markdown)
+	}
+}
+
+func TestReviewPacketDeniedActionsVisibleInPacket(t *testing.T) {
+	t.Parallel()
+
+	packet := makeReviewPacketFixture(t)
+	packet.Evaluation.DeniedActions = []ReviewPacketDeniedAction{{
+		ActorID:   "run-sample-001",
+		Action:    "tool.denied",
+		Target:    "send_email",
+		Policy:    "external-contact-policy",
+		Reason:    "External outreach denied by policy",
+		Outcome:   "denied",
+		Timestamp: time.Date(2026, 5, 2, 10, 0, 5, 0, time.UTC),
+	}}
+
+	markdown := packet.ToMarkdown()
+	if !strings.Contains(markdown, "## Denied Actions") {
+		t.Fatalf("expected markdown to contain denied actions section\n%s", markdown)
+	}
+	if !strings.Contains(markdown, "External outreach denied by policy") {
+		t.Fatalf("expected markdown to contain denial reason\n%s", markdown)
 	}
 }
 

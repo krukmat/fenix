@@ -116,7 +116,8 @@ describe('Support agent trigger flow', () => {
     const { default: Screen } = require('../../../../app/(tabs)/support/[id]');
     render(React.createElement(Screen));
     fireEvent.press(screen.getByTestId('support-trigger-agent-button'));
-    expect(mockMutate).toHaveBeenCalledWith({ entityType: 'case', entityId: 'case-1' });
+    // F9.A5: canonical contract — subject from case data used as customerQuery fallback
+    expect(mockMutate).toHaveBeenCalledWith({ caseId: 'case-1', customerQuery: 'Login broken' });
   });
 
   it('disables trigger button while agent run is pending', () => {

@@ -84,10 +84,15 @@ export const agentApi = {
     return response.data;
   },
 
-  // W1-T1: support-specific trigger — resolves the support agent by agentType internally
-  triggerSupportRun: async (context: { entity_type: string; entity_id: string }) => {
+  // F9.A5: support-specific trigger — canonical contract { case_id, customer_query, language?, priority? }
+  triggerSupportRun: async (context: {
+    case_id: string;
+    customer_query: string;
+    language?: string;
+    priority?: string;
+  }) => {
     const response = await apiClient.post('/bff/api/v1/agents/support/trigger', context);
-    return response.data;
+    return normalizeQueuedTriggerResponse(response.data);
   },
 
   triggerProspectingRun: async (context: { lead_id: string; language?: string }) => {

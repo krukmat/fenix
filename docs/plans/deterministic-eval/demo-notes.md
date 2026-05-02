@@ -25,6 +25,7 @@ La idea no es “el modelo sonó convincente”. La idea es que el comportamient
 - Packet técnico en Markdown: `internal/domain/eval/testdata/packets/demo_support_run.md`
 - Packet técnico en JSON: `internal/domain/eval/testdata/packets/demo_support_run.json`
 - Packet explicado en castellano: `internal/domain/eval/testdata/packets/demo_support_run.es.md`
+- Superficie F12 de inspección y métricas: `docs/plans/deterministic-eval/governance-metrics-report.md`
 - Runbook de superficies reales: `docs/plans/deterministic-eval/demo-execution-surfaces.md`
 
 ## Historia en Tres Minutos

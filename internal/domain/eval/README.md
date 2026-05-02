@@ -166,9 +166,46 @@ Packet contents:
 - run identity, timing, outcome, retry, token, cost, and contract-validation fields
 - scorecard verdict, final verdict after hard gates, metric values, and raw mismatches
 - hard-gate violations with machine-readable evidence
+- denied actions with actor, target, policy/reason context, outcome, and timestamp when present in the audit trail
 - expected vs actual sections for final outcome, policy decisions, evidence, tool calls, approval behavior, final state, audit events, and contract validation
 
 Sample artifacts live in:
 
 - `testdata/packets/sample_support_run.md`
 - `testdata/packets/sample_support_run.json`
+- `testdata/packets/demo_support_run.md`
+- `testdata/packets/demo_support_run.json`
+- `testdata/packets/demo_policy_denial_run.md`
+- `testdata/packets/demo_policy_denial_run.json`
+
+---
+
+## Workflow Inspection and Governance Metrics Surface
+
+Wave F12 adds two inspectable exports around deterministic workflow review:
+
+- `BuildWorkflowInspectionSurface(validation, dslSource, scenarioCoverage)` reuses workflow validation plus the existing semantic graph projection and emits:
+  - `visual_projection`
+  - adjacency list
+  - Mermaid `flowchart LR` text
+  - conformance profile/details
+  - DSL coverage labels
+  - deterministic scenario references when known
+- this is a review/export surface, not a new workflow runtime or a second graph model
+
+Wave F12 also adds an inspectable governance metrics export for deterministic review cases:
+
+- `BuildGovernanceMetricsReport(now, cases)` aggregates run-level governance evidence from `ActualRunTrace` plus deterministic regression outcomes
+- `GovernanceMetricsReport.ToMarkdown()` emits a reviewer-facing report with per-run rows and breakdowns by workflow, scenario, actor, outcome, and tool
+- `GovernanceMetricsReport.ToJSON()` emits the same content as structured JSON
+
+Together these surfaces are intended to answer review questions such as:
+
+- what the workflow does structurally
+- whether the workflow is safe, extended, or invalid
+- which deterministic scenarios cover it
+- who triggered what
+- through which workflow
+- with what outcome
+- at what cost and latency
+- with how many policy denials or hard gate violations
