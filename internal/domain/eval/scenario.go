@@ -97,18 +97,18 @@ type ScenarioThresholds struct {
 // LoadGoldenScenario reads and validates a YAML fixture from disk.
 // F1-T1/F1-T2: used by tests and the regression runner (Wave F7).
 func LoadGoldenScenario(path string) (*GoldenScenario, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // path comes from trusted internal testdata
-	if err != nil {
-		return nil, fmt.Errorf("read scenario file %q: %w", path, err)
+	data, readErr := os.ReadFile(path) //nolint:gosec // path comes from trusted internal testdata
+	if readErr != nil {
+		return nil, fmt.Errorf("read scenario file %q: %w", path, readErr)
 	}
 
 	var sc GoldenScenario
-	if err := yaml.Unmarshal(data, &sc); err != nil {
-		return nil, fmt.Errorf("parse scenario YAML %q: %w", path, err)
+	if parseErr := yaml.Unmarshal(data, &sc); parseErr != nil {
+		return nil, fmt.Errorf("parse scenario YAML %q: %w", path, parseErr)
 	}
 
-	if err := sc.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid scenario %q: %w", path, err)
+	if valErr := sc.Validate(); valErr != nil {
+		return nil, fmt.Errorf("invalid scenario %q: %w", path, valErr)
 	}
 
 	return &sc, nil

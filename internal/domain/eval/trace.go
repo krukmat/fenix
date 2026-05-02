@@ -231,7 +231,7 @@ type policyDetailsPayload struct {
 
 // extractPolicyDecisions scans audit events for action=="policy.decision" and parses details.
 func extractPolicyDecisions(events []sqlcgen.AuditEvent) []TracePolicyDecision {
-	var out []TracePolicyDecision
+	out := make([]TracePolicyDecision, 0, len(events))
 	for _, e := range events {
 		if e.Action != "policy.decision" {
 			continue
@@ -240,7 +240,7 @@ func extractPolicyDecisions(events []sqlcgen.AuditEvent) []TracePolicyDecision {
 		if err := json.Unmarshal(e.Details, &p); err != nil || p.Action == "" {
 			continue
 		}
-		out = append(out, TracePolicyDecision{Action: p.Action, Outcome: p.Outcome})
+		out = append(out, TracePolicyDecision(p))
 	}
 	return out
 }
