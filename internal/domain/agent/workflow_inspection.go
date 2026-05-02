@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+const (
+	mermaidFlowchartHeader = "flowchart LR\n"
+	mermaidEdgeArrow       = "-->"
+)
+
 type WorkflowScenarioCoverageRef struct {
 	ScenarioID string `json:"scenario_id"`
 	Title      string `json:"title,omitempty"`
@@ -61,11 +66,11 @@ func BuildWorkflowInspectionSurface(
 
 func (p WorkflowVisualProjection) ToMermaid() string {
 	if len(p.Nodes) == 0 {
-		return "flowchart LR\n"
+		return mermaidFlowchartHeader
 	}
 
 	var b strings.Builder
-	b.WriteString("flowchart LR\n")
+	b.WriteString(mermaidFlowchartHeader)
 	b.WriteString(fmt.Sprintf("  workflow_status[%q]\n", "Conformance: "+string(p.Conformance.Profile)))
 
 	for _, node := range p.Nodes {
@@ -160,15 +165,15 @@ func mermaidEdgeOperator(kind SemanticEdgeKind) string {
 	case SemanticEdgeGoverns:
 		return "-.->"
 	case SemanticEdgeRequires:
-		return "-->"
+		return mermaidEdgeArrow
 	case SemanticEdgeBranches:
-		return "-->"
+		return mermaidEdgeArrow
 	case SemanticEdgeContains:
-		return "-->"
+		return mermaidEdgeArrow
 	case SemanticEdgeNext:
-		return "-->"
+		return mermaidEdgeArrow
 	default:
-		return "-->"
+		return mermaidEdgeArrow
 	}
 }
 

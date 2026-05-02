@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+const (
+	reportJSONIndent   = "  "
+	reportFallbackDash = "—"
+	reportOutcomeDeny  = "deny"
+)
+
 type GovernanceReviewCase struct {
 	Trace  ActualRunTrace           `json:"trace"`
 	Result RegressionScenarioResult `json:"result"`
@@ -123,7 +129,7 @@ func BuildGovernanceMetricsReport(now time.Time, cases []GovernanceReviewCase) G
 }
 
 func (r GovernanceMetricsReport) ToJSON() ([]byte, error) {
-	return json.MarshalIndent(r, "", "  ")
+	return json.MarshalIndent(r, "", reportJSONIndent)
 }
 
 func (r GovernanceMetricsReport) ToMarkdown() string {
@@ -146,9 +152,9 @@ func (r GovernanceMetricsReport) ToMarkdown() string {
 		for _, run := range r.Runs {
 			fmt.Fprintf(&buf, "| `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%d` | `%d` | `%d` |\n",
 				run.RunID,
-				orFallback(run.ScenarioID, "—"),
-				orFallback(run.WorkflowID, "—"),
-				orFallback(run.ActorID, "—"),
+				orFallback(run.ScenarioID, reportFallbackDash),
+				orFallback(run.WorkflowID, reportFallbackDash),
+				orFallback(run.ActorID, reportFallbackDash),
 				run.FinalOutcome,
 				run.FinalVerdict,
 				formatOptionalCost(run.TotalCost),
@@ -263,7 +269,7 @@ func addGovernanceToolMetrics(store map[string]*GovernanceToolMetric, trace Actu
 		item.Calls++
 	}
 	for _, decision := range trace.PolicyDecisions {
-		if decision.Outcome != "deny" {
+		if decision.Outcome != reportOutcomeDeny {
 			continue
 		}
 		toolName := strings.TrimPrefix(decision.Action, "tool:")
