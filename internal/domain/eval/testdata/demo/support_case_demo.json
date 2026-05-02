@@ -1,0 +1,160 @@
+{
+  "scenario_fixture": "scenarios/sc_support_sensitive_mutation_approval.yaml",
+  "trace": {
+    "run_id": "run-demo-support-001",
+    "workspace_id": "ws-demo-001",
+    "agent_definition_id": "agent-support-copilot-demo",
+    "scenario_id": "sc-support-004",
+    "trigger_type": "event",
+    "input_event": {
+      "event": "case.created",
+      "case_id": "case-abc-004",
+      "workspace_id": "ws-demo-001",
+      "priority": "high"
+    },
+    "context_inputs": {
+      "case_id": "case-abc-004",
+      "customer_query": "Please confirm whether the remediation can be applied."
+    },
+    "retrieval_queries": [
+      "support case case-abc-004",
+      "account acc-001",
+      "knowledge kb-enterprise-sla-001"
+    ],
+    "evidence_sources": [
+      "case:case-abc-004",
+      "account:acc-001",
+      "knowledge:kb-enterprise-sla-001"
+    ],
+    "policy_decisions": [
+      {
+        "action": "tool:update_case",
+        "outcome": "require_approval"
+      },
+      {
+        "action": "tool:request_approval",
+        "outcome": "allow"
+      }
+    ],
+    "approval_events": [
+      {
+        "approval_id": "apr-demo-001",
+        "action": "tool:update_case",
+        "status": "pending"
+      }
+    ],
+    "tool_calls": [
+      {
+        "tool_name": "retrieve_case",
+        "status": "executed",
+        "params": {
+          "case_id": "case-abc-004"
+        }
+      },
+      {
+        "tool_name": "retrieve_account",
+        "status": "executed",
+        "params": {
+          "account_id": "acc-001"
+        }
+      },
+      {
+        "tool_name": "request_approval",
+        "status": "executed",
+        "params": {
+          "action": "update_case",
+          "case_id": "case-abc-004",
+          "reason": "High-priority enterprise case requires approval before mutation."
+        }
+      }
+    ],
+    "audit_events": [
+      {
+        "id": "evt-demo-001",
+        "action": "agent.run.started",
+        "outcome": "success",
+        "actor_id": "run-demo-support-001",
+        "at": "2026-05-02T12:00:00Z"
+      },
+      {
+        "id": "evt-demo-002",
+        "action": "policy.evaluated",
+        "outcome": "success",
+        "actor_id": "run-demo-support-001",
+        "at": "2026-05-02T12:00:01Z"
+      },
+      {
+        "id": "evt-demo-003",
+        "action": "tool.executed",
+        "outcome": "success",
+        "actor_id": "run-demo-support-001",
+        "entity_id": "retrieve_case",
+        "at": "2026-05-02T12:00:02Z"
+      },
+      {
+        "id": "evt-demo-004",
+        "action": "tool.executed",
+        "outcome": "success",
+        "actor_id": "run-demo-support-001",
+        "entity_id": "retrieve_account",
+        "at": "2026-05-02T12:00:03Z"
+      },
+      {
+        "id": "evt-demo-005",
+        "action": "approval.requested",
+        "outcome": "success",
+        "actor_id": "run-demo-support-001",
+        "at": "2026-05-02T12:00:04Z"
+      },
+      {
+        "id": "evt-demo-006",
+        "action": "tool.executed",
+        "outcome": "success",
+        "actor_id": "run-demo-support-001",
+        "entity_id": "request_approval",
+        "at": "2026-05-02T12:00:05Z"
+      },
+      {
+        "id": "evt-demo-007",
+        "action": "agent.run.completed",
+        "outcome": "success",
+        "actor_id": "run-demo-support-001",
+        "at": "2026-05-02T12:00:06Z"
+      }
+    ],
+    "final_outcome": "awaiting_approval",
+    "output": {
+      "summary": "Approval requested before updating the case.",
+      "next_step": "Await manager decision."
+    },
+    "reasoning_trace": [
+      {
+        "step": 1,
+        "thought": "Retrieve case, account, and policy evidence."
+      },
+      {
+        "step": 2,
+        "thought": "Detected customer-facing mutation requiring approval."
+      },
+      {
+        "step": 3,
+        "thought": "Requested approval instead of executing update_case."
+      }
+    ],
+    "latency_ms": 3200,
+    "total_tokens": 812,
+    "total_cost": 0.0064,
+    "retries": 0,
+    "started_at": "2026-05-02T12:00:00Z",
+    "completed_at": "2026-05-02T12:00:06Z",
+    "contract_validation": {
+      "checked_at": "2026-05-02T12:00:06Z",
+      "mutators_traceable": true,
+      "policys_traceable": true
+    },
+    "final_state": {
+      "case.status": "Pending Approval",
+      "case.last_action": "Approval requested"
+    }
+  }
+}

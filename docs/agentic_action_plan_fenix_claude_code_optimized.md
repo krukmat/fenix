@@ -12,8 +12,8 @@
 | F5 — Hard Safety Gates | ⬜ Pending | [task_eval_wave_f5.md](../tasks/task_eval_wave_f5.md) | — |
 | F6 — Text Output Contract Validator | ⬜ Pending | [task_eval_wave_f6.md](../tasks/task_eval_wave_f6.md) | — |
 | F7 — Scenario Regression Suite | ⬜ Pending | [task_eval_wave_f7.md](../tasks/task_eval_wave_f7.md) | — |
-| F8 — Governed Agent Run Review Packet | ⬜ Pending | [task_eval_wave_f8.md](../tasks/task_eval_wave_f8.md) | — |
-| F9 — Support Copilot Demo | ⬜ Pending | [task_eval_wave_f9.md](../tasks/task_eval_wave_f9.md) | — |
+| F8 — Governed Agent Run Review Packet | ✅ Done | [task_eval_wave_f8.md](../tasks/task_eval_wave_f8.md) | `internal/domain/eval/packet.go`, packet fixtures, `README.md` |
+| F9 — Support Copilot Demo | ✅ Done | [task_eval_wave_f9.md](../tasks/task_eval_wave_f9.md) | fixture-driven demo, packet fixtures, demo notes |
 | F10 — Workflow Activation Conformance | ⬜ Pending | [task_eval_wave_f10.md](../tasks/task_eval_wave_f10.md) | — |
 | F11 — Policy Denial as Product Event | ⬜ Pending | [task_eval_wave_f11.md](../tasks/task_eval_wave_f11.md) | — |
 | F12 — Workflow Graph + Governance Metrics | ⬜ Pending | [task_eval_wave_f12.md](../tasks/task_eval_wave_f12.md) | — |
@@ -939,7 +939,7 @@ Stop after Wave F8 acceptance criteria are met.
 
 ### Goal
 
-Create one strong end-to-end support scenario for public demonstration.
+Create one strong end-to-end support scenario for public demonstration without depending on live LLM connectivity.
 
 ### Functional Requirements
 
@@ -974,6 +974,7 @@ Create one strong end-to-end support scenario for public demonstration.
 ```text
 Implement Wave F9 only: Support Copilot Governed Case Handling Demo.
 Use the deterministic evaluation framework.
+Assume no live LLM is available; keep the demo fixture-driven and reproducible.
 Do not bypass policy, approval, trace, audit, or hard gate logic.
 Generate demo notes and a sample Review Packet.
 Update docs.
@@ -982,9 +983,266 @@ Stop after Wave F9 acceptance criteria are met.
 
 ### Codebase Anchor Notes
 
-- The demo scenario builds on `features/uc-c1-support-agent.feature` and step definitions in `tests/bdd/go/support_agent_bdd.go`.
-- No new scenario authoring is needed for the basic demo — wire existing BDD execution through the eval framework.
+- The demo scenario builds on `features/uc-c1-support-agent.feature` as behavioral source material.
+- Because no live LLM is available, this wave should use a synthetic trace fixture instead of online BDD execution.
 - Demo fixture data must be synthetic — no real customer data.
+
+### Post-F9 Operationalization Track — Live Demo Surface Closure
+
+Wave F9 intentionally proved the governed support story through deterministic fixtures and Review Packet artifacts.
+
+That is sufficient for public positioning, but it does **not** yet close the live product demo path across real surfaces such as `mobile/` and `bff/admin`.
+
+The following subtasks are the recommended post-F9 sequence for a coding agent.
+
+They are intentionally narrower than a full wave and must be executed one at a time.
+
+#### F9.A1 — Support Trigger Contract Inventory
+
+##### Goal
+
+Document the current live trigger path for the support agent across `mobile`, `bff`, and backend.
+
+##### Why This Exists
+
+The current demo gap starts with contract ambiguity.
+A coding agent should not patch UI or backend behavior before the actual payload mismatch is explicitly recorded.
+
+##### Required Investigation Scope
+
+- `mobile/app/(tabs)/support/[id].tsx`
+- `mobile/src/hooks/useWedge.ts`
+- `mobile/src/services/api.agents.ts`
+- `bff/src/routes/proxy.ts`
+- `internal/api/handlers/agent.go`
+
+##### Deliverables
+
+- A short engineering note or plan update that shows:
+  - what mobile sends today;
+  - whether BFF transforms or transparently proxies it;
+  - what backend expects today;
+  - the exact contract mismatch;
+  - whether any other support trigger path already exists elsewhere in the repo.
+
+##### Acceptance Criteria
+
+- The mismatch is described in concrete request-field terms.
+- The document is sufficient for another engineer to choose a final contract without re-reading the whole codebase.
+- No behavior changes are made in this subtask.
+
+##### Coding Agent Prompt
+
+```text
+Execute F9.A1 only: Support Trigger Contract Inventory.
+Do not change runtime behavior.
+Inspect the current mobile, BFF, and backend support-trigger path.
+Write down the exact payload fields, route boundaries, and contract mismatch.
+Stop after the mismatch is documented clearly enough for implementation planning.
+```
+
+#### F9.A2 — Support Trigger Contract Decision
+
+##### Goal
+
+Choose the canonical trigger contract for live support runs.
+
+##### Decision To Make
+
+Pick one of these directions:
+
+- backend accepts the current mobile-style `entity_type/entity_id` trigger; or
+- mobile and/or BFF must send backend-native `case_id/customer_query/priority`.
+
+##### Deliverables
+
+- One explicit decision record inside the relevant plan/doc area.
+- Chosen canonical payload schema.
+- Migration note for the non-canonical side.
+
+##### Acceptance Criteria
+
+- Exactly one contract is declared canonical.
+- The decision explains why it is better for the real support demo flow.
+- The decision is concrete enough to implement without a second design round.
+
+##### Coding Agent Prompt
+
+```text
+Execute F9.A2 only: Support Trigger Contract Decision.
+Use the documented mismatch from F9.A1.
+Select one canonical trigger contract for live support runs.
+Record the chosen contract, the rejected alternative, and the implementation consequence for mobile/BFF/backend.
+Do not implement the runtime change yet.
+```
+
+#### F9.A3 — Customer Query UX Decision
+
+##### Goal
+
+Define where `customer_query` comes from in a real human-driven support demo.
+
+##### UX Question To Resolve
+
+The live demo needs a concrete operator action.
+The system currently needs a user-visible source for the support request text.
+
+Possible directions include:
+
+- derive it from case description;
+- allow editing it before launch;
+- collect it in a modal before trigger;
+- launch from a copilot surface that already has prompt text.
+
+##### Deliverables
+
+- A chosen UX path for `customer_query`.
+- The operator-facing interaction sequence.
+- Edge-case note for empty or invalid query text.
+
+##### Acceptance Criteria
+
+- A demo operator can be told exactly where to click and where the support request text comes from.
+- The chosen UX is compatible with the canonical contract from F9.A2.
+- The decision avoids hidden or magical data derivation.
+
+##### Coding Agent Prompt
+
+```text
+Execute F9.A3 only: Customer Query UX Decision.
+Do not implement backend alignment yet.
+Choose one operator-facing source of `customer_query` for the live support demo.
+Document the exact interaction, validation expectations, and why that UX is appropriate for demo reliability.
+```
+
+#### F9.A4 — BFF and Backend Trigger Alignment
+
+##### Goal
+
+Implement the server-side contract alignment required by the chosen trigger design.
+
+##### Scope
+
+This subtask covers only the server-side path.
+If translation logic is needed, it belongs here.
+If the backend handler contract must change, it belongs here.
+
+##### Expected Files
+
+- `bff/src/routes/` as needed
+- `internal/api/handlers/agent.go`
+- related tests in BFF or Go backend layers
+
+##### Deliverables
+
+- Final server-side trigger contract implementation.
+- Validation behavior for malformed trigger payloads.
+- Tests or contract coverage for the chosen path.
+
+##### Acceptance Criteria
+
+- A valid trigger request reaches the backend in the canonical format.
+- Invalid payloads fail predictably.
+- The implementation does not rely on undocumented field translation.
+
+##### Coding Agent Prompt
+
+```text
+Execute F9.A4 only: BFF and Backend Trigger Alignment.
+Implement the chosen canonical contract from F9.A2 on the server-side path.
+Add validation and tests where current patterns allow.
+Do not change the mobile UI trigger flow yet.
+Stop after the server-side path is stable and documented.
+```
+
+#### F9.A5 — Mobile Support Trigger Flow
+
+##### Goal
+
+Update the real mobile trigger experience so an operator can launch the governed support run correctly.
+
+##### Scope
+
+This subtask should apply the chosen UX from F9.A3 and the aligned contract from F9.A4.
+
+##### Expected Files
+
+- `mobile/app/(tabs)/support/[id].tsx`
+- `mobile/src/hooks/useWedge.ts`
+- `mobile/src/services/api.agents.ts`
+- related mobile components/tests if needed
+
+##### Deliverables
+
+- Working operator-facing support trigger flow.
+- Loading, success, and error handling suitable for a live demo.
+- Any small UI text needed to make the interaction understandable.
+
+##### Acceptance Criteria
+
+- An operator can launch the run from a real mobile surface.
+- The request uses the canonical trigger contract.
+- The flow handles missing input and request failure cleanly.
+- The surface is demoable without needing engineering explanation in the moment.
+
+##### Coding Agent Prompt
+
+```text
+Execute F9.A5 only: Mobile Support Trigger Flow.
+Use the final contract from F9.A2/F9.A4 and the UX choice from F9.A3.
+Update the real mobile support case surface so an operator can launch a governed run with clear loading and error states.
+Run the required mobile QA gates for touched files.
+Stop after the flow is demoable from the app.
+```
+
+#### F9.A6 — Demo Seed and Operator Runbook
+
+##### Goal
+
+Prepare the live-demo prerequisites and final operator instructions.
+
+##### Scope
+
+This subtask closes the gap between implemented behavior and repeatable demonstration.
+
+##### Deliverables
+
+- Seed or fixture guidance for the support case, account, evidence, operator, and approver.
+- Updated runbook for mobile, BFF admin, and Review Packet closing sequence.
+- Exact pre-demo checklist.
+
+##### Acceptance Criteria
+
+- A human presenter can follow the runbook without making unstated assumptions.
+- The support case, approval actor, and closing evidence are all prepared explicitly.
+- The live demo route is reproducible by another engineer or operator.
+
+##### Coding Agent Prompt
+
+```text
+Execute F9.A6 only: Demo Seed and Operator Runbook.
+Do not redesign the product.
+Prepare the minimum data/setup instructions and the final human runbook required to execute the governed support demo across real surfaces.
+Update the relevant deterministic-eval planning docs.
+Stop after the demo can be prepared and repeated by someone else.
+```
+
+### Recommended Execution Order
+
+1. F9.A1 — Support Trigger Contract Inventory
+2. F9.A2 — Support Trigger Contract Decision
+3. F9.A3 — Customer Query UX Decision
+4. F9.A4 — BFF and Backend Trigger Alignment
+5. F9.A5 — Mobile Support Trigger Flow
+6. F9.A6 — Demo Seed and Operator Runbook
+
+### Product-Surface Recommendation
+
+For the live governed support demo, the recommended surface split is:
+
+- `mobile` as the primary operator narrative;
+- `bff/admin` as the approval, run-inspection, and audit surface;
+- `Review Packet` as the final proof artifact.
 
 ---
 

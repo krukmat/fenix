@@ -105,7 +105,7 @@ func mutationWithoutPolicyViolations(toolCalls []TraceToolCall, decisions []Trac
 			"mutation_without_policy",
 			fmt.Sprintf("mutating tool %q executed without policy decision", toolCall.ToolName),
 			fmt.Sprintf("policy decision %q", action),
-			"missing",
+			textContractActualMissing,
 			fmt.Sprintf(fmtToolStatusEvidence, toolCall.ToolName, toolCall.Status),
 		))
 	}
@@ -226,7 +226,7 @@ func policyDecisionMissingViolations(expected []ExpectedPolicyDecision, actual [
 			"policy_decision_missing",
 			fmt.Sprintf("required policy decision %q missing", action),
 			fmt.Sprintf("policy decision %q", action),
-			"missing",
+			textContractActualMissing,
 			fmt.Sprintf("expected_outcome=%s", decision.ExpectedOutcome),
 		))
 	}

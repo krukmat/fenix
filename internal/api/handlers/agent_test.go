@@ -2293,6 +2293,73 @@ func TestAgentHandlerConfigBuildersAndTriggeredByHelpers(t *testing.T) {
 	}
 }
 
+// TestSupportAgentHandler_TriggerSupportAgent_201 verifies the canonical trigger contract end-to-end.
+// With empty evidence (score=0) and low priority the agent abstains and calls send_reply only.
+// F9.A4 — BFF and Backend Trigger Alignment
+// Traces: FR-230, FR-231
+func TestSupportAgentHandler_TriggerSupportAgent_201(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDBWithMigrations(t)
+	wsID := createWorkspace(t, db)
+	ownerID := createUser(t, db, wsID)
+	insertTestAgentDef(t, db, "support-agent", wsID)
+
+	caseSvc := crm.NewCaseService(db)
+	supportCase, caseErr := caseSvc.Create(context.Background(), crm.CreateCaseInput{
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Cannot reset password",
+		Status:      "open",
+	})
+	if caseErr != nil {
+		t.Fatalf("create support case: %v", caseErr)
+	}
+
+	orch := agent.NewOrchestrator(db)
+	reg := tool.NewToolRegistry(db)
+	noopOut := json.RawMessage(`{"ok":true}`)
+	for _, name := range []string{tool.BuiltinSendReply, tool.BuiltinUpdateCase, tool.BuiltinCreateTask} {
+		if regErr := reg.Register(name, &mockKBToolExecutorHandler{out: noopOut}); regErr != nil {
+			t.Fatalf("register %s: %v", name, regErr)
+		}
+	}
+	sa := agents.NewSupportAgentWithDB(orch, reg, &mockKnowledgeSearchHandler{}, db)
+	h := NewSupportAgentHandler(sa)
+
+	body, _ := json.Marshal(map[string]any{
+		"case_id":        supportCase.ID,
+		"customer_query": "how do I reset my password?",
+		"language":       "es",
+		"priority":       "low",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/agents/support/trigger", bytes.NewReader(body))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.TriggerSupportAgent(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]any
+	if decErr := json.Unmarshal(rr.Body.Bytes(), &resp); decErr != nil {
+		t.Fatalf("decode response: %v", decErr)
+	}
+	data, ok := resp["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected data object, got: %v", resp)
+	}
+	if id, _ := data["id"].(string); id == "" {
+		t.Fatalf("expected non-empty id in data, got: %v", data)
+	}
+	if status, _ := data["status"].(string); status == "" {
+		t.Fatalf("expected non-empty status in data, got: %v", data)
+	}
+}
+
 func TestAgentHandlerHelperCoverage(t *testing.T) {
 	t.Parallel()
 

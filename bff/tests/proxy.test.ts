@@ -53,6 +53,44 @@ describe('Proxy pass-through /bff/api/v1/*', () => {
   });
 });
 
+// F9.A4 — BFF and Backend Trigger Alignment
+// BFF is a transparent proxy: it must forward the canonical support trigger payload unchanged.
+// Validation is the backend's responsibility — BFF forwards regardless of payload completeness.
+describe('Support trigger pass-through /bff/api/v1/agents/support/trigger', () => {
+  afterEach(() => {
+    proxyHandlerFn.mockClear();
+  });
+
+  it('forwards canonical support trigger payload { case_id, customer_query, language, priority } to Go', async () => {
+    proxyHandlerFn.mockImplementationOnce((_req, res) => {
+      res.status(201).json({ data: { id: 'run-1', status: 'running' } });
+    });
+
+    const res = await request(app)
+      .post('/bff/api/v1/agents/support/trigger')
+      .set('Authorization', 'Bearer test-token')
+      .send({ case_id: 'case-1', customer_query: 'how do I reset my password?', language: 'es', priority: 'low' });
+
+    expect(proxyHandlerFn).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(201);
+    expect(res.body.data.id).toBe('run-1');
+  });
+
+  it('forwards payload missing customer_query to Go without BFF-level rejection', async () => {
+    proxyHandlerFn.mockImplementationOnce((_req, res) => {
+      res.status(400).json({ error: { message: 'customer_query is required' } });
+    });
+
+    const res = await request(app)
+      .post('/bff/api/v1/agents/support/trigger')
+      .set('Authorization', 'Bearer test-token')
+      .send({ case_id: 'case-1' });
+
+    expect(proxyHandlerFn).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('hasParsedJsonBody', () => {
   it('returns true when body has keys', () => {
     expect(hasParsedJsonBody({ body: { name: 'Acme' } } as unknown as import('express').Request)).toBe(true);

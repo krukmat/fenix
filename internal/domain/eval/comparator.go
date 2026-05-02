@@ -34,6 +34,7 @@ const (
 	fmtStateField  = "%s=%v"
 	fmtPolicyField = "%s → %s"
 	fmtAbsentValue = "absent: %s"
+	fmtAnyValue    = "%v"
 )
 
 // Mismatch captures one failed check with explicit expected/actual evidence.
@@ -328,7 +329,7 @@ func compareFinalState(expected ScenarioExpected, trace ActualRunTrace) []Mismat
 		if err := json.Unmarshal(trace.FinalStateRaw, &actualState); err != nil {
 			return []Mismatch{{
 				Dimension: DimFinalState,
-				Expected:  fmt.Sprintf("%v", expected.FinalState),
+				Expected:  fmt.Sprintf(fmtAnyValue, expected.FinalState),
 				Actual:    "unparseable",
 				Evidence:  fmt.Sprintf("could not parse trace final_state JSON: %v", err),
 			}}

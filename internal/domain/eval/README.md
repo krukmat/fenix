@@ -148,3 +148,27 @@ CI integration:
 
 - `make ci` now includes `make eval-regression`
 - `make test-bdd-go` remains independent and is not replaced by the regression suite
+
+---
+
+## Review Packets
+
+Wave F8 adds a deterministic `ReviewPacket` projection for one evaluated scenario/run pair:
+
+- `BuildReviewPacket(scenario, trace, comparator, assessment)` composes scenario metadata, run metadata, scorecard output, hard-gate outcome, and expected-vs-actual checks into one stable object
+- `ReviewPacket.ToMarkdown()` emits a human-readable report for reviewers and stakeholders
+- `ReviewPacket.ToJSON()` emits the same deterministic content as structured JSON
+- the packet is a projection, not the source of truth: it does not re-score runs and it does not introduce LLM judgment or recommendations
+
+Packet contents:
+
+- scenario identity, domain, tags, and thresholds
+- run identity, timing, outcome, retry, token, cost, and contract-validation fields
+- scorecard verdict, final verdict after hard gates, metric values, and raw mismatches
+- hard-gate violations with machine-readable evidence
+- expected vs actual sections for final outcome, policy decisions, evidence, tool calls, approval behavior, final state, audit events, and contract validation
+
+Sample artifacts live in:
+
+- `testdata/packets/sample_support_run.md`
+- `testdata/packets/sample_support_run.json`

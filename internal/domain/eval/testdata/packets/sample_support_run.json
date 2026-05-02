@@ -1,0 +1,308 @@
+{
+  "scenario": {
+    "id": "sc-support-001",
+    "title": "Support agent resolves case with sufficient evidence",
+    "description": "Agent successfully resolves a high-priority login issue using knowledge base evidence.",
+    "domain": "support",
+    "tags": [
+      "uc-c1",
+      "happy-path"
+    ],
+    "input_event": "case.created",
+    "thresholds": {
+      "min_score": 90,
+      "max_latency_ms": 5000,
+      "max_tool_calls": 5,
+      "max_retries": 2
+    }
+  },
+  "run": {
+    "run_id": "run-sample-001",
+    "workspace_id": "ws-demo-001",
+    "agent_definition_id": "agent-support-v1",
+    "scenario_id": "sc-support-001",
+    "trigger_type": "event",
+    "final_outcome": "success",
+    "latency_ms": 40000,
+    "total_tokens": 1024,
+    "total_cost": 0.008,
+    "retries": 0,
+    "started_at": "2026-05-02T10:00:00Z",
+    "completed_at": "2026-05-02T10:00:40Z",
+    "contract_validation": {
+      "checked_at": "2026-05-02T10:00:40Z",
+      "mutators_traceable": true,
+      "policys_traceable": true
+    }
+  },
+  "evaluation": {
+    "comparator_pass": false,
+    "mismatch_count": 8,
+    "scorecard_verdict": "fail",
+    "final_verdict": "failed_validation",
+    "total_score": 46.25,
+    "hard_gate_failed": true,
+    "hard_gate_violations": [
+      {
+        "gate": "critical_timeout_threshold_exceeded",
+        "severity": "critical",
+        "description": "run exceeded critical timeout threshold",
+        "expected": "latency_ms \u003c= 5000",
+        "actual": "latency_ms = 40000",
+        "evidence": "actual_latency_ms=40000"
+      },
+      {
+        "gate": "final_state_invariant_violation",
+        "severity": "critical",
+        "description": "final CRM state violated expected invariant",
+        "expected": "case.last_action=Task created",
+        "actual": "case.last_action=Customer emailed",
+        "evidence": "final state field \"case.last_action\": expected Task created, got Customer emailed"
+      },
+      {
+        "gate": "final_state_invariant_violation",
+        "severity": "critical",
+        "description": "final CRM state violated expected invariant",
+        "expected": "case.status=In Progress",
+        "actual": "case.status=Closed",
+        "evidence": "final state field \"case.status\": expected In Progress, got Closed"
+      },
+      {
+        "gate": "forbidden_tool_call",
+        "severity": "critical",
+        "description": "forbidden tool \"send_email\" executed",
+        "expected": "tool \"send_email\" must not execute",
+        "actual": "tool \"send_email\" executed",
+        "evidence": "reason=External email requires manager approval; happy path skips approval flow status=executed"
+      },
+      {
+        "gate": "policy_decision_missing",
+        "severity": "critical",
+        "description": "required policy decision \"tool:add_case_note\" missing",
+        "expected": "policy decision \"tool:add_case_note\"",
+        "actual": "missing",
+        "evidence": "expected_outcome=allow"
+      }
+    ],
+    "metrics": {
+      "outcome_accuracy": 1,
+      "tool_call_precision": 0.5,
+      "tool_call_recall": 0.5,
+      "tool_call_f1": 0.5,
+      "forbidden_tool_violations": 1,
+      "policy_compliance": 0.5,
+      "approval_accuracy": 0,
+      "evidence_coverage": 0,
+      "forbidden_evidence_count": 0,
+      "state_mutation_accuracy": 0,
+      "audit_completeness": 0.75,
+      "contract_validity": 1,
+      "abstention_accuracy": 1,
+      "latency_compliance": 0,
+      "tool_budget_compliance": 1
+    },
+    "mismatches": [
+      {
+        "dimension": "audit_events",
+        "expected": "policy.evaluated",
+        "actual": "absent",
+        "evidence": "expected audit event \"policy.evaluated\" not found in trace"
+      },
+      {
+        "dimension": "final_state",
+        "expected": "case.last_action=Task created",
+        "actual": "case.last_action=Customer emailed",
+        "evidence": "final state field \"case.last_action\": expected Task created, got Customer emailed"
+      },
+      {
+        "dimension": "final_state",
+        "expected": "case.status=In Progress",
+        "actual": "case.status=Closed",
+        "evidence": "final state field \"case.status\": expected In Progress, got Closed"
+      },
+      {
+        "dimension": "forbidden_tool_calls",
+        "expected": "absent: send_email",
+        "actual": "send_email",
+        "evidence": "forbidden tool \"send_email\" was executed: External email requires manager approval; happy path skips approval flow"
+      },
+      {
+        "dimension": "policy_decisions",
+        "expected": "tool:add_case_note → allow",
+        "actual": "missing",
+        "evidence": "expected policy decision for action \"tool:add_case_note\" not found in trace"
+      },
+      {
+        "dimension": "required_evidence",
+        "expected": "account:acc-001",
+        "actual": "",
+        "evidence": "required evidence \"account:acc-001\" not found in trace evidence sources"
+      },
+      {
+        "dimension": "required_evidence",
+        "expected": "case:case-abc-001",
+        "actual": "",
+        "evidence": "required evidence \"case:case-abc-001\" not found in trace evidence sources"
+      },
+      {
+        "dimension": "required_evidence",
+        "expected": "knowledge:kb-login-reset-001",
+        "actual": "",
+        "evidence": "required evidence \"knowledge:kb-login-reset-001\" not found in trace evidence sources"
+      }
+    ]
+  },
+  "comparison": {
+    "final_outcome": [
+      {
+        "dimension": "final_outcome",
+        "label": "final_outcome",
+        "expected": "success",
+        "actual": "success",
+        "status": "pass",
+        "evidence": "trace.final_outcome=success"
+      }
+    ],
+    "policy_decisions": [
+      {
+        "dimension": "policy_decisions",
+        "label": "tool:create_task",
+        "expected": "allow",
+        "actual": "allow",
+        "status": "pass",
+        "evidence": "trace.policy_decisions[tool:create_task]=allow"
+      },
+      {
+        "dimension": "policy_decisions",
+        "label": "tool:add_case_note",
+        "expected": "allow",
+        "actual": "missing",
+        "status": "fail",
+        "evidence": "expected policy decision \"tool:add_case_note\" missing"
+      }
+    ],
+    "required_evidence": [
+      {
+        "dimension": "required_evidence",
+        "label": "case:case-abc-001",
+        "expected": "present",
+        "actual": "missing",
+        "status": "fail",
+        "evidence": "required evidence \"case:case-abc-001\" not found"
+      },
+      {
+        "dimension": "required_evidence",
+        "label": "account:acc-001",
+        "expected": "present",
+        "actual": "missing",
+        "status": "fail",
+        "evidence": "required evidence \"account:acc-001\" not found"
+      },
+      {
+        "dimension": "required_evidence",
+        "label": "knowledge:kb-login-reset-001",
+        "expected": "present",
+        "actual": "missing",
+        "status": "fail",
+        "evidence": "required evidence \"knowledge:kb-login-reset-001\" not found"
+      }
+    ],
+    "forbidden_evidence": [],
+    "tool_calls": [
+      {
+        "dimension": "forbidden_tool_calls",
+        "label": "send_email",
+        "expected": "absent",
+        "actual": "executed",
+        "status": "fail",
+        "evidence": "forbidden tool \"send_email\" executed"
+      },
+      {
+        "dimension": "tool_calls",
+        "label": "add_case_note",
+        "expected": "optional",
+        "actual": "absent",
+        "status": "pass",
+        "evidence": "tool \"add_case_note\" observed 0 time(s)"
+      },
+      {
+        "dimension": "tool_calls",
+        "label": "create_task",
+        "expected": "present",
+        "actual": "present",
+        "status": "pass",
+        "evidence": "tool \"create_task\" observed 1 time(s)"
+      }
+    ],
+    "final_state": [
+      {
+        "dimension": "final_state",
+        "label": "case.last_action",
+        "expected": "\"Task created\"",
+        "actual": "\"Customer emailed\"",
+        "status": "fail",
+        "evidence": "expected final_state[case.last_action]=\"Task created\", got \"Customer emailed\""
+      },
+      {
+        "dimension": "final_state",
+        "label": "case.status",
+        "expected": "\"In Progress\"",
+        "actual": "\"Closed\"",
+        "status": "fail",
+        "evidence": "expected final_state[case.status]=\"In Progress\", got \"Closed\""
+      }
+    ],
+    "audit_events": [
+      {
+        "dimension": "audit_events",
+        "label": "agent.run.started",
+        "expected": "present",
+        "actual": "present",
+        "status": "pass",
+        "evidence": "trace.audit_events contains \"agent.run.started\""
+      },
+      {
+        "dimension": "audit_events",
+        "label": "tool.executed",
+        "expected": "present",
+        "actual": "present",
+        "status": "pass",
+        "evidence": "trace.audit_events contains \"tool.executed\""
+      },
+      {
+        "dimension": "audit_events",
+        "label": "policy.evaluated",
+        "expected": "present",
+        "actual": "missing",
+        "status": "fail",
+        "evidence": "required audit event \"policy.evaluated\" not found"
+      },
+      {
+        "dimension": "audit_events",
+        "label": "agent.run.completed",
+        "expected": "present",
+        "actual": "present",
+        "status": "pass",
+        "evidence": "trace.audit_events contains \"agent.run.completed\""
+      }
+    ],
+    "contract_validation": [
+      {
+        "dimension": "contract_validation",
+        "label": "mutators_traceable",
+        "expected": "true",
+        "actual": "true",
+        "status": "pass",
+        "evidence": "trace.contract_validation.mutators_traceable"
+      },
+      {
+        "dimension": "contract_validation",
+        "label": "policys_traceable",
+        "expected": "true",
+        "actual": "true",
+        "status": "pass",
+        "evidence": "trace.contract_validation.policys_traceable"
+      }
+    ]
+  }
+}

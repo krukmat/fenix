@@ -88,10 +88,10 @@ type ExpectedApprovalBehavior struct {
 
 // ScenarioThresholds defines performance acceptance gates for the scenario.
 type ScenarioThresholds struct {
-	MinScore     int `yaml:"min_score"`      // minimum composite score (0-100)
-	MaxLatencyMs int `yaml:"max_latency_ms"` // maximum allowed latency in milliseconds
-	MaxToolCalls int `yaml:"max_tool_calls"` // maximum number of tool calls allowed
-	MaxRetries   int `yaml:"max_retries"`    // maximum number of retry attempts allowed
+	MinScore     int `yaml:"min_score" json:"min_score"`           // minimum composite score (0-100)
+	MaxLatencyMs int `yaml:"max_latency_ms" json:"max_latency_ms"` // maximum allowed latency in milliseconds
+	MaxToolCalls int `yaml:"max_tool_calls" json:"max_tool_calls"` // maximum number of tool calls allowed
+	MaxRetries   int `yaml:"max_retries" json:"max_retries"`       // maximum number of retry attempts allowed
 }
 
 // LoadGoldenScenario reads and validates a YAML fixture from disk.

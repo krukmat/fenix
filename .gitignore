@@ -39,6 +39,8 @@ docs/audit.md
 agent.test.exe
 .claude/settings.json
 docs/plans/*
+!docs/plans/deterministic-eval/
+!docs/plans/deterministic-eval/*.md
 !docs/plans/fenixcrm_strategic_repositioning_spec.md
 !docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md
 !docs/plans/mobile_wedge_harmonization_plan.md
