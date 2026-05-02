@@ -45,32 +45,32 @@ type ReviewPacketScenario struct {
 
 // ReviewPacketRun carries stable actual-run metadata.
 type ReviewPacketRun struct {
-	RunID             string                   `json:"run_id"`
-	WorkspaceID       string                   `json:"workspace_id"`
-	AgentDefinitionID string                   `json:"agent_definition_id"`
-	ScenarioID        string                   `json:"scenario_id,omitempty"`
-	TriggerType       string                   `json:"trigger_type"`
-	FinalOutcome      string                   `json:"final_outcome"`
-	LatencyMs         *int64                   `json:"latency_ms,omitempty"`
-	TotalTokens       *int64                   `json:"total_tokens,omitempty"`
-	TotalCost         *float64                 `json:"total_cost,omitempty"`
-	Retries           int                      `json:"retries"`
-	StartedAt         time.Time                `json:"started_at"`
-	CompletedAt       *time.Time               `json:"completed_at,omitempty"`
+	RunID              string                  `json:"run_id"`
+	WorkspaceID        string                  `json:"workspace_id"`
+	AgentDefinitionID  string                  `json:"agent_definition_id"`
+	ScenarioID         string                  `json:"scenario_id,omitempty"`
+	TriggerType        string                  `json:"trigger_type"`
+	FinalOutcome       string                  `json:"final_outcome"`
+	LatencyMs          *int64                  `json:"latency_ms,omitempty"`
+	TotalTokens        *int64                  `json:"total_tokens,omitempty"`
+	TotalCost          *float64                `json:"total_cost,omitempty"`
+	Retries            int                     `json:"retries"`
+	StartedAt          time.Time               `json:"started_at"`
+	CompletedAt        *time.Time              `json:"completed_at,omitempty"`
 	ContractValidation TraceContractValidation `json:"contract_validation"`
 }
 
 // ReviewPacketEvaluation contains deterministic score, verdict, and gate outcome.
 type ReviewPacketEvaluation struct {
-	ComparatorPass       bool                  `json:"comparator_pass"`
-	MismatchCount        int                   `json:"mismatch_count"`
-	ScorecardVerdict     Verdict               `json:"scorecard_verdict"`
-	FinalVerdict         Verdict               `json:"final_verdict"`
-	TotalScore           float64               `json:"total_score"`
-	HardGateFailed       bool                  `json:"hard_gate_failed"`
-	HardGateViolations   []HardGateViolation   `json:"hard_gate_violations,omitempty"`
-	Metrics              Metrics               `json:"metrics"`
-	Mismatches           []Mismatch            `json:"mismatches,omitempty"`
+	ComparatorPass     bool                `json:"comparator_pass"`
+	MismatchCount      int                 `json:"mismatch_count"`
+	ScorecardVerdict   Verdict             `json:"scorecard_verdict"`
+	FinalVerdict       Verdict             `json:"final_verdict"`
+	TotalScore         float64             `json:"total_score"`
+	HardGateFailed     bool                `json:"hard_gate_failed"`
+	HardGateViolations []HardGateViolation `json:"hard_gate_violations,omitempty"`
+	Metrics            Metrics             `json:"metrics"`
+	Mismatches         []Mismatch          `json:"mismatches,omitempty"`
 }
 
 // ReviewPacketComparison groups expected-vs-actual deterministic checks.
