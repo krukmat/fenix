@@ -133,6 +133,14 @@ func TestGovernanceMetricsReportToMarkdownIncludesInspectableSections(t *testing
 		ByTool:     []GovernanceToolMetric{{ToolName: "request_approval", Calls: 1}},
 	}
 
+	jsonBytes, jsonErr := report.ToJSON()
+	if jsonErr != nil {
+		t.Fatalf("ToJSON() error = %v", jsonErr)
+	}
+	if !strings.Contains(string(jsonBytes), `"total_runs"`) {
+		t.Fatalf("ToJSON() missing total_runs field")
+	}
+
 	md := report.ToMarkdown()
 	if !strings.Contains(md, "# Governance Metrics Report") {
 		t.Fatalf("markdown missing title: %q", md)
