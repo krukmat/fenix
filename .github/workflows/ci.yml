@@ -107,31 +107,10 @@ jobs:
           go-version: '1.25.9'
           cache: true
 
-      - name: Install gocyclo
-        run: go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-
       - name: Check cyclomatic complexity
-        # Scans only production code (*_test.go excluded — tests legitimately have more branches).
-        # gocyclo exits with code 1 when violations found — causes this step to fail, blocking merge.
-        # Threshold 7: industry standard for maintainable, testable functions.
-        run: |
-          set -euo pipefail
-          echo "=== Cyclomatic Complexity Report (threshold: 7, production code only) ==="
-
-          # Use xargs + null delimiters to pass files correctly to gocyclo.
-          # This avoids treating all files as a single path (which can cause false PASS).
-          VIOLATIONS=$(find ./internal -name '*.go' ! -name '*_test.go' -print0 \
-            | xargs -0 gocyclo -over 7 \
-            | grep -v "^Average:" || true)
-
-          if [ -n "$VIOLATIONS" ]; then
-            echo "$VIOLATIONS"
-            echo ""
-            echo "FAILED: functions above threshold 7 found — refactor before merging"
-            exit 1
-          else
-            echo "PASSED: all production functions at or below threshold 7"
-          fi
+        # Delegates to `make complexity` so CI and local tooling stay in sync.
+        # The Makefile excludes sqlcgen (auto-generated) and *_test.go from the scan.
+        run: make complexity
 
   traceability:
     name: Traceability Gate
