@@ -62,16 +62,16 @@ type ReviewPacketRun struct {
 
 // ReviewPacketEvaluation contains deterministic score, verdict, and gate outcome.
 type ReviewPacketEvaluation struct {
-	ComparatorPass     bool                `json:"comparator_pass"`
-	MismatchCount      int                 `json:"mismatch_count"`
-	ScorecardVerdict   Verdict             `json:"scorecard_verdict"`
-	FinalVerdict       Verdict             `json:"final_verdict"`
-	TotalScore         float64             `json:"total_score"`
-	HardGateFailed     bool                `json:"hard_gate_failed"`
-	HardGateViolations []HardGateViolation `json:"hard_gate_violations,omitempty"`
+	ComparatorPass     bool                       `json:"comparator_pass"`
+	MismatchCount      int                        `json:"mismatch_count"`
+	ScorecardVerdict   Verdict                    `json:"scorecard_verdict"`
+	FinalVerdict       Verdict                    `json:"final_verdict"`
+	TotalScore         float64                    `json:"total_score"`
+	HardGateFailed     bool                       `json:"hard_gate_failed"`
+	HardGateViolations []HardGateViolation        `json:"hard_gate_violations,omitempty"`
 	DeniedActions      []ReviewPacketDeniedAction `json:"denied_actions,omitempty"`
-	Metrics            Metrics             `json:"metrics"`
-	Mismatches         []Mismatch          `json:"mismatches,omitempty"`
+	Metrics            Metrics                    `json:"metrics"`
+	Mismatches         []Mismatch                 `json:"mismatches,omitempty"`
 }
 
 type ReviewPacketDeniedAction struct {

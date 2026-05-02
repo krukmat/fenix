@@ -97,13 +97,13 @@ type TraceToolCall struct {
 
 // TraceAuditEvent is a minimal projection of sqlcgen.AuditEvent for the trace.
 type TraceAuditEvent struct {
-	ID       string    `json:"id"`
-	Action   string    `json:"action"`
-	Outcome  string    `json:"outcome"`
-	ActorID  string    `json:"actor_id"`
-	EntityID *string   `json:"entity_id,omitempty"`
+	ID       string          `json:"id"`
+	Action   string          `json:"action"`
+	Outcome  string          `json:"outcome"`
+	ActorID  string          `json:"actor_id"`
+	EntityID *string         `json:"entity_id,omitempty"`
 	Details  json.RawMessage `json:"details,omitempty"`
-	At       time.Time `json:"at"`
+	At       time.Time       `json:"at"`
 }
 
 // TraceContractValidation records the invariant checks performed at build time.
