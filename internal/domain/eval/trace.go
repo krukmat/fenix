@@ -30,9 +30,9 @@ type ActualRunTrace struct {
 	ScenarioID        string `json:"scenario_id,omitempty"` // when matched against a GoldenScenario
 
 	// Trigger
-	TriggerType    string          `json:"trigger_type"`
-	InputEvent     json.RawMessage `json:"input_event"`     // from trigger_context
-	ContextInputs  json.RawMessage `json:"context_inputs"`  // from inputs
+	TriggerType   string          `json:"trigger_type"`
+	InputEvent    json.RawMessage `json:"input_event"`    // from trigger_context
+	ContextInputs json.RawMessage `json:"context_inputs"` // from inputs
 
 	// Retrieval
 	RetrievalQueries []string `json:"retrieval_queries"`

@@ -14,8 +14,8 @@ import (
 
 // stubTraceStore implements eval.TraceStore with in-memory data for deterministic testing.
 type stubTraceStore struct {
-	run      sqlcgen.AgentRun
-	events   []sqlcgen.AuditEvent
+	run       sqlcgen.AgentRun
+	events    []sqlcgen.AuditEvent
 	approvals []sqlcgen.ApprovalRequest
 }
 
@@ -33,8 +33,8 @@ func (s *stubTraceStore) ListApprovalRequestsByIDs(ctx context.Context, ids []st
 
 // --- helpers ---
 
-func strPtr(s string) *string { return &s }
-func int64Ptr(i int64) *int64 { return &i }
+func strPtr(s string) *string       { return &s }
+func int64Ptr(i int64) *int64       { return &i }
 func float64Ptr(f float64) *float64 { return &f }
 
 func makeRun(traceID *string) sqlcgen.AgentRun {

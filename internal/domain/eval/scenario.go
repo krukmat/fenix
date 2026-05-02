@@ -29,15 +29,15 @@ var validPolicyOutcomes = map[string]struct{}{
 // Loaded from YAML; used by the comparator (Wave F3) and regression suite (Wave F7).
 // Structure mirrors the Example Scenario Contract in the Wave F1 spec.
 type GoldenScenario struct {
-	ID          string             `yaml:"id"`
-	Title       string             `yaml:"title"`
-	Description string             `yaml:"description"`
-	Domain      string             `yaml:"domain"` // "support" | "sales" | "general"
-	Tags        []string           `yaml:"tags"`
-	InputEvent  ScenarioInputEvent `yaml:"input_event"`
-	InitialState map[string]any    `yaml:"initial_state"`
-	Expected    ScenarioExpected   `yaml:"expected"`
-	Thresholds  ScenarioThresholds `yaml:"thresholds"`
+	ID           string             `yaml:"id"`
+	Title        string             `yaml:"title"`
+	Description  string             `yaml:"description"`
+	Domain       string             `yaml:"domain"` // "support" | "sales" | "general"
+	Tags         []string           `yaml:"tags"`
+	InputEvent   ScenarioInputEvent `yaml:"input_event"`
+	InitialState map[string]any     `yaml:"initial_state"`
+	Expected     ScenarioExpected   `yaml:"expected"`
+	Thresholds   ScenarioThresholds `yaml:"thresholds"`
 }
 
 // ScenarioInputEvent describes the triggering event for the scenario.
@@ -48,17 +48,17 @@ type ScenarioInputEvent struct {
 
 // ScenarioExpected groups all expected-behavior fields for comparison by Wave F3.
 type ScenarioExpected struct {
-	FinalOutcome    string                   `yaml:"final_outcome"`    // e.g. "success", "abstained", "awaiting_approval", "escalated"
-	RequiredEvidence []string               `yaml:"required_evidence"` // e.g. ["case:CASE-001", "account:ACC-001"]
-	ForbiddenEvidence []string              `yaml:"forbidden_evidence"`
-	PolicyDecisions []ExpectedPolicyDecision `yaml:"expected_policy_decisions"`
-	ToolCalls       []ExpectedToolCall       `yaml:"expected_tool_calls"`
-	ForbiddenToolCalls []ForbiddenToolCall   `yaml:"forbidden_tool_calls"`
-	ApprovalBehavior *ExpectedApprovalBehavior `yaml:"approval_behavior,omitempty"`
-	AuditEvents     []string                 `yaml:"expected_audit_events"` // e.g. "agent.run.started", "tool.executed"
-	FinalState      map[string]any           `yaml:"expected_final_state"`
-	ShouldAbstain   bool                     `yaml:"should_abstain"`
-	AbstainReason   string                   `yaml:"abstain_reason"`
+	FinalOutcome       string                    `yaml:"final_outcome"`     // e.g. "success", "abstained", "awaiting_approval", "escalated"
+	RequiredEvidence   []string                  `yaml:"required_evidence"` // e.g. ["case:CASE-001", "account:ACC-001"]
+	ForbiddenEvidence  []string                  `yaml:"forbidden_evidence"`
+	PolicyDecisions    []ExpectedPolicyDecision  `yaml:"expected_policy_decisions"`
+	ToolCalls          []ExpectedToolCall        `yaml:"expected_tool_calls"`
+	ForbiddenToolCalls []ForbiddenToolCall       `yaml:"forbidden_tool_calls"`
+	ApprovalBehavior   *ExpectedApprovalBehavior `yaml:"approval_behavior,omitempty"`
+	AuditEvents        []string                  `yaml:"expected_audit_events"` // e.g. "agent.run.started", "tool.executed"
+	FinalState         map[string]any            `yaml:"expected_final_state"`
+	ShouldAbstain      bool                      `yaml:"should_abstain"`
+	AbstainReason      string                    `yaml:"abstain_reason"`
 }
 
 // ExpectedToolCall describes a tool call the agent must produce.
