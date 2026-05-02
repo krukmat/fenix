@@ -1,0 +1,53 @@
+{
+  "run_id": "run-sample-001",
+  "workspace_id": "ws-demo-001",
+  "agent_definition_id": "agent-support-v1",
+  "scenario_id": "sc-support-001",
+  "trigger_type": "event",
+  "input_event": {"event": "case.created", "case_id": "CASE-001", "account_id": "ACC-001", "priority": "high"},
+  "context_inputs": {"case_id": "CASE-001"},
+  "retrieval_queries": ["open cases for ACC-001", "SLA policy for priority:high"],
+  "evidence_sources": ["ev-case-001", "ev-policy-002"],
+  "policy_decisions": [
+    {"action": "tool:send_email", "outcome": "require_approval"},
+    {"action": "tool:create_task", "outcome": "allow"}
+  ],
+  "approval_events": [
+    {
+      "approval_id": "apr-001",
+      "action": "tool:send_email",
+      "status": "approved",
+      "decided_at": "2026-05-02T10:00:30Z"
+    }
+  ],
+  "tool_calls": [
+    {"tool_name": "create_task", "status": "executed", "params": {"title": "Follow up CASE-001", "owner": "user-agent"}},
+    {"tool_name": "send_email",  "status": "executed", "params": {"to": "customer@example.com", "template_id": "case_ack"}}
+  ],
+  "audit_events": [
+    {"id": "evt-001", "action": "agent.run.started",  "outcome": "success", "actor_id": "run-sample-001", "at": "2026-05-02T10:00:00Z"},
+    {"id": "evt-002", "action": "policy.decision",    "outcome": "success", "actor_id": "run-sample-001", "at": "2026-05-02T10:00:05Z"},
+    {"id": "evt-003", "action": "tool.executed",      "outcome": "success", "actor_id": "run-sample-001", "entity_id": "create_task", "at": "2026-05-02T10:00:10Z"},
+    {"id": "evt-004", "action": "approval.requested", "outcome": "success", "actor_id": "run-sample-001", "at": "2026-05-02T10:00:15Z"},
+    {"id": "evt-005", "action": "tool.executed",      "outcome": "success", "actor_id": "run-sample-001", "entity_id": "send_email", "at": "2026-05-02T10:00:35Z"},
+    {"id": "evt-006", "action": "agent.run.completed","outcome": "success", "actor_id": "run-sample-001", "at": "2026-05-02T10:00:40Z"}
+  ],
+  "final_outcome": "success",
+  "output": {"reply": "Your case CASE-001 has been acknowledged. A task was created and an email was sent."},
+  "reasoning_trace": [
+    {"step": 1, "thought": "Retrieving context for CASE-001"},
+    {"step": 2, "thought": "Policy check for send_email — approval required"},
+    {"step": 3, "thought": "Approval granted — executing tool"}
+  ],
+  "latency_ms": 40000,
+  "total_tokens": 1024,
+  "total_cost": 0.008,
+  "retries": 0,
+  "started_at": "2026-05-02T10:00:00Z",
+  "completed_at": "2026-05-02T10:00:40Z",
+  "contract_validation": {
+    "checked_at": "2026-05-02T10:00:40Z",
+    "mutators_traceable": true,
+    "policys_traceable": true
+  }
+}

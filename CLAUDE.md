@@ -52,6 +52,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - If a required local QA gate cannot be executed, stop and report that explicitly before pushing.
 - Hooks must be installed with `make install-hooks` (see setup above).
 
+**Task file discipline (MANDATORY)**:
+- Before starting any implementation work on a task, a corresponding task file MUST exist in `docs/tasks/` with the correct `doc_type: task` frontmatter.
+- If a task file does not exist, STOP. Create the task file first and present it to the user for review before writing any code.
+- Never work on a task that has no individual task file — not even exploratory edits, test stubs, or scaffolding.
+- This applies to all task types: eval waves, feature tasks, BDD tasks, infra tasks, bugfixes, and any other planned work unit.
+- The task file is the contract: it defines scope, acceptance criteria, and files affected. No task file = no task.
+- Every task file MUST include a `**Plan**:` reference link to its parent plan document immediately after the `# Task ...` heading. Format: `**Plan**: [Plan Title](relative/path/to/plan.md#anchor)`.
+
 **Reporting (MANDATORY)**:
 - Every substantive report to the user must include:
   - `Complejidad: Baja | Media | Alta | Muy alta`

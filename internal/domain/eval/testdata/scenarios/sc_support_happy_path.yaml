@@ -1,0 +1,66 @@
+# F1-T2: Golden scenario — category 1: support case with enough evidence.
+# The agent resolves a case by creating a task and adding an internal note.
+# No policy denial; evidence is sufficient; abstention is NOT expected.
+id: sc-support-001
+title: "Support agent resolves case with sufficient evidence"
+description: "Agent successfully resolves a high-priority login issue using knowledge base evidence."
+domain: support
+tags:
+  - uc-c1
+  - happy-path
+
+input_event:
+  type: case.created
+  payload:
+    case_id: "case-abc-001"
+    workspace_id: "ws-test-001"
+
+initial_state:
+  case.id: "case-abc-001"
+  case.status: "New"
+  case.priority: "High"
+  account.id: "acc-001"
+  account.tier: "Enterprise"
+
+expected:
+  final_outcome: success
+  required_evidence:
+    - "case:case-abc-001"
+    - "account:acc-001"
+    - "knowledge:kb-login-reset-001"
+  forbidden_evidence: []
+  expected_policy_decisions:
+    - action: "tool:create_task"
+      expected_outcome: allow
+    - action: "tool:add_case_note"
+      expected_outcome: allow
+  expected_tool_calls:
+    - tool_name: create_task
+      required: true
+      params:
+        title: "Follow up on login issue"
+    - tool_name: add_case_note
+      required: false
+      params:
+        visibility: internal
+  forbidden_tool_calls:
+    - tool_name: send_email
+      reason: "External email requires manager approval; happy path skips approval flow"
+    - tool_name: close_case
+      reason: "Case must not be auto-closed without human confirmation"
+  expected_audit_events:
+    - agent.run.started
+    - tool.executed
+    - policy.evaluated
+    - agent.run.completed
+  expected_final_state:
+    case.status: "In Progress"
+    case.last_action: "Task created"
+  should_abstain: false
+  abstain_reason: ""
+
+thresholds:
+  min_score: 90
+  max_latency_ms: 5000
+  max_tool_calls: 5
+  max_retries: 2

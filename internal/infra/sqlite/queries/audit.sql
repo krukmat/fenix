@@ -81,3 +81,10 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   )
 ORDER BY created_at DESC
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: ListAuditEventsByTraceID :many
+-- F2-T1: returns all audit events for a given trace_id, ordered by creation time.
+-- Used by ActualRunTrace builder to enrich agent runs with their audit trail.
+SELECT * FROM audit_event
+WHERE trace_id = sqlc.arg(trace_id)
+ORDER BY created_at ASC;

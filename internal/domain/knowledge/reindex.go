@@ -162,24 +162,46 @@ func (s *ReindexService) QueueWorkspaceReindex(ctx context.Context, workspaceID 
 	return queued, nil
 }
 
-func (s *ReindexService) listKnowledgeBatch(ctx context.Context, workspaceID string, entityType *string, batchSize, offset int) ([]sqlcgen.KnowledgeItem, error) {
+// knowledgeItemRef holds the minimum fields needed to publish a reindex event.
+type knowledgeItemRef struct {
+	EntityType *string
+	EntityID   *string
+}
+
+func (s *ReindexService) listKnowledgeBatch(ctx context.Context, workspaceID string, entityType *string, batchSize, offset int) ([]knowledgeItemRef, error) {
 	if entityType != nil && *entityType != "" {
-		return s.q.ListKnowledgeItemsByEntity(ctx, sqlcgen.ListKnowledgeItemsByEntityParams{
+		rows, err := s.q.ListKnowledgeItemsByEntity(ctx, sqlcgen.ListKnowledgeItemsByEntityParams{
 			WorkspaceID: workspaceID,
 			EntityType:  entityType,
 			Limit:       int64(batchSize),
 			Offset:      int64(offset),
 		})
+		if err != nil {
+			return nil, err
+		}
+		refs := make([]knowledgeItemRef, len(rows))
+		for i, r := range rows {
+			refs[i] = knowledgeItemRef{EntityType: r.EntityType, EntityID: r.EntityID}
+		}
+		return refs, nil
 	}
 
-	return s.q.ListKnowledgeItemsByWorkspace(ctx, sqlcgen.ListKnowledgeItemsByWorkspaceParams{
+	rows, err := s.q.ListKnowledgeItemsByWorkspace(ctx, sqlcgen.ListKnowledgeItemsByWorkspaceParams{
 		WorkspaceID: workspaceID,
 		Limit:       int64(batchSize),
 		Offset:      int64(offset),
 	})
+	if err != nil {
+		return nil, err
+	}
+	refs := make([]knowledgeItemRef, len(rows))
+	for i, r := range rows {
+		refs[i] = knowledgeItemRef{EntityType: r.EntityType, EntityID: r.EntityID}
+	}
+	return refs, nil
 }
 
-func (s *ReindexService) publishBatchUpdateEvents(workspaceID string, items []sqlcgen.KnowledgeItem) int {
+func (s *ReindexService) publishBatchUpdateEvents(workspaceID string, items []knowledgeItemRef) int {
 	queued := 0
 	for _, item := range items {
 		if item.EntityType == nil || item.EntityID == nil {
@@ -259,7 +281,7 @@ func (s *ReindexService) getLinkedKnowledgeItem(ctx context.Context, evt RecordC
 	entityType := evt.EntityType
 	entityID := evt.EntityID
 
-	item, err := s.q.GetKnowledgeItemByEntity(ctx, sqlcgen.GetKnowledgeItemByEntityParams{
+	row, err := s.q.GetKnowledgeItemByEntity(ctx, sqlcgen.GetKnowledgeItemByEntityParams{
 		WorkspaceID: evt.WorkspaceID,
 		EntityType:  &entityType,
 		EntityID:    &entityID,
@@ -271,6 +293,25 @@ func (s *ReindexService) getLinkedKnowledgeItem(ctx context.Context, evt RecordC
 		return nil, err
 	}
 
+	item := sqlcgen.KnowledgeItem{
+		ID:                row.ID,
+		WorkspaceID:       row.WorkspaceID,
+		SourceSystem:      row.SourceSystem,
+		SourceType:        row.SourceType,
+		SourceObjectID:    row.SourceObjectID,
+		RefreshStrategy:   row.RefreshStrategy,
+		DeleteBehavior:    row.DeleteBehavior,
+		PermissionContext: row.PermissionContext,
+		Title:             row.Title,
+		RawContent:        row.RawContent,
+		NormalizedContent: row.NormalizedContent,
+		EntityType:        row.EntityType,
+		EntityID:          row.EntityID,
+		Metadata:          row.Metadata,
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
+		DeletedAt:         row.DeletedAt,
+	}
 	return &item, nil
 }
 

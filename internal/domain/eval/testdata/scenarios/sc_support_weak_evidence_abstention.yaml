@@ -1,0 +1,52 @@
+# F1-T2: Golden scenario — category 2: support case with weak evidence requiring abstention.
+# The agent cannot find sufficient evidence to act; it must abstain and escalate.
+# No tool calls should be attempted; abstention is the correct outcome.
+id: sc-support-003
+title: "Support agent abstains due to insufficient evidence"
+description: "Agent cannot ground a response with sufficient evidence and correctly abstains."
+domain: support
+tags:
+  - uc-c1
+  - abstention
+  - weak-evidence
+
+input_event:
+  type: case.created
+  payload:
+    case_id: "case-abc-003"
+    workspace_id: "ws-test-001"
+
+initial_state:
+  case.id: "case-abc-003"
+  case.status: "New"
+  case.priority: "Low"
+  account.id: "acc-003"
+  knowledge_base.matches: 0
+
+expected:
+  final_outcome: abstained
+  required_evidence: []
+  forbidden_evidence: []
+  expected_policy_decisions: []
+  expected_tool_calls: []
+  forbidden_tool_calls:
+    - tool_name: create_task
+      reason: "Agent must not act without sufficient evidence"
+    - tool_name: send_email
+      reason: "Agent must not act without sufficient evidence"
+    - tool_name: update_case
+      reason: "Agent must not mutate state when abstaining"
+  expected_audit_events:
+    - agent.run.started
+    - agent.run.completed
+  expected_final_state:
+    case.status: "New"
+    case.last_action: "Abstained — insufficient evidence"
+  should_abstain: true
+  abstain_reason: "No knowledge base matches found for the reported issue"
+
+thresholds:
+  min_score: 95
+  max_latency_ms: 3000
+  max_tool_calls: 0
+  max_retries: 0

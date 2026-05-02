@@ -1,0 +1,58 @@
+# F1-T2: Golden scenario — category 7: workflow activation blocked by conformance failure.
+# A workflow definition is missing required scenario coverage before activation.
+# The activation must be blocked and a conformance gap must be reported.
+id: sc-workflow-001
+title: "Workflow activation blocked by missing scenario coverage"
+description: "Workflow cannot activate because its required scenario set has no deterministic coverage."
+domain: general
+tags:
+  - uc-a3
+  - workflow
+  - conformance
+
+input_event:
+  type: workflow.activation_requested
+  payload:
+    workflow_id: "wf-draft-001"
+    workspace_id: "ws-test-001"
+
+initial_state:
+  workflow.id: "wf-draft-001"
+  workflow.status: "draft"
+  workflow.scenario_coverage: 0
+  workflow.required_scenario_coverage: 1
+
+expected:
+  final_outcome: blocked
+  required_evidence:
+    - "workflow:wf-draft-001"
+  forbidden_evidence: []
+  expected_policy_decisions:
+    - action: "tool:activate_workflow"
+      expected_outcome: deny
+  expected_tool_calls:
+    - tool_name: report_conformance_gap
+      required: true
+      params:
+        workflow_id: "wf-draft-001"
+        gap_type: "missing_scenario_coverage"
+  forbidden_tool_calls:
+    - tool_name: activate_workflow
+      reason: "Workflow must not activate without passing scenario coverage gate"
+  expected_audit_events:
+    - agent.run.started
+    - policy.evaluated
+    - tool.denied
+    - tool.executed
+    - agent.run.completed
+  expected_final_state:
+    workflow.status: "draft"
+    workflow.last_action: "Activation blocked — conformance gap"
+  should_abstain: false
+  abstain_reason: ""
+
+thresholds:
+  min_score: 100
+  max_latency_ms: 3000
+  max_tool_calls: 3
+  max_retries: 0

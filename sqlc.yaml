@@ -39,6 +39,10 @@ sql:
       - "internal/infra/sqlite/migrations/024_workflows.up.sql"
       - "internal/infra/sqlite/migrations/025_workflow_active_uniqueness.up.sql"
       - "internal/infra/sqlite/migrations/026_signals.up.sql"
+      - "internal/infra/sqlite/migrations/027_scheduled_jobs.up.sql"
+      - "internal/infra/sqlite/migrations/028_approval_status_normalization.up.sql"
+      - "internal/infra/sqlite/migrations/029_usage_and_quota_domain.up.sql"
+      - "internal/infra/sqlite/migrations/030_knowledge_connector_boundary.up.sql"
     # SQL query files with sqlc annotations (-- name: QueryName :cmd)
     queries:
       - "internal/infra/sqlite/queries"

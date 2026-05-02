@@ -1,0 +1,51 @@
+# F1-T2: Golden scenario — category 6: sales brief with incomplete context.
+# The sales agent attempts to generate a deal brief but lacks account history.
+# Agent must signal low confidence and abstain from generating a brief.
+id: sc-sales-001
+title: "Sales agent abstains on brief with incomplete account context"
+description: "Deal brief generation fails due to missing account history; agent signals low confidence."
+domain: sales
+tags:
+  - uc-b1
+  - abstention
+  - incomplete-context
+
+input_event:
+  type: deal.brief_requested
+  payload:
+    deal_id: "deal-xyz-001"
+    workspace_id: "ws-test-001"
+
+initial_state:
+  deal.id: "deal-xyz-001"
+  deal.status: "Qualification"
+  deal.value: 50000
+  account.id: "acc-005"
+  account.history.entries: 0
+  account.contacts: 0
+
+expected:
+  final_outcome: abstained
+  required_evidence: []
+  forbidden_evidence: []
+  expected_policy_decisions: []
+  expected_tool_calls: []
+  forbidden_tool_calls:
+    - tool_name: generate_deal_brief
+      reason: "Insufficient account context to produce a grounded brief"
+    - tool_name: send_email
+      reason: "No outreach without a valid brief"
+  expected_audit_events:
+    - agent.run.started
+    - agent.run.completed
+  expected_final_state:
+    deal.status: "Qualification"
+    deal.last_action: "Abstained — insufficient account context"
+  should_abstain: true
+  abstain_reason: "Account has no history entries or contacts; cannot produce a grounded brief"
+
+thresholds:
+  min_score: 95
+  max_latency_ms: 3000
+  max_tool_calls: 2
+  max_retries: 0
