@@ -1,5 +1,9 @@
 # FenixCRM
 
+<p align="center">
+  <img src="img/fenix.png" alt="FenixCRM" width="160" />
+</p>
+
 > A governed AI layer for customer operations where evidence grounds answers, policy constrains actions, and humans stay in control where it matters.
 
 ---
