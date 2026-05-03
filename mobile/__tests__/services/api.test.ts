@@ -562,6 +562,24 @@ describe('api.ts', () => {
     });
 
     describe('workflowApi', () => {
+      it('listVersions should normalize envelope payloads', async () => {
+        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+          data: { data: [{ id: 'wf-1', name: 'Lead Nurture', status: 'active', version: 1, dsl_source: 'workflow', created_at: '2026-03-01T10:00:00Z', updated_at: '2026-03-01T10:00:00Z' }] },
+        } as never);
+
+        const result = await workflowApi.listVersions('wf-1');
+
+        expect(getSpy).toHaveBeenCalledWith('/bff/api/v1/workflows/wf-1/versions');
+        expect(result).toEqual([
+          expect.objectContaining({
+            id: 'wf-1',
+            name: 'Lead Nurture',
+            status: 'active',
+            version: 1,
+          }),
+        ]);
+      });
+
       it('getGraph should request visual graph projection', async () => {
         const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
           data: { data: { workflow_id: 'wf-1', conformance: { profile: 'safe', details: [] }, nodes: [], edges: [] } },

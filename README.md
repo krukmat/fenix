@@ -272,6 +272,12 @@ make trace-check
 cd mobile && npm run screenshots
 ```
 
+Troubleshooting:
+
+- If the mobile screenshots runner gets stuck on Android splash with the debug APK, see the runbooks:
+- [English](docs/maestro-debug-apk-runbook-en.md)
+- [Spanish](docs/maestro-debug-apk-runbook-es.md)
+
 Important note:
 
 - `make ci` is currently designed for a POSIX/Linux environment
@@ -403,7 +409,15 @@ Workflows are not hidden code. They are named, versioned, and inspectable from t
 
 ---
 
-### 15. Workflow graph - execution logic made visible
+### 15. Workflow detail - operational metadata before execution view
+
+![Workflow detail](mobile/artifacts/screenshots/18a_workflow_detail.png)
+
+The detail view connects catalog and execution: status, version history, trigger metadata, and source references are visible before opening the graph projection.
+
+---
+
+### 16. Workflow graph - execution logic made visible
 
 ![Workflow graph](mobile/artifacts/screenshots/18b_workflow_graph.png)
 
@@ -411,7 +425,7 @@ The graph screen renders the semantic projection of a workflow's DSL and Carta s
 
 ---
 
-### 16. CRM hub - unified entity navigation
+### 17. CRM hub - unified entity navigation
 
 ![CRM hub](mobile/artifacts/screenshots/19_crm_hub.png)
 

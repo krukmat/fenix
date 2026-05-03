@@ -264,6 +264,14 @@ tags:
 - takeScreenshot:
     path: "18_workflows_list"
 
+- openLink: "fenixcrm:///workflows/${SEED_WORKFLOW_ID}"
+- extendedWaitUntil:
+    visible:
+      id: "workflow-detail"
+    timeout: 20000
+- takeScreenshot:
+    path: "18a_workflow_detail"
+
 - openLink: "fenixcrm:///workflows/graph?id=${SEED_WORKFLOW_ID}"
 - extendedWaitUntil:
     visible:

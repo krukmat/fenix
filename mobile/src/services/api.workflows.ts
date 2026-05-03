@@ -59,7 +59,8 @@ export const workflowApi = {
 
   listVersions: async (id: string) => {
     const response = await apiClient.get(`/bff/api/v1/workflows/${id}/versions`);
-    return response.data as Workflow[];
+    const payload = response.data as { data?: Workflow[] } | Workflow[];
+    return Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
   },
 
   newVersion: async (id: string) => {

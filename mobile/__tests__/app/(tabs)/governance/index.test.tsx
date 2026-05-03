@@ -189,4 +189,18 @@ describe('Governance screen', () => {
     fireEvent.press(screen.getByTestId('governance-audit-trail-link'));
     expect(mockRouterPush).toHaveBeenCalledWith('/governance/audit');
   });
+
+  it('renders "Workflows" navigation link', () => {
+    const { default: Screen } = require('../../../../app/(tabs)/governance/index');
+    render(React.createElement(Screen));
+    expect(screen.getByTestId('governance-workflows-link')).toBeTruthy();
+  });
+
+  it('navigates to workflows screen when workflows link is pressed', () => {
+    const { fireEvent } = require('@testing-library/react-native');
+    const { default: Screen } = require('../../../../app/(tabs)/governance/index');
+    render(React.createElement(Screen));
+    fireEvent.press(screen.getByTestId('governance-workflows-link'));
+    expect(mockRouterPush).toHaveBeenCalledWith('/(tabs)/workflows');
+  });
 });

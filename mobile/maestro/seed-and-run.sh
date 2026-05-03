@@ -26,7 +26,13 @@ TMP_BASE="${TMPDIR:-/tmp}"
 REPORTS_DIR="${FENIX_MAESTRO_REPORTS_DIR:-${TMP_BASE%/}/fenixcrm-maestro-reports}"
 ADB_BIN="${ANDROID_HOME:+${ANDROID_HOME}/platform-tools/}adb"
 MAESTRO_BIN="${MAESTRO_BIN:-maestro}"
+METRO_HOST="${FENIX_SCREENSHOTS_METRO_HOST:-127.0.0.1}"
+METRO_PORT="${FENIX_SCREENSHOTS_METRO_PORT:-8081}"
+METRO_URL="http://${METRO_HOST}:${METRO_PORT}/status"
+METRO_LOG="${FENIX_SCREENSHOTS_METRO_LOG:-${TMP_BASE%/}/fenixcrm-metro.log}"
 SEED_FILE=""
+METRO_PID=""
+ADB_TIMEOUT_SECS="${FENIX_SCREENSHOTS_ADB_TIMEOUT_SECS:-15}"
 
 export PATH="${PATH}:${HOME}/.maestro/bin"
 export MAESTRO_CLI_NO_ANALYTICS=1
@@ -45,10 +51,21 @@ cleanup() {
   if [[ -n "${SEED_FILE}" ]]; then
     rm -f "${SEED_FILE}"
   fi
+  if [[ -n "${METRO_PID}" ]]; then
+    kill "${METRO_PID}" >/dev/null 2>&1 || true
+    wait "${METRO_PID}" >/dev/null 2>&1 || true
+  fi
 }
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
+}
+
+run_seed() {
+  (
+    cd "${REPO_ROOT}"
+    go run ./scripts/e2e_seed_mobile_p2.go
+  )
 }
 
 check_backend_health() {
@@ -67,14 +84,76 @@ check_bff_reachable() {
   die "BFF is not reachable at ${bff_url}. Start the BFF on localhost:3000 before running screenshots."
 }
 
+is_metro_ready() {
+  curl -fsS --max-time 3 "${METRO_URL}" 2>/dev/null | grep -q 'packager-status:running'
+}
+
+start_metro() {
+  if is_metro_ready; then
+    log "Using existing Metro server at ${METRO_URL}"
+    return 0
+  fi
+
+  log "Starting Metro for debug APK at ${METRO_HOST}:${METRO_PORT}..."
+  rm -f "${METRO_LOG}"
+  (
+    cd "${MOBILE_DIR}"
+    npx expo start --port "${METRO_PORT}" --host localhost --non-interactive
+  ) >"${METRO_LOG}" 2>&1 &
+  METRO_PID=$!
+}
+
+wait_for_metro() {
+  local attempts=0
+  while (( attempts < 90 )); do
+    if is_metro_ready; then
+      log "Metro is ready at ${METRO_URL}"
+      return 0
+    fi
+    if [[ -n "${METRO_PID}" ]] && ! kill -0 "${METRO_PID}" >/dev/null 2>&1; then
+      tail -n 40 "${METRO_LOG}" >&2 || true
+      die "Metro exited before becoming ready. See ${METRO_LOG}"
+    fi
+    sleep 2
+    attempts=$((attempts + 1))
+  done
+
+  if [[ -f "${METRO_LOG}" ]]; then
+    tail -n 40 "${METRO_LOG}" >&2 || true
+  fi
+  die "Metro did not become ready at ${METRO_URL}"
+}
+
 SERIAL="${FENIX_SCREENSHOTS_DEVICE_SERIAL:-$("${ADB_BIN}" devices | awk '$2=="device"{print $1; exit}')}"
 
 adb_cmd() {
   "${ADB_BIN}" -s "${SERIAL}" "$@"
 }
 
+run_with_timeout() {
+  python3 - "$@" <<'PY'
+import subprocess
+import sys
+
+timeout = float(sys.argv[1])
+command = sys.argv[2:]
+
+try:
+    completed = subprocess.run(command, timeout=timeout, check=False)
+except subprocess.TimeoutExpired:
+    sys.stderr.write(f"[screenshots] ERROR: command timed out after {timeout:.0f}s: {' '.join(command)}\n")
+    sys.exit(124)
+
+sys.exit(completed.returncode)
+PY
+}
+
+adb_cmd_timed() {
+  run_with_timeout "${ADB_TIMEOUT_SECS}" "${ADB_BIN}" -s "${SERIAL}" "$@"
+}
+
 adb_shell() {
-  adb_cmd shell "$@"
+  adb_cmd_timed shell "$@"
 }
 
 wait_for_device() {
@@ -84,15 +163,16 @@ wait_for_device() {
 wait_for_android_services() {
   local attempts=0
   while (( attempts < 90 )); do
-    local services
-    services="$(adb_shell service list 2>/dev/null || true)"
-    if grep -q 'activity:' <<<"${services}" && grep -q 'package:' <<<"${services}"; then
+    local boot_completed package_path
+    boot_completed="$(adb_shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+    package_path="$(adb_shell pm path android 2>/dev/null | tr -d '\r' || true)"
+    if [[ "${boot_completed}" == "1" && "${package_path}" == package:* ]]; then
       return 0
     fi
     sleep 2
     attempts=$((attempts + 1))
   done
-  die "Android services are not ready on ${SERIAL}. Expected activity/package services."
+  die "Android services are not ready on ${SERIAL}. Expected sys.boot_completed=1 and a working package manager shell."
 }
 
 ensure_app_installed() {
@@ -310,6 +390,7 @@ main() {
   [[ -n "${SERIAL}" ]] || die 'No Android emulator/device connected.'
   [[ -f "${AUTH_SURFACE_FLOW}" ]] || die "Missing Maestro flow: ${AUTH_SURFACE_FLOW}"
   [[ -f "${AUTHED_AUDIT_FLOW}" ]] || die "Missing Maestro flow: ${AUTHED_AUDIT_FLOW}"
+  trap finish EXIT
 
   wait_for_device
   wait_for_android_services
@@ -317,15 +398,13 @@ main() {
   ensure_app_installed
   check_backend_health
   check_bff_reachable
+  start_metro
+  wait_for_metro
 
   SEED_FILE="$(mktemp)"
-  trap finish EXIT
 
   log 'Seeding deterministic mobile fixtures...'
-  (
-    cd "${REPO_ROOT}"
-    go run ./scripts/e2e_seed_mobile_p2.go
-  ) >"${SEED_FILE}"
+  run_seed >"${SEED_FILE}"
 
   while IFS='=' read -r key value; do
     export "${key}=${value}"

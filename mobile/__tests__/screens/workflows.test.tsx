@@ -169,6 +169,21 @@ describe('Workflows screens', () => {
       expect(getByTestId(`workflow-version-${activeWorkflow.id}`)).toBeTruthy();
     });
 
+    it('does not crash when workflow versions payload is malformed', () => {
+      mockUseWorkflow.mockReturnValue({ data: activeWorkflow, isLoading: false, refetch: jest.fn() });
+      mockUseWorkflowVersions.mockReturnValue({ data: { data: [activeWorkflow] } });
+      const Screen = WorkflowDetail;
+      const { getByTestId, queryByTestId } = render(
+        <PaperProvider>
+          <Screen />
+        </PaperProvider>
+      );
+
+      expect(getByTestId('workflow-detail')).toBeTruthy();
+      expect(getByTestId('workflow-version-history')).toBeTruthy();
+      expect(queryByTestId(`workflow-version-${activeWorkflow.id}`)).toBeNull();
+    });
+
     it('shows execute only for active workflows', () => {
       mockUseWorkflow.mockReturnValue({ data: activeWorkflow, isLoading: false, refetch: jest.fn() });
       const Screen = WorkflowDetail;

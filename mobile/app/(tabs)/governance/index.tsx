@@ -127,6 +127,18 @@ function GovernanceContent({ summary, colors }: { summary: GovernanceSummary; co
         </TouchableOpacity>
       </View>
 
+      <View style={[styles.section, styles.auditLinkSection]}>
+        <TouchableOpacity
+          testID="governance-workflows-link"
+          onPress={() => router.push(wedgeHref('/(tabs)/workflows'))}
+          style={[styles.auditLinkRow, { backgroundColor: colors.surface, borderLeftWidth: 3, borderLeftColor: colors.primary }]}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.auditLinkText, { color: colors.onSurface }]}>Workflows</Text>
+          <Text style={{ color: colors.onSurfaceVariant, fontSize: 16 }}>→</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.section}>
         <QuotaList states={summary.quotaStates} colors={colors} />
       </View>

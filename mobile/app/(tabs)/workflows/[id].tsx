@@ -225,6 +225,10 @@ function WorkflowDetailBody({
   );
 }
 
+function ensureWorkflowVersions(value: unknown): Workflow[] {
+  return Array.isArray(value) ? value : [];
+}
+
 export default function WorkflowDetailScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -261,13 +265,14 @@ export default function WorkflowDetailScreen() {
   if (error || !workflow) return <WorkflowDetailError backgroundColor={theme.colors.background} color={theme.colors.error} message={error?.message ?? 'Workflow not found'} />;
 
   const statusColor = STATUS_COLORS[workflow.status];
+  const safeVersions = ensureWorkflowVersions(versions);
 
   return (
     <>
       <Stack.Screen options={{ title: workflow.name }} />
       <WorkflowDetailBody
         workflow={workflow}
-        versions={versions}
+        versions={safeVersions}
         statusColor={statusColor}
         theme={theme}
         activatePending={activateMutation.isPending}
