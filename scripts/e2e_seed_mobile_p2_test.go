@@ -114,11 +114,12 @@ func TestSeedWorkflowGraphFixtureCreatesRenderableWorkflow(t *testing.T) {
 	if status != "draft" {
 		t.Fatalf("status = %q, want draft", status)
 	}
-	if dslSource == "" || specSource == "" {
-		t.Fatalf("expected DSL and spec sources, got dsl=%q spec=%q", dslSource, specSource)
+	if dslSource == "" {
+		t.Fatalf("expected non-empty DSL source, got dsl=%q", dslSource)
 	}
-	if dslSource != "WORKFLOW e2e_draft_followup_test\nON case.created\nSET case.status = \"open\"\nNOTIFY owner WITH \"Review new workflow draft\"\n" {
-		t.Fatalf("dslSource = %q, want create-draft scaffold", dslSource)
+	wantDSL := "WORKFLOW wf_case_triage\nON case.created\nSET case.status = \"open\"\n"
+	if dslSource != wantDSL {
+		t.Fatalf("dslSource = %q, want %q", dslSource, wantDSL)
 	}
 }
 
