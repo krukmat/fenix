@@ -9,9 +9,8 @@ import { type FlowConnectorSegment } from '../../../src/lib/flowLayout';
 function getStyle(
   element: ReturnType<ReturnType<typeof render>['getByTestId']>,
 ): Record<string, unknown> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = (element as any).props?.style;
-  return StyleSheet.flatten(raw) ?? {};
+  const raw = (element as { props?: { style?: Parameters<typeof StyleSheet.flatten>[0] } }).props?.style;
+  return (StyleSheet.flatten(raw) ?? {}) as Record<string, unknown>;
 }
 
 describe('FlowConnector — midpoint-centering geometry (WFG-T1a)', () => {
