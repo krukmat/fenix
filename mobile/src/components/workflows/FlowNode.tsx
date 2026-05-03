@@ -57,7 +57,7 @@ export function FlowNode({ node }: Props): React.ReactElement {
       <Text style={[styles.kind, { color }]} numberOfLines={1}>
         {node.kind}
       </Text>
-      <Text style={styles.label} numberOfLines={2}>
+      <Text style={styles.label} numberOfLines={3}>
         {node.label}
       </Text>
     </View>

@@ -8,30 +8,30 @@ import { type FlowLayoutResult } from '../../../src/lib/flowLayout';
 
 const fixture: FlowLayoutResult = {
   nodes: [
-    { id: 'workflow-1', kind: 'workflow', label: 'sales_followup', x: 24, y: 24, width: 168, height: 72 },
-    { id: 'trigger-1', kind: 'trigger', label: 'deal.updated', x: 256, y: 24, width: 168, height: 72 },
-    { id: 'action-1', kind: 'action', label: 'notify owner', x: 488, y: 24, width: 168, height: 72 },
-    { id: 'grounds-1', kind: 'grounds', label: 'permit + grounds', x: 720, y: 24, width: 168, height: 72 },
+    { id: 'workflow-1', kind: 'workflow', label: 'sales_followup', x: 24, y: 24, width: 200, height: 72 },
+    { id: 'trigger-1', kind: 'trigger', label: 'deal.updated', x: 288, y: 24, width: 200, height: 72 },
+    { id: 'action-1', kind: 'action', label: 'notify owner', x: 552, y: 24, width: 200, height: 72 },
+    { id: 'grounds-1', kind: 'grounds', label: 'permit + grounds', x: 816, y: 24, width: 200, height: 72 },
   ],
   connectors: [
     {
       id: 'edge-wf-trigger',
       from: 'workflow-1',
       to: 'trigger-1',
-      start: { x: 192, y: 60 },
-      end: { x: 256, y: 60 },
+      start: { x: 224, y: 60 },
+      end: { x: 288, y: 60 },
       connectionType: 'execution',
     },
     {
       id: 'edge-trigger-grounds',
       from: 'trigger-1',
       to: 'grounds-1',
-      start: { x: 424, y: 60 },
-      end: { x: 720, y: 60 },
+      start: { x: 488, y: 60 },
+      end: { x: 816, y: 60 },
       connectionType: 'requirement',
     },
   ],
-  bounds: { width: 912, height: 120 },
+  bounds: { width: 1040, height: 120 },
 };
 
 describe('FlowCanvas', () => {
@@ -73,5 +73,33 @@ describe('FlowCanvas', () => {
     const { getAllByText } = render(<FlowCanvas layout={fixture} />);
     expect(getAllByText('workflow').length).toBeGreaterThanOrEqual(1);
     expect(getAllByText('trigger').length).toBeGreaterThanOrEqual(1);
+  });
+
+  // WFG-T2: scroll content sizing fix
+  it('canvas View receives explicit width and height from layout.bounds', () => {
+    const { getByTestId } = render(<FlowCanvas layout={fixture} />);
+    const canvas = getByTestId('flow-canvas');
+    const flatStyle = Array.isArray(canvas.props.style)
+      ? Object.assign({}, ...canvas.props.style)
+      : canvas.props.style;
+    expect(flatStyle.width).toBe(fixture.bounds.width);
+    expect(flatStyle.height).toBe(fixture.bounds.height);
+  });
+
+  it('inner ScrollView has nestedScrollEnabled prop set to true', () => {
+    const { UNSAFE_getAllByType } = render(<FlowCanvas layout={fixture} />);
+    const scrollViews = UNSAFE_getAllByType(require('react-native').ScrollView);
+    // inner ScrollView is index 1 (outer is horizontal, inner is vertical)
+    const inner = scrollViews[1];
+    expect(inner.props.nestedScrollEnabled).toBe(true);
+  });
+
+  it('inner ScrollView contentContainerStyle does not set flexGrow', () => {
+    const { UNSAFE_getAllByType } = render(<FlowCanvas layout={fixture} />);
+    const scrollViews = UNSAFE_getAllByType(require('react-native').ScrollView);
+    const inner = scrollViews[1];
+    const ccs = inner.props.contentContainerStyle ?? {};
+    const flat = Array.isArray(ccs) ? Object.assign({}, ...ccs) : ccs;
+    expect(flat.flexGrow).toBeUndefined();
   });
 });

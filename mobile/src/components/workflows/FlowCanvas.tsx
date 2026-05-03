@@ -13,8 +13,12 @@ type Props = {
 
 export function FlowCanvas({ layout }: Props): React.ReactElement {
   return (
-    <ScrollView horizontal style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+    <ScrollView horizontal style={styles.scroll} contentContainerStyle={styles.outerScrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.innerScrollContent}
+        nestedScrollEnabled={true}
+      >
         <View
           testID="flow-canvas"
           style={[styles.canvas, { width: layout.bounds.width, height: layout.bounds.height }]}
@@ -35,9 +39,12 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
-  scrollContent: {
+  // WFG-T2: outer gets flexGrow so it fills horizontal scroll container; inner must not, so
+  // vertical scroll extent is driven solely by the canvas View's explicit height prop.
+  outerScrollContent: {
     flexGrow: 1,
   },
+  innerScrollContent: {},
   canvas: {
     position: 'relative',
     backgroundColor: brandColors.background,

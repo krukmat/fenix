@@ -330,14 +330,19 @@ No vendor lock-in.
 - Discrete tasks must be executed one at a time. After closing a task with the required outcome report, stop and wait for explicit user confirmation before starting the next task, even when a plan lists multiple tasks or waves.
 - Before starting work on each discrete task, present the task card to the user first, before reading, editing, or running task-specific commands except for minimal inspection needed to identify the next task. The task card must include:
   - `Tarea: <name or ID>`
+  - `Task file: <path to docs/tasks/task_*.md>`
+  - `Plan file: <path to docs/plans/*.md>`
   - `Resumen: <what will be done in 1-2 sentences>`
   - `Código afectado: <expected files or areas>`
   - `Esfuerzo/razonamiento: Bajo | Medio | Alto - <brief reason>`
+  - `Modelo recomendado: <model id>`
   - `Tokens estimado: ~N`
+- **Task card language (MANDATORY)**: The task card must be written in unambiguous agentic English. No Spanish field labels, no mixed language. Every field value must be a direct, machine-parseable statement: what will be done, which files, why, estimated cost. Avoid narrative prose — prefer declarative sentences. This ensures the card is usable by any agent or orchestrator reading the conversation without language ambiguity.
 - When closing a task, report the outcome with:
   - `Resultado: <what changed>`
   - `Verificación: <commands run, or why QA was not applicable>`
   - `Archivos afectados: <files changed>`
   - `Complejidad: Baja | Media | Alta | Muy alta`
+  - `Modelo recomendado: <model id>`
   - `Tokens: ~N`
 - After the closing report, proactively present the next task card using the same starting-task format, but do not begin that next task until the user explicitly confirms.

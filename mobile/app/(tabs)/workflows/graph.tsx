@@ -1,6 +1,6 @@
 // CLSF-83: mobile read-only workflow graph review screen
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Text, Chip, useTheme } from 'react-native-paper';
 import type { MD3Theme } from 'react-native-paper';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -23,8 +23,8 @@ function makeStyles(theme: MD3Theme) {
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
     statusText: { color: theme.colors.onSurface, marginTop: 8, textAlign: 'center' },
     errorText: { color: theme.colors.error, marginTop: 8, textAlign: 'center' },
-    header: { padding: 12 },
-    headerContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    // WFG-T3: static chip row — View+flexWrap instead of vertical ScrollView so canvas retains full height
+    headerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 12 },
     canvas: { flex: 1 },
   });
 }
@@ -77,12 +77,12 @@ export default function WorkflowGraphScreen(): React.ReactElement {
       )}
       {state.status === 'ready' && (
         <>
-          <ScrollView horizontal={false} style={styles.header} contentContainerStyle={styles.headerContent}>
+          <View style={styles.headerRow} testID="graph-conformance-header">
             <Chip>{state.conformance.profile}</Chip>
             {(state.conformance.details ?? []).map((d) => (
               <Chip key={d.code}>{d.code}</Chip>
             ))}
-          </ScrollView>
+          </View>
           <View style={styles.canvas}>
             <FlowCanvas layout={state.layout} />
           </View>

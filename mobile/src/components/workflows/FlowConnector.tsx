@@ -29,14 +29,18 @@ export function FlowConnector({ connector }: Props): React.ReactElement {
     return <View testID={`flow-connector-${connector.id}`} />;
   }
 
+  // WFG-T1b: midpoint-centering so RN's default center pivot aligns with segment midpoint
+  const midX = (connector.start.x + connector.end.x) / 2;
+  const midY = (connector.start.y + connector.end.y) / 2;
+
   return (
     <View
       testID={`flow-connector-${connector.id}`}
       style={[
         styles.line,
         {
-          left: connector.start.x,
-          top: connector.start.y - 1,
+          left: midX - length / 2,
+          top: midY - 1,
           width: length,
           backgroundColor: color,
           transform: [{ rotate: `${angle}rad` }],
@@ -50,6 +54,5 @@ const styles = StyleSheet.create({
   line: {
     position: 'absolute',
     height: 2,
-    transformOrigin: 'left center',
   },
 });
