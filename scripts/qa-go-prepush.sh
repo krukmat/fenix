@@ -18,6 +18,9 @@ make complexity
 echo "==> Gate: lint"
 make lint
 
+echo "==> Gate: wrapcheck-gate"
+make wrapcheck-gate
+
 echo "==> Gate: test"
 make test
 

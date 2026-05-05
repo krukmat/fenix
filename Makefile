@@ -2,7 +2,7 @@
 # Task 1.1: Project Setup
 # Following implementation plan exactly
 
-.PHONY: all test build run lint fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd bench-critical bench-all check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check bdd-trace-check test-bdd-go test-bdd-bff test-bdd-mobile test-bdd eval-regression _ci-traceability contract-test contract-test-strict trace-report install-hooks
+.PHONY: all test build run lint wrapcheck-gate fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd bench-critical bench-all check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check bdd-trace-check test-bdd-go test-bdd-bff test-bdd-mobile test-bdd eval-regression _ci-traceability contract-test contract-test-strict trace-report install-hooks
 
 # Variables
 BINARY_NAME=fenix
@@ -70,6 +70,15 @@ lint:
 	@echo "Running linter..."
 	@test -f $(GOLANGCI_LINT) || go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOLANGCI_LINT) run ./...
+
+# Incremental wrapcheck gate on packages with clean error-wrapping discipline.
+# This avoids blocking the entire repository on historical debt while still
+# enforcing wrapped errors in maintained packages.
+WRAPCHECK_SCOPE=./internal/api/middleware/... ./internal/infra/config/... ./internal/version/... ./pkg/auth/...
+wrapcheck-gate:
+	@echo "Running wrapcheck gate (scope: $(WRAPCHECK_SCOPE))..."
+	@test -f $(GOLANGCI_LINT) || go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	$(GOLANGCI_LINT) run --enable-only=wrapcheck $(WRAPCHECK_SCOPE)
 
 # Lint mobile TypeScript (ESLint — production-grade rules including hooks, no-console, no-unused-vars)
 lint-mobile:
