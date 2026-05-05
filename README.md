@@ -277,6 +277,28 @@ The BFF exposes an operator admin shell at `/bff/admin` with session-backed auth
 |------------|-----------|-------|
 | ![agent runs](bff/artifacts/admin-screenshots/06_agent_runs_list.png) | ![approvals](bff/artifacts/admin-screenshots/08_approvals_list.png) | ![audit](bff/artifacts/admin-screenshots/09_audit_list.png) |
 
+### Workflow authoring
+
+The admin surface includes a full workflow authoring loop. Operators can create, edit, validate, and activate workflows without leaving the browser.
+
+```mermaid
+flowchart LR
+    L[Workflows list] --> C[Create draft]
+    C --> B[Bound builder]
+    B --> D[Workflow detail]
+    D --> A[Activate]
+    D --> B
+```
+
+| Create draft | Visual builder | Review and activate |
+|---|---|---|
+| ![create draft](bff/artifacts/admin-screenshots/03_workflow_create_draft.png) | ![builder](bff/artifacts/admin-screenshots/04_workflow_builder_bound.png) | ![detail](bff/artifacts/admin-screenshots/05_workflow_detail.png) |
+
+- **Create** — start a draft from the workflows list with a minimal scaffold
+- **Edit** — write workflow logic in the text editor or connect nodes on the visual canvas; both stay bound to the same workflow ID
+- **Validate** — every save runs through the full lexer → parser → judge → conformance gate before persisting
+- **Activate** — promote the workflow from draft to active from the detail screen; the conformance badge (`safe` / `extended`) tells the operator whether the workflow is within the stable tooling contract
+
 Run `cd bff && npm run admin-screenshots` to regenerate.
 
 ---
