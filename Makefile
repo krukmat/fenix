@@ -71,10 +71,10 @@ lint:
 	@test -f $(GOLANGCI_LINT) || go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOLANGCI_LINT) run ./...
 
-# Incremental wrapcheck gate on packages with clean error-wrapping discipline.
-# This avoids blocking the entire repository on historical debt while still
-# enforcing wrapped errors in maintained packages.
-WRAPCHECK_SCOPE=./internal/api/middleware/... ./internal/infra/config/... ./internal/version/... ./pkg/auth/...
+# Fail-hard wrapcheck gate across the repository.
+# This is intentionally debt-revealing and is expected to block until
+# unwrapped external/interface errors are fixed.
+WRAPCHECK_SCOPE=./...
 wrapcheck-gate:
 	@echo "Running wrapcheck gate (scope: $(WRAPCHECK_SCOPE))..."
 	@test -f $(GOLANGCI_LINT) || go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
