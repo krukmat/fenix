@@ -91,10 +91,14 @@ func (s *EmbedderService) EmbedChunks(ctx context.Context, knowledgeItemID, work
 // fetchPendingChunks returns all embedding_document rows with status='pending'
 // for the given knowledge_item within the workspace.
 func (s *EmbedderService) fetchPendingChunks(ctx context.Context, itemID, wsID string) ([]sqlcgen.EmbeddingDocument, error) {
-	return s.q.ListEmbeddingDocumentsByKnowledgeItem(ctx, sqlcgen.ListEmbeddingDocumentsByKnowledgeItemParams{
+	rows, err := s.q.ListEmbeddingDocumentsByKnowledgeItem(ctx, sqlcgen.ListEmbeddingDocumentsByKnowledgeItemParams{
 		KnowledgeItemID: itemID,
 		WorkspaceID:     wsID,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("list pending embedding chunks: %w", err)
+	}
+	return rows, nil
 }
 
 // callEmbedWithRetry calls LLMProvider.Embed() with exponential backoff.
@@ -106,7 +110,7 @@ func (s *EmbedderService) callEmbedWithRetry(ctx context.Context, texts []string
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				return nil, fmt.Errorf("wait for embed retry: %w", ctx.Err())
 			case <-time.After(delay):
 				delay *= 2
 			}
@@ -126,36 +130,47 @@ func (s *EmbedderService) storeVectors(ctx context.Context, chunks []sqlcgen.Emb
 	now := time.Now()
 	tx, txErr := s.db.BeginTx(ctx, nil)
 	if txErr != nil {
-		return txErr
+		return fmt.Errorf("begin vector store transaction: %w", txErr)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
 	qtx := sqlcgen.New(tx)
 	for i, chunk := range chunks {
-		embJSON, encErr := encodeEmbedding(vecs[i])
-		if encErr != nil {
-			return fmt.Errorf("encode embedding[%d]: %w", i, encErr)
-		}
-
-		if insErr := qtx.InsertVecEmbedding(ctx, sqlcgen.InsertVecEmbeddingParams{
-			ID:          chunk.ID,
-			WorkspaceID: workspaceID,
-			Embedding:   embJSON,
-			CreatedAt:   now,
-		}); insErr != nil {
-			return fmt.Errorf("insert vec_embedding[%d]: %w", i, insErr)
-		}
-
-		if updErr := qtx.UpdateEmbeddingDocumentStatus(ctx, sqlcgen.UpdateEmbeddingDocumentStatusParams{
-			EmbeddingStatus: string(EmbeddingStatusEmbedded),
-			EmbeddedAt:      &now,
-			ID:              chunk.ID,
-			WorkspaceID:     workspaceID,
-		}); updErr != nil {
-			return fmt.Errorf("update embedding_document[%d]: %w", i, updErr)
+		if err := storeChunkVector(ctx, qtx, chunk, vecs[i], workspaceID, now, i); err != nil {
+			return err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit vector store transaction: %w", err)
+	}
+	return nil
+}
+
+func storeChunkVector(ctx context.Context, qtx *sqlcgen.Queries, chunk sqlcgen.EmbeddingDocument, vec []float32, workspaceID string, now time.Time, index int) error {
+	embJSON, encErr := encodeEmbedding(vec)
+	if encErr != nil {
+		return fmt.Errorf("encode embedding[%d]: %w", index, encErr)
+	}
+
+	if insErr := qtx.InsertVecEmbedding(ctx, sqlcgen.InsertVecEmbeddingParams{
+		ID:          chunk.ID,
+		WorkspaceID: workspaceID,
+		Embedding:   embJSON,
+		CreatedAt:   now,
+	}); insErr != nil {
+		return fmt.Errorf("insert vec_embedding[%d]: %w", index, insErr)
+	}
+
+	if updErr := qtx.UpdateEmbeddingDocumentStatus(ctx, sqlcgen.UpdateEmbeddingDocumentStatusParams{
+		EmbeddingStatus: string(EmbeddingStatusEmbedded),
+		EmbeddedAt:      &now,
+		ID:              chunk.ID,
+		WorkspaceID:     workspaceID,
+	}); updErr != nil {
+		return fmt.Errorf("update embedding_document[%d]: %w", index, updErr)
+	}
+
+	return nil
 }
 
 // markAllFailed sets embedding_status='failed' on all given chunks.
@@ -177,7 +192,7 @@ func (s *EmbedderService) markAllFailed(ctx context.Context, chunks []sqlcgen.Em
 func encodeEmbedding(vec []float32) (string, error) {
 	b, err := json.Marshal(vec)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("marshal embedding vector: %w", err)
 	}
 	return string(b), nil
 }

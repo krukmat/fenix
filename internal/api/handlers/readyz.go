@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -60,11 +61,17 @@ func NewReadyzHandler(db *sql.DB, chat, embed readinessChecker) http.HandlerFunc
 func checkDBReady(db *sql.DB) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return db.PingContext(ctx)
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("ping database: %w", err)
+	}
+	return nil
 }
 
 func checkProviderReady(provider readinessChecker) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return provider.HealthCheck(ctx)
+	if err := provider.HealthCheck(ctx); err != nil {
+		return fmt.Errorf("check provider readiness: %w", err)
+	}
+	return nil
 }

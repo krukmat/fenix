@@ -111,7 +111,7 @@ func applyFailedRunUpdate(ctx context.Context, rc *RunContext, workspaceID, runI
 		"error":       execErr.Error(),
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal failed skill run output: %w", err)
 	}
 	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(StatusFailed, output, toolCalls, true))
 }
@@ -125,7 +125,7 @@ func applyPendingApprovalUpdate(ctx context.Context, rc *RunContext, workspaceID
 		"approval_id": approval.ApprovalID,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal pending approval output: %w", err)
 	}
 	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(StatusAccepted, output, toolCalls, false))
 }
@@ -138,7 +138,7 @@ func applySuccessRunUpdate(ctx context.Context, rc *RunContext, workspaceID, run
 		Steps:      executedSteps,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal successful skill run output: %w", err)
 	}
 	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(StatusSuccess, output, toolCalls, true))
 }
@@ -341,7 +341,7 @@ func executeMappedBridgeAgent(
 	}
 	rawInputs, err := json.Marshal(op.Params)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("marshal bridge agent inputs: %w", err)
 	}
 	stored, err := invokeBridgeSubAgent(ctx, rc, workspaceID, actorID, target, rawInputs, evalCtx)
 	if err != nil {
@@ -402,7 +402,7 @@ func buildBridgeSubAgentOutput(target *Definition, stored *Run) (*ToolCall, *ski
 		"status":   stored.Status,
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("marshal sub-agent output: %w", err)
 	}
 	switch stored.Status {
 	case StatusFailed, StatusRejected:
@@ -440,7 +440,7 @@ func checkMappedToolPolicy(ctx context.Context, rc *RunContext, actorID, toolNam
 	}
 	allowed, err := rc.PolicyEngine.CheckToolPermission(ctx, actorID, toolName)
 	if err != nil {
-		return err
+		return fmt.Errorf("check tool permission: %w", err)
 	}
 	if !allowed {
 		return fmt.Errorf("%w: tool %s denied by policy", ErrSkillStepExecutionFailed, toolName)
@@ -462,18 +462,18 @@ func executeRegisteredTool(ctx context.Context, rc *RunContext, workspaceID stri
 	}
 	rawParams, err := json.Marshal(mapped.params)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("marshal tool params: %w", err)
 	}
 	result, err := rc.ToolRegistry.Execute(ctx, workspaceID, mapped.name, rawParams)
 	call := &ToolCall{ToolName: mapped.name, Params: rawParams, Result: result}
 	if err != nil {
 		call.Error = err.Error()
 		output, _ := json.Marshal(map[string]any{"tool": mapped.name, "result": "failed", "error": err.Error()})
-		return call, nil, output, err
+		return call, nil, output, fmt.Errorf("execute tool %s: %w", mapped.name, err)
 	}
 	output, marshalErr := json.Marshal(map[string]any{"tool": mapped.name, "result": "success"})
 	if marshalErr != nil {
-		return call, nil, nil, marshalErr
+		return call, nil, nil, fmt.Errorf("marshal tool success output: %w", marshalErr)
 	}
 	return call, nil, output, nil
 }
@@ -588,7 +588,7 @@ func createBridgeApproval(
 ) (*skillApprovalResult, *ToolCall, json.RawMessage, error) {
 	rawParams, err := json.Marshal(mapped.params)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("marshal approval params: %w", err)
 	}
 	resourceType := "tool"
 	resourceID := mapped.name
@@ -608,7 +608,7 @@ func createBridgeApproval(
 		ExpiresAt:    time.Now().UTC().Add(24 * time.Hour),
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("create approval request: %w", err)
 	}
 	callResult, _ := json.Marshal(map[string]any{"approval_id": req.ID})
 	output, _ := json.Marshal(map[string]any{
@@ -644,7 +644,7 @@ func insertBridgeRunStep(ctx context.Context, rc *RunContext, workspaceID, runID
 	}
 	tx, err := rc.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("begin bridge step tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -671,7 +671,7 @@ func insertBridgeRunStep(ctx context.Context, rc *RunContext, workspaceID, runID
 		return "", insertErr
 	}
 	if commitErr := tx.Commit(); commitErr != nil {
-		return "", commitErr
+		return "", fmt.Errorf("commit bridge step: %w", commitErr)
 	}
 	return stepID, nil
 }
@@ -680,22 +680,8 @@ func updateBridgeRunStep(ctx context.Context, rc *RunContext, workspaceID, stepI
 	if rc == nil || rc.DB == nil || stepID == "" {
 		return nil
 	}
-	tx, err := rc.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	var errText *string
-	if stepErr != nil {
-		msg := stepErr.Error()
-		errText = &msg
-	}
-	updateErr := updateRunStepStateTx(ctx, tx, stepID, workspaceID, status, nil, output, errText)
-	if updateErr != nil {
-		return updateErr
-	}
-	return tx.Commit()
+	return commitRunStepUpdate(ctx, rc.DB, workspaceID, stepID, status, output, stepErr,
+		"begin bridge step update tx", "commit bridge step update")
 }
 
 func actorIDFromInput(input TriggerAgentInput, evalCtx map[string]any) string {
@@ -784,7 +770,7 @@ func scanSkillDefinitionRow(row *sql.Row) (*SkillDefinition, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrSkillDefinitionNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("scan skill definition: %w", err)
 	}
 	if description.Valid {
 		def.Description = &description.String
@@ -842,7 +828,7 @@ func decodeDirectWorkflow(raw json.RawMessage) (*BridgeWorkflow, error) {
 func decodeEnvelopeWorkflow(raw json.RawMessage) (*BridgeWorkflow, map[string]any, error) {
 	var envelope bridgeWorkflowEnvelope
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("decode workflow envelope: %w", err)
 	}
 	if envelope.BridgeWorkflow == nil {
 		return nil, nil, ErrSkillDefinitionNotFound

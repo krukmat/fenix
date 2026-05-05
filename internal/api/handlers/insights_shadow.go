@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
@@ -146,7 +147,7 @@ func (e *insightsShadowExecutor) Execute(
 		"language":           config.Language,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal shadow trigger context: %w", err)
 	}
 	return e.executeWorkflow(ctx, config, shadowAgentID, triggerContext)
 }
@@ -165,7 +166,7 @@ func (e *insightsShadowExecutor) ExecutePrimary(
 		"language":         config.Language,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal primary trigger context: %w", err)
 	}
 	return e.executeWorkflow(ctx, config, agentID, triggerContext)
 }
@@ -185,7 +186,7 @@ func (e *insightsShadowExecutor) executeWorkflow(
 	}
 	inputs, err := json.Marshal(config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal insights inputs: %w", err)
 	}
 	rc := &agent.RunContext{
 		Orchestrator:     e.orchestrator,
@@ -202,7 +203,7 @@ func (e *insightsShadowExecutor) executeWorkflow(
 		Inputs:         inputs,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("execute insights workflow: %w", err)
 	}
 	effectiveRun := e.resolveEffectiveRun(ctx, config.WorkspaceID, wrapperRun)
 	return &insightsShadowExecution{

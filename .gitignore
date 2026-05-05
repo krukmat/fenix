@@ -53,6 +53,8 @@ docs/plans/*
 !docs/plans/mobile_core_crm_validation_plan.md
 !docs/plans/crm-dentro-governance.md
 !docs/plans/mobile_screenshots_runner_fix_plan.md
+!docs/plans/wrapcheck_global_remediation_plan.md
+!docs/plans/go_complexity_prepush_unblock_plan.md
 !docs/plans/crm_list_centralized_crud_bulk_delete.md
 !docs/plans/ui_redesign_command_center_dark_theme.md
 !docs/plans/carta-language-server-flow.md

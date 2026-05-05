@@ -58,7 +58,11 @@ type ComparisonResult = ComparatorResult
 
 // ToJSON returns the result as canonical JSON bytes.
 func (r ComparatorResult) ToJSON() ([]byte, error) {
-	return json.Marshal(r)
+	data, err := json.Marshal(r)
+	if err != nil {
+		return nil, fmt.Errorf("marshal comparator result: %w", err)
+	}
+	return data, nil
 }
 
 // ToText returns a human-readable multi-line summary.

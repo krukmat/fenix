@@ -177,7 +177,7 @@ func (s *ReindexService) listKnowledgeBatch(ctx context.Context, workspaceID str
 			Offset:      int64(offset),
 		})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("list knowledge items by entity: %w", err)
 		}
 		refs := make([]knowledgeItemRef, len(rows))
 		for i, r := range rows {
@@ -192,7 +192,7 @@ func (s *ReindexService) listKnowledgeBatch(ctx context.Context, workspaceID str
 		Offset:      int64(offset),
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list knowledge items by workspace: %w", err)
 	}
 	refs := make([]knowledgeItemRef, len(rows))
 	for i, r := range rows {
@@ -290,7 +290,7 @@ func (s *ReindexService) getLinkedKnowledgeItem(ctx context.Context, evt RecordC
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("get linked knowledge item: %w", err)
 	}
 
 	item := sqlcgen.KnowledgeItem{
@@ -333,22 +333,25 @@ func (s *ReindexService) handleDelete(ctx context.Context, item sqlcgen.Knowledg
 		KnowledgeItemID: item.ID,
 		WorkspaceID:     item.WorkspaceID,
 	}); err != nil {
-		return err
+		return fmt.Errorf("delete knowledge vectors: %w", err)
 	}
 
 	if err := s.q.DeleteEmbeddingDocumentsByKnowledgeItem(ctx, sqlcgen.DeleteEmbeddingDocumentsByKnowledgeItemParams{
 		KnowledgeItemID: item.ID,
 		WorkspaceID:     item.WorkspaceID,
 	}); err != nil {
-		return err
+		return fmt.Errorf("delete knowledge chunks: %w", err)
 	}
 
 	now := time.Now()
-	return s.q.SoftDeleteKnowledgeItem(ctx, sqlcgen.SoftDeleteKnowledgeItemParams{
+	if err := s.q.SoftDeleteKnowledgeItem(ctx, sqlcgen.SoftDeleteKnowledgeItemParams{
 		DeletedAt:   &now,
 		ID:          item.ID,
 		WorkspaceID: item.WorkspaceID,
-	})
+	}); err != nil {
+		return fmt.Errorf("soft delete knowledge item: %w", err)
+	}
+	return nil
 }
 
 func (s *ReindexService) handleUpsert(ctx context.Context, evt RecordChangedEvent, item *sqlcgen.KnowledgeItem) error {
@@ -362,7 +365,7 @@ func (s *ReindexService) handleUpsert(ctx context.Context, evt RecordChangedEven
 			KnowledgeItemID: item.ID,
 			WorkspaceID:     item.WorkspaceID,
 		}); delErr != nil {
-			return delErr
+			return fmt.Errorf("delete stale knowledge vectors: %w", delErr)
 		}
 	}
 
@@ -391,7 +394,7 @@ func (s *ReindexService) buildKnowledgePayloadFromEntity(ctx context.Context, ev
 func (s *ReindexService) buildCasePayload(ctx context.Context, evt RecordChangedEvent) (string, string, SourceType, error) {
 	row, err := s.q.GetCaseByID(ctx, sqlcgen.GetCaseByIDParams{ID: evt.EntityID, WorkspaceID: evt.WorkspaceID})
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", fmt.Errorf("get case for reindex: %w", err)
 	}
 	desc := ""
 	if row.Description != nil {
@@ -409,7 +412,7 @@ func (s *ReindexService) buildCasePayload(ctx context.Context, evt RecordChanged
 func (s *ReindexService) buildAccountPayload(ctx context.Context, evt RecordChangedEvent) (string, string, SourceType, error) {
 	row, err := s.q.GetAccountByID(ctx, sqlcgen.GetAccountByIDParams{ID: evt.EntityID, WorkspaceID: evt.WorkspaceID})
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", fmt.Errorf("get account for reindex: %w", err)
 	}
 	domain := ""
 	if row.Domain != nil {

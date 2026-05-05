@@ -83,14 +83,14 @@ func (g *MCPGateway) ConnectInMemory(ctx context.Context) (*mcp.ClientSession, f
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("connect mcp server session: %w", err)
 	}
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "fenix-mcp-client", Version: "v0.0.1"}, nil)
 	clientSession, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		_ = serverSession.Close()
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("connect mcp client session: %w", err)
 	}
 
 	cleanup := func() {
@@ -104,21 +104,33 @@ func (g *MCPGateway) CallTool(ctx context.Context, session *mcp.ClientSession, n
 	if session == nil {
 		return nil, ErrMCPClientSession
 	}
-	return session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: arguments})
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: arguments})
+	if err != nil {
+		return nil, fmt.Errorf("call mcp tool: %w", err)
+	}
+	return result, nil
 }
 
 func (g *MCPGateway) ListResources(ctx context.Context, session *mcp.ClientSession) (*mcp.ListResourcesResult, error) {
 	if session == nil {
 		return nil, ErrMCPClientSession
 	}
-	return session.ListResources(ctx, nil)
+	result, err := session.ListResources(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("list mcp resources: %w", err)
+	}
+	return result, nil
 }
 
 func (g *MCPGateway) ReadResource(ctx context.Context, session *mcp.ClientSession, uri string) (*mcp.ReadResourceResult, error) {
 	if session == nil {
 		return nil, ErrMCPClientSession
 	}
-	return session.ReadResource(ctx, &mcp.ReadResourceParams{URI: uri})
+	result, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: uri})
+	if err != nil {
+		return nil, fmt.Errorf("read mcp resource: %w", err)
+	}
+	return result, nil
 }
 
 func (g *MCPGateway) addTool(server *mcp.Server, def *ToolDefinition) {
@@ -142,7 +154,7 @@ func (g *MCPGateway) addResources(ctx context.Context, server *mcp.Server) error
 
 	resources, err := g.resources.ListResources(ctx, g.workspaceID)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w", err)
 	}
 	for _, resource := range resources {
 		server.AddResource(&mcp.Resource{
@@ -154,7 +166,7 @@ func (g *MCPGateway) addResources(ctx context.Context, server *mcp.Server) error
 		}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			payload, readErr := g.resources.ReadResource(ctx, g.workspaceID, req.Params.URI)
 			if readErr != nil {
-				return nil, readErr
+				return nil, fmt.Errorf("read gateway resource: %w", readErr)
 			}
 			return &mcp.ReadResourceResult{
 				Contents: []*mcp.ResourceContents{{

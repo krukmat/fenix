@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -851,11 +852,11 @@ func judgeWarnings(result *agent.JudgeResult) []agent.Warning {
 func workflowDiffToResponse(req WorkflowDiffRequest) (WorkflowDiffResponse, error) {
 	before, err := agent.BuildWorkflowSemanticGraphFromDSL(req.Before.DSLSource)
 	if err != nil {
-		return WorkflowDiffResponse{}, err
+		return WorkflowDiffResponse{}, fmt.Errorf("build before workflow graph: %w", err)
 	}
 	after, err := agent.BuildWorkflowSemanticGraphFromDSL(req.After.DSLSource)
 	if err != nil {
-		return WorkflowDiffResponse{}, err
+		return WorkflowDiffResponse{}, fmt.Errorf("build after workflow graph: %w", err)
 	}
 	return WorkflowDiffResponse{
 		Diff: agent.DiffWorkflowSemanticGraphs(before, after),
@@ -883,7 +884,7 @@ func (h *WorkflowHandler) executeDSLWorkflow(r *http.Request, workspaceID string
 	if userID != "" {
 		triggeredBy = &userID
 	}
-	return runner.Run(r.Context(), &agent.RunContext{
+	run, err := runner.Run(r.Context(), &agent.RunContext{
 		Orchestrator:     h.runtime.orchestrator,
 		ToolRegistry:     h.runtime.toolRegistry,
 		PolicyEngine:     h.runtime.policyEngine,
@@ -898,6 +899,10 @@ func (h *WorkflowHandler) executeDSLWorkflow(r *http.Request, workspaceID string
 		TriggerContext: normalizeOptionalJSONObject(req.TriggerContext),
 		Inputs:         normalizeOptionalJSONObject(req.Inputs),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("execute workflow DSL runner: %w", err)
+	}
+	return run, nil
 }
 
 func decodeWorkflowListInput(r *http.Request) (workflowdomain.ListWorkflowsInput, error) {

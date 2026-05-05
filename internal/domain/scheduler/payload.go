@@ -34,7 +34,7 @@ func EncodeWorkflowResumePayload(payload WorkflowResumePayload) (json.RawMessage
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal workflow resume payload: %w", err)
 	}
 	return raw, nil
 }
@@ -45,7 +45,7 @@ func DecodeWorkflowResumePayload(raw json.RawMessage) (WorkflowResumePayload, er
 		return payload, fmt.Errorf("%w: payload is required", ErrInvalidWorkflowResumePayload)
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return payload, err
+		return payload, fmt.Errorf("decode workflow resume payload: %w", err)
 	}
 	if err := payload.Validate(); err != nil {
 		return payload, err

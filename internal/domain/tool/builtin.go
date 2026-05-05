@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
@@ -150,7 +151,7 @@ func (r *ToolRegistry) EnsureBuiltInToolDefinitionsForAllWorkspaces(ctx context.
 func (r *ToolRegistry) listWorkspaceIDs(ctx context.Context) ([]string, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id FROM workspace`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list workspace ids: %w", err)
 	}
 
 	workspaceIDs := make([]string, 0, 8)
@@ -159,17 +160,17 @@ func (r *ToolRegistry) listWorkspaceIDs(ctx context.Context) ([]string, error) {
 		var workspaceID string
 		if scanErr := rows.Scan(&workspaceID); scanErr != nil {
 			_ = rows.Close()
-			return nil, scanErr
+			return nil, fmt.Errorf("scan workspace id: %w", scanErr)
 		}
 		workspaceIDs = append(workspaceIDs, workspaceID)
 	}
 
 	if rowsErr := rows.Err(); rowsErr != nil {
 		_ = rows.Close()
-		return nil, rowsErr
+		return nil, fmt.Errorf("iterate workspace ids: %w", rowsErr)
 	}
 	if closeErr := rows.Close(); closeErr != nil {
-		return nil, closeErr
+		return nil, fmt.Errorf("close workspace rows: %w", closeErr)
 	}
 	return workspaceIDs, nil
 }

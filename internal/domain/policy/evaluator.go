@@ -284,7 +284,7 @@ func (p *PolicyEngine) LogAuditEvent(ctx context.Context, event AuditLogEvent) e
 		details = &audit.EventDetails{Metadata: event.Details}
 	}
 
-	return p.audit.LogWithDetails(
+	if err := p.audit.LogWithDetails(
 		ctx,
 		event.WorkspaceID,
 		event.ActorID,
@@ -294,7 +294,10 @@ func (p *PolicyEngine) LogAuditEvent(ctx context.Context, event AuditLogEvent) e
 		event.EntityID,
 		details,
 		event.Outcome,
-	)
+	); err != nil {
+		return fmt.Errorf("log policy audit event: %w", err)
+	}
+	return nil
 }
 
 func redactWithToken(
@@ -404,13 +407,13 @@ func (p *PolicyEngine) loadRolePermissionRows(ctx context.Context, userID, works
 	for rows.Next() {
 		var raw string
 		if scanErr := rows.Scan(&raw); scanErr != nil {
-			return nil, scanErr
+			return nil, fmt.Errorf("scan role permissions: %w", scanErr)
 		}
 		out = append(out, raw)
 	}
 
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, rowsErr
+		return nil, fmt.Errorf("iterate role permissions: %w", rowsErr)
 	}
 
 	return out, nil
@@ -437,7 +440,7 @@ func (p *PolicyEngine) tableExists(ctx context.Context, name string) (bool, erro
 		FROM sqlite_master
 		WHERE type='table' AND name=?
 	`, name).Scan(&exists); err != nil {
-		return false, err
+		return false, fmt.Errorf("check table exists: %w", err)
 	}
 	return exists > 0, nil
 }
@@ -454,7 +457,7 @@ func (p *PolicyEngine) fetchToolRequiredPermissions(ctx context.Context, toolID 
 		return "", false, nil
 	}
 	if dbErr != nil {
-		return "", false, dbErr
+		return "", false, fmt.Errorf("load tool required permissions: %w", dbErr)
 	}
 	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
 		return "", false, nil
@@ -538,7 +541,7 @@ func (p *PolicyEngine) loadActivePolicyVersion(ctx context.Context, workspaceID 
 		return activePolicyVersion{}, false, nil
 	}
 	if dbErr != nil {
-		return activePolicyVersion{}, false, dbErr
+		return activePolicyVersion{}, false, fmt.Errorf("load active policy version: %w", dbErr)
 	}
 	return out, true, nil
 }

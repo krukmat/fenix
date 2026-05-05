@@ -64,7 +64,10 @@ func NewServer(db *sql.DB, config Config) (*Server, error) {
 // Start starts the HTTP server and blocks until an error occurs.
 func (s *Server) Start(_ context.Context) error {
 	fmt.Printf("Starting HTTP server on %s\n", s.http.Addr)
-	return s.http.ListenAndServe()
+	if err := s.http.ListenAndServe(); err != nil {
+		return fmt.Errorf("listen and serve: %w", err)
+	}
+	return nil
 }
 
 // Shutdown gracefully shuts down the server and closes the database connection.

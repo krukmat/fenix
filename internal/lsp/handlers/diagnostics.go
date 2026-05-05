@@ -127,12 +127,14 @@ func writeNotification(out io.Writer, method string, params any) error {
 	}
 	data, err := json.Marshal(notif)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal notification: %w", err)
 	}
 	header := fmt.Sprintf("Content-Length: %d\r\n\r\n", len(data))
 	if _, writeErr := io.WriteString(out, header); writeErr != nil {
-		return writeErr
+		return fmt.Errorf("write notification header: %w", writeErr)
 	}
-	_, err = out.Write(data)
-	return err
+	if _, err = out.Write(data); err != nil {
+		return fmt.Errorf("write notification body: %w", err)
+	}
+	return nil
 }

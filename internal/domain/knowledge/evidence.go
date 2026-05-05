@@ -319,7 +319,7 @@ func (s *EvidencePackService) isStale(ctx context.Context, itemID, wsID string) 
 func (s *EvidencePackService) getRepresentativeVectors(ctx context.Context, wsID string) (map[string][]float32, error) {
 	rows, rowsErr := s.q.GetAllEmbeddedVectorsByWorkspace(ctx, wsID)
 	if rowsErr != nil {
-		return nil, rowsErr
+		return nil, fmt.Errorf("list embedded vectors by workspace: %w", rowsErr)
 	}
 
 	out := make(map[string][]float32, len(rows))

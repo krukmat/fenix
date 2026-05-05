@@ -115,7 +115,7 @@ func (r *ToolRegistry) enforceToolPermission(ctx context.Context, toolName strin
 
 	allowed, err := r.authz.CheckToolPermission(ctx, userID, toolName)
 	if err != nil {
-		return err
+		return fmt.Errorf("check tool permission: %w", err)
 	}
 	if !allowed {
 		return ErrToolPermissionDenied

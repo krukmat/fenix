@@ -7,6 +7,7 @@ package eval
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
@@ -128,12 +129,12 @@ func NewTraceBuilder(store TraceStore) *TraceBuilder {
 func (b *TraceBuilder) Build(ctx context.Context, runID, workspaceID string) (*ActualRunTrace, error) {
 	run, err := b.store.GetAgentRunByID(ctx, sqlcgen.GetAgentRunByIDParams{ID: runID, WorkspaceID: workspaceID})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get agent run trace: %w", err)
 	}
 
 	events, err := b.store.ListAuditEventsByTraceID(ctx, run.TraceID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list audit events for trace: %w", err)
 	}
 
 	approvalIDs := extractApprovalIDs(events)
@@ -141,7 +142,7 @@ func (b *TraceBuilder) Build(ctx context.Context, runID, workspaceID string) (*A
 	if len(approvalIDs) > 0 {
 		approvals, err = b.store.ListApprovalRequestsByIDs(ctx, approvalIDs)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("list approval requests for trace: %w", err)
 		}
 	}
 

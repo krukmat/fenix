@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -226,7 +227,10 @@ func (o *Orchestrator) persistRun(ctx context.Context, run *Run) error {
 		run.TotalTokens, run.TotalCost, run.LatencyMs, run.TraceID,
 		run.StartedAt, run.CreatedAt,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("insert agent run: %w", err)
+	}
+	return nil
 }
 
 // ExecuteAgent resolves the concrete runner for an agent definition and
@@ -258,7 +262,11 @@ func (o *Orchestrator) ExecuteAgent(ctx context.Context, rc *RunContext, in Trig
 		runCtx.RunnerRegistry = o.runnerRegistry
 	}
 
-	return runner.Run(ctx, runCtx, in)
+	run, err := runner.Run(ctx, runCtx, in)
+	if err != nil {
+		return nil, fmt.Errorf("execute agent runner: %w", err)
+	}
+	return run, nil
 }
 
 // ResolveRunner looks up the runner registered for the agent definition type.
@@ -327,7 +335,7 @@ func (o *Orchestrator) listFilteredRuns(ctx context.Context, workspaceID string,
 		ORDER BY created_at DESC
 	`, workspaceID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list agent runs: %w", err)
 	}
 	defer rows.Close()
 
@@ -342,7 +350,7 @@ func (o *Orchestrator) listFilteredRuns(ctx context.Context, workspaceID string,
 		}
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, rowsErr
+		return nil, fmt.Errorf("iterate agent runs: %w", rowsErr)
 	}
 	return runs, nil
 }
@@ -607,7 +615,7 @@ func (o *Orchestrator) UpdateAgentRun(ctx context.Context, workspaceID, runID st
 
 	tx, err := o.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("begin agent run update tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -623,7 +631,7 @@ func (o *Orchestrator) UpdateAgentRun(ctx context.Context, workspaceID, runID st
 	}
 	err = tx.Commit()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("commit agent run update: %w", err)
 	}
 
 	return o.GetAgentRun(ctx, workspaceID, runID)
@@ -644,7 +652,7 @@ func (o *Orchestrator) loadUpdatableRun(ctx context.Context, workspaceID, runID,
 func (o *Orchestrator) persistTerminalRunStatus(ctx context.Context, run *Run, status string) error {
 	tx, err := o.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("begin agent run status tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -660,7 +668,10 @@ func (o *Orchestrator) persistTerminalRunStatus(ctx context.Context, run *Run, s
 	if err != nil {
 		return err
 	}
-	return tx.Commit()
+	if commitErr := tx.Commit(); commitErr != nil {
+		return fmt.Errorf("commit agent run status: %w", commitErr)
+	}
+	return nil
 }
 
 func updateCompletionTimes(completed bool) (time.Time, *time.Time) {
@@ -702,7 +713,10 @@ func persistRunUpdatesTx(ctx context.Context, tx *sql.Tx, workspaceID, runID str
 		runID,
 		workspaceID,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("update agent run: %w", err)
+	}
+	return nil
 }
 
 func applyRunUpdates(run *Run, updates RunUpdates, completedAt *time.Time) {
@@ -745,7 +759,7 @@ func (o *Orchestrator) ListAgentDefinitions(ctx context.Context, workspaceID str
 		ORDER BY created_at DESC
 	`, workspaceID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list agent definitions: %w", err)
 	}
 	defer rows.Close()
 
@@ -758,7 +772,7 @@ func (o *Orchestrator) ListAgentDefinitions(ctx context.Context, workspaceID str
 		definitions = append(definitions, def)
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, rowsErr
+		return nil, fmt.Errorf("iterate agent definitions: %w", rowsErr)
 	}
 
 	return definitions, nil
@@ -785,7 +799,7 @@ func (o *Orchestrator) getAgentDefinition(ctx context.Context, id, workspaceID s
 		return nil, ErrAgentNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan agent run: %w", err)
 	}
 	return def, nil
 }
@@ -833,7 +847,7 @@ func scanAgentRun(scan agentRunScanner) (*Run, error) {
 		&r.StartedAt, &n.completedAt, &r.CreatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan agent definition: %w", err)
 	}
 	applyRunNullables(&r, &n)
 	return &r, nil
@@ -927,7 +941,7 @@ func scanAgentDefinition(scan agentDefScanner) (*Definition, error) {
 		&d.Status, &d.CreatedAt, &d.UpdatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan agent definition: %w", err)
 	}
 	applyDefinitionNullables(&d, description, objective, allowedTools, limits, triggerConfig, policySetID, activePromptID)
 	return &d, nil

@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 )
@@ -92,7 +93,7 @@ func decodeSupportAgentInput(input agent.TriggerAgentInput) (SupportAgentConfig,
 		return cfg, nil
 	}
 	if err := json.Unmarshal(input.Inputs, &cfg); err != nil {
-		return SupportAgentConfig{}, err
+		return SupportAgentConfig{}, fmt.Errorf("decode support agent input: %w", err)
 	}
 	if cfg.WorkspaceID == "" {
 		cfg.WorkspaceID = input.WorkspaceID
@@ -109,7 +110,7 @@ func decodeProspectingAgentInput(input agent.TriggerAgentInput) (ProspectingAgen
 		return cfg, nil
 	}
 	if err := json.Unmarshal(input.Inputs, &cfg); err != nil {
-		return ProspectingAgentConfig{}, err
+		return ProspectingAgentConfig{}, fmt.Errorf("decode prospecting agent input: %w", err)
 	}
 	if cfg.WorkspaceID == "" {
 		cfg.WorkspaceID = input.WorkspaceID
@@ -129,7 +130,7 @@ func decodeKBAgentInput(input agent.TriggerAgentInput) (KBAgentConfig, error) {
 		return cfg, nil
 	}
 	if err := json.Unmarshal(input.Inputs, &cfg); err != nil {
-		return KBAgentConfig{}, err
+		return KBAgentConfig{}, fmt.Errorf("decode KB agent input: %w", err)
 	}
 	if cfg.WorkspaceID == "" {
 		cfg.WorkspaceID = input.WorkspaceID
@@ -149,7 +150,7 @@ func decodeInsightsAgentInput(input agent.TriggerAgentInput) (InsightsAgentConfi
 		return cfg, nil
 	}
 	if err := json.Unmarshal(input.Inputs, &cfg); err != nil {
-		return InsightsAgentConfig{}, err
+		return InsightsAgentConfig{}, fmt.Errorf("decode insights agent input: %w", err)
 	}
 	if cfg.WorkspaceID == "" {
 		cfg.WorkspaceID = input.WorkspaceID
@@ -169,7 +170,7 @@ func decodeDealRiskAgentInput(input agent.TriggerAgentInput) (DealRiskAgentConfi
 		return cfg, nil
 	}
 	if err := json.Unmarshal(input.Inputs, &cfg); err != nil {
-		return DealRiskAgentConfig{}, err
+		return DealRiskAgentConfig{}, fmt.Errorf("decode deal risk agent input: %w", err)
 	}
 	if cfg.WorkspaceID == "" {
 		cfg.WorkspaceID = input.WorkspaceID

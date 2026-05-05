@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -171,7 +172,7 @@ func (s *HandoffService) loadAndEscalateCase(ctx context.Context, workspaceID, c
 		Status:   StatusEscalated,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("escalate case: %w", err)
 	}
 	return updated, nil
 }
@@ -190,7 +191,10 @@ func (s *HandoffService) persistHandoffReason(ctx context.Context, workspaceID, 
 		SET abstention_reason = COALESCE(?, abstention_reason), updated_at = datetime('now')
 		WHERE id = ? AND workspace_id = ?
 	`, nullableHandoffReason(reason), runID, workspaceID)
-	return err
+	if err != nil {
+		return fmt.Errorf("persist handoff reason: %w", err)
+	}
+	return nil
 }
 
 func resolveHandoffReason(requested string, run *Run) string {

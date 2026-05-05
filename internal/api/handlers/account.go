@@ -210,7 +210,7 @@ func (h *AccountHandler) UpdateAccount(w http.ResponseWriter, r *http.Request) {
 		func(ctx context.Context, wsID, accountID string, input crm.UpdateAccountInput) (*AccountResponse, error) {
 			updated, err := h.accountService.Update(ctx, wsID, accountID, input)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("update account: %w", err)
 			}
 			resp := accountToResponse(updated)
 			return &resp, nil

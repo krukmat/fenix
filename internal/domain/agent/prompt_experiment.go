@@ -365,7 +365,7 @@ func scanPromptExperiment(scanner promptExperimentRowScanner) (*PromptExperiment
 		&experiment.CreatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan prompt experiment: %w", err)
 	}
 	if winnerPromptVersionID.Valid {
 		experiment.WinnerPromptVersionID = &winnerPromptVersionID.String

@@ -2,6 +2,7 @@ package copilot
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -105,7 +106,7 @@ func (s *ChatService) Chat(ctx context.Context, in ChatInput) (<-chan StreamChun
 func (s *ChatService) prepareChatContext(ctx context.Context, in ChatInput) (policy.Filter, *knowledge.EvidencePack, error) {
 	filter, err := s.policy.BuildPermissionFilter(ctx, in.UserID)
 	if err != nil {
-		return policy.Filter{}, nil, err
+		return policy.Filter{}, nil, fmt.Errorf("build chat permission filter: %w", err)
 	}
 
 	pack, err := s.evidence.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
@@ -114,12 +115,12 @@ func (s *ChatService) prepareChatContext(ctx context.Context, in ChatInput) (pol
 		Limit:       10,
 	})
 	if err != nil {
-		return policy.Filter{}, nil, err
+		return policy.Filter{}, nil, fmt.Errorf("build chat evidence pack: %w", err)
 	}
 
 	redacted, err := s.policy.RedactPII(ctx, pack.Sources)
 	if err != nil {
-		return policy.Filter{}, nil, err
+		return policy.Filter{}, nil, fmt.Errorf("redact chat evidence: %w", err)
 	}
 	pack.Sources = redacted
 
@@ -147,7 +148,7 @@ func (s *ChatService) buildChatResult(ctx context.Context, query string, pack *k
 		MaxTokens:   512,
 	})
 	if err != nil {
-		return ChatResult{}, chatUsageRecord{}, err
+		return ChatResult{}, chatUsageRecord{}, fmt.Errorf("request chat completion: %w", err)
 	}
 
 	modelName := strings.TrimSpace(s.llm.ModelInfo().ID)

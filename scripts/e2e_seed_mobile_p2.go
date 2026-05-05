@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
@@ -319,7 +320,7 @@ func seedCaseFixtures(ctx context.Context, db *sql.DB, auth authResponse, accoun
 func cleanupExistingFixtures(ctx context.Context, db *sql.DB, workspaceID string) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("begin fixture cleanup tx: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -365,7 +366,10 @@ func cleanupExistingFixtures(ctx context.Context, db *sql.DB, workspaceID string
 		return err
 	}
 
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit fixture cleanup tx: %w", err)
+	}
+	return nil
 }
 
 func setForeignKeys(ctx context.Context, tx *sql.Tx, enabled bool) error {
@@ -374,7 +378,10 @@ func setForeignKeys(ctx context.Context, tx *sql.Tx, enabled bool) error {
 		value = "ON"
 	}
 	_, err := tx.ExecContext(ctx, "PRAGMA foreign_keys = "+value)
-	return err
+	if err != nil {
+		return fmt.Errorf("set foreign keys %s: %w", strings.ToLower(value), err)
+	}
+	return nil
 }
 
 func cleanupWorkspaceTables(ctx context.Context, tx *sql.Tx, workspaceID string, tables []string) error {
@@ -384,7 +391,7 @@ func cleanupWorkspaceTables(ctx context.Context, tx *sql.Tx, workspaceID string,
 			return fmt.Errorf("unsupported cleanup table: %s", table)
 		}
 		if _, err := tx.ExecContext(ctx, query, workspaceID); err != nil {
-			return err
+			return fmt.Errorf("cleanup table %s: %w", table, err)
 		}
 	}
 	return nil
@@ -425,7 +432,7 @@ func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, s
 		},
 	})
 	if err != nil {
-		return wedgeRunIDs{}, err
+		return wedgeRunIDs{}, fmt.Errorf("seed handoff runs: %w", err)
 	}
 
 	deniedIDs, err := seedPairedRuns(ctx, db, auth, []runParams{
@@ -445,7 +452,7 @@ func seedWedgeRuns(ctx context.Context, db *sql.DB, auth authResponse, caseID, s
 		},
 	})
 	if err != nil {
-		return wedgeRunIDs{}, err
+		return wedgeRunIDs{}, fmt.Errorf("seed denied runs: %w", err)
 	}
 
 	return wedgeRunIDs{
@@ -517,7 +524,7 @@ SET case.status = "open"
 		VALUES (?, ?, ?, ?, ?, ?, 1, 'draft', ?, datetime('now'), datetime('now'))
 	`, workflowID, auth.WorkspaceID, name, description, dslSource, specSource, auth.UserID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("insert workflow fixture: %w", err)
 	}
 	return workflowID, nil
 }
@@ -533,7 +540,7 @@ func seedAccount(ctx context.Context, db *sql.DB, auth authResponse, suffix stri
 		OwnerID:     auth.UserID,
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create account fixture: %w", err)
 	}
 	return account.ID, nil
 }
@@ -550,7 +557,7 @@ func seedContact(ctx context.Context, db *sql.DB, auth authResponse, accountID, 
 		OwnerID:     auth.UserID,
 	})
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("create contact fixture: %w", err)
 	}
 	return contact.ID, email, nil
 }
@@ -570,7 +577,7 @@ func seedLead(ctx context.Context, db *sql.DB, auth authResponse, contactID, acc
 		Metadata:    metadata,
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create lead fixture: %w", err)
 	}
 	return lead.ID, nil
 }
@@ -578,7 +585,7 @@ func seedLead(ctx context.Context, db *sql.DB, auth authResponse, contactID, acc
 func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
 	fixture, err := seedDealFixture(ctx, db, auth, accountID, suffix, false)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("seed deal fixture: %w", err)
 	}
 	return fixture.dealID, nil
 }
@@ -586,7 +593,7 @@ func seedDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 func seedStaleDeal(ctx context.Context, db *sql.DB, auth authResponse, accountID, suffix string) (string, error) {
 	fixture, err := seedDealFixture(ctx, db, auth, accountID, suffix+"_stale", true)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("seed stale deal fixture: %w", err)
 	}
 	return fixture.dealID, nil
 }
@@ -599,7 +606,7 @@ func seedDealFixture(ctx context.Context, db *sql.DB, auth authResponse, account
 		EntityType:  "deal",
 	})
 	if err != nil {
-		return dealFixtureIDs{}, err
+		return dealFixtureIDs{}, fmt.Errorf("create deal pipeline: %w", err)
 	}
 
 	stage, err := pipelineSvc.CreateStage(ctx, crm.CreatePipelineStageInput{
@@ -608,7 +615,7 @@ func seedDealFixture(ctx context.Context, db *sql.DB, auth authResponse, account
 		Position:   1,
 	})
 	if err != nil {
-		return dealFixtureIDs{}, err
+		return dealFixtureIDs{}, fmt.Errorf("create deal stage: %w", err)
 	}
 
 	svc := crm.NewDealService(db)
@@ -622,7 +629,7 @@ func seedDealFixture(ctx context.Context, db *sql.DB, auth authResponse, account
 		Status:      "open",
 	})
 	if err != nil {
-		return dealFixtureIDs{}, err
+		return dealFixtureIDs{}, fmt.Errorf("create deal fixture: %w", err)
 	}
 	if stale {
 		createdAt := time.Now().UTC().Add(-20 * 24 * time.Hour).Format(time.RFC3339)
@@ -632,7 +639,7 @@ func seedDealFixture(ctx context.Context, db *sql.DB, auth authResponse, account
 			SET created_at = ?, updated_at = ?
 			WHERE id = ? AND workspace_id = ?
 		`, createdAt, updatedAt, deal.ID, auth.WorkspaceID); updateErr != nil {
-			return dealFixtureIDs{}, updateErr
+			return dealFixtureIDs{}, fmt.Errorf("backdate stale deal fixture: %w", updateErr)
 		}
 	}
 	return dealFixtureIDs{dealID: deal.ID, pipelineID: pipeline.ID, stageID: stage.ID}, nil
@@ -641,7 +648,7 @@ func seedDealFixture(ctx context.Context, db *sql.DB, auth authResponse, account
 func seedDealKnowledge(ctx context.Context, db *sql.DB, auth authResponse, dealID, suffix string) error {
 	llmProvider, err := llm.NewEmbedProvider(config.Load())
 	if err != nil {
-		return err
+		return fmt.Errorf("build embed provider: %w", err)
 	}
 
 	bus := eventbus.New()
@@ -676,10 +683,10 @@ Next steps:
 		EntityID:   &entityID,
 	})
 	if ingestErr != nil {
-		return ingestErr
+		return fmt.Errorf("ingest deal knowledge: %w", ingestErr)
 	}
 	if embedErr := embedder.EmbedChunks(ctx, item.ID, auth.WorkspaceID); embedErr != nil {
-		return embedErr
+		return fmt.Errorf("embed deal knowledge: %w", embedErr)
 	}
 
 	return nil
@@ -697,7 +704,7 @@ func seedCase(ctx context.Context, db *sql.DB, auth authResponse, accountID, suf
 		Status:      "open",
 	})
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("create case fixture: %w", err)
 	}
 	return ct.ID, subject, nil
 }
@@ -714,7 +721,7 @@ func seedResolvedCase(ctx context.Context, db *sql.DB, auth authResponse, accoun
 		Status:      "resolved",
 	})
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("create resolved case fixture: %w", err)
 	}
 	return ct.ID, subject, nil
 }
@@ -783,7 +790,7 @@ func seedRun(ctx context.Context, db *sql.DB, auth authResponse, p runParams) (s
 		p.agentType, `{"goal":"wedge smoke"}`,
 		now.Format(time.RFC3339), now.Format(time.RFC3339),
 	); err != nil {
-		return "", err
+		return "", fmt.Errorf("insert agent definition fixture: %w", err)
 	}
 
 	triggerContext := fmt.Sprintf(`{"entity_type":%q,"entity_id":%q}`, p.entityType, p.entityID)
@@ -809,7 +816,7 @@ func seedRun(ctx context.Context, db *sql.DB, auth authResponse, p runParams) (s
 		now.Format(time.RFC3339), now.Format(time.RFC3339),
 		now.Format(time.RFC3339), now.Format(time.RFC3339),
 	); err != nil {
-		return "", err
+		return "", fmt.Errorf("insert agent run fixture: %w", err)
 	}
 
 	return runID, nil
@@ -842,7 +849,7 @@ func seedUsageEvents(ctx context.Context, db *sql.DB, auth authResponse, runID s
 			e.toolName, e.modelName, e.inputUnits, e.outputUnits,
 			e.estimatedCost, e.latencyMs, now.Format(time.RFC3339),
 		); err != nil {
-			return err
+			return fmt.Errorf("insert usage event %s: %w", e.toolName, err)
 		}
 	}
 	return nil
@@ -949,7 +956,7 @@ func seedApproval(
 		expiresAt.Format(time.RFC3339),
 		now.Format(time.RFC3339), now.Format(time.RFC3339),
 	); err != nil {
-		return "", err
+		return "", fmt.Errorf("insert approval fixture: %w", err)
 	}
 	return approvalID, nil
 }
@@ -1025,7 +1032,7 @@ func seedSignal(
 		now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("insert signal fixture: %w", err)
 	}
 	return signalID, nil
 }
@@ -1054,14 +1061,17 @@ func ensureOperatorVerificationRole(ctx context.Context, db *sql.DB, auth authRe
 		"Grants the minimum operator permissions needed to verify the ADR-029 admin shell",
 		permissions, now.Format(time.RFC3339), now.Format(time.RFC3339),
 	); err != nil {
-		return err
+		return fmt.Errorf("upsert operator verification role: %w", err)
 	}
 
 	_, err := db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO user_role (id, user_id, role_id, created_at)
 		VALUES (?, ?, ?, ?)
 	`, uuid.NewV7().String(), auth.UserID, roleID, now.Format(time.RFC3339))
-	return err
+	if err != nil {
+		return fmt.Errorf("assign operator verification role: %w", err)
+	}
+	return nil
 }
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
@@ -1075,7 +1085,7 @@ func loginOrRegister(ctx context.Context, apiURL string, db *sql.DB) (authRespon
 		})
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return authResponse{}, err
+		return authResponse{}, fmt.Errorf("lookup existing auth: %w", err)
 	}
 
 	auth, err := requestAuth(ctx, apiURL, "/auth/register", map[string]string{
@@ -1090,10 +1100,14 @@ func loginOrRegister(ctx context.Context, apiURL string, db *sql.DB) (authRespon
 
 	reqErr := &requestError{}
 	if asRequestError(err, reqErr) && (reqErr.Status == http.StatusConflict || reqErr.Status == http.StatusTooManyRequests) {
-		return lookupExistingAuth(ctx, db, testEmail)
+		existingAuth, lookupErr := lookupExistingAuth(ctx, db, testEmail)
+		if lookupErr != nil {
+			return authResponse{}, fmt.Errorf("lookup existing auth after register: %w", lookupErr)
+		}
+		return existingAuth, nil
 	}
 
-	return authResponse{}, err
+	return authResponse{}, fmt.Errorf("request register auth: %w", err)
 }
 
 func lookupExistingAuth(ctx context.Context, db *sql.DB, email string) (authResponse, error) {
@@ -1105,7 +1119,7 @@ func lookupExistingAuth(ctx context.Context, db *sql.DB, email string) (authResp
 		LIMIT 1
 	`, email).Scan(&auth.UserID, &auth.WorkspaceID)
 	if err != nil {
-		return authResponse{}, err
+		return authResponse{}, fmt.Errorf("scan existing auth: %w", err)
 	}
 	return auth, nil
 }
@@ -1113,24 +1127,24 @@ func lookupExistingAuth(ctx context.Context, db *sql.DB, email string) (authResp
 func requestAuth(ctx context.Context, apiURL, path string, payload map[string]string) (authResponse, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return authResponse{}, err
+		return authResponse{}, fmt.Errorf("marshal auth payload: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL+path, bytes.NewReader(body))
 	if err != nil {
-		return authResponse{}, err
+		return authResponse{}, fmt.Errorf("build auth request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return authResponse{}, err
+		return authResponse{}, fmt.Errorf("send auth request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return authResponse{}, err
+		return authResponse{}, fmt.Errorf("read auth response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return authResponse{}, &requestError{Status: resp.StatusCode, Body: string(raw)}
@@ -1139,7 +1153,7 @@ func requestAuth(ctx context.Context, apiURL, path string, payload map[string]st
 	var auth authResponse
 	err = json.Unmarshal(raw, &auth)
 	if err != nil {
-		return authResponse{}, err
+		return authResponse{}, fmt.Errorf("decode auth response: %w", err)
 	}
 	return auth, nil
 }

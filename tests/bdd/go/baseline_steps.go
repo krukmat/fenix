@@ -2,6 +2,7 @@ package gobdd
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cucumber/godog"
 	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
@@ -205,7 +206,7 @@ func registerWorkflowAuthoringSteps(ctx *godog.ScenarioContext, state *scenarioS
 			DSLSource:   "WORKFLOW qualify_lead\nON lead.created\nSET lead.status = \"qualified\"",
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("create workflow draft: %w", err)
 		}
 		state.workflowRecord = created
 		return nil
@@ -227,7 +228,7 @@ func registerWorkflowAuthoringSteps(ctx *godog.ScenarioContext, state *scenarioS
 			DSLSource: "WORKFLOW qualify_lead\nON lead.created\nSET lead.status = \"review\"",
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("update workflow draft: %w", err)
 		}
 		state.workflowRecord = updated
 		return nil
@@ -259,7 +260,7 @@ func registerWorkflowAuthoringSteps(ctx *godog.ScenarioContext, state *scenarioS
 		}
 		updated, err := state.workflowService.MarkTesting(context.Background(), bddWorkspaceID, state.workflowRecord.ID)
 		if err != nil {
-			return err
+			return fmt.Errorf("mark workflow testing: %w", err)
 		}
 		state.workflowRecord = updated
 		state.workflowInTesting = true
@@ -362,7 +363,7 @@ func registerWorkflowVersionAndDelegationSteps(ctx *godog.ScenarioContext, state
 		}
 		next, err := state.workflowService.NewVersion(context.Background(), bddWorkspaceID, state.workflowRecord.ID)
 		if err != nil {
-			return err
+			return fmt.Errorf("create workflow version: %w", err)
 		}
 		state.workflowRecord = next
 		state.workflowVersionCreated = true

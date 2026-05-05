@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -83,7 +84,10 @@ func (s *AuditService) Log(ctx context.Context, event *AuditEvent) error {
 		CreatedAt:          event.CreatedAt,
 	}
 
-	return s.querier.CreateAuditEvent(ctx, params)
+	if err := s.querier.CreateAuditEvent(ctx, params); err != nil {
+		return fmt.Errorf("create audit event: %w", err)
+	}
+	return nil
 }
 
 // LogWithDetails is a helper for common case with structured details
@@ -103,7 +107,7 @@ func (s *AuditService) LogWithDetails(
 		var err error
 		detailsJSON, err = json.Marshal(details)
 		if err != nil {
-			return err
+			return fmt.Errorf("marshal audit details: %w", err)
 		}
 	}
 
@@ -127,7 +131,7 @@ func (s *AuditService) LogWithDetails(
 func (s *AuditService) GetByID(ctx context.Context, id string) (*AuditEvent, error) {
 	row, err := s.querier.GetAuditEventByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get audit event by id: %w", err)
 	}
 
 	return rowToAuditEvent(row), nil
@@ -149,12 +153,12 @@ func (s *AuditService) ListByWorkspace(
 
 	rows, err := s.querier.ListAuditEventsByWorkspace(ctx, params)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("list audit events by workspace: %w", err)
 	}
 
 	count, err := s.querier.CountAuditEventsByWorkspace(ctx, workspaceID)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("count audit events by workspace: %w", err)
 	}
 
 	return mapAuditEvents(rows), int(count), nil
@@ -277,10 +281,13 @@ func (s *AuditService) writeCSVExport(ctx context.Context, pw *io.PipeWriter, in
 }
 
 func writeAuditCSVHeader(w *csv.Writer) error {
-	return w.Write([]string{
+	if err := w.Write([]string{
 		"id", "workspace_id", "actor_id", "actor_type", "action",
 		"entity_type", "entity_id", "outcome", "trace_id", "created_at",
-	})
+	}); err != nil {
+		return fmt.Errorf("write audit CSV header: %w", err)
+	}
+	return nil
 }
 
 func (s *AuditService) writeAuditCSVRows(ctx context.Context, w *csv.Writer, in ExportInput) error {
@@ -325,7 +332,7 @@ func writeAuditCSVBatch(w *csv.Writer, events []*AuditEvent) error {
 			derefString(ev.TraceID),
 			ev.CreatedAt.UTC().Format(time.RFC3339),
 		}); err != nil {
-			return err
+			return fmt.Errorf("write audit CSV row: %w", err)
 		}
 	}
 	return nil

@@ -273,11 +273,8 @@ func loadFeatureSpecs(dir string, rootDir string) (map[string]FeatureSpec, error
 
 func validateFeaturesDir(dir string) error {
 	info, err := os.Stat(dir)
-	if os.IsNotExist(err) {
-		return err
-	}
 	if err != nil {
-		return fmt.Errorf("reading features directory %s: %w", dir, err)
+		return fmt.Errorf("stat features directory %s: %w", dir, err)
 	}
 	if !info.IsDir() {
 		return fmt.Errorf("features path %s is not a directory", dir)
@@ -408,7 +405,7 @@ var tracesRegex = regexp.MustCompile(`//\s*Traces:\s*(.+)`)
 func scanTraces(filePath string) ([]string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open trace file %s: %w", filePath, err)
 	}
 	defer f.Close()
 	var traces []string
@@ -417,7 +414,10 @@ func scanTraces(filePath string) ([]string, error) {
 		lineTraces := extractTraceAnnotation(scanner.Text())
 		traces = append(traces, lineTraces...)
 	}
-	return traces, scanner.Err()
+	if scanErr := scanner.Err(); scanErr != nil {
+		return nil, fmt.Errorf("scan trace file %s: %w", filePath, scanErr)
+	}
+	return traces, nil
 }
 
 // extractTraceAnnotation parses a single line and extracts FR trace annotations.

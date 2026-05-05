@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -109,7 +110,10 @@ func (s *ActivityService) Create(ctx context.Context, input CreateActivityInput)
 func (s *ActivityService) Get(ctx context.Context, workspaceID, activityID string) (*Activity, error) {
 	row, err := s.querier.GetActivityByID(ctx, sqlcgen.GetActivityByIDParams{ID: activityID, WorkspaceID: workspaceID})
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, fmt.Errorf("get activity by id: %w", err)
 	}
 	return rowToActivity(row), nil
 }

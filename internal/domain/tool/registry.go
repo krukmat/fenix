@@ -122,7 +122,7 @@ func (r *ToolRegistry) CreateToolDefinition(ctx context.Context, in CreateToolDe
 
 	requiredPermsRaw, err := json.Marshal(in.RequiredPermissions)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal required permissions: %w", err)
 	}
 
 	now := time.Now().UTC()
@@ -157,7 +157,7 @@ func (r *ToolRegistry) CreateToolDefinition(ctx context.Context, in CreateToolDe
 		item.UpdatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create tool definition: %w", err)
 	}
 
 	return item, nil
@@ -188,7 +188,7 @@ func (r *ToolRegistry) UpdateToolDefinition(ctx context.Context, in UpdateToolDe
 		in.WorkspaceID,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("update tool definition: %w", err)
 	}
 	if errRows := ensureRowsAffected(res, ErrToolDefinitionNotFound); errRows != nil {
 		return nil, errRows
@@ -206,7 +206,7 @@ func (r *ToolRegistry) ListToolDefinitions(ctx context.Context, workspaceID stri
 		ORDER BY created_at ASC
 	`, workspaceID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list tool definitions: %w", err)
 	}
 	defer rows.Close()
 
@@ -219,7 +219,7 @@ func (r *ToolRegistry) ListToolDefinitions(ctx context.Context, workspaceID stri
 		out = append(out, item)
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, rowsErr
+		return nil, fmt.Errorf("iterate tool definitions: %w", rowsErr)
 	}
 	return out, nil
 }
@@ -256,7 +256,7 @@ func (r *ToolRegistry) SetToolDefinitionActive(ctx context.Context, workspaceID,
 		WHERE id = ? AND workspace_id = ?
 	`, activeRaw, now, id, workspaceID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("set tool definition active: %w", err)
 	}
 
 	if errRows := ensureRowsAffected(res, ErrToolDefinitionNotFound); errRows != nil {
@@ -272,7 +272,7 @@ func (r *ToolRegistry) DeleteToolDefinition(ctx context.Context, workspaceID, id
 		WHERE id = ? AND workspace_id = ?
 	`, id, workspaceID)
 	if err != nil {
-		return err
+		return fmt.Errorf("delete tool definition: %w", err)
 	}
 
 	return ensureRowsAffected(res, ErrToolDefinitionNotFound)
@@ -379,13 +379,17 @@ func validateUpdateInput(in UpdateToolDefinitionInput) error {
 }
 
 func marshalRequiredPermissions(perms []string) ([]byte, error) {
-	return json.Marshal(perms)
+	raw, err := json.Marshal(perms)
+	if err != nil {
+		return nil, fmt.Errorf("marshal required permissions: %w", err)
+	}
+	return raw, nil
 }
 
 func ensureRowsAffected(res sql.Result, notFoundErr error) error {
 	rows, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("count affected rows: %w", err)
 	}
 	if rows == 0 {
 		return notFoundErr
@@ -538,7 +542,7 @@ func scanToolDefinition(scan toolScanner) (*ToolDefinition, error) {
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan tool definition: %w", err)
 	}
 
 	item.IsActive = isActiveRaw == 1

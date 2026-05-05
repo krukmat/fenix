@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 )
@@ -34,7 +35,7 @@ func (h *WorkflowResumeHandler) Handle(ctx context.Context, job *schedulerdomain
 
 	payload, err := schedulerdomain.DecodeWorkflowResumePayload(job.Payload)
 	if err != nil {
-		return err
+		return fmt.Errorf("decode workflow resume payload: %w", err)
 	}
 	_, err = h.runner.Resume(ctx, h.rc, job.WorkspaceID, payload)
 	return err

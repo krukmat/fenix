@@ -56,13 +56,13 @@ type bddLLMProvider struct {
 func newBDDAPIRuntime() (*bddAPIRuntime, error) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open bdd api sqlite: %w", err)
 	}
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	if err := isqlite.MigrateUp(db); err != nil {
 		_ = db.Close()
-		return nil, err
+		return nil, fmt.Errorf("migrate bdd api sqlite: %w", err)
 	}
 
 	runtime := &bddAPIRuntime{
@@ -75,7 +75,7 @@ func newBDDAPIRuntime() (*bddAPIRuntime, error) {
 	}
 	if err := runtime.seedActors(); err != nil {
 		_ = db.Close()
-		return nil, err
+		return nil, fmt.Errorf("seed bdd api actors: %w", err)
 	}
 	runtime.router = runtime.buildRouter()
 	return runtime, nil
@@ -97,7 +97,10 @@ func (r *bddAPIRuntime) close() error {
 	if r == nil || r.db == nil {
 		return nil
 	}
-	return r.db.Close()
+	if err := r.db.Close(); err != nil {
+		return fmt.Errorf("close bdd api db: %w", err)
+	}
+	return nil
 }
 
 func (r *bddAPIRuntime) buildRouter() http.Handler {
@@ -183,14 +186,14 @@ func (r *bddAPIRuntime) seedActors() error {
 		INSERT INTO workspace (id, name, slug, created_at, updated_at)
 		VALUES (?, 'BDD Workspace', 'bdd-workspace', ?, ?)
 	`, r.workspaceID, now, now); err != nil {
-		return err
+		return fmt.Errorf("insert bdd workspace: %w", err)
 	}
 	for _, userID := range []string{r.userID, "governance_bdd"} {
 		if _, err := r.db.Exec(`
 			INSERT INTO user_account (id, workspace_id, email, display_name, status, created_at, updated_at)
 			VALUES (?, ?, ?, ?, 'active', ?, ?)
 		`, userID, r.workspaceID, userID+"@example.com", strings.ReplaceAll(userID, "_", " "), now, now); err != nil {
-			return err
+			return fmt.Errorf("insert bdd user %s: %w", userID, err)
 		}
 	}
 	return nil
@@ -201,7 +204,10 @@ func (r *bddAPIRuntime) ensureSupportAgentDefinition() error {
 		INSERT OR IGNORE INTO agent_definition (id, workspace_id, name, agent_type, status)
 		VALUES ('support-agent', ?, 'Support Agent', 'support', 'active')
 	`, r.workspaceID)
-	return err
+	if err != nil {
+		return fmt.Errorf("ensure support agent definition: %w", err)
+	}
+	return nil
 }
 
 func (r *bddAPIRuntime) ensureDealRiskAgentDefinition() error {
@@ -209,7 +215,10 @@ func (r *bddAPIRuntime) ensureDealRiskAgentDefinition() error {
 		INSERT OR IGNORE INTO agent_definition (id, workspace_id, name, agent_type, status)
 		VALUES ('deal-risk-agent', ?, 'Deal Risk Agent', 'deal-risk', 'active')
 	`, r.workspaceID)
-	return err
+	if err != nil {
+		return fmt.Errorf("ensure deal risk agent definition: %w", err)
+	}
+	return nil
 }
 
 func (r *bddAPIRuntime) createSupportCase(priority string) (string, error) {
@@ -222,7 +231,7 @@ func (r *bddAPIRuntime) createSupportCase(priority string) (string, error) {
 		OwnerID:     r.userID,
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create bdd contact: %w", err)
 	}
 	ticket, err := crm.NewCaseService(r.db).Create(context.Background(), crm.CreateCaseInput{
 		WorkspaceID: r.workspaceID,
@@ -234,7 +243,7 @@ func (r *bddAPIRuntime) createSupportCase(priority string) (string, error) {
 		Status:      "open",
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create support case: %w", err)
 	}
 	return ticket.ID, nil
 }
@@ -249,7 +258,7 @@ func (r *bddAPIRuntime) createSalesAccount() (string, error) {
 		OwnerID:     r.userID,
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create sales account: %w", err)
 	}
 	return account.ID, nil
 }
@@ -257,7 +266,7 @@ func (r *bddAPIRuntime) createSalesAccount() (string, error) {
 func (r *bddAPIRuntime) createSalesDeal() (string, error) {
 	accountID, err := r.createSalesAccount()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create sales account fixture: %w", err)
 	}
 	pipelineService := crm.NewPipelineService(r.db)
 	pipeline, err := pipelineService.Create(context.Background(), crm.CreatePipelineInput{
@@ -266,7 +275,7 @@ func (r *bddAPIRuntime) createSalesDeal() (string, error) {
 		EntityType:  "deal",
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create sales pipeline: %w", err)
 	}
 	stage, err := pipelineService.CreateStage(context.Background(), crm.CreatePipelineStageInput{
 		PipelineID: pipeline.ID,
@@ -274,7 +283,7 @@ func (r *bddAPIRuntime) createSalesDeal() (string, error) {
 		Position:   1,
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create sales stage: %w", err)
 	}
 	deal, err := crm.NewDealService(r.db).Create(context.Background(), crm.CreateDealInput{
 		WorkspaceID: r.workspaceID,
@@ -286,7 +295,7 @@ func (r *bddAPIRuntime) createSalesDeal() (string, error) {
 		Status:      "open",
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create sales deal: %w", err)
 	}
 	return deal.ID, nil
 }
@@ -297,7 +306,10 @@ func (r *bddAPIRuntime) markDealStale(dealID string, createdAt, updatedAt time.T
 		SET created_at = ?, updated_at = ?
 		WHERE id = ? AND workspace_id = ?
 	`, createdAt.Format(time.RFC3339), updatedAt.Format(time.RFC3339), dealID, r.workspaceID)
-	return err
+	if err != nil {
+		return fmt.Errorf("mark sales deal stale: %w", err)
+	}
+	return nil
 }
 
 func (r *bddAPIRuntime) recordQuotaState() (string, error) {
@@ -312,7 +324,7 @@ func (r *bddAPIRuntime) recordQuotaState() (string, error) {
 		IsActive:        true,
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create quota policy: %w", err)
 	}
 	now := time.Now().UTC()
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
@@ -326,7 +338,7 @@ func (r *bddAPIRuntime) recordQuotaState() (string, error) {
 		LastEventAt:   &now,
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("upsert quota state: %w", err)
 	}
 	return policyRecord.ID, nil
 }
@@ -338,7 +350,7 @@ func (r *bddAPIRuntime) request(method, path, userID string, body any) (int, []b
 	} else {
 		payload, err := json.Marshal(body)
 		if err != nil {
-			return 0, nil, err
+			return 0, nil, fmt.Errorf("marshal bdd request body: %w", err)
 		}
 		reader = bytes.NewReader(payload)
 	}
@@ -458,7 +470,7 @@ func newBDDEvidencePack(query string, confidence knowledge.ConfidenceLevel, scor
 func decodeBDDEnvelope(body []byte) (map[string]any, error) {
 	var decoded map[string]any
 	if err := json.Unmarshal(body, &decoded); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode bdd response envelope: %w", err)
 	}
 	return decoded, nil
 }

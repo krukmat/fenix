@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
@@ -72,7 +73,7 @@ func (o *Orchestrator) ListRunSteps(ctx context.Context, workspaceID, runID stri
 		ORDER BY step_index ASC, attempt ASC, created_at ASC
 	`, workspaceID, runID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list run steps: %w", err)
 	}
 	defer rows.Close()
 
@@ -85,7 +86,7 @@ func (o *Orchestrator) ListRunSteps(ctx context.Context, workspaceID, runID stri
 		steps = append(steps, step)
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, rowsErr
+		return nil, fmt.Errorf("iterate run steps: %w", rowsErr)
 	}
 
 	return steps, nil
@@ -119,7 +120,10 @@ func (o *Orchestrator) createInitialRunStep(ctx context.Context, run *Run) error
 		now,
 		now,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("insert initial run step: %w", err)
+	}
+	return nil
 }
 
 func scanRunStep(scan runStepScanner) (*RunStep, error) {
@@ -141,7 +145,7 @@ func scanRunStep(scan runStepScanner) (*RunStep, error) {
 		&step.CreatedAt,
 		&step.UpdatedAt,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan run step: %w", err)
 	}
 	applyRunStepNullables(&step, &n)
 	return &step, nil
@@ -349,7 +353,10 @@ func finalizeRunStatusTx(ctx context.Context, tx *sql.Tx, workspaceID, runID, st
 		SET status = ?, completed_at = ?, latency_ms = COALESCE(?, latency_ms), updated_at = ?
 		WHERE id = ? AND workspace_id = ?
 	`, status, now, latencyMs, now, runID, workspaceID)
-	return err
+	if err != nil {
+		return fmt.Errorf("update finalized run status: %w", err)
+	}
+	return nil
 }
 
 func reconcileOpenStepsTx(ctx context.Context, tx *sql.Tx, workspaceID, runID, terminalStepStatus string) error {
@@ -359,7 +366,10 @@ func reconcileOpenStepsTx(ctx context.Context, tx *sql.Tx, workspaceID, runID, t
 		SET status = ?, completed_at = COALESCE(completed_at, ?), updated_at = ?
 		WHERE workspace_id = ? AND agent_run_id = ? AND status IN (?, ?)
 	`, terminalStepStatus, now, now, workspaceID, runID, StepStatusPending, StepStatusRunning)
-	return err
+	if err != nil {
+		return fmt.Errorf("reconcile open run steps: %w", err)
+	}
+	return nil
 }
 
 func insertRunStepTx(ctx context.Context, tx *sql.Tx, step *RunStep) error {
@@ -384,7 +394,10 @@ func insertRunStepTx(ctx context.Context, tx *sql.Tx, step *RunStep) error {
 		step.CreatedAt,
 		step.UpdatedAt,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("insert run step: %w", err)
+	}
+	return nil
 }
 
 func listRunStepsTx(ctx context.Context, tx *sql.Tx, workspaceID, runID string) ([]*RunStep, error) {
@@ -396,7 +409,7 @@ func listRunStepsTx(ctx context.Context, tx *sql.Tx, workspaceID, runID string) 
 		ORDER BY step_index ASC, attempt ASC, created_at ASC
 	`, workspaceID, runID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list run steps in tx: %w", err)
 	}
 	defer rows.Close()
 
@@ -409,7 +422,7 @@ func listRunStepsTx(ctx context.Context, tx *sql.Tx, workspaceID, runID string) 
 		steps = append(steps, step)
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, rowsErr
+		return nil, fmt.Errorf("iterate run steps in tx: %w", rowsErr)
 	}
 	return steps, nil
 }
@@ -458,7 +471,7 @@ func nextRunStepIndexTx(ctx context.Context, tx *sql.Tx, workspaceID, runID stri
 		FROM agent_run_step
 		WHERE workspace_id = ? AND agent_run_id = ?
 	`, workspaceID, runID).Scan(&next); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("get next run step index: %w", err)
 	}
 	return next, nil
 }
@@ -494,7 +507,10 @@ func updateRunStepStateTx(ctx context.Context, tx *sql.Tx, stepID, workspaceID, 
 		SET status = ?, input = ?, output = ?, error = ?, started_at = ?, completed_at = ?, updated_at = ?
 		WHERE id = ? AND workspace_id = ?
 	`, status, nullJSON(input), nullJSON(output), errText, startedAt, completedAt, now, stepID, workspaceID)
-	return err
+	if err != nil {
+		return fmt.Errorf("update run step state: %w", err)
+	}
+	return nil
 }
 
 func validateStepTransition(current, next string) error {
@@ -544,13 +560,13 @@ func (o *Orchestrator) recoverRunningRun(ctx context.Context, run *Run) (*Run, e
 func (o *Orchestrator) loadRecoverableStep(ctx context.Context, workspaceID, runID string) (*sql.Tx, *RunStep, error) {
 	tx, err := o.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("begin run recovery tx: %w", err)
 	}
 
 	steps, err := listRunStepsTx(ctx, tx, workspaceID, runID)
 	if err != nil {
 		_ = tx.Rollback()
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("load run steps for recovery: %w", err)
 	}
 	return tx, findRunningRunStep(steps), nil
 }
@@ -560,7 +576,7 @@ func (o *Orchestrator) failRecoveredRun(ctx context.Context, tx *sql.Tx, run *Ru
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("commit failed run recovery: %w", err)
 	}
 	return o.GetAgentRun(ctx, run.WorkspaceID, run.ID)
 }
@@ -594,7 +610,7 @@ func (o *Orchestrator) retryRecoveredRun(ctx context.Context, tx *sql.Tx, run *R
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("commit retried run recovery: %w", err)
 	}
 	return o.GetAgentRun(ctx, run.WorkspaceID, run.ID)
 }
@@ -700,4 +716,40 @@ func nextStepStatusMap(current string) map[string]bool {
 	default:
 		return map[string]bool{}
 	}
+}
+
+// errTextFromError converts a non-nil error to a *string for storage.
+func errTextFromError(err error) *string {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	return &msg
+}
+
+// commitRunStepUpdate runs updateRunStepStateTx inside a new transaction and
+// commits it. beginPrefix and commitPrefix are used verbatim in error messages
+// so callers keep their distinct wording without duplicating the transaction
+// boilerplate.
+func commitRunStepUpdate(
+	ctx context.Context,
+	db *sql.DB,
+	workspaceID, stepID, status string,
+	output json.RawMessage,
+	stepErr error,
+	beginPrefix, commitPrefix string,
+) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("%s: %w", beginPrefix, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if updateErr := updateRunStepStateTx(ctx, tx, stepID, workspaceID, status, nil, output, errTextFromError(stepErr)); updateErr != nil {
+		return updateErr
+	}
+	if commitErr := tx.Commit(); commitErr != nil {
+		return fmt.Errorf("%s: %w", commitPrefix, commitErr)
+	}
+	return nil
 }

@@ -158,7 +158,11 @@ func startStatementTrace(ctx context.Context, executor RuntimeOperationExecutor,
 	if !ok {
 		return "", nil
 	}
-	return tracer.StartStatementTrace(ctx, stmt)
+	traceID, err := tracer.StartStatementTrace(ctx, stmt)
+	if err != nil {
+		return "", fmt.Errorf("start statement trace: %w", err)
+	}
+	return traceID, nil
 }
 
 func finishStatementTrace(ctx context.Context, executor RuntimeOperationExecutor, traceID string, result DSLStatementResult, err error) {
@@ -222,7 +226,7 @@ func (r *DSLRuntime) executeWait(ctx context.Context, stmt *WaitStatement, evalC
 		result.Status = StepStatusFailed
 		*out = append(*out, result)
 		finishStatementTrace(ctx, executor, traceID, result, execErr)
-		return false, execErr
+		return false, fmt.Errorf("execute wait statement: %w", execErr)
 	}
 	*out = append(*out, result)
 	finishStatementTrace(ctx, executor, traceID, result, nil)
@@ -267,7 +271,7 @@ func (r *DSLRuntime) applyExecutorResult(ctx context.Context, executor RuntimeOp
 		result.Status = StepStatusFailed
 		*out = append(*out, *result)
 		finishStatementTrace(ctx, executor, traceID, *result, execErr)
-		return false, execErr
+		return false, fmt.Errorf("execute mapped statement: %w", execErr)
 	}
 	*out = append(*out, *result)
 	finishStatementTrace(ctx, executor, traceID, *result, nil)

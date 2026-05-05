@@ -169,7 +169,7 @@ func (e *dslRuntimeExecutor) ExecuteWait(ctx context.Context, stmt *WaitStatemen
 		SourceID:  e.workflowID,
 	})
 	if err != nil {
-		return RuntimeExecutionResult{}, err
+		return RuntimeExecutionResult{}, fmt.Errorf("schedule workflow resume: %w", err)
 	}
 	e.pending = true
 	e.pendingOutput = map[string]any{
@@ -232,7 +232,7 @@ func (e *dslRuntimeExecutor) runSubAgent(ctx context.Context, op *RuntimeOperati
 	}
 	rawInputs, err := json.Marshal(op.Params)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("marshal sub-agent inputs: %w", err)
 	}
 	stored, err := e.invokeSubAgent(ctx, target, rawInputs)
 	if err != nil {
@@ -254,7 +254,7 @@ func (e *dslRuntimeExecutor) ensureDispatchedRun(ctx context.Context, op *Runtim
 	}
 	rawInputs, err := json.Marshal(op.Params)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal dispatch inputs: %w", err)
 	}
 	return e.invokeSubAgent(ctx, target, rawInputs)
 }
@@ -280,7 +280,7 @@ func (e *dslRuntimeExecutor) executeSurfaceOperation(ctx context.Context, op *Ru
 	}
 	created, err := e.rc.SignalService.Create(ctx, input)
 	if err != nil {
-		return RuntimeExecutionResult{}, err
+		return RuntimeExecutionResult{}, fmt.Errorf("create signal: %w", err)
 	}
 	return RuntimeExecutionResult{
 		Output: map[string]any{
@@ -714,7 +714,7 @@ func checkMappedAgentPolicy(ctx context.Context, rc *RunContext, actorID string,
 	}
 	allowed, err := rc.PolicyEngine.CheckAgentPermission(ctx, actorID, target.ID, target.Name)
 	if err != nil {
-		return err
+		return fmt.Errorf("check agent permission: %w", err)
 	}
 	if !allowed {
 		return fmt.Errorf("%w: agent %s denied by policy", ErrDSLAgentPolicyDenied, target.ID)

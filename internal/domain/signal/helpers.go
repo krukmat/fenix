@@ -3,6 +3,7 @@ package signal
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -79,7 +80,7 @@ func scanSignal(scanner interface {
 		&row.CreatedAt,
 		&row.UpdatedAt,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan signal row: %w", err)
 	}
 	return rowToSignal(row), nil
 }
@@ -93,7 +94,10 @@ func scanSignalRows(rows *sql.Rows) ([]*Signal, error) {
 		}
 		out = append(out, item)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate signal rows: %w", err)
+	}
+	return out, nil
 }
 
 func rowToSignal(row signalRow) *Signal {

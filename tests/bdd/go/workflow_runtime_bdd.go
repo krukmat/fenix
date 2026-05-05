@@ -62,24 +62,31 @@ func (e bddToolExecutor) Execute(_ context.Context, _ json.RawMessage) (json.Raw
 func (bddPendingNestedRunner) Run(ctx context.Context, rc *agentdomain.RunContext, input agentdomain.TriggerAgentInput) (*agentdomain.Run, error) {
 	run, err := rc.Orchestrator.TriggerAgent(ctx, input)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("trigger nested pending agent: %w", err)
 	}
 	output, _ := json.Marshal(map[string]any{
 		"action":      "pending_approval",
 		"approval_id": "apr_bdd_nested_1",
 	})
-	return rc.Orchestrator.UpdateAgentRun(ctx, input.WorkspaceID, run.ID, agentdomain.RunUpdates{
+	updatedRun, err := rc.Orchestrator.UpdateAgentRun(ctx, input.WorkspaceID, run.ID, agentdomain.RunUpdates{
 		Status:    agentdomain.StatusAccepted,
 		Output:    output,
 		ToolCalls: json.RawMessage(`[]`),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("update nested pending run: %w", err)
+	}
+	return updatedRun, nil
 }
 
 func (s *workflowRuntimeState) close() error {
 	if s == nil || s.db == nil {
 		return nil
 	}
-	return s.db.Close()
+	if err := s.db.Close(); err != nil {
+		return fmt.Errorf("close workflow runtime db: %w", err)
+	}
+	return nil
 }
 
 func initWorkflowRuntimeScenarios(ctx *godog.ScenarioContext, state *scenarioState) {
@@ -233,7 +240,7 @@ func registerA4WorkflowExecutionSteps(ctx *godog.ScenarioContext, state *scenari
 		}
 		var traceOutput map[string]any
 		if err := json.Unmarshal(dslSteps[0].Output, &traceOutput); err != nil {
-			return err
+			return fmt.Errorf("decode pending approval trace output: %w", err)
 		}
 		output, ok := traceOutput["output"].(map[string]any)
 		if !ok || output["action"] != "pending_approval" {
@@ -265,7 +272,7 @@ func registerA6DeferredActionSteps(ctx *godog.ScenarioContext, state *scenarioSt
 		}
 		jobs, err := state.workflowRuntime.schedulerRepo.ListDue(context.Background(), time.Now().UTC().Add(time.Second), 10)
 		if err != nil {
-			return err
+			return fmt.Errorf("list deferred workflow jobs: %w", err)
 		}
 		state.workflowRuntime.lastJobs = jobs
 		return nil
@@ -291,7 +298,7 @@ func registerA6DeferredActionSteps(ctx *godog.ScenarioContext, state *scenarioSt
 		}
 		var output map[string]any
 		if err := json.Unmarshal(state.workflowRuntime.lastRun.Output, &output); err != nil {
-			return err
+			return fmt.Errorf("decode resumed workflow output: %w", err)
 		}
 		resumed, _ := output["resumed"].(bool)
 		if !resumed {
@@ -343,7 +350,7 @@ func registerA6DeferredActionSteps(ctx *godog.ScenarioContext, state *scenarioSt
 		}
 		var output map[string]any
 		if err := json.Unmarshal(state.workflowRuntime.lastRun.Output, &output); err != nil {
-			return err
+			return fmt.Errorf("decode archived workflow output: %w", err)
 		}
 		if output["error"] != agentdomain.ErrDSLWorkflowNotActive.Error() {
 			return fmt.Errorf("unexpected archived workflow output = %#v", output)
@@ -400,25 +407,25 @@ func registerA6DeferredActionSteps(ctx *godog.ScenarioContext, state *scenarioSt
 func setupWorkflowRuntimeBDD(failingTool string) (*workflowRuntimeState, error) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open workflow runtime sqlite: %w", err)
 	}
 	if err = isqlite.MigrateUp(db); err != nil {
 		_ = db.Close()
-		return nil, err
+		return nil, fmt.Errorf("migrate workflow runtime sqlite: %w", err)
 	}
 	if _, err = db.Exec(`
 		INSERT INTO workspace (id, name, slug, created_at, updated_at)
 		VALUES (?, 'Workflow BDD', 'workflow-bdd', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, bddWorkspaceID); err != nil {
 		_ = db.Close()
-		return nil, err
+		return nil, fmt.Errorf("seed workflow runtime workspace: %w", err)
 	}
 	if _, err = db.Exec(`
 		INSERT INTO user_account (id, workspace_id, email, display_name, status, created_at, updated_at)
 		VALUES (?, ?, 'bdd@example.com', 'BDD User', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, bddUserID, bddWorkspaceID); err != nil {
 		_ = db.Close()
-		return nil, err
+		return nil, fmt.Errorf("seed workflow runtime user: %w", err)
 	}
 
 	registry := agentdomain.NewRunnerRegistry()
@@ -426,7 +433,7 @@ func setupWorkflowRuntimeBDD(failingTool string) (*workflowRuntimeState, error) 
 	toolRegistry, err := setupBDDToolRegistry(db, failingTool)
 	if err != nil {
 		_ = db.Close()
-		return nil, err
+		return nil, fmt.Errorf("setup workflow runtime tool registry: %w", err)
 	}
 	schedulerRepo := schedulerdomain.NewRepository(db)
 	schedulerSvc := schedulerdomain.NewService(schedulerRepo)
@@ -479,14 +486,14 @@ func setupBDDToolRegistry(db *sql.DB, failingTool string) (*tooldomain.ToolRegis
 			Name:        def.name,
 			InputSchema: json.RawMessage(def.schema),
 		}); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("create bdd tool definition %s: %w", def.name, err)
 		}
 		executor := bddToolExecutor{result: json.RawMessage(`{"status":"ok"}`)}
 		if def.name == failingTool {
 			executor.err = errors.New("bdd tool failure")
 		}
 		if err := registry.Register(def.name, executor); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("register bdd tool executor %s: %w", def.name, err)
 		}
 	}
 	return registry, nil
@@ -508,7 +515,10 @@ func (s *workflowRuntimeState) seedAgentDefinition(agentID string, name string, 
 		INSERT INTO agent_definition (id, workspace_id, name, agent_type, status, created_at, updated_at)
 		VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, agentID, bddWorkspaceID, name, agentType)
-	return err
+	if err != nil {
+		return fmt.Errorf("seed agent definition %s: %w", agentID, err)
+	}
+	return nil
 }
 
 func (s *workflowRuntimeState) seedWorkflowRecord(workflowID string, agentID string, name string, dsl string, status string) error {
@@ -520,11 +530,17 @@ func (s *workflowRuntimeState) seedWorkflowRecord(workflowID string, agentID str
 		INSERT INTO workflow (id, workspace_id, agent_definition_id, name, dsl_source, version, status, archived_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, 1, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, workflowID, bddWorkspaceID, agentID, name, dsl, status, archivedAt)
-	return err
+	if err != nil {
+		return fmt.Errorf("seed workflow record %s: %w", workflowID, err)
+	}
+	return nil
 }
 
 func (s *workflowRuntimeState) registerNestedPendingRunner() error {
-	return s.registry.Register("nested_pending", bddPendingNestedRunner{})
+	if err := s.registry.Register("nested_pending", bddPendingNestedRunner{}); err != nil {
+		return fmt.Errorf("register nested pending runner: %w", err)
+	}
+	return nil
 }
 
 func (s *workflowRuntimeState) runWorkflow(agentID string, triggerType string, triggerContext json.RawMessage) error {
@@ -547,7 +563,7 @@ func (s *workflowRuntimeState) runWorkflow(agentID string, triggerType string, t
 	})
 	if err != nil {
 		s.lastErr = err
-		return err
+		return fmt.Errorf("run workflow %s: %w", agentID, err)
 	}
 	return s.refreshRun(run.ID)
 }
@@ -560,10 +576,10 @@ func (s *workflowRuntimeState) seedAcceptedRun(agentID string, workflowID string
 		TriggerContext: json.RawMessage(bddEventPayloadCase),
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("trigger accepted workflow run: %w", err)
 	}
 	if _, err = s.orchestrator.UpdateAgentRunStatus(context.Background(), bddWorkspaceID, run.ID, agentdomain.StatusAccepted); err != nil {
-		return err
+		return fmt.Errorf("mark workflow run accepted: %w", err)
 	}
 	job, err := s.schedulerSvc.Schedule(context.Background(), schedulerdomain.ScheduleJobInput{
 		WorkspaceID: bddWorkspaceID,
@@ -577,7 +593,7 @@ func (s *workflowRuntimeState) seedAcceptedRun(agentID string, workflowID string
 		SourceID:  workflowID,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("schedule workflow resume job: %w", err)
 	}
 	s.lastRun = run
 	s.lastJobs = []*schedulerdomain.ScheduledJob{job}
@@ -588,7 +604,7 @@ func (s *workflowRuntimeState) resumeJob(job *schedulerdomain.ScheduledJob) erro
 	if err := s.resumeHandler.Handle(context.Background(), job); err != nil {
 		s.lastErr = err
 		_ = s.refreshRunFromCurrent()
-		return err
+		return fmt.Errorf("resume workflow job: %w", err)
 	}
 	return s.refreshRunFromCurrent()
 }
@@ -603,11 +619,11 @@ func (s *workflowRuntimeState) refreshRunFromCurrent() error {
 func (s *workflowRuntimeState) refreshRun(runID string) error {
 	run, err := s.orchestrator.GetAgentRun(context.Background(), bddWorkspaceID, runID)
 	if err != nil {
-		return err
+		return fmt.Errorf("get workflow run: %w", err)
 	}
 	steps, err := s.orchestrator.ListRunSteps(context.Background(), bddWorkspaceID, runID)
 	if err != nil {
-		return err
+		return fmt.Errorf("list workflow run steps: %w", err)
 	}
 	s.lastRun = run
 	s.lastSteps = steps

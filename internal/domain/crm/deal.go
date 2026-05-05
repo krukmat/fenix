@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -129,7 +130,10 @@ func (s *DealService) Create(ctx context.Context, input CreateDealInput) (*Deal,
 func (s *DealService) Get(ctx context.Context, workspaceID, dealID string) (*Deal, error) {
 	row, err := s.querier.GetDealByID(ctx, sqlcgen.GetDealByIDParams{ID: dealID, WorkspaceID: workspaceID})
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, fmt.Errorf("get deal by id: %w", err)
 	}
 	return rowToDeal(row), nil
 }
@@ -186,31 +190,76 @@ func (s *DealService) listFiltered(ctx context.Context, workspaceID string, inpu
 }
 
 func (s *DealService) selectDealRowsByFilter(ctx context.Context, workspaceID string, input ListDealsInput) ([]sqlcgen.Deal, error) {
-	if input.StageID != "" {
-		return s.querier.ListDealsByStage(ctx, sqlcgen.ListDealsByStageParams{WorkspaceID: workspaceID, StageID: input.StageID})
+	switch {
+	case input.StageID != "":
+		return s.listDealsByStage(ctx, workspaceID, input.StageID)
+	case input.PipelineID != "":
+		return s.listDealsByPipeline(ctx, workspaceID, input.PipelineID)
+	case input.AccountID != "":
+		return s.listDealsByAccount(ctx, workspaceID, input.AccountID)
+	case input.OwnerID != "":
+		return s.listDealsByOwner(ctx, workspaceID, input.OwnerID)
+	case input.Status != "":
+		return s.listDealsByStatus(ctx, workspaceID, input.Status)
+	default:
+		return s.listDealsByWorkspaceAll(ctx, workspaceID)
 	}
-	if input.PipelineID != "" {
-		return s.querier.ListDealsByPipeline(ctx, sqlcgen.ListDealsByPipelineParams{WorkspaceID: workspaceID, PipelineID: input.PipelineID})
-	}
-	if input.AccountID != "" {
-		return s.querier.ListDealsByAccount(ctx, sqlcgen.ListDealsByAccountParams{WorkspaceID: workspaceID, AccountID: input.AccountID})
-	}
-	if input.OwnerID != "" {
-		return s.querier.ListDealsByOwner(ctx, sqlcgen.ListDealsByOwnerParams{WorkspaceID: workspaceID, OwnerID: input.OwnerID})
-	}
-	if input.Status != "" {
-		return s.querier.ListDealsByStatus(ctx, sqlcgen.ListDealsByStatusParams{WorkspaceID: workspaceID, Status: input.Status})
-	}
+}
 
+func (s *DealService) listDealsByStage(ctx context.Context, workspaceID, stageID string) ([]sqlcgen.Deal, error) {
+	rows, err := s.querier.ListDealsByStage(ctx, sqlcgen.ListDealsByStageParams{WorkspaceID: workspaceID, StageID: stageID})
+	if err != nil {
+		return nil, fmt.Errorf("list deals by stage: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *DealService) listDealsByPipeline(ctx context.Context, workspaceID, pipelineID string) ([]sqlcgen.Deal, error) {
+	rows, err := s.querier.ListDealsByPipeline(ctx, sqlcgen.ListDealsByPipelineParams{WorkspaceID: workspaceID, PipelineID: pipelineID})
+	if err != nil {
+		return nil, fmt.Errorf("list deals by pipeline: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *DealService) listDealsByAccount(ctx context.Context, workspaceID, accountID string) ([]sqlcgen.Deal, error) {
+	rows, err := s.querier.ListDealsByAccount(ctx, sqlcgen.ListDealsByAccountParams{WorkspaceID: workspaceID, AccountID: accountID})
+	if err != nil {
+		return nil, fmt.Errorf("list deals by account: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *DealService) listDealsByOwner(ctx context.Context, workspaceID, ownerID string) ([]sqlcgen.Deal, error) {
+	rows, err := s.querier.ListDealsByOwner(ctx, sqlcgen.ListDealsByOwnerParams{WorkspaceID: workspaceID, OwnerID: ownerID})
+	if err != nil {
+		return nil, fmt.Errorf("list deals by owner: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *DealService) listDealsByStatus(ctx context.Context, workspaceID, status string) ([]sqlcgen.Deal, error) {
+	rows, err := s.querier.ListDealsByStatus(ctx, sqlcgen.ListDealsByStatusParams{WorkspaceID: workspaceID, Status: status})
+	if err != nil {
+		return nil, fmt.Errorf("list deals by status: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *DealService) listDealsByWorkspaceAll(ctx context.Context, workspaceID string) ([]sqlcgen.Deal, error) {
 	total, err := s.querier.CountDealsByWorkspace(ctx, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("count deals: %w", err)
 	}
-	return s.querier.ListDealsByWorkspace(ctx, sqlcgen.ListDealsByWorkspaceParams{
+	rows, err := s.querier.ListDealsByWorkspace(ctx, sqlcgen.ListDealsByWorkspaceParams{
 		WorkspaceID: workspaceID,
 		Limit:       total,
 		Offset:      0,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("list deals by workspace: %w", err)
+	}
+	return rows, nil
 }
 
 func sortDealsByCreatedAt(items []*Deal, sortBy string) {

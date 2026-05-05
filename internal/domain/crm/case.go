@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -149,7 +150,10 @@ func (s *CaseService) Create(ctx context.Context, input CreateCaseInput) (*CaseT
 func (s *CaseService) Get(ctx context.Context, workspaceID, caseID string) (*CaseTicket, error) {
 	row, err := s.querier.GetCaseByID(ctx, sqlcgen.GetCaseByIDParams{ID: caseID, WorkspaceID: workspaceID})
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, fmt.Errorf("get case by id: %w", err)
 	}
 	return rowToCaseTicket(row), nil
 }
@@ -216,25 +220,56 @@ func (s *CaseService) listFiltered(ctx context.Context, workspaceID string, inpu
 }
 
 func (s *CaseService) selectCaseRowsByFilter(ctx context.Context, workspaceID string, input ListCasesInput) ([]sqlcgen.CaseTicket, error) {
-	if input.AccountID != "" {
-		return s.querier.ListCasesByAccount(ctx, sqlcgen.ListCasesByAccountParams{WorkspaceID: workspaceID, AccountID: nullString(input.AccountID)})
+	switch {
+	case input.AccountID != "":
+		return s.listCasesByAccount(ctx, workspaceID, input.AccountID)
+	case input.OwnerID != "":
+		return s.listCasesByOwner(ctx, workspaceID, input.OwnerID)
+	case input.Status != "":
+		return s.listCasesByStatus(ctx, workspaceID, input.Status)
+	default:
+		return s.listCasesByWorkspaceAll(ctx, workspaceID)
 	}
-	if input.OwnerID != "" {
-		return s.querier.ListCasesByOwner(ctx, sqlcgen.ListCasesByOwnerParams{WorkspaceID: workspaceID, OwnerID: input.OwnerID})
-	}
-	if input.Status != "" {
-		return s.querier.ListCasesByStatus(ctx, sqlcgen.ListCasesByStatusParams{WorkspaceID: workspaceID, Status: input.Status})
-	}
+}
 
+func (s *CaseService) listCasesByAccount(ctx context.Context, workspaceID, accountID string) ([]sqlcgen.CaseTicket, error) {
+	rows, err := s.querier.ListCasesByAccount(ctx, sqlcgen.ListCasesByAccountParams{WorkspaceID: workspaceID, AccountID: nullString(accountID)})
+	if err != nil {
+		return nil, fmt.Errorf("list cases by account: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *CaseService) listCasesByOwner(ctx context.Context, workspaceID, ownerID string) ([]sqlcgen.CaseTicket, error) {
+	rows, err := s.querier.ListCasesByOwner(ctx, sqlcgen.ListCasesByOwnerParams{WorkspaceID: workspaceID, OwnerID: ownerID})
+	if err != nil {
+		return nil, fmt.Errorf("list cases by owner: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *CaseService) listCasesByStatus(ctx context.Context, workspaceID, status string) ([]sqlcgen.CaseTicket, error) {
+	rows, err := s.querier.ListCasesByStatus(ctx, sqlcgen.ListCasesByStatusParams{WorkspaceID: workspaceID, Status: status})
+	if err != nil {
+		return nil, fmt.Errorf("list cases by status: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *CaseService) listCasesByWorkspaceAll(ctx context.Context, workspaceID string) ([]sqlcgen.CaseTicket, error) {
 	total, err := s.querier.CountCasesByWorkspace(ctx, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("count cases: %w", err)
 	}
-	return s.querier.ListCasesByWorkspace(ctx, sqlcgen.ListCasesByWorkspaceParams{
+	rows, err := s.querier.ListCasesByWorkspace(ctx, sqlcgen.ListCasesByWorkspaceParams{
 		WorkspaceID: workspaceID,
 		Limit:       total,
 		Offset:      0,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("list cases by workspace: %w", err)
+	}
+	return rows, nil
 }
 
 func filterCasesByPriority(items []*CaseTicket, priority string) []*CaseTicket {

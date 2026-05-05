@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
@@ -56,7 +57,7 @@ func (s *Service) RecordEvent(ctx context.Context, input RecordEventInput) (*Eve
 		event.CreatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("record usage event: %w", err)
 	}
 
 	return event, nil
@@ -76,7 +77,7 @@ func (s *Service) ListEvents(ctx context.Context, workspaceID string, runID *str
 		LIMIT ?
 	`, workspaceID, runID, runID, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list usage events: %w", err)
 	}
 	defer rows.Close()
 
@@ -89,7 +90,7 @@ func (s *Service) ListEvents(ctx context.Context, workspaceID string, runID *str
 		events = append(events, event)
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, rowsErr
+		return nil, fmt.Errorf("iterate usage events: %w", rowsErr)
 	}
 	return events, nil
 }
@@ -140,7 +141,7 @@ func (s *Service) CreatePolicy(ctx context.Context, input CreatePolicyInput) (*P
 		policy.UpdatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create quota policy: %w", err)
 	}
 
 	return policy, nil
@@ -181,7 +182,7 @@ func (s *Service) UpsertState(ctx context.Context, input UpsertStateInput) (*Sta
 		state.UpdatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("upsert quota state: %w", err)
 	}
 
 	return s.GetState(ctx, input.WorkspaceID, input.QuotaPolicyID, input.PeriodStart.UTC(), input.PeriodEnd.UTC())
@@ -198,7 +199,7 @@ func (s *Service) ListActivePolicies(ctx context.Context, workspaceID string) ([
 		ORDER BY created_at ASC
 	`, workspaceID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list active quota policies: %w", err)
 	}
 	defer rows.Close()
 
@@ -211,7 +212,7 @@ func (s *Service) ListActivePolicies(ctx context.Context, workspaceID string) ([
 			&p.MetricName, &p.LimitValue, &p.ResetPeriod, &p.EnforcementMode,
 			&p.IsActive, &p.CreatedAt, &p.UpdatedAt,
 		); scanErr != nil {
-			return nil, scanErr
+			return nil, fmt.Errorf("scan quota policy: %w", scanErr)
 		}
 		if scopeID.Valid {
 			p.ScopeID = &scopeID.String
@@ -219,7 +220,7 @@ func (s *Service) ListActivePolicies(ctx context.Context, workspaceID string) ([
 		policies = append(policies, &p)
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, rowsErr
+		return nil, fmt.Errorf("iterate active quota policies: %w", rowsErr)
 	}
 	return policies, nil
 }
@@ -237,7 +238,7 @@ func (s *Service) GetState(ctx context.Context, workspaceID, quotaPolicyID strin
 		return nil, ErrQuotaStateNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get quota state: %w", err)
 	}
 	return state, nil
 }
@@ -276,7 +277,7 @@ func scanEvent(scan eventScanner) (*Event, error) {
 		&latencyMs,
 		&event.CreatedAt,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan usage event: %w", err)
 	}
 
 	if runID.Valid {
@@ -316,7 +317,7 @@ func scanState(scan stateScanner) (*State, error) {
 		&state.CreatedAt,
 		&state.UpdatedAt,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan quota state: %w", err)
 	}
 
 	if lastEventAt.Valid {

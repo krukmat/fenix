@@ -6,6 +6,7 @@ package knowledge
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 
@@ -60,7 +61,7 @@ func (s *IngestService) Ingest(ctx context.Context, input CreateKnowledgeItemInp
 
 	tx, txErr := s.db.BeginTx(ctx, nil)
 	if txErr != nil {
-		return nil, txErr
+		return nil, fmt.Errorf("begin knowledge ingest transaction: %w", txErr)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
@@ -76,7 +77,7 @@ func (s *IngestService) Ingest(ctx context.Context, input CreateKnowledgeItemInp
 	}
 
 	if commitErr := tx.Commit(); commitErr != nil {
-		return nil, commitErr
+		return nil, fmt.Errorf("commit knowledge ingest transaction: %w", commitErr)
 	}
 
 	s.bus.Publish(TopicKnowledgeIngested, IngestedEventPayload{
@@ -141,7 +142,10 @@ func (s *IngestService) insertKnowledgeItem(
 		CreatedAt:         now,
 		UpdatedAt:         now,
 	})
-	return itemID, err
+	if err != nil {
+		return itemID, fmt.Errorf("create knowledge item: %w", err)
+	}
+	return itemID, nil
 }
 
 // updateKnowledgeItem updates content fields and removes old chunks for re-chunking.
@@ -177,12 +181,15 @@ func (s *IngestService) updateKnowledgeItem(
 		itemID,
 		input.WorkspaceID,
 	); err != nil {
-		return err
+		return fmt.Errorf("update knowledge item: %w", err)
 	}
-	return qtx.DeleteEmbeddingDocumentsByKnowledgeItem(ctx, sqlcgen.DeleteEmbeddingDocumentsByKnowledgeItemParams{
+	if err := qtx.DeleteEmbeddingDocumentsByKnowledgeItem(ctx, sqlcgen.DeleteEmbeddingDocumentsByKnowledgeItemParams{
 		KnowledgeItemID: itemID,
 		WorkspaceID:     input.WorkspaceID,
-	})
+	}); err != nil {
+		return fmt.Errorf("delete knowledge chunks: %w", err)
+	}
+	return nil
 }
 
 // insertChunks inserts embedding_document rows for each chunk with status=pending.
@@ -199,7 +206,7 @@ func insertChunks(ctx context.Context, qtx *sqlcgen.Queries, itemID, workspaceID
 			EmbeddingStatus: string(EmbeddingStatusPending),
 			CreatedAt:       now,
 		}); err != nil {
-			return err
+			return fmt.Errorf("create embedding document: %w", err)
 		}
 	}
 	return nil

@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -97,7 +98,10 @@ func (s *PipelineService) Create(ctx context.Context, input CreatePipelineInput)
 func (s *PipelineService) Get(ctx context.Context, workspaceID, pipelineID string) (*Pipeline, error) {
 	row, err := s.querier.GetPipelineByID(ctx, sqlcgen.GetPipelineByIDParams{ID: pipelineID, WorkspaceID: workspaceID})
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, fmt.Errorf("get pipeline by id: %w", err)
 	}
 	return rowToPipeline(row), nil
 }
@@ -166,7 +170,10 @@ func (s *PipelineService) CreateStage(ctx context.Context, input CreatePipelineS
 func (s *PipelineService) GetStage(ctx context.Context, stageID string) (*PipelineStage, error) {
 	row, err := s.querier.GetPipelineStageByID(ctx, stageID)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, fmt.Errorf("get pipeline stage by id: %w", err)
 	}
 	return rowToPipelineStage(row), nil
 }

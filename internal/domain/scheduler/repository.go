@@ -202,7 +202,7 @@ func scanScheduledJob(row interface{ Scan(dest ...any) error }) (*ScheduledJob, 
 		&executedAtText,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan scheduled job: %w", err)
 	}
 
 	executeParsed, err := parseTime(executeAt)
@@ -240,7 +240,7 @@ func scanScheduledJobRows(rows *sql.Rows) ([]*ScheduledJob, error) {
 		out = append(out, job)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("iterate scheduled jobs: %w", err)
 	}
 	return out, nil
 }

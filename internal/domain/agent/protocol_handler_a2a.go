@@ -42,7 +42,11 @@ type a2aClientFactory interface {
 type defaultA2AClientFactory struct{}
 
 func (defaultA2AClientFactory) NewFromCard(ctx context.Context, card *a2a.AgentCard, opts ...a2aclient.FactoryOption) (a2aDispatchClient, error) {
-	return a2aclient.NewFromCard(ctx, card, opts...)
+	client, err := a2aclient.NewFromCard(ctx, card, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("create A2A client: %w", err)
+	}
+	return client, nil
 }
 
 type A2AProtocolHandler struct {
@@ -123,12 +127,16 @@ func (h *A2AProtocolHandler) sendA2ADispatch(
 ) (a2a.SendMessageResult, error) {
 	client, err := h.factory.NewFromCard(ctx, card, opts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create A2A dispatch client: %w", err)
 	}
 	defer func() { _ = client.Destroy() }()
 
 	params := buildA2AMessageSendParams(input, endpoint, dispatchID, traceID)
-	return client.SendMessage(ctx, params)
+	result, err := client.SendMessage(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("send A2A message: %w", err)
+	}
+	return result, nil
 }
 
 func finalizeA2ADispatch(

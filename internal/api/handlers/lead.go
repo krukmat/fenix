@@ -198,7 +198,7 @@ func (h *LeadHandler) UpdateLead(w http.ResponseWriter, r *http.Request) {
 		func(ctx context.Context, wsID, leadID string, input crm.UpdateLeadInput) (*LeadResponse, error) {
 			updated, err := h.leadService.Update(ctx, wsID, leadID, input)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("update lead: %w", err)
 			}
 			resp := leadToResponse(updated)
 			return &resp, nil

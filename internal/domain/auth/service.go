@@ -162,7 +162,10 @@ func (s *authService) insertWorkspaceAndUser(ctx context.Context, p insertParams
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	return tx.Commit()
+	if commitErr := tx.Commit(); commitErr != nil {
+		return fmt.Errorf("commit workspace and user transaction: %w", commitErr)
+	}
+	return nil
 }
 
 // Login verifies credentials and returns a JWT.

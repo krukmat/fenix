@@ -138,22 +138,28 @@ func (s *SuiteService) Update(ctx context.Context, in UpdateSuiteInput) error {
 	if err != nil {
 		return fmt.Errorf("marshal thresholds: %w", err)
 	}
-	return s.querier.UpdateEvalSuite(ctx, sqlcgen.UpdateEvalSuiteParams{
+	if updateErr := s.querier.UpdateEvalSuite(ctx, sqlcgen.UpdateEvalSuiteParams{
 		Name:        in.Name,
 		Domain:      in.Domain,
 		TestCases:   string(tcJSON),
 		Thresholds:  string(thrJSON),
 		ID:          in.ID,
 		WorkspaceID: in.WorkspaceID,
-	})
+	}); updateErr != nil {
+		return fmt.Errorf("update eval suite: %w", updateErr)
+	}
+	return nil
 }
 
 // Delete removes a suite.
 // Task 4.7: FR-242
 func (s *SuiteService) Delete(ctx context.Context, workspaceID, id string) error {
-	return s.querier.DeleteEvalSuite(ctx, sqlcgen.DeleteEvalSuiteParams{
+	if err := s.querier.DeleteEvalSuite(ctx, sqlcgen.DeleteEvalSuiteParams{
 		ID: id, WorkspaceID: workspaceID,
-	})
+	}); err != nil {
+		return fmt.Errorf("delete eval suite: %w", err)
+	}
+	return nil
 }
 
 // rowToSuite converts a sqlcgen.EvalSuite to domain Suite.

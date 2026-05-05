@@ -195,7 +195,7 @@ func (h *ContactHandler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 		func(ctx context.Context, wsID, contactID string, input crm.UpdateContactInput) (*ContactResponse, error) {
 			updated, err := h.contactService.Update(ctx, wsID, contactID, input)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("update contact: %w", err)
 			}
 			resp := contactToResponse(updated)
 			return &resp, nil

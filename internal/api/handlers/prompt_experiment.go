@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -119,7 +120,7 @@ func buildStartExperimentInput(w http.ResponseWriter, r *http.Request) (agent.St
 func decodeStartExperimentRequest(r *http.Request) (StartPromptExperimentRequest, error) {
 	var req StartPromptExperimentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return StartPromptExperimentRequest{}, err
+		return StartPromptExperimentRequest{}, fmt.Errorf("decode start experiment request: %w", err)
 	}
 	return req, nil
 }
@@ -153,7 +154,7 @@ func decodeStopExperimentRequest(r *http.Request) (StopPromptExperimentRequest, 
 	}
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil && !errors.Is(err, io.EOF) {
-		return StopPromptExperimentRequest{}, err
+		return StopPromptExperimentRequest{}, fmt.Errorf("decode stop experiment request: %w", err)
 	}
 	return req, nil
 }

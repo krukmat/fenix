@@ -5,6 +5,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -129,7 +130,10 @@ func (s *AccountService) Get(ctx context.Context, workspaceID, accountID string)
 		WorkspaceID: workspaceID,
 	})
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, fmt.Errorf("get account by id: %w", err)
 	}
 
 	return rowToAccount(row), nil

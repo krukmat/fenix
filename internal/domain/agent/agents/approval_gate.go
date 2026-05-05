@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
@@ -48,7 +49,7 @@ func createApprovalGateRequest(ctx context.Context, db *sql.DB, in approvalGateI
 		ExpiresAt:    time.Now().UTC().Add(in.TTL),
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create approval request: %w", err)
 	}
 	return req.ID, nil
 }

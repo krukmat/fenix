@@ -109,7 +109,7 @@ func (a *KBAgent) Run(ctx context.Context, config KBAgentConfig) (*agent.Run, er
 		Inputs:         inputs,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("trigger KB run: %w", err)
 	}
 
 	toolCtx := context.WithValue(ctx, ctxkeys.WorkspaceID, normalized.WorkspaceID) // Task 4.5c — toolCtx workspace propagation.
@@ -131,7 +131,7 @@ func (a *KBAgent) Run(ctx context.Context, config KBAgentConfig) (*agent.Run, er
 		TotalTokens: result.TotalTokens,
 	})
 	if err != nil {
-		return run, err
+		return run, fmt.Errorf("complete KB run: %w", err)
 	}
 
 	return run, nil
@@ -152,7 +152,10 @@ func (a *KBAgent) normalizeConfig(ctx context.Context, config KBAgentConfig) (KB
 
 func (a *KBAgent) markRunFailed(ctx context.Context, run *agent.Run) error {
 	_, err := a.orchestrator.UpdateAgentRunStatus(ctx, run.WorkspaceID, run.ID, agent.StatusFailed)
-	return err
+	if err != nil {
+		return fmt.Errorf("mark KB run failed: %w", err)
+	}
+	return nil
 }
 
 // KBResult holds runtime update payload.
@@ -277,7 +280,7 @@ func (a *KBAgent) loadEligibleCase(
 		return nil, nil, ErrCaseNotFound
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("get case ticket: %w", err)
 	}
 	if !isResolvedOrClosedCase(caseTicket.Status) {
 		return nil, nil, ErrCaseNotResolved
@@ -351,7 +354,7 @@ func (a *KBAgent) updateKnowledgeArticle(ctx context.Context, articleID, subject
 		KnowledgeItemID string `json:"knowledge_item_id"`
 	}
 	if unmarshalErr := json.Unmarshal(raw, &parsed); unmarshalErr != nil {
-		return "", unmarshalErr
+		return "", fmt.Errorf("decode updated knowledge article: %w", unmarshalErr)
 	}
 	if parsed.KnowledgeItemID == "" {
 		return articleID, nil
@@ -373,7 +376,7 @@ func (a *KBAgent) createKnowledgeArticle(ctx context.Context, workspaceID, subje
 		KnowledgeItemID string `json:"knowledge_item_id"`
 	}
 	if unmarshalErr := json.Unmarshal(raw, &parsed); unmarshalErr != nil {
-		return "", unmarshalErr
+		return "", fmt.Errorf("decode created knowledge article: %w", unmarshalErr)
 	}
 	if parsed.KnowledgeItemID == "" {
 		return "", ErrKBArticleCreationFailed
@@ -394,7 +397,7 @@ func (a *KBAgent) checkDailyLimits(ctx context.Context, workspaceID string) erro
 		  AND agent_definition_id = 'kb-agent'
 		  AND date(created_at) = date('now')
 	`, workspaceID).Scan(&runsToday); err != nil {
-		return err
+		return fmt.Errorf("count daily KB runs: %w", err)
 	}
 	if runsToday >= maxDailyArticles {
 		return ErrKBDailyLimitExceeded

@@ -122,7 +122,7 @@ func (a *ProspectingAgent) Run(ctx context.Context, config ProspectingAgentConfi
 		Inputs:         inputs,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("trigger prospecting run: %w", err)
 	}
 
 	result, err := a.executeProspectingFlow(ctx, normalized)
@@ -145,7 +145,7 @@ func (a *ProspectingAgent) Run(ctx context.Context, config ProspectingAgentConfi
 		Completed:      true,
 	})
 	if err != nil {
-		return run, err
+		return run, fmt.Errorf("complete prospecting run: %w", err)
 	}
 
 	return run, nil
@@ -166,7 +166,10 @@ func (a *ProspectingAgent) normalizeConfig(ctx context.Context, config Prospecti
 
 func (a *ProspectingAgent) markRunFailed(ctx context.Context, run *agent.Run) error {
 	_, err := a.orchestrator.UpdateAgentRunStatus(ctx, run.WorkspaceID, run.ID, agent.StatusFailed)
-	return err
+	if err != nil {
+		return fmt.Errorf("mark prospecting run failed: %w", err)
+	}
+	return nil
 }
 
 // ProspectingResult holds runtime update payload.
@@ -379,14 +382,14 @@ func (a *ProspectingAgent) requestProspectingApproval(
 func (a *ProspectingAgent) fetchLead(ctx context.Context, config ProspectingAgentConfig) (*crm.Lead, error) {
 	raw, err := a.toolRegistry.Execute(ctx, config.WorkspaceID, tool.BuiltinGetLead, mustJSON(map[string]any{"lead_id": config.LeadID}))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get lead: %w", err)
 	}
 	var parsed struct {
 		Lead *crm.Lead `json:"lead"`
 	}
 	unmarshalErr := json.Unmarshal(raw, &parsed)
 	if unmarshalErr != nil {
-		return nil, unmarshalErr
+		return nil, fmt.Errorf("decode lead: %w", unmarshalErr)
 	}
 	if parsed.Lead == nil {
 		return nil, ErrLeadNotFound
@@ -397,14 +400,14 @@ func (a *ProspectingAgent) fetchLead(ctx context.Context, config ProspectingAgen
 func (a *ProspectingAgent) fetchAccount(ctx context.Context, accountID string) (*crm.Account, error) {
 	raw, err := a.toolRegistry.Execute(ctx, workspaceFromCtx(ctx), tool.BuiltinGetAccount, mustJSON(map[string]any{"account_id": accountID}))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get account: %w", err)
 	}
 	var parsed struct {
 		Account *crm.Account `json:"account"`
 	}
 	unmarshalErr := json.Unmarshal(raw, &parsed)
 	if unmarshalErr != nil {
-		return nil, unmarshalErr
+		return nil, fmt.Errorf("decode account: %w", unmarshalErr)
 	}
 	if parsed.Account == nil {
 		return nil, ErrAccountNotFound
@@ -423,14 +426,14 @@ func (a *ProspectingAgent) createFollowUpTask(ctx context.Context, lead *crm.Lea
 		"entity_id":   *lead.AccountID,
 	}))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create follow-up task: %w", err)
 	}
 	var parsed struct {
 		TaskID string `json:"task_id"`
 	}
 	unmarshalErr := json.Unmarshal(raw, &parsed)
 	if unmarshalErr != nil {
-		return "", unmarshalErr
+		return "", fmt.Errorf("decode follow-up task: %w", unmarshalErr)
 	}
 	if parsed.TaskID == "" {
 		return "", ErrTaskCreationFailed
@@ -456,7 +459,7 @@ func (a *ProspectingAgent) generateDraft(
 		MaxTokens:   180,
 	})
 	if err != nil {
-		return "", 0, 0, err
+		return "", 0, 0, fmt.Errorf("generate outreach draft: %w", err)
 	}
 	content := strings.TrimSpace(resp.Content)
 	if content == "" {

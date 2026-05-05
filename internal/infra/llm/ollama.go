@@ -102,7 +102,7 @@ func (p *OllamaProvider) Embed(ctx context.Context, req EmbedRequest) (*EmbedRes
 func (p *OllamaProvider) embedOne(ctx context.Context, model, text string) ([]float32, error) {
 	body, err := json.Marshal(ollamaEmbedRequest{Model: model, Prompt: text})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal embed request: %w", err)
 	}
 
 	respBody, postErr := p.doPost(ctx, "/api/embeddings", body)
@@ -139,7 +139,7 @@ func (p *OllamaProvider) ChatCompletion(ctx context.Context, req ChatRequest) (*
 		Options:  opts,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal chat request: %w", err)
 	}
 
 	respBody, postErr := p.doPost(ctx, "/api/chat", body)

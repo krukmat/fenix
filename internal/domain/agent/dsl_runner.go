@@ -249,7 +249,7 @@ func (r *DSLRunner) loadActiveWorkflow(ctx context.Context, workspaceID, agentDe
 		if errors.Is(err, workflowdomain.ErrWorkflowNotFound) {
 			return nil, ErrDSLWorkflowNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("get active workflow: %w", err)
 	}
 	return item, nil
 }
@@ -263,7 +263,7 @@ func (r *DSLRunner) loadWorkflowForResume(ctx context.Context, workspaceID, work
 		if errors.Is(err, workflowdomain.ErrWorkflowNotFound) {
 			return nil, ErrDSLWorkflowNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("get workflow: %w", err)
 	}
 	if item.Status != workflowdomain.StatusActive {
 		return nil, ErrDSLWorkflowNotActive
@@ -366,7 +366,7 @@ func (r *DSLRunner) finalizeResumeDispatchTerminal(ctx context.Context, rc *RunC
 func (r *DSLRunner) updateRunWithPayload(ctx context.Context, rc *RunContext, workspaceID, runID, status string, payload any, toolCalls json.RawMessage, completed bool) (*Run, error) {
 	output, err := json.Marshal(payload)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal DSL run output: %w", err)
 	}
 	return rc.Orchestrator.UpdateAgentRun(ctx, workspaceID, runID, emptyTracesUpdate(status, output, toolCalls, completed))
 }
@@ -462,10 +462,14 @@ func (r *DSLRunner) applyDelegateDecision(ctx context.Context, rc *RunContext, i
 }
 
 func buildDelegatePayload(reason string) (json.RawMessage, error) {
-	return json.Marshal(map[string]any{
+	raw, err := json.Marshal(map[string]any{
 		"status": "delegated",
 		"reason": reason,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal delegate payload: %w", err)
+	}
+	return raw, nil
 }
 
 func initiateDelegateHandoff(ctx context.Context, rc *RunContext, input TriggerAgentInput, runID, reason string, evalCtx map[string]any) {
@@ -518,11 +522,15 @@ func (r *DSLRunner) applyGroundsAbstention(ctx context.Context, rc *RunContext, 
 }
 
 func buildGroundsAbstainPayload(result *GroundsResult) (json.RawMessage, error) {
-	return json.Marshal(map[string]any{
+	raw, err := json.Marshal(map[string]any{
 		"status": "abstained",
 		"reason": result.Reason,
 		"query":  result.Query,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal grounds abstention payload: %w", err)
+	}
+	return raw, nil
 }
 
 func initiateGroundsHandoff(ctx context.Context, rc *RunContext, input TriggerAgentInput, runID, reason string) {

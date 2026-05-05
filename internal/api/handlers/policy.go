@@ -74,7 +74,7 @@ func (h *PolicyHandler) queryPolicySets(r *http.Request, wsID, isActiveFilter st
 	query, args := buildPolicySetsQuery(wsID, isActiveFilter, page)
 	rows, err := h.db.QueryContext(r.Context(), query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query policy sets: %w", err)
 	}
 	defer rows.Close()
 	return scanPolicySets(rows)
@@ -105,12 +105,15 @@ func scanPolicySets(rows *sql.Rows) ([]policySetRow, error) {
 			&isActiveInt, &s.CreatedBy, &s.CreatedAt, &s.UpdatedAt,
 		)
 		if scanErr != nil {
-			return nil, scanErr
+			return nil, fmt.Errorf("scan policy set: %w", scanErr)
 		}
 		s.IsActive = isActiveInt == 1
 		sets = append(sets, s)
 	}
-	return sets, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate policy sets: %w", err)
+	}
+	return sets, nil
 }
 
 // GetPolicyVersions handles GET /api/v1/policy/sets/{id}/versions.
@@ -146,7 +149,7 @@ func (h *PolicyHandler) queryPolicyVersions(r *http.Request, wsID, setID string,
 		wsID, setID, page.Limit, page.Offset,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query policy versions: %w", err)
 	}
 	defer rows.Close()
 	return scanPolicyVersions(rows)
@@ -161,9 +164,12 @@ func scanPolicyVersions(rows *sql.Rows) ([]policyVersionRow, error) {
 			&v.PolicyJSON, &v.Status, &v.CreatedBy, &v.CreatedAt,
 		)
 		if scanErr != nil {
-			return nil, scanErr
+			return nil, fmt.Errorf("scan policy version: %w", scanErr)
 		}
 		versions = append(versions, v)
 	}
-	return versions, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate policy versions: %w", err)
+	}
+	return versions, nil
 }

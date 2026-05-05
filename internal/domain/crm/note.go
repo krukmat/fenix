@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -84,7 +85,10 @@ func (s *NoteService) Create(ctx context.Context, input CreateNoteInput) (*Note,
 func (s *NoteService) Get(ctx context.Context, workspaceID, noteID string) (*Note, error) {
 	row, err := s.querier.GetNoteByID(ctx, sqlcgen.GetNoteByIDParams{ID: noteID, WorkspaceID: workspaceID})
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, fmt.Errorf("get note by id: %w", err)
 	}
 	return rowToNote(row), nil
 }

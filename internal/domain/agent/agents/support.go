@@ -261,7 +261,10 @@ func (a *SupportAgent) executeAction(ctx context.Context, runID string, action *
 		return a.executeEscalatedAction(toolCtx, runID, action, caseContext)
 	default:
 		raw, err := json.Marshal([]map[string]any{})
-		return raw, "", err
+		if err != nil {
+			return raw, "", fmt.Errorf("marshal empty support tool calls: %w", err)
+		}
+		return raw, "", nil
 	}
 }
 
@@ -322,7 +325,10 @@ func (a *SupportAgent) executeResolvedAction(toolCtx context.Context, action *Ac
 		return nil, "", err
 	}
 	raw, err := json.Marshal(toolCalls)
-	return raw, "", err
+	if err != nil {
+		return raw, "", fmt.Errorf("marshal resolved support tool calls: %w", err)
+	}
+	return raw, "", nil
 }
 
 func (a *SupportAgent) executeAbstainedAction(toolCtx context.Context, action *Action, caseContext *CaseContext) (json.RawMessage, string, error) {
@@ -331,7 +337,10 @@ func (a *SupportAgent) executeAbstainedAction(toolCtx context.Context, action *A
 		return nil, "", err
 	}
 	raw, err := json.Marshal(toolCalls)
-	return raw, "", err
+	if err != nil {
+		return raw, "", fmt.Errorf("marshal abstained support tool calls: %w", err)
+	}
+	return raw, "", nil
 }
 
 func (a *SupportAgent) executeEscalatedAction(toolCtx context.Context, runID string, action *Action, caseContext *CaseContext) (json.RawMessage, string, error) {
@@ -343,7 +352,10 @@ func (a *SupportAgent) executeEscalatedAction(toolCtx context.Context, runID str
 		return nil, "", err
 	}
 	raw, err := json.Marshal(toolCalls)
-	return raw, action.Details, err
+	if err != nil {
+		return raw, action.Details, fmt.Errorf("marshal escalated support tool calls: %w", err)
+	}
+	return raw, action.Details, nil
 }
 
 func (a *Action) toJSON() json.RawMessage {
@@ -438,7 +450,7 @@ func (a *SupportAgent) triggerSupportRun(ctx context.Context, config SupportAgen
 	if triggeredBy != "" {
 		triggeredByPtr = &triggeredBy
 	}
-	return a.orchestrator.TriggerAgent(ctx, agent.TriggerAgentInput{
+	run, err := a.orchestrator.TriggerAgent(ctx, agent.TriggerAgentInput{
 		AgentID:        "support-agent",
 		WorkspaceID:    config.WorkspaceID,
 		TriggeredBy:    triggeredByPtr,
@@ -446,6 +458,10 @@ func (a *SupportAgent) triggerSupportRun(ctx context.Context, config SupportAgen
 		TriggerContext: triggerContext,
 		Inputs:         inputs,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("trigger support run: %w", err)
+	}
+	return run, nil
 }
 
 func supportRunPayloads(config SupportAgentConfig, allowedTools []string) (json.RawMessage, json.RawMessage) {
@@ -466,7 +482,7 @@ func supportRunPayloads(config SupportAgentConfig, allowedTools []string) (json.
 func (a *SupportAgent) failSupportRun(ctx context.Context, run *agent.Run, cause error) error {
 	_, err := a.orchestrator.UpdateAgentRunStatus(ctx, run.WorkspaceID, run.ID, agent.StatusFailed)
 	if err != nil {
-		return err
+		return fmt.Errorf("mark support run failed: %w", err)
 	}
 	a.auditSupportRun(ctx, run, nil, cause)
 	a.recordSupportUsage(ctx, run, nil)
@@ -487,7 +503,7 @@ func (a *SupportAgent) completeSupportRun(ctx context.Context, run *agent.Run, r
 		Completed:            true,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("complete support run: %w", err)
 	}
 	a.auditSupportRun(ctx, run, result, nil)
 	a.recordSupportUsage(ctx, run, result)
@@ -898,7 +914,11 @@ func firstJSONStringFromRaw(raw json.RawMessage, key string) string {
 
 func (a *SupportAgent) executeTool(ctx context.Context, workspaceID, toolName string, payload map[string]any) (json.RawMessage, error) {
 	raw, _ := json.Marshal(payload)
-	return a.toolRegistry.Execute(ctx, workspaceID, toolName, raw)
+	result, err := a.toolRegistry.Execute(ctx, workspaceID, toolName, raw)
+	if err != nil {
+		return nil, fmt.Errorf("execute tool %s: %w", toolName, err)
+	}
+	return result, nil
 }
 
 func buildSupportReply(caseContext *CaseContext, action *Action) string {
@@ -960,7 +980,7 @@ func (a *SupportAgent) initiateSupportHandoff(ctx context.Context, runID string,
 	handoffSvc := agent.NewHandoffService(a.db, crm.NewCaseService(a.db), nil)
 	_, err := handoffSvc.InitiateHandoff(ctx, caseContext.WorkspaceID, runID, caseContext.ID, action.Details)
 	if err != nil {
-		return err
+		return fmt.Errorf("initiate support handoff: %w", err)
 	}
 	return nil
 }

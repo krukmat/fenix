@@ -249,7 +249,7 @@ func ensureSignalEntityExists(ctx context.Context, db *sql.DB, workspaceID, enti
 
 	var exists int
 	if err := db.QueryRowContext(ctx, query, strings.TrimSpace(entityID), workspaceID).Scan(&exists); err != nil {
-		return err
+		return fmt.Errorf("lookup signal entity: %w", err)
 	}
 	return nil
 }

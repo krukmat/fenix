@@ -2,6 +2,7 @@ package agents
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 )
@@ -21,6 +22,8 @@ var (
 	ErrGoAgentNil        = errors.New("go agent is nil")
 	ErrDSLRunnerNil      = errors.New("dsl runner is nil")
 )
+
+const errRegisterRunnerFmt = "register %s runner: %w"
 
 // GoAgentRunners holds the explicit Go agent adapters registered in F1.6.
 type GoAgentRunners struct {
@@ -52,7 +55,7 @@ func RegisterCurrentGoRunners(registry *agent.RunnerRegistry, runners GoAgentRun
 	}
 	for _, e := range entries {
 		if err := registry.Register(e.agentType, e.runner); err != nil {
-			return err
+			return fmt.Errorf(errRegisterRunnerFmt, e.agentType, err)
 		}
 	}
 	return nil
@@ -66,7 +69,10 @@ func RegisterDSLRunner(registry *agent.RunnerRegistry, runner agent.Runner) erro
 	if runner == nil {
 		return ErrDSLRunnerNil
 	}
-	return registry.Register(AgentTypeDSL, runner)
+	if err := registry.Register(AgentTypeDSL, runner); err != nil {
+		return fmt.Errorf(errRegisterRunnerFmt, AgentTypeDSL, err)
+	}
+	return nil
 }
 
 // RegisterSkillRunner registers the skill runner under agent_type="skill".
@@ -77,7 +83,10 @@ func RegisterSkillRunner(registry *agent.RunnerRegistry, runner agent.Runner) er
 	if runner == nil {
 		return ErrDSLRunnerNil
 	}
-	return registry.Register(AgentTypeSkill, runner)
+	if err := registry.Register(AgentTypeSkill, runner); err != nil {
+		return fmt.Errorf(errRegisterRunnerFmt, AgentTypeSkill, err)
+	}
+	return nil
 }
 
 func validateGoAgentRunners(runners GoAgentRunners) error {

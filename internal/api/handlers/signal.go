@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -111,9 +112,17 @@ func (h *SignalHandler) Dismiss(w http.ResponseWriter, r *http.Request) {
 
 func fetchSignals(ctx context.Context, svc SignalService, workspaceID string, filters signaldomain.Filters) ([]*signaldomain.Signal, error) {
 	if filters.EntityType != "" && filters.EntityID != "" {
-		return svc.GetByEntity(ctx, workspaceID, filters.EntityType, filters.EntityID)
+		items, err := svc.GetByEntity(ctx, workspaceID, filters.EntityType, filters.EntityID)
+		if err != nil {
+			return nil, fmt.Errorf("get signals by entity: %w", err)
+		}
+		return items, nil
 	}
-	return svc.List(ctx, workspaceID, filters)
+	items, err := svc.List(ctx, workspaceID, filters)
+	if err != nil {
+		return nil, fmt.Errorf("list signals: %w", err)
+	}
+	return items, nil
 }
 
 func decodeSignalFilters(r *http.Request) (signaldomain.Filters, error) {

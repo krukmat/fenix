@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 func checkDailyRunAndCostLimits(
@@ -46,7 +47,10 @@ func dailyRunsForAgent(ctx context.Context, db *sql.DB, workspaceID, agentDefini
 		  AND agent_definition_id = ?
 		  AND date(created_at) = date('now')
 	`, workspaceID, agentDefinitionID).Scan(&runsToday)
-	return runsToday, err
+	if err != nil {
+		return runsToday, fmt.Errorf("count daily agent runs: %w", err)
+	}
+	return runsToday, nil
 }
 
 func dailyCostForAgent(ctx context.Context, db *sql.DB, workspaceID, agentDefinitionID string) (float64, error) {
@@ -58,5 +62,8 @@ func dailyCostForAgent(ctx context.Context, db *sql.DB, workspaceID, agentDefini
 		  AND agent_definition_id = ?
 		  AND date(created_at) = date('now')
 	`, workspaceID, agentDefinitionID).Scan(&dailyCost)
-	return dailyCost, err
+	if err != nil {
+		return dailyCost, fmt.Errorf("sum daily agent cost: %w", err)
+	}
+	return dailyCost, nil
 }

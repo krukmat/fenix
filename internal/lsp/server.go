@@ -157,11 +157,11 @@ func readMessage(r *bufio.Reader) (*RequestMessage, error) {
 	}
 	body := make([]byte, contentLength)
 	if _, readErr := io.ReadFull(r, body); readErr != nil {
-		return nil, readErr
+		return nil, fmt.Errorf("read message body: %w", readErr)
 	}
 	var msg RequestMessage
 	if decodeErr := json.Unmarshal(body, &msg); decodeErr != nil {
-		return nil, decodeErr
+		return nil, fmt.Errorf("decode message body: %w", decodeErr)
 	}
 	return &msg, nil
 }
@@ -201,7 +201,7 @@ func readHeaderContentLength(r *bufio.Reader) (bool, int, bool, error) {
 func readHeaderLine(r *bufio.Reader) (string, error) {
 	line, err := r.ReadString('\n')
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("read header line: %w", err)
 	}
 	return strings.TrimRight(line, "\r\n"), nil
 }
@@ -381,7 +381,10 @@ func (s *Server) publishDiagnostics(uri string) error {
 	if s.diag == nil {
 		return nil
 	}
-	return s.diag.Publish(uri, s.out)
+	if err := s.diag.Publish(uri, s.out); err != nil {
+		return fmt.Errorf("publish diagnostics: %w", err)
+	}
+	return nil
 }
 
 func (s *Server) handleInitialize(msg *RequestMessage) error {
@@ -411,12 +414,14 @@ func (s *Server) handleUnknown(msg *RequestMessage) error {
 func (s *Server) writeResponse(resp ResponseMessage) error {
 	data, err := json.Marshal(resp)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal response: %w", err)
 	}
 	header := fmt.Sprintf("Content-Length: %d\r\n\r\n", len(data))
 	if _, writeErr := io.WriteString(s.out, header); writeErr != nil {
-		return writeErr
+		return fmt.Errorf("write response header: %w", writeErr)
 	}
-	_, err = s.out.Write(data)
-	return err
+	if _, err = s.out.Write(data); err != nil {
+		return fmt.Errorf("write response body: %w", err)
+	}
+	return nil
 }

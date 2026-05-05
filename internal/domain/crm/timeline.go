@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -72,7 +73,10 @@ func (s *TimelineService) Create(ctx context.Context, input CreateTimelineEventI
 func (s *TimelineService) Get(ctx context.Context, workspaceID, eventID string) (*TimelineEvent, error) {
 	row, err := s.querier.GetTimelineEventByID(ctx, sqlcgen.GetTimelineEventByIDParams{ID: eventID, WorkspaceID: workspaceID})
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, fmt.Errorf("get timeline event by id: %w", err)
 	}
 	return rowToTimelineEvent(row), nil
 }

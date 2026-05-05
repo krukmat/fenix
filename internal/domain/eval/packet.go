@@ -167,7 +167,11 @@ func BuildReviewPacket(
 
 // ToJSON returns the packet as indented JSON.
 func (p ReviewPacket) ToJSON() ([]byte, error) {
-	return json.MarshalIndent(p, "", "  ")
+	data, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal review packet: %w", err)
+	}
+	return data, nil
 }
 
 // ToMarkdown returns the packet as human-readable markdown.

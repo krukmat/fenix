@@ -717,5 +717,8 @@ func (s *Service) cancelScheduledJobsForWorkflow(ctx context.Context, workflow *
 		return nil
 	}
 	_, err := s.scheduler.CancelBySource(ctx, workflow.WorkspaceID, workflow.ID)
-	return err
+	if err != nil {
+		return fmt.Errorf("cancel scheduled workflow jobs: %w", err)
+	}
+	return nil
 }

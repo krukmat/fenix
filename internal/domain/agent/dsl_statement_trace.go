@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
@@ -16,7 +17,7 @@ func insertDSLRunStep(ctx context.Context, rc *RunContext, workspaceID, runID st
 	}
 	tx, err := rc.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("begin DSL step tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -42,7 +43,7 @@ func insertDSLRunStep(ctx context.Context, rc *RunContext, workspaceID, runID st
 		return "", insertErr
 	}
 	if commitErr := tx.Commit(); commitErr != nil {
-		return "", commitErr
+		return "", fmt.Errorf("commit DSL step: %w", commitErr)
 	}
 	return stepID, nil
 }
@@ -51,21 +52,8 @@ func updateDSLRunStep(ctx context.Context, rc *RunContext, workspaceID, stepID, 
 	if rc == nil || rc.DB == nil || stepID == "" {
 		return nil
 	}
-	tx, err := rc.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	var errText *string
-	if stepErr != nil {
-		msg := stepErr.Error()
-		errText = &msg
-	}
-	if updateErr := updateRunStepStateTx(ctx, tx, stepID, workspaceID, status, nil, output, errText); updateErr != nil {
-		return updateErr
-	}
-	return tx.Commit()
+	return commitRunStepUpdate(ctx, rc.DB, workspaceID, stepID, status, output, stepErr,
+		"begin DSL step update tx", "commit DSL step update")
 }
 
 func marshalDSLStatementInput(stmt Statement) json.RawMessage {
@@ -106,7 +94,11 @@ func newTracedDSLExecutor(workspaceID, runID string, rc *RunContext, _ *DSLRunti
 }
 
 func (e *tracedDSLExecutor) Execute(ctx context.Context, op *RuntimeOperation, evalCtx map[string]any) (RuntimeExecutionResult, error) {
-	return e.delegate.Execute(ctx, op, evalCtx)
+	result, err := e.delegate.Execute(ctx, op, evalCtx)
+	if err != nil {
+		return RuntimeExecutionResult{}, fmt.Errorf("execute traced runtime operation: %w", err)
+	}
+	return result, nil
 }
 
 func (e *tracedDSLExecutor) ExecuteWait(ctx context.Context, stmt *WaitStatement, nextStatementIndex int, evalCtx map[string]any) (RuntimeExecutionResult, error) {
@@ -114,7 +106,11 @@ func (e *tracedDSLExecutor) ExecuteWait(ctx context.Context, stmt *WaitStatement
 	if !ok {
 		return RuntimeExecutionResult{}, ErrDSLRuntimeFailed
 	}
-	return waitExecutor.ExecuteWait(ctx, stmt, nextStatementIndex, evalCtx)
+	result, err := waitExecutor.ExecuteWait(ctx, stmt, nextStatementIndex, evalCtx)
+	if err != nil {
+		return RuntimeExecutionResult{}, fmt.Errorf("execute traced wait statement: %w", err)
+	}
+	return result, nil
 }
 
 func (e *tracedDSLExecutor) StartStatementTrace(ctx context.Context, stmt Statement) (string, error) {

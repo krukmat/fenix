@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -139,7 +140,7 @@ func waitForJobs(ctx context.Context, jobs []*ScheduledJob, done chan struct{}) 
 	for range jobs {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("wait for scheduled jobs: %w", ctx.Err())
 		case <-done:
 		}
 	}

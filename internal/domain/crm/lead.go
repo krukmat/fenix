@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -96,7 +97,10 @@ func (s *LeadService) Create(ctx context.Context, input CreateLeadInput) (*Lead,
 func (s *LeadService) Get(ctx context.Context, workspaceID, leadID string) (*Lead, error) {
 	row, err := s.querier.GetLeadByID(ctx, sqlcgen.GetLeadByIDParams{ID: leadID, WorkspaceID: workspaceID})
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, fmt.Errorf("get lead by id: %w", err)
 	}
 	return rowToLead(row), nil
 }

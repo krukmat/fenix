@@ -53,7 +53,7 @@ func (v *GroundsValidator) Validate(ctx context.Context, grounds *CartaGrounds, 
 		Limit:       maxInt(grounds.MinSources, 1),
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build grounds evidence pack: %w", err)
 	}
 
 	return applyGroundsConstraints(v.now(), grounds, pack, query), nil

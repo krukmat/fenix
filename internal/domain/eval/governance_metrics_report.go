@@ -129,7 +129,11 @@ func BuildGovernanceMetricsReport(now time.Time, cases []GovernanceReviewCase) G
 }
 
 func (r GovernanceMetricsReport) ToJSON() ([]byte, error) {
-	return json.MarshalIndent(r, "", reportJSONIndent)
+	data, err := json.MarshalIndent(r, "", reportJSONIndent)
+	if err != nil {
+		return nil, fmt.Errorf("marshal governance metrics report: %w", err)
+	}
+	return data, nil
 }
 
 func (r GovernanceMetricsReport) ToMarkdown() string {

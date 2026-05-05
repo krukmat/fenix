@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -21,7 +22,11 @@ func formatOptionalTime(value *time.Time) any {
 }
 
 func parseTime(value string) (time.Time, error) {
-	return time.Parse(time.RFC3339Nano, value)
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse RFC3339 time: %w", err)
+	}
+	return parsed, nil
 }
 
 func normalizeJSON(raw []byte, fallback []byte) json.RawMessage {

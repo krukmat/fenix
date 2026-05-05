@@ -168,7 +168,7 @@ func ensureStageBelongsToPipeline(ctx context.Context, db *sql.DB, stageID, pipe
 	var stagePipelineID string
 	err := db.QueryRowContext(ctx, `SELECT pipeline_id FROM pipeline_stage WHERE id = ? LIMIT 1`, stageID).Scan(&stagePipelineID)
 	if err != nil {
-		return err
+		return fmt.Errorf("get stage pipeline id: %w", err)
 	}
 	if stagePipelineID != pipelineID {
 		return fmt.Errorf("stage %s belongs to pipeline %s", stageID, stagePipelineID)
@@ -179,7 +179,7 @@ func ensureStageBelongsToPipeline(ctx context.Context, db *sql.DB, stageID, pipe
 func ensureExists(ctx context.Context, db *sql.DB, query string, args ...any) error {
 	var exists int
 	if err := db.QueryRowContext(ctx, query, args...).Scan(&exists); err != nil {
-		return err
+		return fmt.Errorf("check related record exists: %w", err)
 	}
 	return nil
 }

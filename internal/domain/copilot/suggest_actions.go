@@ -140,7 +140,7 @@ func (s *ActionService) SuggestActions(ctx context.Context, in SuggestActionsInp
 func (s *ActionService) prepareSuggestActionsContext(ctx context.Context, in SuggestActionsInput) (*suggestActionsContext, error) {
 	filter, err := s.policy.BuildPermissionFilter(ctx, in.UserID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build suggest-actions permission filter: %w", err)
 	}
 
 	pack, err := s.evidence.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
@@ -151,12 +151,12 @@ func (s *ActionService) prepareSuggestActionsContext(ctx context.Context, in Sug
 		Limit:       10,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build suggest-actions evidence pack: %w", err)
 	}
 
 	redacted, err := s.policy.RedactPII(ctx, pack.Sources)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("redact suggest-actions evidence: %w", err)
 	}
 
 	return &suggestActionsContext{
@@ -182,7 +182,7 @@ func (s *ActionService) generateSuggestedActions(
 		MaxTokens:   600,
 	})
 	if err != nil {
-		return nil, suggestActionsMetrics{}, err
+		return nil, suggestActionsMetrics{}, fmt.Errorf("request suggested actions completion: %w", err)
 	}
 
 	actions, err := parseSuggestedActions(resp.Content)
@@ -229,7 +229,7 @@ func (s *ActionService) Summarize(ctx context.Context, in SummarizeInput) (strin
 
 	filter, err := s.policy.BuildPermissionFilter(ctx, in.UserID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("build summary permission filter: %w", err)
 	}
 
 	pack, err := s.evidence.BuildEvidencePack(ctx, knowledge.BuildEvidencePackInput{
@@ -240,12 +240,12 @@ func (s *ActionService) Summarize(ctx context.Context, in SummarizeInput) (strin
 		Limit:       10,
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("build summary evidence pack: %w", err)
 	}
 
 	redacted, err := s.policy.RedactPII(ctx, pack.Sources)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("redact summary evidence: %w", err)
 	}
 
 	prompt := buildSummarizePrompt(in.EntityType, in.EntityID, redacted)
@@ -258,7 +258,7 @@ func (s *ActionService) Summarize(ctx context.Context, in SummarizeInput) (strin
 		MaxTokens:   400,
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("request summary completion: %w", err)
 	}
 
 	summary := strings.TrimSpace(redactOutputPII(resp.Content))
@@ -358,7 +358,7 @@ func (s *ActionService) generateSalesBrief(
 		MaxTokens:   160,
 	})
 	if err != nil {
-		return salesBriefPayload{}, salesBriefUsageRecord{}, err
+		return salesBriefPayload{}, salesBriefUsageRecord{}, fmt.Errorf("request sales-brief completion: %w", err)
 	}
 
 	modelName := strings.TrimSpace(s.llm.ModelInfo().ID)
@@ -587,7 +587,7 @@ func decodeSuggestedActions(candidate string) ([]SuggestedAction, error) {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal([]byte(candidate), &envelope); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode suggested actions envelope: %w", err)
 	}
 	if len(envelope.Actions) > 0 {
 		return sanitizeSuggestedActions(envelope.Actions), nil

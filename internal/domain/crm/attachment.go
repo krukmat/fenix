@@ -3,6 +3,7 @@ package crm
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -81,7 +82,10 @@ func (s *AttachmentService) Create(ctx context.Context, input CreateAttachmentIn
 func (s *AttachmentService) Get(ctx context.Context, workspaceID, attachmentID string) (*Attachment, error) {
 	row, err := s.querier.GetAttachmentByID(ctx, sqlcgen.GetAttachmentByIDParams{ID: attachmentID, WorkspaceID: workspaceID})
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, fmt.Errorf("get attachment by id: %w", err)
 	}
 	return rowToAttachment(row), nil
 }

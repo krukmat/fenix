@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -840,7 +841,7 @@ func withInsightsTriggeredBy(config agents.InsightsAgentConfig, userID string) a
 func parseDateTimeValue(v string) (*time.Time, error) {
 	t, err := time.Parse(time.RFC3339, v)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse datetime value: %w", err)
 	}
 	return &t, nil
 }

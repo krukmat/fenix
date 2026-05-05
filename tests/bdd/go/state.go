@@ -2,6 +2,7 @@ package gobdd
 
 import (
 	"database/sql"
+	"fmt"
 
 	workflowdomain "github.com/matiasleandrokruk/fenix/internal/domain/workflow"
 	isqlite "github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
@@ -60,18 +61,18 @@ func (s *scenarioState) reset() {
 func setupWorkflowBDDService() (*sql.DB, *workflowdomain.Service, error) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("open workflow bdd sqlite: %w", err)
 	}
 	if err = isqlite.MigrateUp(db); err != nil {
 		_ = db.Close()
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("migrate workflow bdd sqlite: %w", err)
 	}
 	if _, err = db.Exec(`
 		INSERT INTO workspace (id, name, slug, created_at, updated_at)
 		VALUES ('ws_test', 'Workflow Test', 'workflow-test', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`); err != nil {
 		_ = db.Close()
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("seed workflow bdd workspace: %w", err)
 	}
 	return db, workflowdomain.NewService(db), nil
 }

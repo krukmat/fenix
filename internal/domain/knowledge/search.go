@@ -189,7 +189,10 @@ func (s *SearchService) bm25Search(ctx context.Context, query, wsID, entityType,
 		}
 		results = append(results, r)
 	}
-	return results, rows.Err()
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate bm25 search rows: %w", rowsErr)
+	}
+	return results, nil
 }
 
 // vectorRow holds a single result from vector (cosine) search.

@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 )
 
@@ -50,7 +51,7 @@ func scanWorkflow(scanner interface {
 		&row.CreatedAt,
 		&row.UpdatedAt,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan workflow row: %w", err)
 	}
 	return rowToWorkflow(row), nil
 }
@@ -64,7 +65,10 @@ func scanWorkflowRows(rows *sql.Rows) ([]*Workflow, error) {
 		}
 		out = append(out, wf)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate workflow rows: %w", err)
+	}
+	return out, nil
 }
 
 type workflowRow struct {

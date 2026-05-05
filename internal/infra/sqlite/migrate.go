@@ -93,7 +93,10 @@ func ensureMigrationsTable(db *sql.DB) error {
 			applied_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 		)
 	`)
-	return err
+	if err != nil {
+		return fmt.Errorf("create schema_migrations table: %w", err)
+	}
+	return nil
 }
 
 // loadMigrationFiles reads all *.up.sql files from the embedded FS and sorts them.
@@ -119,7 +122,7 @@ func loadMigrationFiles() ([]migrationFile, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("walk migration files: %w", err)
 	}
 
 	// Sort by filename (lexicographic = numeric order for 001_, 002_, ... prefix)
@@ -146,7 +149,7 @@ func isMigrationApplied(db *sql.DB, version int) (bool, error) {
 	var count int
 	row := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version = ?", version)
 	if err := row.Scan(&count); err != nil {
-		return false, err
+		return false, fmt.Errorf("check migration version %d: %w", version, err)
 	}
 	return count > 0, nil
 }
@@ -174,5 +177,8 @@ func applyMigration(db *sql.DB, version int, name, sqlContent string) error {
 		return fmt.Errorf("record migration: %w", execErr)
 	}
 
-	return tx.Commit()
+	if commitErr := tx.Commit(); commitErr != nil {
+		return fmt.Errorf("commit migration %d: %w", version, commitErr)
+	}
+	return nil
 }

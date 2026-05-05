@@ -93,7 +93,7 @@ func (a *InsightsAgent) Run(ctx context.Context, config InsightsAgentConfig) (*a
 		Inputs:         inputs,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("trigger insights run: %w", err)
 	}
 
 	toolCtx := context.WithValue(ctx, ctxkeys.WorkspaceID, normalized.WorkspaceID) // Task 4.5d — toolCtx workspace propagation.
@@ -119,7 +119,7 @@ func (a *InsightsAgent) Run(ctx context.Context, config InsightsAgentConfig) (*a
 		Completed:   true,
 	})
 	if err != nil {
-		return run, err
+		return run, fmt.Errorf("complete insights run: %w", err)
 	}
 
 	return run, nil
@@ -140,7 +140,10 @@ func (a *InsightsAgent) normalizeConfig(ctx context.Context, config InsightsAgen
 
 func (a *InsightsAgent) markRunFailed(ctx context.Context, run *agent.Run) error {
 	_, err := a.orchestrator.UpdateAgentRunStatus(ctx, run.WorkspaceID, run.ID, agent.StatusFailed)
-	return err
+	if err != nil {
+		return fmt.Errorf("mark insights run failed: %w", err)
+	}
+	return nil
 }
 
 // InsightsResult holds runtime update payload.

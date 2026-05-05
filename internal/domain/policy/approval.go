@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
@@ -132,7 +133,7 @@ func (s *ApprovalService) CreateApprovalRequest(ctx context.Context, input Creat
 		approval.UpdatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create approval request: %w", err)
 	}
 
 	_ = s.audit.LogWithDetails(
@@ -184,7 +185,7 @@ func (s *ApprovalService) GetPendingApprovals(ctx context.Context, userID string
 		ORDER BY created_at ASC
 	`, userID, string(ApprovalStatusPending))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list pending approvals: %w", err)
 	}
 	defer rows.Close()
 
@@ -256,7 +257,7 @@ func (s *ApprovalService) expireIfNeeded(ctx context.Context, req *ApprovalReque
 		SET status = ?, decided_at = ?, updated_at = ?, decided_by = ?
 		WHERE id = ?
 	`, string(ApprovalStatusExpired), now, now, decidedBy, id); err != nil {
-		return err
+		return fmt.Errorf("expire approval request: %w", err)
 	}
 
 	_ = s.audit.LogWithDetails(
@@ -292,12 +293,12 @@ func (s *ApprovalService) applyDecision(ctx context.Context, req *ApprovalReques
 
 	result, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
-		return err
+		return fmt.Errorf("apply approval decision: %w", err)
 	}
 
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("count approval decision rows: %w", err)
 	}
 	if rows == 0 {
 		return ErrApprovalAlreadyClosed
@@ -341,7 +342,7 @@ func collectPendingApprovals(rows *sql.Rows, now time.Time) ([]*ApprovalRequest,
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("iterate pending approvals: %w", err)
 	}
 	return items, expiredIDs, nil
 }
@@ -353,7 +354,7 @@ func (s *ApprovalService) markApprovalsExpired(ctx context.Context, expiredIDs [
 			SET status = ?, updated_at = ?
 			WHERE id = ?
 		`, string(ApprovalStatusExpired), now, id); err != nil {
-			return err
+			return fmt.Errorf("mark approval expired: %w", err)
 		}
 	}
 	return nil
@@ -410,7 +411,7 @@ func scanApprovalRequest(scan approvalScanner) (*ApprovalRequest, error) {
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan approval request: %w", err)
 	}
 
 	item.Payload = payload

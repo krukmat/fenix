@@ -126,7 +126,7 @@ func (a *DealRiskAgent) Run(ctx context.Context, config DealRiskAgentConfig) (*a
 		Inputs:         inputs,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("trigger deal risk run: %w", err)
 	}
 
 	result, err := a.executeDealRiskFlow(ctx, normalized)
@@ -148,7 +148,7 @@ func (a *DealRiskAgent) Run(ctx context.Context, config DealRiskAgentConfig) (*a
 		Completed:      true,
 	})
 	if err != nil {
-		return run, err
+		return run, fmt.Errorf("complete deal risk run: %w", err)
 	}
 
 	return run, nil
@@ -169,7 +169,10 @@ func (a *DealRiskAgent) normalizeConfig(ctx context.Context, config DealRiskAgen
 
 func (a *DealRiskAgent) markRunFailed(ctx context.Context, run *agent.Run) error {
 	_, err := a.orchestrator.UpdateAgentRunStatus(ctx, run.WorkspaceID, run.ID, agent.StatusFailed)
-	return err
+	if err != nil {
+		return fmt.Errorf("mark deal risk run failed: %w", err)
+	}
+	return nil
 }
 
 func (a *DealRiskAgent) executeDealRiskFlow(ctx context.Context, config DealRiskAgentConfig) (*DealRiskResult, error) {
@@ -284,14 +287,14 @@ func evaluateDealRisk(deal *crm.Deal, _ *crm.Account, evidence *knowledge.Search
 func (a *DealRiskAgent) fetchDeal(ctx context.Context, config DealRiskAgentConfig) (*crm.Deal, error) {
 	raw, err := a.toolRegistry.Execute(ctx, config.WorkspaceID, tool.BuiltinGetDeal, mustJSON(map[string]any{"deal_id": config.DealID}))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get deal: %w", err)
 	}
 	var parsed struct {
 		Deal *crm.Deal `json:"deal"`
 	}
 	unmarshalErr := json.Unmarshal(raw, &parsed)
 	if unmarshalErr != nil {
-		return nil, unmarshalErr
+		return nil, fmt.Errorf("decode deal: %w", unmarshalErr)
 	}
 	if parsed.Deal == nil {
 		return nil, ErrDealNotFound
@@ -302,14 +305,14 @@ func (a *DealRiskAgent) fetchDeal(ctx context.Context, config DealRiskAgentConfi
 func (a *DealRiskAgent) fetchAccount(ctx context.Context, accountID string) (*crm.Account, error) {
 	raw, err := a.toolRegistry.Execute(ctx, workspaceFromCtx(ctx), tool.BuiltinGetAccount, mustJSON(map[string]any{"account_id": accountID}))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get account: %w", err)
 	}
 	var parsed struct {
 		Account *crm.Account `json:"account"`
 	}
 	unmarshalErr := json.Unmarshal(raw, &parsed)
 	if unmarshalErr != nil {
-		return nil, unmarshalErr
+		return nil, fmt.Errorf("decode account: %w", unmarshalErr)
 	}
 	if parsed.Account == nil {
 		return nil, ErrAccountNotFound
@@ -325,14 +328,14 @@ func (a *DealRiskAgent) createMitigationTask(ctx context.Context, deal *crm.Deal
 		"entity_id":   deal.ID,
 	}))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create mitigation task: %w", err)
 	}
 	var parsed struct {
 		TaskID string `json:"task_id"`
 	}
 	unmarshalErr := json.Unmarshal(raw, &parsed)
 	if unmarshalErr != nil {
-		return "", unmarshalErr
+		return "", fmt.Errorf("decode mitigation task: %w", unmarshalErr)
 	}
 	if parsed.TaskID == "" {
 		return "", ErrTaskCreationFailed
