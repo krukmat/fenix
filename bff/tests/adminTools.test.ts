@@ -1,6 +1,9 @@
 // BFF-ADMIN-60: tools list
+// BAL-02: session cookie required for all protected admin routes
 import request from 'supertest';
+import nock from 'nock';
 import { makeProxyStub } from './helpers/proxyStub';
+import { getAdminSessionCookie } from './helpers/adminSession';
 
 const proxyStub = makeProxyStub();
 jest.mock('http-proxy-middleware', () => ({
@@ -14,6 +17,16 @@ jest.mock('../src/services/goClient', () => ({
 }));
 
 import app from '../src/app';
+
+let sessionCookie: string;
+
+beforeEach(async () => {
+  sessionCookie = await getAdminSessionCookie(app);
+});
+
+afterEach(() => {
+  nock.cleanAll();
+});
 
 const TOOLS_LIST = {
   data: [
@@ -32,7 +45,7 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -43,7 +56,7 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith('/api/v1/admin/tools');
     });
@@ -53,7 +66,7 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('create_task');
       expect(res.text).toContain('send_email');
@@ -65,7 +78,7 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('tool-001');
       expect(res.text).toContain('tool-002');
@@ -77,7 +90,7 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('Create a task');
       expect(res.text).toContain('Send an email');
@@ -89,7 +102,7 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('active');
     });
@@ -99,7 +112,7 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       const inactiveCount = (res.text.match(/inactive/g) || []).length;
       expect(inactiveCount).toBeGreaterThan(0);
@@ -110,7 +123,7 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('2026-04-20');
       expect(res.text).toContain('2026-04-18');
@@ -121,7 +134,7 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('No tools');
@@ -132,12 +145,15 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
-      expect(res.text).not.toContain('method="POST"');
+      // BAL-02: Sign out button in the header uses method="POST"; assert content area is read-only
+      const mainMatch = res.text.match(/<main[^>]*>([\s\S]*?)<\/main>/);
+      const mainContent = mainMatch ? mainMatch[1] : '';
+      expect(mainContent).not.toContain('method="POST"');
     });
 
-    it('redirects to /bff/admin when Go backend returns 401', async () => {
+    it('redirects to /bff/admin/login when Go backend returns 401', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -146,10 +162,10 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -157,7 +173,7 @@ describe('BFF admin tools — BFF-ADMIN-60', () => {
 
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });

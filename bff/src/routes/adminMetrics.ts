@@ -2,9 +2,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createGoClient } from '../services/goClient';
 import { adminLayout } from './adminLayout';
-import { upstreamStatus } from './adminAuth';
-
-const ADMIN_ROOT = '/bff/admin';
+import { invalidateAdminSession, upstreamStatus } from './adminAuth';
 
 interface MetricEntry {
   name: string;
@@ -51,7 +49,7 @@ function buildBody(metrics: MetricEntry[]): string {
 
 const router = Router();
 
-router.get('/', async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const token = res.locals['adminToken'] as string | undefined;
   try {
     const client = createGoClient(token);
@@ -59,7 +57,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction): Promis
     const metrics = parsePrometheus(typeof data === 'string' ? data : '');
     res.type('html').status(200).send(adminLayout('Metrics', buildBody(metrics)));
   } catch (err: unknown) {
-    if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (upstreamStatus(err) === 401) { await invalidateAdminSession(req, res); return; }
     next(err);
   }
 });

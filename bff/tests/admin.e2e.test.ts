@@ -2,8 +2,11 @@
 // asserts HTTP 200 and presence of the shared layout landmark (page-title class)
 // and a route-specific heading on each page. Catches regressions in the shared
 // chrome without duplicating the per-route unit tests.
+// BAL-02: session cookie required for all protected admin routes
 import request from 'supertest';
+import nock from 'nock';
 import { makeProxyStub } from './helpers/proxyStub';
+import { getAdminSessionCookie } from './helpers/adminSession';
 
 const proxyStub = makeProxyStub();
 jest.mock('http-proxy-middleware', () => ({
@@ -17,6 +20,16 @@ jest.mock('../src/services/goClient', () => ({
 }));
 
 import app from '../src/app';
+
+let sessionCookie: string;
+
+beforeEach(async () => {
+  sessionCookie = await getAdminSessionCookie(app);
+});
+
+afterEach(() => {
+  nock.cleanAll();
+});
 
 // ─── Minimal stubs — enough for each route to reach its render path ──────────
 
@@ -69,7 +82,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('returns 200 with HTML content-type', async () => {
       const res = await request(app)
         .get('/bff/admin')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
     });
@@ -77,7 +90,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('contains the dashboard page-title landmark', async () => {
       const res = await request(app)
         .get('/bff/admin')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('page-title');
       expect(res.text).toContain('Dashboard');
     });
@@ -91,7 +104,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('returns 200 with HTML content-type', async () => {
       const res = await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
     });
@@ -99,7 +112,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('contains the Workflows page-title landmark', async () => {
       const res = await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('page-title');
       expect(res.text).toContain('Workflows');
     });
@@ -113,7 +126,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('returns 200 with HTML content-type', async () => {
       const res = await request(app)
         .get('/bff/admin/agent-runs')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
     });
@@ -121,7 +134,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('contains the Agent Runs page-title landmark', async () => {
       const res = await request(app)
         .get('/bff/admin/agent-runs')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('page-title');
       expect(res.text).toContain('Agent Runs');
     });
@@ -135,7 +148,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('returns 200 with HTML content-type', async () => {
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
     });
@@ -143,7 +156,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('contains the Approvals page-title landmark', async () => {
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('page-title');
       expect(res.text).toContain('Approvals');
     });
@@ -157,7 +170,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('returns 200 with HTML content-type', async () => {
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
     });
@@ -165,7 +178,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('contains the Audit Trail page-title landmark', async () => {
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('page-title');
       expect(res.text).toContain('Audit Trail');
     });
@@ -182,7 +195,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('returns 200 with HTML content-type', async () => {
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
     });
@@ -190,7 +203,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('contains a policy page-title landmark', async () => {
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('page-title');
       // Governance summary page uses "Quota States" as its first h2
       expect(res.text).toMatch(/Quota States|Policy Sets|Governance/i);
@@ -205,7 +218,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('returns 200 with HTML content-type', async () => {
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
     });
@@ -213,7 +226,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('contains the Tools page-title landmark', async () => {
       const res = await request(app)
         .get('/bff/admin/tools')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('page-title');
       expect(res.text).toContain('Tools');
     });
@@ -227,7 +240,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('returns 200 with HTML content-type', async () => {
       const res = await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
     });
@@ -235,7 +248,7 @@ describe('BFF admin navigation smoke test — BFF-ADMIN-90', () => {
     it('contains the Metrics page-title landmark', async () => {
       const res = await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('page-title');
       expect(res.text).toContain('Metrics');
     });

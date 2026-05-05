@@ -2,9 +2,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createGoClient } from '../services/goClient';
 import { adminLayout } from './adminLayout';
-import { upstreamStatus, upstreamMessage } from './adminAuth';
-
-const ADMIN_ROOT = '/bff/admin';
+import { invalidateAdminSession, upstreamStatus, upstreamMessage } from './adminAuth';
 
 interface ApprovalRow {
   id: string;
@@ -131,7 +129,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction): Promise
     const total = body?.meta?.total ?? rows.length;
     res.type('html').status(200).send(adminLayout('Approvals', buildBody(rows, total, status)));
   } catch (err: unknown) {
-    if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (upstreamStatus(err) === 401) { await invalidateAdminSession(req, res); return; }
     next(err);
   }
 });
@@ -148,7 +146,7 @@ router.post('/:id/decision', async (req: Request, res: Response, next: NextFunct
     res.redirect('/bff/admin/approvals');
   } catch (err: unknown) {
     const st = upstreamStatus(err);
-    if (st === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (st === 401) { await invalidateAdminSession(req, res); return; }
     if (st === 422) {
       const msg = upstreamMessage(err);
       res.type('html').status(422).send(adminLayout('Decision Error', `<p style="color:#991b1b;font-size:14px">${esc(msg)}</p>`));

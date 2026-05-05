@@ -54,7 +54,7 @@ async function main(): Promise<void> {
   fs.rmSync(OUTPUT_DIR, { recursive: true, force: true });
   process.stdout.write('[admin-screenshots] Launching browser...\n');
   process.stdout.write(`[admin-screenshots] Capturing ${catalog.length} admin routes...\n`);
-  const results = await runShooter(BFF_URL, seed.auth.token, seed, resolved, OUTPUT_DIR);
+  const results = await runShooter(BFF_URL, seed, resolved, OUTPUT_DIR);
 
   // Phase 7 — Report
   const passed  = results.filter((r) => r.ok).length;

@@ -2,7 +2,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createGoClient } from '../services/goClient';
 import { adminLayout } from './adminLayout';
-import { upstreamStatus, upstreamMessage } from './adminAuth';
+import { invalidateAdminSession, upstreamStatus, upstreamMessage } from './adminAuth';
 import {
   escHtml,
   buildDetailBody,
@@ -14,8 +14,6 @@ import {
   type WorkflowRow,
   type WorkflowCreateResponse,
 } from './adminWorkflowsFragments';
-
-const ADMIN_ROOT = '/bff/admin';
 
 function extractListParams(q: Record<string, unknown>): { statusFilter: string; nameFilter: string; params: Record<string, string> } {
   const statusFilter = typeof q['status'] === 'string' ? q['status'] : '';
@@ -43,7 +41,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction): Promise
     res.type('html').status(200).send(adminLayout('Workflows', buildListBody(body.data ?? [], statusFilter, nameFilter)));
   } catch (err: unknown) {
     const status = (err as { response?: { status?: number } }).response?.status;
-    if (status === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (status === 401) { await invalidateAdminSession(req, res); return; }
     next(err);
   }
 });
@@ -58,7 +56,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction): Promis
     res.redirect(`/bff/builder?workflowId=${encodeURIComponent(resp.data.id)}`);
   } catch (err: unknown) {
     const status = upstreamStatus(err);
-    if (status === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (status === 401) { await invalidateAdminSession(req, res); return; }
     if (status !== undefined && status >= 400 && status < 500) {
       res.type('html').status(200).send(adminLayout('Create workflow draft', buildNewDraftBody(form, upstreamMessage(err))));
       return;
@@ -78,7 +76,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
     const { data: resp } = await client.get<{ data: WorkflowDetail }>(`/api/v1/workflows/${id}`);
     res.type('html').status(200).send(adminLayout(`Workflow: ${resp.data.name}`, buildDetailBody(resp.data)));
   } catch (err: unknown) {
-    if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (upstreamStatus(err) === 401) { await invalidateAdminSession(req, res); return; }
     next(err);
   }
 });
@@ -94,7 +92,7 @@ router.post('/:id/activate', async (req: Request, res: Response, next: NextFunct
     res.redirect(`/bff/admin/workflows/${id}`);
   } catch (err: unknown) {
     const status = upstreamStatus(err);
-    if (status === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (status === 401) { await invalidateAdminSession(req, res); return; }
     if (status !== undefined && status >= 400 && status < 500) {
       try {
         const { data: wfResp } = await client.get<{ data: WorkflowDetail }>(`/api/v1/workflows/${id}`);

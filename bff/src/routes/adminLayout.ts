@@ -1,4 +1,6 @@
 // BFF-ADMIN-01: shared HTMX chrome for the admin surface
+// BAL-01: login page extracted to adminLoginLayout.ts to stay under max-lines
+// BAL-02: bearer token form and localStorage relay removed; sign-out button added
 const HTMX_CDN = 'https://unpkg.com/htmx.org@2.0.4';
 
 const NAV_LINKS = [
@@ -63,28 +65,6 @@ const STYLES = `
     font-weight: 600;
   }
   .header-right { display: flex; align-items: center; gap: 8px; }
-  .auth-bar { display: flex; align-items: center; gap: 8px; }
-  .auth-bar input {
-    width: 220px;
-    height: 32px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 0 10px;
-    color: var(--text);
-    font-size: 13px;
-  }
-  .auth-bar button {
-    height: 32px;
-    border: 0;
-    border-radius: 6px;
-    padding: 0 12px;
-    background: var(--accent);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-  .auth-bar button:hover { background: var(--accent-dark); }
   .sign-out-btn {
     height: 32px;
     border: 1px solid var(--line);
@@ -130,35 +110,6 @@ const STYLES = `
   }
 `;
 
-const BEARER_RELAY_SCRIPT = `
-  (function () {
-    var tokenInput = document.getElementById('admin-token');
-    var authForm = document.getElementById('admin-auth-form');
-    if (tokenInput) {
-      tokenInput.value = localStorage.getItem('fenix.admin.bearerToken') || '';
-    }
-    if (authForm) {
-      authForm.addEventListener('submit', function (event) {
-        event.preventDefault();
-        var val = tokenInput ? tokenInput.value.trim() : '';
-        localStorage.setItem('fenix.admin.bearerToken', val);
-      });
-    }
-    document.body.addEventListener('htmx:configRequest', function (event) {
-      var token = localStorage.getItem('fenix.admin.bearerToken');
-      if (token) {
-        event.detail.headers.Authorization = 'Bearer ' + token;
-      }
-    });
-    var signOut = document.getElementById('admin-sign-out');
-    if (signOut) {
-      signOut.addEventListener('click', function () {
-        localStorage.removeItem('fenix.admin.bearerToken');
-        if (tokenInput) tokenInput.value = '';
-      });
-    }
-  }());
-`;
 
 export function adminLayout(title: string, bodyContent: string): string {
   return `<!doctype html>
@@ -177,11 +128,9 @@ export function adminLayout(title: string, bodyContent: string): string {
         <span class="workspace-badge" id="admin-workspace-badge">workspace</span>
       </div>
       <div class="header-right">
-        <form class="auth-bar" id="admin-auth-form">
-          <input id="admin-token" type="password" autocomplete="off" placeholder="Bearer token" aria-label="Bearer token">
-          <button type="submit">Use Token</button>
+        <form method="POST" action="/bff/admin/logout">
+          <button class="sign-out-btn" type="submit">Sign out</button>
         </form>
-        <button class="sign-out-btn" id="admin-sign-out" type="button">sign-out</button>
       </div>
     </header>
     <nav aria-label="Admin navigation">
@@ -190,7 +139,6 @@ export function adminLayout(title: string, bodyContent: string): string {
     <main>
       ${bodyContent}
     </main>
-    <script>${BEARER_RELAY_SCRIPT}</script>
   </body>
 </html>`;
 }

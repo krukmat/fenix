@@ -1,6 +1,9 @@
 // BFF-ADMIN-30 / BFF-ADMIN-31: admin approvals queue with inline decision relay
+// BAL-02: session cookie required for all protected admin routes
 import request from 'supertest';
+import nock from 'nock';
 import { makeProxyStub } from './helpers/proxyStub';
+import { getAdminSessionCookie } from './helpers/adminSession';
 
 const proxyStub = makeProxyStub();
 jest.mock('http-proxy-middleware', () => ({
@@ -14,6 +17,16 @@ jest.mock('../src/services/goClient', () => ({
 }));
 
 import app from '../src/app';
+
+let sessionCookie: string;
+
+beforeEach(async () => {
+  sessionCookie = await getAdminSessionCookie(app);
+});
+
+afterEach(() => {
+  nock.cleanAll();
+});
 
 const APPROVAL_LIST = [
   {
@@ -45,7 +58,7 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -56,7 +69,7 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/approvals',
@@ -69,7 +82,7 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('apr-001');
       expect(res.text).toContain('apr-002');
@@ -80,7 +93,7 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('send_email');
       expect(res.text).toContain('create_task');
@@ -91,7 +104,7 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('pending');
       expect(res.text).toContain('approved');
@@ -102,7 +115,7 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/approvals',
@@ -115,7 +128,7 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       await request(app)
         .get('/bff/admin/approvals?status=approved')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/approvals',
@@ -128,7 +141,7 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('No approvals');
@@ -139,7 +152,7 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('Approvals');
       expect(res.text).toContain('2');
@@ -150,12 +163,12 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('name="status"');
     });
 
-    it('redirects to /bff/admin when Go backend returns 401', async () => {
+    it('redirects to /bff/admin/login when Go backend returns 401', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -164,10 +177,10 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -175,7 +188,7 @@ describe('BFF admin approvals list — BFF-ADMIN-30', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });
@@ -191,7 +204,7 @@ describe('BFF admin approval decisions — BFF-ADMIN-31', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/admin/approvals/apr-001/decision');
       expect(res.text).toContain('name="reason"');
@@ -204,7 +217,7 @@ describe('BFF admin approval decisions — BFF-ADMIN-31', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('There is no separate approval detail route');
     });
@@ -214,7 +227,7 @@ describe('BFF admin approval decisions — BFF-ADMIN-31', () => {
 
       const res = await request(app)
         .get('/bff/admin/approvals')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('Already decided');
       expect(res.text).not.toContain('/bff/admin/approvals/apr-002/decision');
@@ -225,7 +238,7 @@ describe('BFF admin approval decisions — BFF-ADMIN-31', () => {
     it('returns 404 because approval detail is not part of the canonical contract', async () => {
       const res = await request(app)
         .get('/bff/admin/approvals/apr-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(404);
       expect(mockGoClient.get).not.toHaveBeenCalled();
@@ -238,7 +251,7 @@ describe('BFF admin approval decisions — BFF-ADMIN-31', () => {
 
       await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
-        .set('Authorization', 'Bearer test-token')
+        .set('Cookie', sessionCookie)
         .send('decision=approve&reason=Looks+good');
 
       expect(mockGoClient.put).toHaveBeenCalledWith(
@@ -252,7 +265,7 @@ describe('BFF admin approval decisions — BFF-ADMIN-31', () => {
 
       await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
-        .set('Authorization', 'Bearer test-token')
+        .set('Cookie', sessionCookie)
         .send('decision=reject&reason=Not+authorized');
 
       expect(mockGoClient.put).toHaveBeenCalledWith(
@@ -266,7 +279,7 @@ describe('BFF admin approval decisions — BFF-ADMIN-31', () => {
 
       const res = await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
-        .set('Authorization', 'Bearer test-token')
+        .set('Cookie', sessionCookie)
         .send('decision=approve');
 
       expect(res.status).toBe(302);
@@ -282,14 +295,14 @@ describe('BFF admin approval decisions — BFF-ADMIN-31', () => {
 
       const res = await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
-        .set('Authorization', 'Bearer test-token')
+        .set('Cookie', sessionCookie)
         .send('decision=');
 
       expect(res.status).toBe(422);
       expect(res.text).toContain('decision field required');
     });
 
-    it('redirects to /bff/admin when Go backend returns 401 on decision POST', async () => {
+    it('redirects to /bff/admin/login when Go backend returns 401 on decision POST', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -298,10 +311,10 @@ describe('BFF admin approval decisions — BFF-ADMIN-31', () => {
 
       const res = await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error during decision POST', async () => {
@@ -309,7 +322,7 @@ describe('BFF admin approval decisions — BFF-ADMIN-31', () => {
 
       const res = await request(app)
         .post('/bff/admin/approvals/apr-001/decision')
-        .set('Authorization', 'Bearer test-token')
+        .set('Cookie', sessionCookie)
         .send('decision=approve');
 
       expect(res.status).toBe(500);

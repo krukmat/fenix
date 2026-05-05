@@ -1,7 +1,9 @@
 // Task 4.1 — FR-301: Express app factory — exported without listen() for Supertest compatibility
+// BAL-01: express-session wired for cookie-backed admin auth
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import session from 'express-session';
 import { config } from './config';
 
 import { authRelay } from './middleware/authRelay';
@@ -32,6 +34,21 @@ app.use(cors({
       return;
     }
     callback(null, false);
+  },
+}));
+
+// BAL-01: session middleware — HttpOnly cookie, SameSite=Lax, Secure in production
+const SESSION_SECRET = process.env['SESSION_SECRET'] ?? 'fenix-admin-dev-secret-change-in-prod';
+app.use(session({
+  name: 'fenix.admin.sid',
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: config.isProduction,
+    maxAge: 8 * 60 * 60 * 1000, // 8 hours
   },
 }));
 

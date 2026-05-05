@@ -2,6 +2,7 @@
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import * as fs from 'fs';
 import * as path from 'path';
+import axios from 'axios';
 import type { SeederOutput } from '../snapshots/types';
 import { catalog, type ResolvedIds } from './catalog';
 
@@ -16,7 +17,6 @@ export type ShooterResult = {
 
 export async function runShooter(
   bffBaseUrl: string,
-  token: string,
   seed: SeederOutput,
   resolved: ResolvedIds,
   outputDir: string,
@@ -33,6 +33,7 @@ export async function runShooter(
   try {
     const page: Page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 900 });
+    let sessionEstablished = false;
 
     for (const entry of catalog) {
       const route = entry.url(bffBaseUrl, seed, resolved);
@@ -40,15 +41,12 @@ export async function runShooter(
       const capturedAt = new Date().toISOString();
 
       try {
-        // Inject Bearer token into every request this page makes (initial HTML + HTMX fetches)
-        await page.setExtraHTTPHeaders({ Authorization: `Bearer ${token}` });
+        if (entry.requiresSession && !sessionEstablished) {
+          await loginAsAdmin(page, bffBaseUrl, seed.credentials.email, seed.credentials.password);
+          sessionEstablished = true;
+        }
 
         await page.goto(route, { waitUntil: 'networkidle2', timeout: 15000 });
-
-        // Inject into localStorage so HTMX client uses it for future sub-requests
-        await page.evaluate((t: string) => {
-          localStorage.setItem('fenix.admin.bearerToken', t);
-        }, token);
 
         // Allow HTMX fragments to settle after networkidle2
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -68,4 +66,39 @@ export async function runShooter(
   }
 
   return results;
+}
+
+async function loginAsAdmin(page: Page, bffBaseUrl: string, email: string, password: string): Promise<void> {
+  // POST from Node (not the browser) so we can read the Set-Cookie response header directly.
+  // HttpOnly cookies are invisible to page.evaluate JS, so we inject the cookie via page.setCookie().
+  const loginRes = await axios.post(
+    `${bffBaseUrl}/bff/admin/login`,
+    `email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`,
+    {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      maxRedirects: 0,
+      validateStatus: (s) => s === 302,
+    },
+  );
+
+  const setCookieHeader = loginRes.headers['set-cookie'];
+  const cookieArray = Array.isArray(setCookieHeader) ? setCookieHeader : setCookieHeader ? [setCookieHeader] : [];
+  const sessionRaw = cookieArray.find((c: string) => c.startsWith('fenix.admin.sid='));
+
+  if (!sessionRaw) {
+    throw new Error('Admin login did not produce fenix.admin.sid session cookie');
+  }
+
+  // Extract value (everything between = and first ;)
+  const sessionValue = sessionRaw.split('=')[1]?.split(';')[0] ?? '';
+
+  const url = new URL(bffBaseUrl);
+  await page.setCookie({
+    name: 'fenix.admin.sid',
+    value: sessionValue,
+    domain: url.hostname,
+    path: '/',
+    httpOnly: true,
+    sameSite: 'Lax',
+  });
 }

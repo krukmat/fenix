@@ -2,10 +2,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createGoClient } from '../services/goClient';
 import { adminLayout } from './adminLayout';
-import { upstreamStatus } from './adminAuth';
+import { invalidateAdminSession, upstreamStatus } from './adminAuth';
 import { esc, outcomeBadge, buildDetailBody, type AuditDetail } from './adminAuditFragments';
-
-const ADMIN_ROOT = '/bff/admin';
 
 // BFF-ADMIN-Task6: fields match Go response (snake_case, entity_type/entity_id, actor_id)
 interface AuditRow {
@@ -136,7 +134,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction): Promise
     const nextCursor = body?.meta?.nextCursor;
     res.type('html').status(200).send(adminLayout('Audit Trail', buildListBody(rows, nextCursor, filterParams)));
   } catch (err: unknown) {
-    if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (upstreamStatus(err) === 401) { await invalidateAdminSession(req, res); return; }
     next(err);
   }
 });
@@ -155,7 +153,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
     }
     res.type('html').status(200).send(adminLayout('Audit Event', buildDetailBody(detail)));
   } catch (err: unknown) {
-    if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (upstreamStatus(err) === 401) { await invalidateAdminSession(req, res); return; }
     next(err);
   }
 });

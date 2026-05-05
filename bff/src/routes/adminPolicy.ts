@@ -2,9 +2,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createGoClient } from '../services/goClient';
 import { adminLayout } from './adminLayout';
-import { upstreamStatus } from './adminAuth';
-
-const ADMIN_ROOT = '/bff/admin';
+import { invalidateAdminSession, upstreamStatus } from './adminAuth';
 
 interface QuotaState {
   agentId: string;
@@ -182,7 +180,7 @@ function buildVersionsBody(policySetId: string, versions: PolicyVersion[]): stri
 const router = Router();
 
 // BFF-ADMIN-50: governance summary + policy sets overview
-router.get('/', async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const token = res.locals['adminToken'] as string | undefined;
   try {
     const client = createGoClient(token);
@@ -195,7 +193,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction): Promis
     const body = buildQuotaSection(quotaStates) + buildPolicySetSection(sets);
     res.type('html').status(200).send(adminLayout('Policy & Governance', body));
   } catch (err: unknown) {
-    if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (upstreamStatus(err) === 401) { await invalidateAdminSession(req, res); return; }
     next(err);
   }
 });
@@ -210,7 +208,7 @@ router.get('/:id/versions', async (req: Request, res: Response, next: NextFuncti
     const versions = Array.isArray(resp?.data) ? resp.data : [];
     res.type('html').status(200).send(adminLayout('Policy Versions', buildVersionsBody(id, versions)));
   } catch (err: unknown) {
-    if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (upstreamStatus(err) === 401) { await invalidateAdminSession(req, res); return; }
     next(err);
   }
 });

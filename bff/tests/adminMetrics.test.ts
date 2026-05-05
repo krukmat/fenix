@@ -1,6 +1,9 @@
 // BFF-ADMIN-70: metrics dashboard — proxy of Go GET /metrics (Prometheus text)
+// BAL-02: session cookie required for all protected admin routes
 import request from 'supertest';
+import nock from 'nock';
 import { makeProxyStub } from './helpers/proxyStub';
+import { getAdminSessionCookie } from './helpers/adminSession';
 
 const proxyStub = makeProxyStub();
 jest.mock('http-proxy-middleware', () => ({
@@ -14,6 +17,16 @@ jest.mock('../src/services/goClient', () => ({
 }));
 
 import app from '../src/app';
+
+let sessionCookie: string;
+
+beforeEach(async () => {
+  sessionCookie = await getAdminSessionCookie(app);
+});
+
+afterEach(() => {
+  nock.cleanAll();
+});
 
 const PROMETHEUS_PAYLOAD = [
   '# HELP fenixcrm_requests_total Total HTTP requests',
@@ -36,7 +49,7 @@ describe('BFF admin metrics — BFF-ADMIN-70', () => {
 
       const res = await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -47,7 +60,7 @@ describe('BFF admin metrics — BFF-ADMIN-70', () => {
 
       await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith('/metrics', expect.objectContaining({ responseType: 'text' }));
     });
@@ -57,7 +70,7 @@ describe('BFF admin metrics — BFF-ADMIN-70', () => {
 
       const res = await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('42');
     });
@@ -67,7 +80,7 @@ describe('BFF admin metrics — BFF-ADMIN-70', () => {
 
       const res = await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('3');
     });
@@ -77,7 +90,7 @@ describe('BFF admin metrics — BFF-ADMIN-70', () => {
 
       const res = await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('1234.56');
     });
@@ -87,7 +100,7 @@ describe('BFF admin metrics — BFF-ADMIN-70', () => {
 
       const res = await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('requests_total');
       expect(res.text).toContain('request_errors_total');
@@ -99,7 +112,7 @@ describe('BFF admin metrics — BFF-ADMIN-70', () => {
 
       const res = await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/admin/policy');
     });
@@ -109,13 +122,13 @@ describe('BFF admin metrics — BFF-ADMIN-70', () => {
 
       const res = await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('Metrics');
     });
 
-    it('redirects to /bff/admin when Go backend returns 401', async () => {
+    it('redirects to /bff/admin/login when Go backend returns 401', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: 'Unauthorized' },
@@ -124,10 +137,10 @@ describe('BFF admin metrics — BFF-ADMIN-70', () => {
 
       const res = await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -135,7 +148,7 @@ describe('BFF admin metrics — BFF-ADMIN-70', () => {
 
       const res = await request(app)
         .get('/bff/admin/metrics')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });

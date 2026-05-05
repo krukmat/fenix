@@ -1,6 +1,9 @@
 // BFF-ADMIN-10 / BFF-ADMIN-11: admin workflows list and detail page tests
+// BAL-02: session cookie required for all protected admin routes
 import request from 'supertest';
+import nock from 'nock';
 import { makeProxyStub } from './helpers/proxyStub';
+import { getAdminSessionCookie } from './helpers/adminSession';
 
 const proxyStub = makeProxyStub();
 jest.mock('http-proxy-middleware', () => ({
@@ -14,6 +17,16 @@ jest.mock('../src/services/goClient', () => ({
 }));
 
 import app from '../src/app';
+
+let sessionCookie: string;
+
+beforeEach(async () => {
+  sessionCookie = await getAdminSessionCookie(app);
+});
+
+afterEach(() => {
+  nock.cleanAll();
+});
 
 const WORKFLOW_LIST = [
   {
@@ -47,7 +60,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -58,7 +71,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/workflows',
@@ -71,7 +84,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('sales_followup');
       expect(res.text).toContain('triage_case');
@@ -82,7 +95,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('active');
       expect(res.text).toContain('draft');
@@ -93,7 +106,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/admin/workflows/wf-001');
       expect(res.text).toContain('/bff/admin/workflows/wf-002');
@@ -104,7 +117,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       await request(app)
         .get('/bff/admin/workflows?status=active')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/workflows',
@@ -117,7 +130,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       await request(app)
         .get('/bff/admin/workflows?name=sales')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/workflows',
@@ -130,13 +143,13 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('No workflows found');
     });
 
-    it('redirects to /bff/admin when Go backend returns 401', async () => {
+    it('redirects to /bff/admin/login when Go backend returns 401', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -145,10 +158,10 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer expired-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -156,7 +169,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });
@@ -166,7 +179,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('name="status"');
       expect(res.text).toContain('name="name"');
@@ -177,7 +190,7 @@ describe('BFF admin workflows list — BFF-ADMIN-10', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/admin/workflows/new');
     });
@@ -193,7 +206,7 @@ describe('BFF admin workflow draft creation — WFA-01', () => {
     it('renders the create draft form', async () => {
       const res = await request(app)
         .get('/bff/admin/workflows/new')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -212,7 +225,7 @@ describe('BFF admin workflow draft creation — WFA-01', () => {
         .post('/bff/admin/workflows')
         .type('form')
         .send({ name: 'sales_followup', description: 'Follow up on deals', authoring_mode: 'visual' })
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.post).toHaveBeenCalledWith('/api/v1/workflows', {
         name: 'sales_followup',
@@ -228,7 +241,7 @@ describe('BFF admin workflow draft creation — WFA-01', () => {
         .post('/bff/admin/workflows')
         .type('form')
         .send({ name: 'sales_followup', description: 'Follow up on deals', authoring_mode: 'visual' })
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
       expect(res.headers['location']).toBe('/bff/builder?workflowId=wf-new');
@@ -248,7 +261,7 @@ describe('BFF admin workflow draft creation — WFA-01', () => {
         .post('/bff/admin/workflows')
         .type('form')
         .send({ name: '', description: 'Follow up on deals', authoring_mode: 'visual' })
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -270,14 +283,14 @@ describe('BFF admin workflow draft creation — WFA-01', () => {
         .post('/bff/admin/workflows')
         .type('form')
         .send({ name: 'sales_followup', description: 'Follow up on deals', authoring_mode: 'visual' })
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('forbidden');
       expect(res.text).toContain('name="name"');
     });
 
-    it('redirects to /bff/admin on 401 from upstream', async () => {
+    it('redirects to /bff/admin/login on 401 from upstream', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -288,10 +301,10 @@ describe('BFF admin workflow draft creation — WFA-01', () => {
         .post('/bff/admin/workflows')
         .type('form')
         .send({ name: 'sales_followup', description: 'Follow up on deals', authoring_mode: 'visual' })
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -301,7 +314,7 @@ describe('BFF admin workflow draft creation — WFA-01', () => {
         .post('/bff/admin/workflows')
         .type('form')
         .send({ name: 'sales_followup', description: 'Follow up on deals', authoring_mode: 'visual' })
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });
@@ -332,7 +345,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -343,7 +356,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith('/api/v1/workflows/wf-001');
     });
@@ -353,7 +366,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('sales_followup');
       expect(res.text).toContain('active');
@@ -364,7 +377,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('WORKFLOW sales_followup');
     });
@@ -374,7 +387,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('CARTA sales_followup');
     });
@@ -384,7 +397,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('3');
     });
@@ -394,7 +407,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/builder?workflowId=wf-001');
     });
@@ -404,7 +417,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('Back to workflow list');
     });
@@ -415,7 +428,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('Workflow status');
       expect(res.text).toContain('Draft: editable in builder and not yet ready for activation.');
@@ -426,7 +439,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/admin/workflows');
     });
@@ -436,7 +449,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('id="activation-section"');
     });
@@ -447,13 +460,13 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('No spec source');
     });
 
-    it('redirects to /bff/admin on 401 from upstream', async () => {
+    it('redirects to /bff/admin/login on 401 from upstream', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -462,10 +475,10 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -473,7 +486,7 @@ describe('BFF admin workflow detail — BFF-ADMIN-11', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });
@@ -492,7 +505,7 @@ describe('BFF admin workflow activation — BFF-ADMIN-12', () => {
 
       await request(app)
         .post('/bff/admin/workflows/wf-001/activate')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.put).toHaveBeenCalledWith('/api/v1/workflows/wf-001/activate');
     });
@@ -502,7 +515,7 @@ describe('BFF admin workflow activation — BFF-ADMIN-12', () => {
 
       const res = await request(app)
         .post('/bff/admin/workflows/wf-001/activate')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
       expect(res.headers['location']).toBe('/bff/admin/workflows/wf-001');
@@ -522,14 +535,14 @@ describe('BFF admin workflow activation — BFF-ADMIN-12', () => {
 
       const res = await request(app)
         .post('/bff/admin/workflows/wf-001/activate')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
       expect(res.text).toContain('workflow must be in testing to activate');
     });
 
-    it('redirects to /bff/admin on 401 from upstream', async () => {
+    it('redirects to /bff/admin/login on 401 from upstream', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -538,10 +551,10 @@ describe('BFF admin workflow activation — BFF-ADMIN-12', () => {
 
       const res = await request(app)
         .post('/bff/admin/workflows/wf-001/activate')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -549,7 +562,7 @@ describe('BFF admin workflow activation — BFF-ADMIN-12', () => {
 
       const res = await request(app)
         .post('/bff/admin/workflows/wf-001/activate')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });
@@ -561,7 +574,7 @@ describe('BFF admin workflow activation — BFF-ADMIN-12', () => {
 
       const res = await request(app)
         .get('/bff/admin/workflows/wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/admin/workflows/wf-001/activate');
     });

@@ -2,7 +2,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { createGoClient } from '../services/goClient';
 import { adminLayout } from './adminLayout';
-import { upstreamStatus } from './adminAuth';
+import { invalidateAdminSession, upstreamStatus } from './adminAuth';
 import {
   AgentRunDetail,
   BADGE_NEUTRAL,
@@ -11,8 +11,6 @@ import {
   statusBadge,
   buildDetailHeader,
 } from './adminAgentRunsFragments';
-
-const ADMIN_ROOT = '/bff/admin';
 
 interface AgentRunRow {
   id: string;
@@ -113,7 +111,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction): Promise
     const total = body?.meta?.total ?? runs.length;
     res.type('html').status(200).send(adminLayout('Agent Runs', buildBody(runs, total, q)));
   } catch (err: unknown) {
-    if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (upstreamStatus(err) === 401) { await invalidateAdminSession(req, res); return; }
     next(err);
   }
 });
@@ -129,7 +127,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction): Prom
     const { data: run } = await client.get<AgentRunDetail>(`/api/v1/agents/runs/${id}`);
     res.type('html').status(200).send(adminLayout(`Run ${id}`, buildDetailHeader(run, traceOffset)));
   } catch (err: unknown) {
-    if (upstreamStatus(err) === 401) { res.redirect(ADMIN_ROOT); return; }
+    if (upstreamStatus(err) === 401) { await invalidateAdminSession(req, res); return; }
     next(err);
   }
 });

@@ -1,6 +1,9 @@
 // BFF-ADMIN-50 / BFF-ADMIN-51: governance summary + policy sets list + versions drill-down
+// BAL-02: session cookie required for all protected admin routes
 import request from 'supertest';
+import nock from 'nock';
 import { makeProxyStub } from './helpers/proxyStub';
+import { getAdminSessionCookie } from './helpers/adminSession';
 
 const proxyStub = makeProxyStub();
 jest.mock('http-proxy-middleware', () => ({
@@ -14,6 +17,16 @@ jest.mock('../src/services/goClient', () => ({
 }));
 
 import app from '../src/app';
+
+let sessionCookie: string;
+
+beforeEach(async () => {
+  sessionCookie = await getAdminSessionCookie(app);
+});
+
+afterEach(() => {
+  nock.cleanAll();
+});
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -55,7 +68,7 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -68,7 +81,7 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith('/api/v1/governance/summary');
     });
@@ -80,7 +93,7 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith('/api/v1/policy/sets');
     });
@@ -92,7 +105,7 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('agent-001');
       expect(res.text).toContain('agent-002');
@@ -105,7 +118,7 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('tokens_per_day');
       expect(res.text).toContain('cost_per_day');
@@ -118,7 +131,7 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('ok');
       expect(res.text).toContain('warning');
@@ -131,7 +144,7 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('Default Policy');
       expect(res.text).toContain('No-Cloud Policy');
@@ -144,7 +157,7 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('ps-001');
       expect(res.text).toContain('ps-002');
@@ -157,7 +170,7 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/admin/policy/ps-001/versions');
       expect(res.text).toContain('/bff/admin/policy/ps-002/versions');
@@ -170,7 +183,7 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('No quota states');
@@ -183,13 +196,13 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('No policy sets');
     });
 
-    it('redirects to /bff/admin when Go backend returns 401', async () => {
+    it('redirects to /bff/admin/login when Go backend returns 401', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -198,10 +211,10 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -209,7 +222,7 @@ describe('BFF admin policy — governance summary — BFF-ADMIN-50', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });
@@ -227,7 +240,7 @@ describe('BFF admin policy — versions drill-down — BFF-ADMIN-51', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy/ps-001/versions')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -238,7 +251,7 @@ describe('BFF admin policy — versions drill-down — BFF-ADMIN-51', () => {
 
       await request(app)
         .get('/bff/admin/policy/ps-001/versions')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith('/api/v1/policy/sets/ps-001/versions');
     });
@@ -248,7 +261,7 @@ describe('BFF admin policy — versions drill-down — BFF-ADMIN-51', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy/ps-001/versions')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('pv-001');
       expect(res.text).toContain('pv-002');
@@ -259,7 +272,7 @@ describe('BFF admin policy — versions drill-down — BFF-ADMIN-51', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy/ps-001/versions')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('active');
     });
@@ -269,7 +282,7 @@ describe('BFF admin policy — versions drill-down — BFF-ADMIN-51', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy/ps-001/versions')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/admin/policy');
     });
@@ -279,7 +292,7 @@ describe('BFF admin policy — versions drill-down — BFF-ADMIN-51', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy/ps-001/versions')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('No versions');
@@ -290,12 +303,15 @@ describe('BFF admin policy — versions drill-down — BFF-ADMIN-51', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy/ps-001/versions')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
-      expect(res.text).not.toContain('method="POST"');
+      // BAL-02: Sign out button in the header uses method="POST"; assert content area is read-only
+      const mainMatch = res.text.match(/<main[^>]*>([\s\S]*?)<\/main>/);
+      const mainContent = mainMatch ? mainMatch[1] : '';
+      expect(mainContent).not.toContain('method="POST"');
     });
 
-    it('redirects to /bff/admin when Go backend returns 401', async () => {
+    it('redirects to /bff/admin/login when Go backend returns 401', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -304,10 +320,10 @@ describe('BFF admin policy — versions drill-down — BFF-ADMIN-51', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy/ps-001/versions')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -315,7 +331,7 @@ describe('BFF admin policy — versions drill-down — BFF-ADMIN-51', () => {
 
       const res = await request(app)
         .get('/bff/admin/policy/ps-001/versions')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });

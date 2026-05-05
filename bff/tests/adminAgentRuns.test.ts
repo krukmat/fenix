@@ -1,6 +1,9 @@
 // BFF-ADMIN-20 / BFF-ADMIN-21a: admin agent runs list + detail header tests
+// BAL-02: session cookie required for all protected admin routes
 import request from 'supertest';
+import nock from 'nock';
 import { makeProxyStub } from './helpers/proxyStub';
+import { getAdminSessionCookie } from './helpers/adminSession';
 
 const proxyStub = makeProxyStub();
 jest.mock('http-proxy-middleware', () => ({
@@ -14,6 +17,16 @@ jest.mock('../src/services/goClient', () => ({
 }));
 
 import app from '../src/app';
+
+let sessionCookie: string;
+
+beforeEach(async () => {
+  sessionCookie = await getAdminSessionCookie(app);
+});
+
+afterEach(() => {
+  nock.cleanAll();
+});
 
 const RUN_LIST = [
   {
@@ -55,7 +68,7 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -66,7 +79,7 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       await request(app)
         .get('/bff/admin/agent-runs')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/agents/runs',
@@ -79,7 +92,7 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('run-001');
       expect(res.text).toContain('run-002');
@@ -90,7 +103,7 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('success');
       expect(res.text).toContain('failed');
@@ -101,7 +114,7 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/admin/agent-runs/run-001');
       expect(res.text).toContain('/bff/admin/agent-runs/run-002');
@@ -112,7 +125,7 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       await request(app)
         .get('/bff/admin/agent-runs?status=success')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/agents/runs',
@@ -125,7 +138,7 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       await request(app)
         .get('/bff/admin/agent-runs?workflow_id=wf-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/agents/runs',
@@ -138,7 +151,7 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       await request(app)
         .get('/bff/admin/agent-runs?date_from=2026-04-01&date_to=2026-04-30')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/agents/runs',
@@ -151,7 +164,7 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('No agent runs found');
@@ -162,13 +175,13 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('name="status"');
       expect(res.text).toContain('name="workflow_id"');
     });
 
-    it('redirects to /bff/admin when Go backend returns 401', async () => {
+    it('redirects to /bff/admin/login when Go backend returns 401', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -177,10 +190,10 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -188,7 +201,7 @@ describe('BFF admin agent runs list — BFF-ADMIN-20', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });
@@ -260,7 +273,7 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -271,7 +284,7 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith('/api/v1/agents/runs/run-001');
     });
@@ -281,7 +294,7 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('run-001');
     });
@@ -291,7 +304,7 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('agent-abc');
     });
@@ -301,7 +314,7 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('success');
     });
@@ -311,7 +324,7 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('Case resolved via KB lookup.');
     });
@@ -321,7 +334,7 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-003')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('Insufficient evidence to proceed.');
     });
@@ -331,7 +344,7 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).not.toContain('Abstain reason');
     });
@@ -341,7 +354,7 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('2026-04-20');
     });
@@ -351,7 +364,7 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('2026-04-20T10:00:01');
     });
@@ -361,12 +374,12 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/admin/agent-runs');
     });
 
-    it('redirects to /bff/admin when Go backend returns 401', async () => {
+    it('redirects to /bff/admin/login when Go backend returns 401', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -375,10 +388,10 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -386,7 +399,7 @@ describe('BFF admin agent run detail header — BFF-ADMIN-21a', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });
@@ -405,7 +418,7 @@ describe('BFF admin agent run detail trace — BFF-ADMIN-21b', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('Reasoning Trace');
     });
@@ -415,7 +428,7 @@ describe('BFF admin agent run detail trace — BFF-ADMIN-21b', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('Retrieving relevant knowledge items.');
       expect(res.text).toContain('Evaluating evidence confidence.');
@@ -427,7 +440,7 @@ describe('BFF admin agent run detail trace — BFF-ADMIN-21b', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       // step numbers 1, 2, 3 rendered (1-indexed display)
       expect(res.text).toContain('Step 1');
@@ -441,7 +454,7 @@ describe('BFF admin agent run detail trace — BFF-ADMIN-21b', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('No trace available');
     });
@@ -452,7 +465,7 @@ describe('BFF admin agent run detail trace — BFF-ADMIN-21b', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('No trace available');
     });
@@ -467,7 +480,7 @@ describe('BFF admin agent run detail trace — BFF-ADMIN-21b', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001?trace_offset=10')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       // steps 10-14 visible
       expect(res.text).toContain('Thought number 10');
@@ -487,7 +500,7 @@ describe('BFF admin agent run detail trace — BFF-ADMIN-21b', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001?trace_offset=0')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('trace_offset=10');
     });
@@ -502,7 +515,7 @@ describe('BFF admin agent run detail trace — BFF-ADMIN-21b', () => {
 
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001?trace_offset=10')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('trace_offset=0');
     });
@@ -513,7 +526,7 @@ describe('BFF admin agent run detail trace — BFF-ADMIN-21b', () => {
       // only 3 steps total, page size 10 → no next page
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001?trace_offset=0')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).not.toContain('trace_offset=10');
     });
@@ -529,7 +542,7 @@ describe('BFF admin agent run detail evidence — BFF-ADMIN-21c', () => {
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('Evidence');
     });
 
@@ -537,7 +550,7 @@ describe('BFF admin agent run detail evidence — BFF-ADMIN-21c', () => {
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('email_123');
       expect(res.text).toContain('case_456');
     });
@@ -546,7 +559,7 @@ describe('BFF admin agent run detail evidence — BFF-ADMIN-21c', () => {
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('Customer reported issue with login timeout.');
       expect(res.text).toContain('Similar case resolved by resetting auth token.');
     });
@@ -555,7 +568,7 @@ describe('BFF admin agent run detail evidence — BFF-ADMIN-21c', () => {
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('0.95');
       expect(res.text).toContain('0.81');
     });
@@ -564,7 +577,7 @@ describe('BFF admin agent run detail evidence — BFF-ADMIN-21c', () => {
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('high');
       expect(res.text).toContain('medium');
     });
@@ -573,7 +586,7 @@ describe('BFF admin agent run detail evidence — BFF-ADMIN-21c', () => {
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('2026-04-19');
       expect(res.text).toContain('2026-04-18');
     });
@@ -583,7 +596,7 @@ describe('BFF admin agent run detail evidence — BFF-ADMIN-21c', () => {
       mockGoClient.get.mockResolvedValue({ data: runNoEvidence, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('No evidence');
     });
 
@@ -592,7 +605,7 @@ describe('BFF admin agent run detail evidence — BFF-ADMIN-21c', () => {
       mockGoClient.get.mockResolvedValue({ data: runEmpty, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('No evidence');
     });
   });
@@ -631,7 +644,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL_WITH_TOOLS, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('Tool Calls');
     });
 
@@ -639,7 +652,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL_WITH_TOOLS, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('create_task');
       expect(res.text).toContain('send_email');
     });
@@ -648,7 +661,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL_WITH_TOOLS, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('success');
       expect(res.text).toContain('denied');
     });
@@ -657,7 +670,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL_WITH_TOOLS, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('320');
       expect(res.text).toContain('12');
     });
@@ -666,7 +679,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL_WITH_TOOLS, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('idem-key-001');
     });
 
@@ -674,7 +687,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL_WITH_TOOLS, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       // second tool call has no idempotency key — dash rendered
       expect(res.text).toMatch(/—/);
     });
@@ -684,7 +697,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: runNoTools, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('No tool calls');
     });
 
@@ -693,7 +706,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: runEmpty, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('No tool calls');
     });
   });
@@ -703,7 +716,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL_WITH_TOOLS, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('Cost');
     });
 
@@ -711,7 +724,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL_WITH_TOOLS, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('1200');
     });
 
@@ -719,7 +732,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: RUN_DETAIL_WITH_TOOLS, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('0.04');
     });
 
@@ -728,7 +741,7 @@ describe('BFF admin agent run detail tool calls and cost — BFF-ADMIN-21d', () 
       mockGoClient.get.mockResolvedValue({ data: runNoCost, status: 200 });
       const res = await request(app)
         .get('/bff/admin/agent-runs/run-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
       expect(res.text).toContain('Cost');
       // values absent — dash rendered for both
       const costMatches = (res.text.match(/—/g) ?? []).length;

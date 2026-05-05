@@ -1,4 +1,6 @@
 import request from 'supertest';
+import nock from 'nock';
+import { getAdminSessionCookie } from './helpers/adminSession';
 
 jest.mock('../src/services/goClient', () => ({
   createGoClient: jest.fn(),
@@ -6,6 +8,16 @@ jest.mock('../src/services/goClient', () => ({
 }));
 
 import app from '../src/app';
+
+let sessionCookie: string;
+
+beforeAll(async () => {
+  sessionCookie = await getAdminSessionCookie(app);
+});
+
+afterEach(() => {
+  nock.cleanAll();
+});
 
 describe('BFF CORS allowlist', () => {
   it('sets CORS headers for a configured local builder origin', async () => {
@@ -37,7 +49,7 @@ describe('BFF CORS allowlist', () => {
 
   // BFF-ADMIN-03: admin surface is same-origin (served by the BFF itself) — no CORS entry needed
   it('serves /bff/admin without CORS headers when no Origin header (same-origin request)', async () => {
-    const res = await request(app).get('/bff/admin');
+    const res = await request(app).get('/bff/admin').set('Cookie', sessionCookie);
 
     expect(res.status).toBe(200);
     expect(res.headers['access-control-allow-origin']).toBeUndefined();

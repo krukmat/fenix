@@ -1,6 +1,9 @@
 // BFF-ADMIN-40 / BFF-ADMIN-41: audit trail paginated list + record detail
+// BAL-02: session cookie required for all protected admin routes
 import request from 'supertest';
+import nock from 'nock';
 import { makeProxyStub } from './helpers/proxyStub';
+import { getAdminSessionCookie } from './helpers/adminSession';
 
 const proxyStub = makeProxyStub();
 jest.mock('http-proxy-middleware', () => ({
@@ -14,6 +17,17 @@ jest.mock('../src/services/goClient', () => ({
 }));
 
 import app from '../src/app';
+
+let sessionCookie: string;
+
+beforeEach(async () => {
+  mockGoClient.get.mockReset();
+  sessionCookie = await getAdminSessionCookie(app);
+});
+
+afterEach(() => {
+  nock.cleanAll();
+});
 
 // BFF-ADMIN-Task6: fields match Go snake_case response shape
 const AUDIT_LIST = [
@@ -47,15 +61,13 @@ const BACKEND_LIST_RESPONSE = {
 // ─── BFF-ADMIN-40: list ──────────────────────────────────────────────────────
 
 describe('BFF admin audit list — BFF-ADMIN-40', () => {
-  beforeEach(() => { jest.clearAllMocks(); });
-
   describe('GET /bff/admin/audit', () => {
     it('returns 200 with HTML content-type', async () => {
       mockGoClient.get.mockResolvedValue({ data: BACKEND_LIST_RESPONSE, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -66,7 +78,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/audit/events',
@@ -79,7 +91,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('evt-001');
       expect(res.text).toContain('evt-002');
@@ -90,7 +102,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('user-abc');
       expect(res.text).toContain('user-xyz');
@@ -101,7 +113,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('case.created');
       expect(res.text).toContain('approval.decided');
@@ -112,7 +124,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('case');
       expect(res.text).toContain('approval');
@@ -123,7 +135,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       await request(app)
         .get('/bff/admin/audit?actor=user-abc')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/audit/events',
@@ -136,7 +148,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       await request(app)
         .get('/bff/admin/audit?resource_type=case')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/audit/events',
@@ -149,7 +161,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       await request(app)
         .get('/bff/admin/audit?date_from=2026-04-01')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/audit/events',
@@ -162,7 +174,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       await request(app)
         .get('/bff/admin/audit?date_to=2026-04-30')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/audit/events',
@@ -175,7 +187,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       await request(app)
         .get('/bff/admin/audit?cursor=cursor-abc')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith(
         '/api/v1/audit/events',
@@ -188,7 +200,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('cursor-abc');
     });
@@ -201,7 +213,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       // No "Next" pagination link rendered
       expect(res.text).not.toContain('Next');
@@ -215,7 +227,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('No audit events');
@@ -226,13 +238,13 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('name="actor"');
       expect(res.text).toContain('name="resource_type"');
     });
 
-    it('redirects to /bff/admin when Go backend returns 401', async () => {
+    it('redirects to /bff/admin/login when Go backend returns 401', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -241,10 +253,10 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -252,7 +264,7 @@ describe('BFF admin audit list — BFF-ADMIN-40', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });
@@ -275,15 +287,13 @@ const AUDIT_DETAIL = {
 };
 
 describe('BFF admin audit detail — BFF-ADMIN-41', () => {
-  beforeEach(() => { jest.clearAllMocks(); });
-
   describe('GET /bff/admin/audit/:id', () => {
     it('returns 200 with HTML content-type', async () => {
       mockGoClient.get.mockResolvedValue({ data: AUDIT_DETAIL, status: 200 });
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/text\/html/);
@@ -294,7 +304,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
       await request(app)
         .get('/bff/admin/audit/evt-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(mockGoClient.get).toHaveBeenCalledWith('/api/v1/audit/events/evt-001');
     });
@@ -304,7 +314,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('evt-001');
     });
@@ -314,7 +324,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('user-abc');
       expect(res.text).toContain('case.created');
@@ -325,7 +335,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('case');
       expect(res.text).toContain('case-111');
@@ -336,7 +346,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('success');
     });
@@ -346,7 +356,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.text).toContain('/bff/admin/audit');
     });
@@ -356,10 +366,13 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
-      // The shared layout auth-bar uses method="GET" (default); no content-area POST form exists
-      expect(res.text).not.toContain('method="POST"');
+      // BAL-02: Sign out button in the header uses method="POST", but content area is read-only.
+      // Extract just the <main> block to assert no POST form in content.
+      const mainMatch = res.text.match(/<main[^>]*>([\s\S]*?)<\/main>/);
+      const mainContent = mainMatch ? mainMatch[1] : '';
+      expect(mainContent).not.toContain('method="POST"');
     });
 
     it('accepts legacy envelope responses without crashing', async () => {
@@ -367,13 +380,13 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(200);
       expect(res.text).toContain('evt-001');
     });
 
-    it('redirects to /bff/admin when Go backend returns 401', async () => {
+    it('redirects to /bff/admin/login when Go backend returns 401', async () => {
       const err = Object.assign(new Error('Unauthorized'), {
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
@@ -382,10 +395,10 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
-        .set('Authorization', 'Bearer expired');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(302);
-      expect(res.headers['location']).toBe('/bff/admin');
+      expect(res.headers['location']).toBe('/bff/admin/login');
     });
 
     it('returns 500 on unexpected upstream error', async () => {
@@ -393,7 +406,7 @@ describe('BFF admin audit detail — BFF-ADMIN-41', () => {
 
       const res = await request(app)
         .get('/bff/admin/audit/evt-001')
-        .set('Authorization', 'Bearer test-token');
+        .set('Cookie', sessionCookie);
 
       expect(res.status).toBe(500);
     });

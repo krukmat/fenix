@@ -1,7 +1,9 @@
 // BFF-ADMIN-01 / BFF-ADMIN-02: /bff/admin router — shell with shared HTMX chrome and bearer relay
+// BAL-01: login routes added (public, before session guard)
+// BAL-02 / BAL-03: admin session guard, logout route, and stale-session redirect handling
 import { Router, Request, Response } from 'express';
 import { adminLayout } from './adminLayout';
-import { adminBearerRelay } from './adminAuth';
+import { requireAdminSession, loginPage, handleLogin, handleLogout } from './adminAuth';
 // BFF-ADMIN-10: workflows sub-router
 import adminWorkflowsRouter from './adminWorkflows';
 // BFF-ADMIN-20: agent runs sub-router
@@ -19,8 +21,13 @@ import adminMetricsRouter from './adminMetrics';
 
 const router = Router();
 
-// BFF-ADMIN-02: attach bearer token to res.locals for all admin proxy handlers (Phase B+)
-router.use(adminBearerRelay);
+// BAL-01: login routes are public — mounted before the bearer relay middleware
+router.get('/login', loginPage);
+router.post('/login', handleLogin);
+router.post('/logout', handleLogout);
+
+// BAL-02: protect all admin routes through session presence
+router.use(requireAdminSession);
 
 const dashboardBody = `
   <h2 class="page-title">Dashboard</h2>

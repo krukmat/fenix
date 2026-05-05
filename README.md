@@ -558,6 +558,29 @@ To understand the transition baselines:
 
 ---
 
+## Admin Surface
+
+The BFF exposes an operator admin shell at `/bff/admin` with session-backed authentication (BAL-01–05).
+
+- Login screen with email/password form — no bearer token exposed in the UI
+- HTTP-only session cookie (`fenix.admin.sid`) — no `localStorage` token storage
+- All admin routes protected via session guard; upstream 401 invalidates and redirects
+- Explicit logout via `POST /bff/admin/logout`
+
+**Screenshots** (generated via `cd bff && npm run admin-screenshots`):
+
+| Login | Dashboard | Workflows |
+|-------|-----------|-----------|
+| ![login](bff/artifacts/admin-screenshots/00_login.png) | ![dashboard](bff/artifacts/admin-screenshots/01_dashboard.png) | ![workflows](bff/artifacts/admin-screenshots/02_workflows_list.png) |
+
+| Agent Runs | Approvals | Audit |
+|------------|-----------|-------|
+| ![agent runs](bff/artifacts/admin-screenshots/06_agent_runs_list.png) | ![approvals](bff/artifacts/admin-screenshots/08_approvals_list.png) | ![audit](bff/artifacts/admin-screenshots/09_audit_list.png) |
+
+Full report: [`bff/artifacts/admin-screenshots/report.html`](bff/artifacts/admin-screenshots/report.html)
+
+---
+
 ## Status
 
 - the governed runtime, retrieval layer, approvals, and audit foundations already exist
