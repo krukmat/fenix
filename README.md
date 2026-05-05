@@ -4,300 +4,97 @@
   <img src="img/fenix.png" alt="FenixCRM" width="160" />
 </p>
 
-> A governed AI layer for customer operations where evidence grounds answers, policy constrains actions, and humans stay in control where it matters.
+> An AI layer for customer operations where every answer is backed by evidence, every action goes through policy, and humans stay in control where it matters.
 
 ---
 
 ## What It Is
 
-Most CRMs are passive databases. Teams update them after the fact, work happens elsewhere,
-and the system lags behind reality.
+Most CRMs are passive databases. Teams enter data after the fact, decisions happen in emails and chats, and the system just stores the result.
 
-FenixCRM starts from a different assumption: **the key unit is the governed workflow over trusted context.**
+FenixCRM works differently. Instead of being a place to record what happened, it is an active layer that helps teams act on what is happening — with AI assistance that is grounded, auditable, and controlled.
 
-That means FenixCRM is not trying to win as a broad CRM replacement. It is a governed AI execution layer
-for customer operations, sitting between human teams, business events, external systems, and shared context.
+Concretely, it combines three things:
 
-Concretely, it combines:
+- **Context** — CRM records, emails, documents, and call notes in one searchable place
+- **Governed AI** — answers backed by evidence, actions blocked by policy, approvals for sensitive steps
+- **Execution** — copilots and agents that do real work, with a full trace of every decision
 
-- a context layer: native CRM records plus external context and provenance
-- a governed AI layer: retrieval, evidence packs, policy, approvals, audit, and safe tools
-- an execution layer: copilots, agents, handoff, and declarative workflow evolution
+The focus today is on two workflows:
 
-The current wedge is:
-
-- Support Copilot and Support Agent for case handling
-- Sales Copilot for account and deal context
-- Evidence-grounded execution with approval and auditability
-
-The commercial packaging aligned to that wedge is:
-
-- `Support Copilot`: grounded support assistance with evidence visibility and governed actions
-- `Support Agent`: governed case execution with approvals, handoff, audit, and usage traces
-- `Sales Copilot`: grounded account and deal briefs with risks, next steps, and abstention on weak evidence
-
-The current direction of the project is to evolve from hardcoded Go agents toward verified,
-executable declarative workflows without losing the governed runtime already built.
-
-The core idea is simple:
-
-- today: Go agents execute business logic
-- transition: the orchestrator becomes pluggable
-- future: DSL workflows + Judge + Runtime drive execution
+- **Support** — help agents resolve cases faster with grounded suggestions and safe actions
+- **Sales** — give reps account context and deal briefs before every call or meeting
 
 ---
 
-## Core Idea
+## What Makes It Different
 
-Business logic should not live forever as hidden code and tribal knowledge.
-It should be something the system can explain and the team can evolve.
+### Answers come with evidence
 
-That is why the system is moving from:
+The AI does not just answer. It shows which documents, emails, or records it used and how confident it is. If there is not enough evidence, it says so instead of guessing.
 
-- "Go code defines the workflow"
+### Actions go through policy
 
-to:
+Agents cannot change data directly. Every action goes through a registered tool. The policy layer checks permissions before anything runs. Sensitive actions — like sending an email to an external contact — require human approval.
 
-- "the declarative workflow defines execution"
+### Everything leaves a trace
 
-A workflow should be understandable, verifiable, and executable.
-A judge verifies it before activation. A runtime executes it. Tools perform the concrete operations.
-Policy, approvals, audit, and cost controls keep the whole thing under control.
-
-This does not require a rewrite. The strategy is to extend the current infrastructure:
-
-- `ToolRegistry`
-- `PolicyEngine`
-- `ApprovalService`
-- `AuditTrail`
-- `Usage Ledger`
-- `EventBus`
-- `agent_run`
-
-For documentation purposes, the new workflow-platform capabilities use the existing repository
-use case convention and are reserved as `UC-A2` to `UC-A9`.
+Every AI response, tool call, approval decision, and policy check is recorded. Operators can inspect what happened, who approved it, and what it cost — from the same app where the work happens.
 
 ---
 
-## Basic Concepts
+## What Is Built Today
 
-### 1. Tools, not direct mutations
+The core system is complete and working:
 
-Agents should not mutate CRM data directly. Relevant actions must go through registered,
-auditable tools.
-
-### 2. Policy and approvals
-
-Before executing a sensitive action, the system evaluates permissions and may require human approval.
-
-### 3. Audit
-
-Every important execution should leave a trace. This includes decisions, tool calls, approvals,
-and outcomes.
-
-### 4. Workflow
-
-A workflow is the declarative unit that describes what should happen when an event or condition occurs.
-
-### 5. Judge
-
-The Judge verifies that a workflow is consistent before it can be activated.
-
-### 6. Signal
-
-A signal is an operational conclusion backed by evidence, for example high intent or risk.
+| Area | What exists |
+|---|---|
+| CRM records | Accounts, Contacts, Leads, Deals, Cases, Activities, Notes |
+| Knowledge layer | Ingestion, chunking, hybrid search (keyword + semantic) |
+| AI layer | Copilot responses with evidence packs, support and sales agents |
+| Governance | RBAC permissions, policy engine, approval flows, audit trail |
+| Workflows | Declarative workflow engine with visual authoring and a mobile graph viewer |
+| Observability | Usage tracking, cost per run, quota controls, agent run traces |
+| Mobile app | React Native app with inbox, CRM hub, copilot, governance screens |
+| Admin surface | BFF admin shell with session auth, workflow builder, approval review |
 
 ---
 
-## Architectural State
+## How It Works
 
-Today, the system mainly works like this:
-
-```mermaid
-flowchart LR
-    API[HTTP API] --> ORC[Orchestrator]
-    ORC --> GO[Go Agents]
-    GO --> TOOLS[ToolRegistry]
-    TOOLS --> POLICY[PolicyEngine]
-    TOOLS --> AUDIT[Audit]
-    GO --> USAGE[Usage and Cost Signals]
-    GO --> EVIDENCE[Knowledge and Evidence]
-    GO --> CRM[CRM State]
-```
-
-The target direction is this:
-
-```mermaid
-flowchart LR
-    INPUT[Human or Agent Input] --> DSL[Workflow DSL]
-    DSL --> JUDGE[Judge]
-    JUDGE --> RUNTIME[DSL Runtime]
-    RUNTIME --> TOOLS[ToolRegistry]
-    TOOLS --> POLICY[PolicyEngine]
-    TOOLS --> AUDIT[Audit]
-    RUNTIME --> USAGE[Usage Ledger and Quotas]
-    RUNTIME --> SIGNALS[SignalService]
-    RUNTIME --> CRM[CRM State]
-```
-
-High-level interaction:
+When something happens — a new case, a meeting request, a signal from a lead — the system surfaces relevant context, suggests an action, and asks for approval if needed. The result is traced and stored.
 
 ```mermaid
 sequenceDiagram
     participant U as User or Event
-    participant W as Workflow
-    participant J as Judge
-    participant R as Runtime
-    participant T as ToolRegistry
+    participant C as Copilot or Agent
     participant P as Policy
+    participant H as Human Approval
     participant A as Audit
 
-    U->>W: trigger
-    W->>J: verify before activation
-    J-->>W: pass or fail
-    W->>R: execute active workflow
-    R->>T: call mapped tool
-    T->>P: enforce policy
-    P-->>T: allow or deny
-    T-->>R: result
-    R->>A: record execution
+    U->>C: trigger (case created, question asked)
+    C->>C: retrieve evidence from knowledge base
+    C->>P: check permissions before acting
+    P-->>C: allow or deny
+    C->>H: request approval if action is sensitive
+    H-->>C: approve or reject
+    C->>A: record full trace
+    C-->>U: respond with evidence + outcome
 ```
 
-**Simple example**
+**Example — support case**
 
-A new support case is created. That event triggers the workflow `resolve_support_case`.
-
-The workflow was already verified by the Judge before activation, so the Runtime can execute it safely.
-
-During execution, the Runtime maps a step such as `SET case.status = "resolved"` to a registered tool like `update_case`.
-Before that tool runs, the Policy layer checks whether the action is allowed. If it is allowed, the tool executes and returns the result.
-Finally, the Runtime records the full execution in the audit trail.
-
-In short:
-
-- event: `case.created`
-- workflow: `resolve_support_case`
-- tool call: `update_case`
-- policy decision: allow or deny
-- outcome: CRM updated, usage attributed, and execution audited
+A new case arrives. The copilot searches the knowledge base and finds three relevant past cases and a product doc. It surfaces them with confidence scores. The agent suggests closing the case with a specific resolution. Before that action runs, the policy layer checks the agent's permissions. The result is written, and the full run — retrieval queries, evidence used, tool calls, cost — is stored in the audit trail.
 
 ---
 
-## Transition Strategy
+## The App in Practice
 
-The transition is phased, but the commercial priority is narrower than the full platform surface.
-
-```mermaid
-flowchart LR
-    F1[Phase 1\nCompatibility Layer]
-    F2[Phase 2\nWorkflow Foundation]
-    F3[Phase 3\nDeclarative Bridge]
-    F4[Phase 4\nDSL Foundation]
-    F5[Phase 5\nJudge and Activate]
-    F6[Phase 6\nScheduler and WAIT]
-    F7[Phase 7\nMigration]
-    F8[Phase 8\nA2A and MCP]
-
-    F1 --> F2 --> F3 --> F4 --> F5 --> F6 --> F7 --> F8
-```
-
-Quick summary:
-
-- `Phase 1`: common execution contract for agents
-- `Phase 2`: workflows and signals as first-class entities
-- `Phase 3`: bridge declarative format before the final DSL
-- `Phase 4`: parser, runtime, and DSL runner
-- `Phase 5`: verify and activate with Judge
-- `Phase 6`: `WAIT` and resume
-- `Phase 7`: gradual agent migration
-- `Phase 8`: standards-based interoperability
-
-The current product priority order is:
-
-- first: support workflows, approvals, audit, evidence quality, and usage attribution
-- next: sales copilot, connector coverage, eval depth, and quotas
-- later: mobile breadth, broad studio surfaces, and marketplace-style extensibility
+Every screen below is generated from the live mobile app using the Maestro screenshot suite.
 
 ---
 
-## Interoperability
-
-A serious system cannot be closed.
-
-The current direction is:
-
-- **A2A-first** — the emerging standard for agent-to-agent delegation across systems
-- **MCP-first** — Model Context Protocol, for sharing tools, resources, and context across system boundaries
-
-Once you assume A2A and MCP are part of the core, the CRM stops looking like a closed workspace
-and starts looking more like an operational node in a broader ecosystem.
-
-That means:
-
-- external `DISPATCH` should align with A2A
-- tools and context should be exposed or consumed through MCP-compatible boundaries
-- the project should not introduce a new proprietary external protocol
-
----
-
-## Project Structure
-
-```text
-fenixcrm/
-|-- cmd/                # entrypoints
-|-- internal/
-|   |-- api/            # HTTP handlers and middleware
-|   |-- domain/         # crm, agent, tool, policy, audit, knowledge, workflow, signal
-|   |-- infra/          # sqlite, llm, supporting runtime infra
-|-- docs/               # architecture, plans, and task docs
-|-- reqs/               # UC / FR / TST requirement traceability
-|-- tests/              # contract and integration tests
-|-- mobile/             # mobile app, visual system, and screenshot artifacts
-|-- bff/                # optional backend for frontend
-|-- pkg/                # shared Go utilities
-|-- scripts/            # QA and automation
-```
-
----
-
-## Useful Commands
-
-```bash
-make test
-make build
-make run
-make lint
-make complexity
-make trace-check
-cd mobile && npm run screenshots
-```
-
-Troubleshooting:
-
-- If the mobile screenshots runner gets stuck on Android splash with the debug APK, see the runbooks:
-- [English](docs/maestro-debug-apk-runbook-en.md)
-- [Spanish](docs/maestro-debug-apk-runbook-es.md)
-
-Important note:
-
-- `make ci` is currently designed for a POSIX/Linux environment
-- the documented local reference is remote CI or a compatible environment
-
-See: `docs/ci.md`
-
----
-
-## How It Works In Practice
-
-FenixCRM is not a classic system of record — it is an operational layer where context, decisions, execution, and governance are visible as a continuous loop.
-
-![The governed loop: context → action → approval → trace → governance](docs/article-assets/diagram-11-governed-loop.png)
-
-Every event or case surfaces context. The system suggests an action. A human decides whether to approve or hand it off. Execution happens. Everything is traced. The screens below show that loop in practice.
-
----
-
-### 1. Entry - identity before automation
+### Entry — identity before automation
 
 ![Login screen](mobile/artifacts/screenshots/01_auth_login.png)
 
@@ -305,15 +102,15 @@ Every action starts with a user and a workspace. Accountability starts at the do
 
 ---
 
-### 2. Inbox - the main work queue
+### Inbox — the main work queue
 
 ![Inbox](mobile/artifacts/screenshots/02_inbox.png)
 
-The inbox is the main work queue. It answers a simple question: "what needs attention now?" Approvals, handoffs, signals, and policy rejections are shown together.
+The inbox answers one question: what needs attention right now? Approvals, handoffs, signals, and policy rejections appear together in one place.
 
 ---
 
-### 3. Signal - the system proposes, humans decide
+### Signal — the system proposes, humans decide
 
 ![Signal detail](mobile/artifacts/screenshots/06_inbox_signal_detail.png)
 
@@ -321,7 +118,7 @@ Signals make AI judgment reviewable. The detail screen shows confidence, related
 
 ---
 
-### 4. Support case - a working surface
+### Support case — a working surface
 
 ![Support case detail](mobile/artifacts/screenshots/03_support_case_detail.png)
 
@@ -329,15 +126,15 @@ The case view shows history, current state, what the AI found, what actions are 
 
 ---
 
-### 5. Sales brief - context before action
+### Sales brief — context before action
 
 ![Sales brief](mobile/artifacts/screenshots/04_sales_brief.png)
 
-The brief shows account context, recent signals, and a suggested next action grounded in evidence. Sales users start from context, not from raw data.
+The brief shows account context, recent signals, and a suggested next action grounded in evidence. Sales reps start from context, not from raw data.
 
 ---
 
-### 6. Denied trace - stopped work is still visible
+### Denied trace — stopped work is still visible
 
 ![Denied-by-policy activity trace](mobile/artifacts/screenshots/08_activity_run_detail_denied.png)
 
@@ -345,15 +142,15 @@ A stopped run is not hidden. The user can inspect the reason, the policy that ap
 
 ---
 
-### 7. Governance - control inside the product
+### Governance — control inside the product
 
 ![Governance overview](mobile/artifacts/screenshots/05_governance.png)
 
-Governance is part of the product, not a separate backend view. Usage, quota state, actor, tool, model, latency, time, and cost can be read together.
+Governance is part of the product, not a separate backend view. Usage, quota state, actor, tool, model, latency, and cost are visible together.
 
 ---
 
-### 8. Audit trail - readable where work happens
+### Audit trail — readable where work happens
 
 ![Governance audit trail](mobile/artifacts/screenshots/09_governance_audit.png)
 
@@ -361,213 +158,116 @@ Audit is available where work happens. Mobile users can inspect requests and dec
 
 ---
 
-### 9. Usage drilldown - AI cost in product terms
-
-![Governance usage drilldown](mobile/artifacts/screenshots/10_governance_usage.png)
-
-Usage and cost are visible from the same governance area. Event count, input units, output units, and individual tool/model calls stay visible inside the product.
-
----
-
-### 10. KB trigger - resolved work can become knowledge
-
-![KB trigger on resolved support case](mobile/artifacts/screenshots/11_support_kb_trigger.png)
-
-Once a case is resolved, the operator can trigger knowledge generation from the same support screen. The result can become reusable documentation.
-
----
-
-### 11. Prospecting trigger - leads can start AI work
-
-![Prospecting trigger on lead detail](mobile/artifacts/screenshots/12_sales_lead_prospecting.png)
-
-Leads are part of the Sales operating surface. From lead detail, the team can launch the Prospecting Agent and inspect the resulting run.
-
----
-
-### 12. Deal Risk - risk review in the deal flow
-
-![Deal Risk on deal detail](mobile/artifacts/screenshots/13_sales_deal_risk_active.png)
-
-Deal risk is part of the deal flow. The user can review risk signals without leaving the sales context.
-
----
-
-### 13. Insights entry - questions can start from mobile
-
-![Insights entry screen](mobile/artifacts/screenshots/14_activity_insights.png)
-
-Analytical questions do not need to start from a dashboard. The Insights screen gives mobile users a direct entry point for grounded ad hoc queries.
-
----
-
-### 14. Workflows list - declarative logic as a first-class entity
-
-![Workflows list](mobile/artifacts/screenshots/18_workflows_list.png)
-
-Workflows are not hidden code. They are named, versioned, and inspectable from the mobile app. The list shows status badges (active, draft, testing, archived) and lets operators review what automation is running.
-
----
-
-### 15. Workflow detail - operational metadata before execution view
-
-![Workflow detail](mobile/artifacts/screenshots/18a_workflow_detail.png)
-
-The detail view connects catalog and execution: status, version history, trigger metadata, and source references are visible before opening the graph projection.
-
----
-
-### 16. Workflow graph - execution logic made visible
+### Workflow graph — logic made visible
 
 ![Workflow graph](mobile/artifacts/screenshots/18b_workflow_graph.png)
 
-The graph screen renders the semantic projection of a workflow's DSL and Carta source as a read-only canvas. Nodes show kind labels (WORKFLOW, TRIGGER, ACTION) and are connected by directed edges. The conformance badge (`safe`, `extended`) tells the operator whether the workflow is within the stable tooling contract. This is the mobile surface for Wave 8 of the Carta Language Server and Visual Flow plan (CLSF-84).
+Workflows are not hidden code. The graph screen renders the workflow as a visual canvas. Nodes show what each step does and how they connect. The conformance badge shows whether the workflow is within the stable tooling contract.
 
 ---
 
-### 17. CRM hub - unified entity navigation
+### CRM hub — unified entity navigation
 
 ![CRM hub](mobile/artifacts/screenshots/19_crm_hub.png)
 
-The CRM hub gives operators a single navigation point for all entity types: Accounts, Contacts, Leads, Deals, and Cases. This surface complements the operational inbox without replacing it — the hub is for inspection and maintenance, the inbox is for governed work.
-
----
-
-### 17. Account detail - full context in one place
-
-![Account detail](mobile/artifacts/screenshots/21_crm_account_detail.png)
-
-The account detail screen surfaces related contacts, deals, and a timeline of activity. Operators can review full context without switching between isolated lists.
-
----
-
-### 18. CRM mutation - create and verify in one flow
-
-![Cases list after mutation verified](mobile/artifacts/screenshots/25_crm_cases_mutation_verified.png)
-
-CRM writes go through the same governed path as AI-triggered actions. The case creation flow — form → submit → list — is verified end-to-end in the Maestro screenshot suite, confirming that the mutation persisted correctly and is immediately visible in the list.
+The CRM hub gives operators a single entry point for all entity types: Accounts, Contacts, Leads, Deals, and Cases.
 
 ---
 
 ![The main operating surfaces in FenixCRM](docs/article-assets/diagram-10-operating-surfaces.png)
 
-Each surface above is reachable from the inbox or from the CRM hub. The inbox is the operational center for governed work. The CRM hub is the place to inspect and maintain customer records. Screenshots are generated from the mobile app with Maestro and stored in `mobile/artifacts/screenshots/`.
-
 > Full article: [When CRM Begins to Operate, Not Just Record](https://medium.com/@iotforce/when-crm-begins-to-operate-not-just-record-84248b080ee7)
 
 ---
 
-## Carta Language Server and Visual Flow (CLSF)
+## Architecture
 
-Eight waves covering the full authoring and tooling layer for Carta-backed workflows.
+**Stack**: Go 1.22+ · SQLite (WAL + FTS5 + vector) · Express.js BFF · React Native + Expo
 
-**Waves 0–1** audited and locked the Carta parser, judge, runtime preflight order (Delegate → Grounds → DSL), and activation bridges (`BUDGET`, `INVARIANT`) with deterministic tests.
+```
+Mobile app  →  BFF (Express.js)  →  Go backend (go-chi)  →  SQLite
+```
 
-**Wave 2** added a `WorkflowSemanticGraph` projection with stable node IDs, semantic diff, and a conformance evaluator that classifies every workflow as `safe`, `extended`, or `invalid`.
-
-**Wave 3** exposed three tooling endpoints: `GET /workflows/{id}/graph`, `POST /workflows/{id}/validate`, and `POST /workflows/diff`.
-
-**Wave 4** added `cmd/fenixlsp`, a stdio LSP shell with diagnostics, completion, and hover backed by the parser, judge, and conformance validator.
-
-**Wave 5** introduced `CALL` and `APPROVE` tokens, AST nodes, and parser rules. Both are classified `extended` until a runtime contract exists.
-
-**Wave 6** shipped a web builder at `/bff/builder` with a text editor and a live graph refresh loop through `POST /bff/builder/preview`.
-
-**Wave 7** added full visual authoring: users create and connect nodes on a canvas, the graph converts to canonical DSL/Carta source, and every save passes through the full lexer → parser → judge → conformance gate before persisting.
-
-**Wave 8** added a mobile read-only graph viewer that renders the backend visual projection as a `FlowCanvas` with conformance badge. Verified in the Maestro screenshot suite as `18b_workflow_graph` (CLSF-84).
-
-The authoring surface is no longer just a standalone builder. The BFF admin now
-exposes a real operator loop for workflow authoring: create a draft from the
-admin workflows list, land in a builder already bound to a real `workflowId`,
-save text or graph changes against that workflow, return to workflow detail, and
-activate from the existing admin surface.
+The BFF is a thin proxy. All business logic, retrieval, policy, and execution live in the Go backend. The mobile app talks only to the BFF.
 
 ```mermaid
 flowchart LR
-    L[Workflows list] --> C[Create draft]
-    C --> B[Bound builder]
-    B --> D[Workflow detail]
-    D --> A[Activate]
-    D --> B
+    MOB[Mobile App] --> BFF[BFF - Express.js]
+    BFF --> API[Go API - go-chi]
+    API --> POLICY[Policy Engine]
+    API --> COPILOT[Copilot Service]
+    API --> AGENTS[Agent Orchestrator]
+    API --> TOOLS[Tool Registry]
+    API --> AUDIT[Audit Trail]
+    API --> IDX[Hybrid Index - FTS5 + vector]
+    API --> DB[SQLite]
 ```
-
-![Create draft from the admin workflows surface](bff/artifacts/admin-screenshots/03_workflow_create_draft.png)
-
-The flow starts from a real admin entry point. Operators create a draft with a
-minimal scaffold and immediately move into an editable workflow context instead
-of starting from a detached builder shell.
-
-![Bound workflow builder in the BFF admin flow](bff/artifacts/admin-screenshots/04_workflow_builder_bound.png)
-
-Inside the builder, both text and graph changes are bound to the real
-`workflowId`. The editor, projection, save actions, and navigation all stay in
-that workflow context.
-
-![Return to workflow detail for review and activation](bff/artifacts/admin-screenshots/05_workflow_detail.png)
-
-The operator loop closes on workflow detail, which remains the review surface
-for status, source inspection, builder re-entry, and activation.
-
-The admin screenshot suite captures this loop through
-`03_workflow_create_draft`, `04_workflow_builder_bound`, and
-`05_workflow_detail`. The full report is generated in
-`bff/artifacts/admin-screenshots/report.html`.
-
-| Layer | Files |
-|---|---|
-| Semantic graph | `internal/domain/agent/semantic_*.go`, `conformance.go` |
-| Visual authoring | `internal/domain/agent/visual_projection.go`, `visual_authoring.go`, `visual_source_generator.go` |
-| Tooling API | `internal/api/handlers/workflow.go` |
-| Language server | `internal/lsp/`, `cmd/fenixlsp/` |
-| BFF builder | `bff/src/routes/builder*.ts` |
-| Mobile graph | `mobile/app/(tabs)/workflows/graph.tsx`, `mobile/src/lib/flowLayout.ts` |
-| Plan | `docs/plans/carta-language-server-flow.md` |
 
 ---
 
-## Recommended Documentation
+## Project Structure
 
-To understand the current system:
+```text
+fenixcrm/
+├── cmd/            entrypoints (server, LSP, trace tool)
+├── internal/
+│   ├── api/        HTTP handlers and middleware
+│   ├── domain/     crm, agent, tool, policy, audit, knowledge, workflow, signal
+│   └── infra/      sqlite, llm, supporting runtime
+├── docs/           architecture, plans, and task docs
+├── reqs/           UC / FR / TST requirement traceability
+├── tests/          contract and integration tests
+├── mobile/         mobile app and screenshot artifacts
+├── bff/            backend for frontend (Express.js)
+└── pkg/            shared Go utilities
+```
 
-- `docs/architecture.md`
-- `docs/plans/fenixcrm_strategic_repositioning_spec.md`
-- `docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md`
-- `docs/implementation-plan.md` (historical reference)
+---
 
-To understand the AGENT_SPEC transition:
+## Getting Started
 
-- `docs/agent-spec-overview.md`
-- `docs/agent-spec-traceability.md`
-- `docs/agent-spec-use-cases.md`
-- `docs/agent-spec-design.md`
-- `docs/agent-spec-integration-analysis.md`
-- `docs/agent-spec-development-plan.md`
+```bash
+# run the backend
+make run
 
-Reference-only AGENT_SPEC documents:
+# run tests
+make test
 
-- `docs/agent-spec-transition-plan.md`
-- `docs/AGENT_SPEC.md`
+# build
+make build
 
-To understand the transition baselines:
+# lint and complexity check
+make lint
+make complexity
 
-- `docs/agent-spec-regression-baseline.md`
-- `docs/agent-spec-go-agents-baseline.md`
-- `docs/agent-spec-core-contracts-baseline.md`
-- `docs/agent-spec-phase1-quality-gates.md`
+# generate mobile screenshots
+cd mobile && npm run screenshots
+```
+
+**First time setup** — install the pre-push quality gates:
+
+```bash
+make install-hooks
+```
+
+This ensures Go and mobile QA runs locally before any push reaches CI.
+
+**Note**: `make ci` is designed for a POSIX/Linux environment. See [`docs/ci.md`](docs/ci.md) for details.
+
+Troubleshooting mobile screenshots:
+- [English runbook](docs/maestro-debug-apk-runbook-en.md)
+- [Spanish runbook](docs/maestro-debug-apk-runbook-es.md)
 
 ---
 
 ## Admin Surface
 
-The BFF exposes an operator admin shell at `/bff/admin` with session-backed authentication (BAL-01–05).
+The BFF exposes an operator admin shell at `/bff/admin` with session-backed authentication.
 
-- Login screen with email/password form — no bearer token exposed in the UI
-- HTTP-only session cookie (`fenix.admin.sid`) — no `localStorage` token storage
-- All admin routes protected via session guard; upstream 401 invalidates and redirects
+- Login with email and password — no bearer token exposed in the browser
+- HTTP-only session cookie — no `localStorage` token storage
+- All admin routes protected by a session guard
 - Explicit logout via `POST /bff/admin/logout`
-
-**Screenshots** (generated via `cd bff && npm run admin-screenshots`):
 
 | Login | Dashboard | Workflows |
 |-------|-----------|-----------|
@@ -577,12 +277,30 @@ The BFF exposes an operator admin shell at `/bff/admin` with session-backed auth
 |------------|-----------|-------|
 | ![agent runs](bff/artifacts/admin-screenshots/06_agent_runs_list.png) | ![approvals](bff/artifacts/admin-screenshots/08_approvals_list.png) | ![audit](bff/artifacts/admin-screenshots/09_audit_list.png) |
 
-Full report: [`bff/artifacts/admin-screenshots/report.html`](bff/artifacts/admin-screenshots/report.html)
+Run `cd bff && npm run admin-screenshots` to regenerate.
+
+---
+
+## Documentation
+
+To understand the current system:
+
+- [`docs/architecture.md`](docs/architecture.md) — full architecture, ERD, diagrams, and API
+- [`docs/plans/fenixcrm_strategic_repositioning_spec.md`](docs/plans/fenixcrm_strategic_repositioning_spec.md) — product direction
+- [`docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md`](docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md) — canonical implementation plan
+- [`docs/implementation-plan.md`](docs/implementation-plan.md) — historical reference
+
+To understand the workflow and agent transition:
+
+- [`docs/agent-spec-overview.md`](docs/agent-spec-overview.md)
+- [`docs/agent-spec-design.md`](docs/agent-spec-design.md)
+- [`docs/plans/carta-language-server-flow.md`](docs/plans/carta-language-server-flow.md) — Carta DSL, Judge, Runtime, and visual authoring
 
 ---
 
 ## Status
 
-- the governed runtime, retrieval layer, approvals, and audit foundations already exist
-- the current wedge is support workflows first, sales copilot second
-- the declarative workflow transition is documented but does not define the market-facing wedge by itself
+- The governed runtime, retrieval layer, approvals, and audit foundations are complete
+- The current focus is support workflows first, sales copilot second
+- The declarative workflow engine (Carta DSL + Judge + Runtime) is built and shipping incrementally
+- Mobile app and admin surface are verified end-to-end with screenshot suites
