@@ -1,7 +1,7 @@
 # FenixCRM
 
 <p align="center">
-  <img src="img/fenix.png" alt="FenixCRM" width="160" />
+  <img src="img/fenix-readme.png" alt="FenixCRM" width="160" />
 </p>
 
 > An AI layer for customer operations where every answer is backed by evidence, every action goes through policy, and humans stay in control where it matters.
