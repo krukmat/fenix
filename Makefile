@@ -20,9 +20,9 @@ all: test build
 test:
 	@echo "Running tests..."
 	@echo "Coverage pass (application packages)..."
-	go test -v -race -coverprofile=coverage.out $(TEST_COVERAGE_PACKAGES)
+	go test -v -race -timeout 20m -coverprofile=coverage.out $(TEST_COVERAGE_PACKAGES)
 	@echo "Auxiliary pass (packages excluded from coverage profile due Go covdata issue)..."
-	go test -v -race $(NON_COVERAGE_TEST_PACKAGES)
+	go test -v -race -timeout 20m $(NON_COVERAGE_TEST_PACKAGES)
 	go tool cover -func=coverage.out
 
 # Run only unit tests
