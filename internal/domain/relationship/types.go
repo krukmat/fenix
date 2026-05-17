@@ -31,8 +31,8 @@ const (
 type TrajectoryType string
 
 const (
-	TrajectoryImproving TrajectoryType = "improving"
-	TrajectoryStable    TrajectoryType = "stable"
+	TrajectoryImproving  TrajectoryType = "improving"
+	TrajectoryStable     TrajectoryType = "stable"
 	TrajectortyDeclining TrajectoryType = "declining"
 )
 
@@ -61,11 +61,11 @@ const (
 type InfluenceType string
 
 const (
-	InfluenceReportsTo   InfluenceType = "reports_to"
-	InfluenceInfluences  InfluenceType = "influences"
-	InfluenceBlocks      InfluenceType = "blocks"
+	InfluenceReportsTo    InfluenceType = "reports_to"
+	InfluenceInfluences   InfluenceType = "influences"
+	InfluenceBlocks       InfluenceType = "blocks"
 	InfluenceCollaborates InfluenceType = "collaborates"
-	InfluenceApproves    InfluenceType = "approves"
+	InfluenceApproves     InfluenceType = "approves"
 )
 
 // ConfidenceLevel represents the certainty tier of a trust score.
