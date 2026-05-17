@@ -41,21 +41,24 @@ Preferred shortcut:
 
 - Discrete tasks must be executed one at a time. After closing a task with the required outcome report, stop and wait for explicit user confirmation before starting the next task, even when a plan lists multiple tasks or waves.
 - Before starting work on each discrete task, present the task card to the user first, before reading, editing, or running task-specific commands except for minimal inspection needed to identify the next task. The task card must include:
-  - `Tarea: <name or ID>`
+  - `Task: <name or ID>`
   - `Task file: <path to docs/tasks/task_*.md>`
   - `Plan file: <path to docs/plans/*.md>`
-  - `Resumen: <what will be done in 1-2 sentences>`
-  - `Código afectado: <expected files or areas>`
-  - `Esfuerzo/razonamiento: Bajo | Medio | Alto - <brief reason>`
-  - `Modelo recomendado: <model id>`
-  - `Tokens estimado: ~N`
+  - `Summary: <what will be done in 1-2 sentences>`
+  - `Code affected: <expected files or areas>`
+  - `Effort/reasoning: Low | Medium | High - <brief reason>`
+  - `Recommended model: <model id>`
+  - `Estimated tokens: ~N`
+  - `Pseudocode: <high-level pseudocode sketch of key logic>` — **required for development tasks only** (tasks that involve writing or modifying code). Omit for docs-only, ADR formalization, or README tasks. The sketch must be language-agnostic and concise — enough to verify the approach, not a full implementation.
+  - `System context diagram` — **required when the task introduces a new service or component**. Must be a visually structured ASCII interaction diagram in the task file, not a plain bullet summary. Prefer boxes, arrows, swimlanes, or clearly separated stages so the component boundary and data flow are immediately scannable. The diagram must show: upstream triggers, the new component's role, downstream consumers, and key invariants (goroutine lifecycle, error propagation contract, caller vs. callee DB responsibility). Placed before the pseudocode in the task file. This is the authoritative reference for any agent picking up the task cold.
+- If the next planned discrete task does not already have its required `docs/tasks/task_*.md` record, create that task file first using the required frontmatter and task-card fields, then present the task card from that file. Do not present a task card with a missing task file placeholder.
 - **Task card language (MANDATORY)**: The task card must be written in unambiguous agentic English. No Spanish field labels, no mixed language. Every field value must be a direct, machine-parseable statement: what will be done, which files, why, estimated cost. Avoid narrative prose — prefer declarative sentences. This ensures the card is usable by any agent or orchestrator reading the conversation without language ambiguity.
 - When closing a task, report the outcome with:
-  - `Resultado: <what changed>`
-  - `Verificación: <commands run, or why QA was not applicable>`
-  - `Archivos afectados: <files changed>`
-  - `Esfuerzo/razonamiento: Bajo | Medio | Alto - <forensic note on reasoning effort used>`
-  - `Modelo recomendado: <model id>`
+  - `Result: <what changed>`
+  - `Verification: <commands run, or why QA was not applicable>`
+  - `Files affected: <files changed>`
+  - `Effort/reasoning: Low | Medium | High - <forensic note on reasoning effort used>`
+  - `Recommended model: <model id>`
   - `Tokens: ~N`
 - After the closing report, proactively present the next task card using the same starting-task format, including `Modelo recomendado`, but do not begin that next task until the user explicitly confirms.
 - Every substantive report to the user must include:

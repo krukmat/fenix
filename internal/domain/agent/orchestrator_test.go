@@ -4,9 +4,11 @@ package agent
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 )
 
 // insertTestAgentDefinition inserts an agent definition for tests.
@@ -828,5 +830,190 @@ func TestExecuteAgent_DelegatesToRunner(t *testing.T) {
 	}
 	if run.DefinitionID != "def-exec" {
 		t.Fatalf("DefinitionID = %q, want %q", run.DefinitionID, "def-exec")
+	}
+}
+
+// captureRunner implements Runner and records the RunContext it receives.
+// Used to assert blackboard attachment state without side effects.
+type captureRunner struct {
+	capturedRC *RunContext
+}
+
+func (r *captureRunner) Run(_ context.Context, rc *RunContext, in TriggerAgentInput) (*Run, error) {
+	r.capturedRC = rc
+	return &Run{
+		ID:           "cap-run-id",
+		WorkspaceID:  in.WorkspaceID,
+		DefinitionID: in.AgentID,
+		Status:       StatusSuccess,
+		StartedAt:    time.Now().UTC(),
+		CreatedAt:    time.Now().UTC(),
+	}, nil
+}
+
+// TestOrchestrator_TriggerAgent_SetsBlackboardColumn verifies that when
+// CognitiveWorkspaceID is provided, it is persisted to agent_run.cognitive_workspace_id.
+// Traces: Task A.5
+func TestOrchestrator_TriggerAgent_SetsBlackboardColumn(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('def-bb-set', 'ws-bb-set', 'BB Set', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+
+	cwID := "cw-a5-bb-set"
+	orch := NewOrchestrator(db)
+	run, err := orch.TriggerAgent(ctx, TriggerAgentInput{
+		AgentID:              "def-bb-set",
+		WorkspaceID:          "ws-bb-set",
+		TriggerType:          TriggerTypeManual,
+		CognitiveWorkspaceID: &cwID,
+	})
+	if err != nil {
+		t.Fatalf("TriggerAgent(): %v", err)
+	}
+
+	var stored *string
+	var rawCWID sql.NullString
+	if err := db.QueryRowContext(ctx,
+		"SELECT cognitive_workspace_id FROM agent_run WHERE id = ?", run.ID,
+	).Scan(&rawCWID); err != nil {
+		t.Fatalf("SELECT cognitive_workspace_id: %v", err)
+	}
+	if rawCWID.Valid {
+		v := rawCWID.String
+		stored = &v
+	}
+
+	if stored == nil || *stored != cwID {
+		t.Errorf("cognitive_workspace_id = %v; want %q", stored, cwID)
+	}
+}
+
+// TestOrchestrator_TriggerAgent_NoBlackboard_NullColumn verifies that when
+// CognitiveWorkspaceID is absent, agent_run.cognitive_workspace_id is NULL — no regression.
+// Traces: Task A.5
+func TestOrchestrator_TriggerAgent_NoBlackboard_NullColumn(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('def-bb-null', 'ws-bb-null', 'BB Null', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+
+	orch := NewOrchestrator(db)
+	run, err := orch.TriggerAgent(ctx, TriggerAgentInput{
+		AgentID:     "def-bb-null",
+		WorkspaceID: "ws-bb-null",
+		TriggerType: TriggerTypeManual,
+		// CognitiveWorkspaceID intentionally absent
+	})
+	if err != nil {
+		t.Fatalf("TriggerAgent(): %v", err)
+	}
+
+	var rawCWID sql.NullString
+	if err := db.QueryRowContext(ctx,
+		"SELECT cognitive_workspace_id FROM agent_run WHERE id = ?", run.ID,
+	).Scan(&rawCWID); err != nil {
+		t.Fatalf("SELECT cognitive_workspace_id: %v", err)
+	}
+	if rawCWID.Valid {
+		t.Errorf("cognitive_workspace_id = %q; want NULL (no blackboard)", rawCWID.String)
+	}
+}
+
+// TestOrchestrator_ExecuteAgent_InjectsBlackboard verifies that when
+// CognitiveWorkspaceID is provided, RunContext.Blackboard is non-nil in the runner.
+// Traces: Task A.5
+func TestOrchestrator_ExecuteAgent_InjectsBlackboard(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('def-bb-inj', 'ws-bb-inj', 'BB Inject', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+
+	capture := &captureRunner{}
+	registry := NewRunnerRegistry()
+	if err := registry.Register("support", capture); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	cwID := "cw-a5-bb-inj"
+	orch := NewOrchestratorWithRegistry(db, registry)
+	_, err = orch.ExecuteAgent(ctx, &RunContext{}, TriggerAgentInput{
+		AgentID:              "def-bb-inj",
+		WorkspaceID:          "ws-bb-inj",
+		TriggerType:          TriggerTypeManual,
+		CognitiveWorkspaceID: &cwID,
+	})
+	if err != nil {
+		t.Fatalf("ExecuteAgent(): %v", err)
+	}
+
+	if capture.capturedRC == nil {
+		t.Fatal("captureRunner.capturedRC is nil; runner was not called")
+	}
+	if capture.capturedRC.Blackboard == nil {
+		t.Fatal("RunContext.Blackboard is nil; want non-nil when CognitiveWorkspaceID is set")
+	}
+	if capture.capturedRC.Blackboard.CognitiveWorkspaceID != cwID {
+		t.Errorf("Blackboard.CognitiveWorkspaceID = %q; want %q",
+			capture.capturedRC.Blackboard.CognitiveWorkspaceID, cwID)
+	}
+}
+
+// TestOrchestrator_ExecuteAgent_NoBlackboard_NilAttachment verifies that when
+// CognitiveWorkspaceID is absent, RunContext.Blackboard is nil — no regression.
+// Traces: Task A.5
+func TestOrchestrator_ExecuteAgent_NoBlackboard_NilAttachment(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('def-bb-nil', 'ws-bb-nil', 'BB Nil', 'support', 'active')`)
+	if err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+
+	capture := &captureRunner{}
+	registry := NewRunnerRegistry()
+	if err := registry.Register("support", capture); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	orch := NewOrchestratorWithRegistry(db, registry)
+	_, err = orch.ExecuteAgent(ctx, &RunContext{}, TriggerAgentInput{
+		AgentID:     "def-bb-nil",
+		WorkspaceID: "ws-bb-nil",
+		TriggerType: TriggerTypeManual,
+		// CognitiveWorkspaceID intentionally absent
+	})
+	if err != nil {
+		t.Fatalf("ExecuteAgent(): %v", err)
+	}
+
+	if capture.capturedRC == nil {
+		t.Fatal("captureRunner.capturedRC is nil; runner was not called")
+	}
+	if capture.capturedRC.Blackboard != nil {
+		t.Errorf("RunContext.Blackboard = %v; want nil when CognitiveWorkspaceID is absent",
+			capture.capturedRC.Blackboard)
 	}
 }

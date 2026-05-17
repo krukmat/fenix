@@ -23,6 +23,7 @@ import (
 	domaineval "github.com/matiasleandrokruk/fenix/internal/domain/eval"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
+	"github.com/matiasleandrokruk/fenix/internal/domain/relationship"
 	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 	signaldomain "github.com/matiasleandrokruk/fenix/internal/domain/signal"
 	tooldomain "github.com/matiasleandrokruk/fenix/internal/domain/tool"
@@ -274,8 +275,11 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 		r.Get("/usage", usageHandler.ListUsage)
 		r.Get("/quota-state", usageHandler.GetQuotaState)
 		// W1-T4: governance summary — enriched quota states + recent usage for mobile Governance screen
-		governanceHandler := handlers.NewGovernanceHandler(usageService)
+		relationshipRepo := relationship.NewSQLiteSignalRepository(db)
+		lifecycleSvc := relationship.NewLifecycleService(relationshipRepo, policyEngine)
+		governanceHandler := handlers.NewGovernanceHandler(usageService, lifecycleSvc)
 		r.Get("/governance/summary", governanceHandler.GetGovernanceSummary)
+		r.Post("/governance/relationship-memory/erase", governanceHandler.EraseRelationshipMemory)
 
 		// GO-POLICY-READ-01: read-only policy_set and policy_version endpoints (unblocks BFF-ADMIN-51)
 		policyHandler := handlers.NewPolicyHandler(db)

@@ -59,6 +59,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - This applies to all task types: eval waves, feature tasks, BDD tasks, infra tasks, bugfixes, and any other planned work unit.
 - The task file is the contract: it defines scope, acceptance criteria, and files affected. No task file = no task.
 - Every task file MUST include a `**Plan**:` reference link to its parent plan document immediately after the `# Task ...` heading. Format: `**Plan**: [Plan Title](relative/path/to/plan.md#anchor)`.
+- For development tasks (any task that involves writing or modifying code), the task file and the task card presented to the user MUST include a **High-Level Pseudocode** section. This is a concise, language-agnostic sketch of the key logic — not line-by-line code, but enough structure to verify the approach before implementation begins. Non-development tasks (docs-only, ADR formalization, README rewrites) are exempt.
+- For development tasks that introduce a new service or component, the task file MUST also include a **System Context** section placed before the pseudocode. This section must contain: (1) an ASCII interaction diagram showing where the new component sits in the data/event flow, (2) its upstream triggers and downstream consumers, and (3) key invariants an agent must know to avoid integration mistakes (e.g. goroutine lifecycle, error propagation contract, caller vs. callee responsibility for DB queries). This section is the authoritative reference for any agent or reviewer picking up the task cold.
 
 **Reporting (MANDATORY)**:
 - Every substantive report to the user must include:

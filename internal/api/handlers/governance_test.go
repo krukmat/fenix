@@ -3,14 +3,36 @@ package handlers
 // W1-T4 (mobile_wedge_harmonization_plan): governance summary handler tests
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/domain/relationship"
 	usagedomain "github.com/matiasleandrokruk/fenix/internal/domain/usage"
 )
+
+type lifecycleStub struct {
+	calls []struct {
+		workspaceID string
+		entityType  relationship.EntityType
+		entityID    string
+	}
+	err error
+}
+
+func (s *lifecycleStub) EraseEntityMemory(_ context.Context, workspaceID string, entityType relationship.EntityType, entityID string) error {
+	s.calls = append(s.calls, struct {
+		workspaceID string
+		entityType  relationship.EntityType
+		entityID    string
+	}{workspaceID: workspaceID, entityType: entityType, entityID: entityID})
+	return s.err
+}
 
 func TestGovernanceHandler_GetGovernanceSummary_NoData(t *testing.T) {
 	t.Parallel()
@@ -18,7 +40,7 @@ func TestGovernanceHandler_GetGovernanceSummary_NoData(t *testing.T) {
 	db := mustOpenDBWithMigrations(t)
 	wsID := createWorkspace(t, db)
 	service := usagedomain.NewService(db)
-	h := NewGovernanceHandler(service)
+	h := NewGovernanceHandler(service, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/governance/summary", nil)
 	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
@@ -80,7 +102,7 @@ func TestGovernanceHandler_GetGovernanceSummary_WithPolicyAndUsage(t *testing.T)
 		t.Fatalf("RecordEvent: %v", err)
 	}
 
-	h := NewGovernanceHandler(service)
+	h := NewGovernanceHandler(service, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/governance/summary", nil)
 	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
 	rr := httptest.NewRecorder()
@@ -144,7 +166,7 @@ func TestGovernanceHandler_GetGovernanceSummary_WithUpsertedState(t *testing.T) 
 	}
 
 	// Upsert a state row for the current month using the same period bounds the handler computes
-	h := NewGovernanceHandler(service)
+	h := NewGovernanceHandler(service, nil)
 	start, end := currentPeriodBounds(time.Now().UTC(), "monthly")
 	if _, upsertErr := service.UpsertState(t.Context(), usagedomain.UpsertStateInput{
 		WorkspaceID:   wsID,
@@ -180,5 +202,63 @@ func TestGovernanceHandler_GetGovernanceSummary_WithUpsertedState(t *testing.T) 
 	}
 	if qs["currentValue"] != float64(12.5) {
 		t.Errorf("currentValue want=12.5 got=%v", qs["currentValue"])
+	}
+}
+
+func TestGovernanceHandler_EraseRelationshipMemory(t *testing.T) {
+	t.Parallel()
+
+	stub := &lifecycleStub{}
+	h := NewGovernanceHandler(nil, stub)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/governance/relationship-memory/erase",
+		strings.NewReader(`{"entityType":"contact","entityId":"con-1"}`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), "ws-1"))
+	rr := httptest.NewRecorder()
+
+	h.EraseRelationshipMemory(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d want=%d body=%s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	if len(stub.calls) != 1 {
+		t.Fatalf("expected 1 erase call, got %d", len(stub.calls))
+	}
+	if stub.calls[0].entityType != relationship.EntityTypeContact {
+		t.Fatalf("entityType: want %q, got %q", relationship.EntityTypeContact, stub.calls[0].entityType)
+	}
+}
+
+func TestGovernanceHandler_EraseRelationshipMemory_Validation(t *testing.T) {
+	t.Parallel()
+
+	h := NewGovernanceHandler(nil, &lifecycleStub{})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/governance/relationship-memory/erase",
+		strings.NewReader(`{"entityId":"con-1"}`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), "ws-1"))
+	rr := httptest.NewRecorder()
+
+	h.EraseRelationshipMemory(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want=%d body=%s", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+}
+
+func TestGovernanceHandler_EraseRelationshipMemory_ServiceError(t *testing.T) {
+	t.Parallel()
+
+	h := NewGovernanceHandler(nil, &lifecycleStub{err: errors.New("db down")})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/governance/relationship-memory/erase",
+		strings.NewReader(`{"entityType":"contact","entityId":"con-1"}`))
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), "ws-1"))
+	rr := httptest.NewRecorder()
+
+	h.EraseRelationshipMemory(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d want=%d body=%s", rr.Code, http.StatusInternalServerError, rr.Body.String())
 	}
 }

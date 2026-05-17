@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
+	"github.com/matiasleandrokruk/fenix/internal/domain/blackboard"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
 	schedulerdomain "github.com/matiasleandrokruk/fenix/internal/domain/scheduler"
 	signaldomain "github.com/matiasleandrokruk/fenix/internal/domain/signal"
@@ -30,6 +31,7 @@ type RunContext struct {
 	ProtocolHandler  ProtocolHandler // nil = internal dispatch only
 	GroundsValidator *GroundsValidator
 	DB               *sql.DB
+	Blackboard       *blackboard.Attachment // nil when blackboard is not enabled for this run (Task A.5)
 
 	// Call metadata is used by future nested executions and delegation flow.
 	CallDepth int

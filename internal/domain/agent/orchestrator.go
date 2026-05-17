@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/domain/blackboard"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
@@ -99,6 +100,7 @@ type Run struct {
 	TotalCost            *float64
 	LatencyMs            *int64
 	TraceID              *string
+	CognitiveWorkspaceID *string // set when blackboard is enabled for this run (Task A.5)
 	StartedAt            time.Time
 	CompletedAt          *time.Time
 	CreatedAt            time.Time
@@ -128,12 +130,13 @@ type SkillDefinition struct {
 // Input/Output types
 
 type TriggerAgentInput struct {
-	AgentID        string
-	WorkspaceID    string
-	TriggeredBy    *string
-	TriggerType    string
-	TriggerContext json.RawMessage
-	Inputs         json.RawMessage
+	AgentID              string
+	WorkspaceID          string
+	TriggeredBy          *string
+	TriggerType          string
+	TriggerContext       json.RawMessage
+	Inputs               json.RawMessage
+	CognitiveWorkspaceID *string // optional; enables blackboard attachment when set (Task A.5)
 }
 
 type ToolCall struct {
@@ -204,6 +207,7 @@ func newAgentRun(in TriggerAgentInput) *Run {
 		ToolCalls:            json.RawMessage(emptyJSONArray),
 		Output:               json.RawMessage(emptyJSONObject),
 		TraceID:              stringPtr(uuid.NewV7().String()),
+		CognitiveWorkspaceID: in.CognitiveWorkspaceID,
 		StartedAt:            time.Now().UTC(),
 		CreatedAt:            time.Now().UTC(),
 	}
@@ -217,14 +221,16 @@ func (o *Orchestrator) persistRun(ctx context.Context, run *Run) error {
 			retrieval_queries, retrieved_evidence_ids, reasoning_trace,
 			tool_calls, output, abstention_reason,
 			total_tokens, total_cost, latency_ms, trace_id,
+			cognitive_workspace_id,
 			started_at, completed_at, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
 	`,
 		run.ID, run.WorkspaceID, run.DefinitionID, run.TriggeredByUserID,
 		run.TriggerType, run.TriggerContext, run.Status, run.Inputs,
 		run.RetrievalQueries, run.RetrievedEvidenceIDs, run.ReasoningTrace,
 		run.ToolCalls, run.Output, run.AbstentionReason,
 		run.TotalTokens, run.TotalCost, run.LatencyMs, run.TraceID,
+		run.CognitiveWorkspaceID,
 		run.StartedAt, run.CreatedAt,
 	)
 	if err != nil {
@@ -256,11 +262,7 @@ func (o *Orchestrator) ExecuteAgent(ctx context.Context, rc *RunContext, in Trig
 		return nil, err
 	}
 
-	runCtx := rc.Clone()
-	runCtx.Orchestrator = o
-	if runCtx.RunnerRegistry == nil {
-		runCtx.RunnerRegistry = o.runnerRegistry
-	}
+	runCtx := prepareRunContext(rc, o, in)
 
 	run, err := runner.Run(ctx, runCtx, in)
 	if err != nil {
@@ -978,6 +980,29 @@ func applyDefinitionJSONFields(d *Definition, allowedTools, limits, triggerConfi
 	}
 	if triggerConfig.Valid {
 		_ = json.Unmarshal([]byte(triggerConfig.String), &d.TriggerConfig)
+	}
+}
+
+// prepareRunContext clones rc, wires orchestrator and registry, and attaches blackboard if enabled. (Task A.5)
+func prepareRunContext(rc *RunContext, o *Orchestrator, in TriggerAgentInput) *RunContext {
+	runCtx := rc.Clone()
+	runCtx.Orchestrator = o
+	if runCtx.RunnerRegistry == nil {
+		runCtx.RunnerRegistry = o.runnerRegistry
+	}
+	if in.CognitiveWorkspaceID != nil {
+		runCtx.Blackboard = buildBlackboardAttachment(o.db, *in.CognitiveWorkspaceID)
+	}
+	return runCtx
+}
+
+// buildBlackboardAttachment constructs the three blackboard components scoped to cwID. (Task A.5)
+func buildBlackboardAttachment(db *sql.DB, cwID string) *blackboard.Attachment {
+	return &blackboard.Attachment{
+		CognitiveWorkspaceID: cwID,
+		Bus:                  blackboard.NewWorkspaceBus(cwID, db),
+		Memory:               blackboard.NewMemoryStore(db),
+		Timeline:             blackboard.NewReasoningTimeline(db),
 	}
 }
 
