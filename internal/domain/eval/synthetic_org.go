@@ -176,12 +176,12 @@ func normalizeJSONObject(in json.RawMessage) (json.RawMessage, error) {
 
 	var decoded any
 	if err := json.Unmarshal(in, &decoded); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unmarshal json object: %w", err)
 	}
 
 	out, err := json.Marshal(decoded)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal json object: %w", err)
 	}
 	return json.RawMessage(out), nil
 }

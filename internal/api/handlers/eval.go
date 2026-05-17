@@ -272,18 +272,26 @@ func (h *EvalHandler) runEvalRequest(
 		if h.benchmarks == nil {
 			return nil, fmt.Errorf("benchmark registry unavailable")
 		}
-		return h.benchmarks.RunBenchmarkCase(ctx, *req.BenchmarkCaseID, domaineval.RunBenchmarkCaseInput{
+		run, runErr := h.benchmarks.RunBenchmarkCase(ctx, *req.BenchmarkCaseID, domaineval.RunBenchmarkCaseInput{
 			WorkspaceID:     workspaceID,
 			EvalSuiteID:     req.EvalSuiteID,
 			PromptVersionID: req.PromptVersionID,
 		})
+		if runErr != nil {
+			return nil, fmt.Errorf("run benchmark case: %w", runErr)
+		}
+		return run, nil
 	}
-	return h.runner.Run(ctx, domaineval.RunInput{
+	run, runErr := h.runner.Run(ctx, domaineval.RunInput{
 		WorkspaceID:     workspaceID,
 		EvalSuiteID:     req.EvalSuiteID,
 		PromptVersionID: req.PromptVersionID,
 		Provenance:      req.provenance(),
 	})
+	if runErr != nil {
+		return nil, fmt.Errorf("run eval: %w", runErr)
+	}
+	return run, nil
 }
 
 // writeRunEvalError maps runner errors to HTTP status codes. (task-C2.4)
