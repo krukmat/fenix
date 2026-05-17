@@ -3,6 +3,7 @@ package relationship
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -47,17 +48,32 @@ type upsertSignalEmbeddingArgs struct {
 }
 
 type fakeEmbeddingRepo struct {
+	mu    sync.Mutex
 	calls []upsertSignalEmbeddingArgs
 	err   error
 }
 
 func (f *fakeEmbeddingRepo) UpsertSignalEmbedding(_ context.Context, workspaceID, signalID string, vector []float32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.calls = append(f.calls, upsertSignalEmbeddingArgs{
 		workspaceID: workspaceID,
 		signalID:    signalID,
 		vector:      vector,
 	})
 	return f.err
+}
+
+func (f *fakeEmbeddingRepo) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.calls)
+}
+
+func (f *fakeEmbeddingRepo) callAt(i int) upsertSignalEmbeddingArgs {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls[i]
 }
 
 func makeSignalCreatedEvent(payload any) eventbus.Event {
@@ -78,10 +94,10 @@ func TestMemoryEmbedder_HandleSignalCreated(t *testing.T) {
 		"summary":      "customer was highly engaged",
 	}))
 
-	if len(repo.calls) != 1 {
-		t.Fatalf("expected 1 UpsertSignalEmbedding call, got %d", len(repo.calls))
+	if repo.callCount() != 1 {
+		t.Fatalf("expected 1 UpsertSignalEmbedding call, got %d", repo.callCount())
 	}
-	got := repo.calls[0]
+	got := repo.callAt(0)
 	if got.workspaceID != "ws-1" {
 		t.Errorf("workspaceID: want %q, got %q", "ws-1", got.workspaceID)
 	}
@@ -108,8 +124,8 @@ func TestMemoryEmbedder_LLMErrorSkips(t *testing.T) {
 		"summary":      "customer was highly engaged",
 	}))
 
-	if len(repo.calls) != 0 {
-		t.Errorf("expected 0 UpsertSignalEmbedding calls on LLM error, got %d", len(repo.calls))
+	if repo.callCount() != 0 {
+		t.Errorf("expected 0 UpsertSignalEmbedding calls on LLM error, got %d", repo.callCount())
 	}
 	if provider.callCount != memoryEmbedMaxRetries {
 		t.Errorf("callCount: want %d, got %d", memoryEmbedMaxRetries, provider.callCount)
@@ -146,12 +162,12 @@ func TestMemoryEmbedder_RepoErrorLogsAndContinues(t *testing.T) {
 	})
 
 	deadline := time.Now().Add(200 * time.Millisecond)
-	for len(repo.calls) < 2 && time.Now().Before(deadline) {
+	for repo.callCount() < 2 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	if len(repo.calls) != 2 {
-		t.Fatalf("expected 2 UpsertSignalEmbedding attempts, got %d", len(repo.calls))
+	if repo.callCount() != 2 {
+		t.Fatalf("expected 2 UpsertSignalEmbedding attempts, got %d", repo.callCount())
 	}
 }
 
@@ -163,8 +179,8 @@ func TestMemoryEmbedder_MissingPayloadSkips(t *testing.T) {
 	svc.handle(context.Background(), makeSignalCreatedEvent(nil))
 	svc.handle(context.Background(), makeSignalCreatedEvent(map[string]any{"workspace_id": "ws-1"}))
 
-	if len(repo.calls) != 0 {
-		t.Errorf("expected 0 UpsertSignalEmbedding calls on malformed payload, got %d", len(repo.calls))
+	if repo.callCount() != 0 {
+		t.Errorf("expected 0 UpsertSignalEmbedding calls on malformed payload, got %d", repo.callCount())
 	}
 	if provider.callCount != 0 {
 		t.Errorf("expected 0 embed calls on malformed payload, got %d", provider.callCount)
@@ -188,8 +204,8 @@ func TestMemoryEmbedder_RetrySucceeds(t *testing.T) {
 	if provider.callCount != 2 {
 		t.Fatalf("expected 2 embed calls, got %d", provider.callCount)
 	}
-	if len(repo.calls) != 1 {
-		t.Fatalf("expected 1 UpsertSignalEmbedding call, got %d", len(repo.calls))
+	if repo.callCount() != 1 {
+		t.Fatalf("expected 1 UpsertSignalEmbedding call, got %d", repo.callCount())
 	}
 }
 
