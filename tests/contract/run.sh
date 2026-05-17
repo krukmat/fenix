@@ -221,6 +221,16 @@ sqlite3 "$DB_FILE" "
     datetime('now'), datetime('now')
   );
 
+  INSERT OR IGNORE INTO benchmark_case (
+    id, workspace_id, synthetic_org_id, slug, name, domain, version, input_payload,
+    expected_outcome, tags
+  )
+  VALUES (
+    'contract-benchmark', '$WORKSPACE_ID', NULL, 'contract-benchmark-fixture',
+    'Contract Benchmark Fixture', 'support', 1, '{\"prompt\":\"reset password\"}',
+    '{\"status\":\"success\"}', '[\"contract\",\"support\"]'
+  );
+
   INSERT OR IGNORE INTO lead (
     id, workspace_id, contact_id, account_id, source, status, owner_id, score,
     metadata, created_at, updated_at
