@@ -5,6 +5,7 @@ package relationship
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 )
@@ -35,7 +36,10 @@ func NewTrustEngine(repo TrustRepository) *TrustEngine {
 // Returns the repository error if the upsert fails — caller decides retry policy.
 func (e *TrustEngine) Score(ctx context.Context, memoryID string, signals []InteractionSignal) error {
 	score, confidence, decayFactor := computeScore(signals)
-	return e.repo.UpsertTrustScore(ctx, memoryID, score, confidence, decayFactor, time.Now().UTC())
+	if err := e.repo.UpsertTrustScore(ctx, memoryID, score, confidence, decayFactor, time.Now().UTC()); err != nil {
+		return fmt.Errorf("trust engine upsert score: %w", err)
+	}
+	return nil
 }
 
 // computeScore is a pure function: no receiver, no side effects, fully deterministic.

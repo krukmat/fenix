@@ -242,11 +242,11 @@ func scanStaleSignal(rows *sql.Rows) (InteractionSignal, error) {
 	var sourceEntityID sql.NullString
 	var occurredAtStr, createdAtStr string
 
-	if err := rows.Scan(
+	if scanErr := rows.Scan(
 		&item.ID, &item.RelationshipMemoryID, &item.SignalType, &sentiment, &item.Summary,
 		&sourceEntityType, &sourceEntityID, &occurredAtStr, &createdAtStr,
-	); err != nil {
-		return InteractionSignal{}, err
+	); scanErr != nil {
+		return InteractionSignal{}, fmt.Errorf("scan interaction signal row: %w", scanErr)
 	}
 
 	item.Sentiment = nullableSentiment(sentiment)
