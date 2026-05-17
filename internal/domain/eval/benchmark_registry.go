@@ -42,47 +42,71 @@ func NewBenchmarkRegistryService(db *sql.DB, runner *RunnerService) *BenchmarkRe
 	return &BenchmarkRegistryService{db: db, runner: runner}
 }
 
+// benchmarkInsertArgs holds the normalized, serialized values ready for INSERT.
+type benchmarkInsertArgs struct {
+	id              string
+	syntheticOrgID  *string
+	version         int
+	inputPayload    string
+	expectedOutcome string
+	tagsJSON        string
+}
+
+// prepareBenchmarkInsertArgs normalizes and serializes all fields that require
+// transformation before the INSERT — keeping Create below the complexity gate.
+func prepareBenchmarkInsertArgs(in CreateBenchmarkCaseInput) (benchmarkInsertArgs, error) {
+	orgID := in.SyntheticOrgID
+	// Empty string must become NULL so SQLite does not reject the FK reference.
+	if orgID != nil && *orgID == "" {
+		orgID = nil
+	}
+
+	version := in.Version
+	if version <= 0 {
+		version = 1
+	}
+
+	tagsRaw, err := json.Marshal(normalizeStringSlice(in.Tags))
+	if err != nil {
+		return benchmarkInsertArgs{}, fmt.Errorf("marshal benchmark tags: %w", err)
+	}
+
+	return benchmarkInsertArgs{
+		id:              uuid.NewV7().String(),
+		syntheticOrgID:  orgID,
+		version:         version,
+		inputPayload:    string(normalizeRawMessage(in.InputPayload)),
+		expectedOutcome: string(normalizeRawMessage(in.ExpectedOutcome)),
+		tagsJSON:        string(tagsRaw),
+	}, nil
+}
+
 // Create persists a benchmark case and returns the stored domain value.
 func (s *BenchmarkRegistryService) Create(ctx context.Context, in CreateBenchmarkCaseInput) (*BenchmarkCase, error) {
 	if err := validateCreateBenchmarkCaseInput(in); err != nil {
 		return nil, err
 	}
-	if err := s.validateSyntheticOrgReference(ctx, in.WorkspaceID, in.SyntheticOrgID); err != nil {
+	args, err := prepareBenchmarkInsertArgs(in)
+	if err != nil {
 		return nil, err
 	}
-
-	id := uuid.NewV7().String()
-	version := in.Version
-	if version <= 0 {
-		version = 1
-	}
-	inputPayload := normalizeRawMessage(in.InputPayload)
-	expectedOutcome := normalizeRawMessage(in.ExpectedOutcome)
-	tagsJSON, err := json.Marshal(normalizeStringSlice(in.Tags))
-	if err != nil {
-		return nil, fmt.Errorf("marshal benchmark tags: %w", err)
+	if validateErr := s.validateSyntheticOrgReference(ctx, in.WorkspaceID, args.syntheticOrgID); validateErr != nil {
+		return nil, validateErr
 	}
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO benchmark_case (
 			id, workspace_id, synthetic_org_id, slug, name, domain, version, input_payload, expected_outcome, tags
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id,
-		in.WorkspaceID,
-		in.SyntheticOrgID,
-		in.Slug,
-		in.Name,
-		in.Domain,
-		version,
-		string(inputPayload),
-		string(expectedOutcome),
-		string(tagsJSON),
+		args.id, in.WorkspaceID, args.syntheticOrgID,
+		in.Slug, in.Name, in.Domain, args.version,
+		args.inputPayload, args.expectedOutcome, args.tagsJSON,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create benchmark case: %w", err)
 	}
 
-	return s.GetByID(ctx, in.WorkspaceID, id)
+	return s.GetByID(ctx, in.WorkspaceID, args.id)
 }
 
 func (s *BenchmarkRegistryService) validateSyntheticOrgReference(

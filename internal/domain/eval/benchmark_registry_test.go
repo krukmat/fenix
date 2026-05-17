@@ -167,6 +167,37 @@ func TestBenchmarkRegistry_Create_WithSyntheticOrgOutsideWorkspace_Fails(t *test
 	}
 }
 
+// TestBenchmarkRegistry_Create_EmptySyntheticOrgID verifies that passing synthetic_org_id=""
+// (as Schemathesis does from the OpenAPI example) normalizes to NULL and does not cause
+// a FOREIGN KEY constraint failure — regression guard for the contract test CI failure.
+func TestBenchmarkRegistry_Create_EmptySyntheticOrgID(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	wsID := mustCreateWorkspace(t, db, "benchmark-empty-org")
+	runner := eval.NewRunnerService(db)
+	service := eval.NewBenchmarkRegistryService(db, runner)
+
+	emptyOrgID := ""
+	bc, err := service.Create(context.Background(), eval.CreateBenchmarkCaseInput{
+		WorkspaceID:     wsID,
+		SyntheticOrgID:  &emptyOrgID,
+		Slug:            "contract-benchmark",
+		Name:            "Contract Benchmark",
+		Domain:          "support",
+		Version:         1,
+		InputPayload:    json.RawMessage(`{"prompt":"reset password"}`),
+		ExpectedOutcome: json.RawMessage(`{"status":"success"}`),
+		Tags:            []string{"contract", "support"},
+	})
+	if err != nil {
+		t.Fatalf("Create with empty synthetic_org_id: %v", err)
+	}
+	if bc.SyntheticOrgID != nil {
+		t.Fatalf("SyntheticOrgID should be nil after normalization, got %q", *bc.SyntheticOrgID)
+	}
+}
+
 func assertBenchmarkCasePersisted(t *testing.T, db *sql.DB, runID, benchmarkCaseID string) {
 	t.Helper()
 
