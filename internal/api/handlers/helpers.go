@@ -87,6 +87,7 @@ const (
 	// Error messages — eval
 	errEvalSuiteNotFound     = "eval suite not found"
 	errEvalRunNotFound       = "eval run not found"
+	errEvalBenchmarkNotFound = "benchmark case not found"
 	errEvalSuiteNameRequired = "name and domain are required"
 	errEvalSuiteIDRequired   = "eval_suite_id is required"
 

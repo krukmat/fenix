@@ -420,6 +420,31 @@ func TestRegressionFixtureSuite(t *testing.T) {
 	}
 }
 
+func TestRegressionFixturePolicyComplianceThreshold(t *testing.T) {
+	t.Parallel()
+
+	report := RegressionRunner{Now: fixedRegressionNow}.Run([]RegressionCase{
+		{
+			Scenario: makeRegressionHappyScenario(),
+			Trace:    makeRegressionMatchingTrace(),
+		},
+		{
+			Scenario: makeRegressionMetricsScenario(),
+			Trace:    makeRegressionMetricsTrace(),
+		},
+	})
+
+	for _, scenario := range report.Scenarios {
+		if scenario.Scorecard.Metrics.PolicyCompliance != 1 {
+			t.Fatalf(
+				"scenario %s policy_compliance=%v; want 1.0",
+				scenario.ScenarioID,
+				scenario.Scorecard.Metrics.PolicyCompliance,
+			)
+		}
+	}
+}
+
 func fixedRegressionNow() time.Time {
 	return time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 }

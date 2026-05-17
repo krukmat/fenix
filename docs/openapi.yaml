@@ -2199,6 +2199,28 @@ paths:
           description: Unexpected response
       security:
       - BearerAuth: []
+  /api/v1/admin/eval/benchmarks:
+    post:
+      summary: Create benchmark case
+      x-fr-traces:
+      - FR-242
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBenchmarkRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BenchmarkCase'
+        default:
+          description: Unexpected response
+      security:
+      - BearerAuth: []
   /api/v1/admin/eval/run:
     post:
       summary: Execute eval run
@@ -2216,7 +2238,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AnyResponse'
+                $ref: '#/components/schemas/EvalRun'
         default:
           description: Unexpected response
       security:
@@ -2232,7 +2254,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AnyResponse'
+                $ref: '#/components/schemas/EvalRunListEnvelope'
         default:
           description: Unexpected response
       security:
@@ -2250,7 +2272,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AnyResponse'
+                $ref: '#/components/schemas/EvalRun'
         default:
           description: Unexpected response
       security:
@@ -3974,6 +3996,285 @@ components:
           - contract-eval-suite
         prompt_version_id:
           type: string
+        benchmark_case_id:
+          type: string
+          enum:
+          - contract-benchmark
+        synthetic_org_id:
+          type: string
+        source_agent_run_id:
+          type: string
+        source_cognitive_workspace_id:
+          type: string
+        source_trace_id:
+          type: string
+        replay_mode:
+          $ref: '#/components/schemas/ReplayMode'
+    CreateBenchmarkRequest:
+      type: object
+      required:
+      - slug
+      - name
+      - domain
+      properties:
+        synthetic_org_id:
+          type: string
+        slug:
+          type: string
+          minLength: 1
+          enum:
+          - contract-benchmark
+        name:
+          type: string
+          minLength: 1
+          enum:
+          - Contract Benchmark
+        domain:
+          type: string
+          enum:
+          - support
+        version:
+          type: integer
+          minimum: 1
+          enum:
+          - 1
+        input_payload:
+          type: object
+          additionalProperties: true
+          example:
+            prompt: reset password
+        expected_outcome:
+          type: object
+          additionalProperties: true
+          example:
+            status: success
+        tags:
+          type: array
+          items:
+            type: string
+          example:
+          - contract
+          - support
+    BenchmarkCase:
+      type: object
+      required:
+      - id
+      - workspaceId
+      - slug
+      - name
+      - domain
+      - version
+      - inputPayload
+      - expectedOutcome
+      - tags
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        syntheticOrgId:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        domain:
+          type: string
+          enum:
+          - support
+          - sales
+          - general
+        version:
+          type: integer
+          minimum: 1
+        inputPayload:
+          type: object
+          additionalProperties: true
+        expectedOutcome:
+          type: object
+          additionalProperties: true
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ReplayMode:
+      type: string
+      enum:
+      - adhoc
+      - benchmark
+      - replay
+    ReplayProvenance:
+      type: object
+      required:
+      - mode
+      properties:
+        mode:
+          $ref: '#/components/schemas/ReplayMode'
+        benchmarkCaseId:
+          type: string
+        syntheticOrgId:
+          type: string
+        sourceAgentRunId:
+          type: string
+        sourceCognitiveWorkspaceId:
+          type: string
+        sourceTraceId:
+          type: string
+    Scores:
+      type: object
+      required:
+      - groundedness
+      - exactitude
+      - abstention
+      - policy_adherence
+      - outcome_accuracy
+      - tool_call_precision
+      - tool_call_recall
+      - tool_call_f1
+      - forbidden_tool_violations
+      - policy_compliance
+      - approval_accuracy
+      - evidence_coverage
+      - forbidden_evidence_count
+      - state_mutation_accuracy
+      - audit_completeness
+      - contract_validity
+      - abstention_accuracy
+      - latency_compliance
+      - tool_budget_compliance
+      - scorecard_score
+      - scorecard_verdict
+      properties:
+        groundedness:
+          type: number
+        exactitude:
+          type: number
+        abstention:
+          type: number
+        policy_adherence:
+          type: number
+        outcome_accuracy:
+          type: number
+        tool_call_precision:
+          type: number
+        tool_call_recall:
+          type: number
+        tool_call_f1:
+          type: number
+        forbidden_tool_violations:
+          type: integer
+        policy_compliance:
+          type: number
+        approval_accuracy:
+          type: number
+        evidence_coverage:
+          type: number
+        forbidden_evidence_count:
+          type: integer
+        state_mutation_accuracy:
+          type: number
+        audit_completeness:
+          type: number
+        contract_validity:
+          type: number
+        abstention_accuracy:
+          type: number
+        latency_compliance:
+          type: number
+        tool_budget_compliance:
+          type: number
+        scorecard_score:
+          type: number
+        scorecard_verdict:
+          type: string
+        scored_result:
+          type: object
+          additionalProperties: true
+    TestCaseResult:
+      type: object
+      required:
+      - input
+      - output
+      - passed
+      - matched_keywords
+      - abstained_correctly
+      properties:
+        input:
+          type: string
+        output:
+          type: string
+        passed:
+          type: boolean
+        matched_keywords:
+          type: array
+          items:
+            type: string
+        abstained_correctly:
+          type: boolean
+    EvalRun:
+      type: object
+      required:
+      - id
+      - workspaceId
+      - evalSuiteId
+      - status
+      - scores
+      - details
+      - startedAt
+      - createdAt
+      properties:
+        id:
+          type: string
+        workspaceId:
+          type: string
+        evalSuiteId:
+          type: string
+        promptVersionId:
+          type: string
+        status:
+          type: string
+        provenance:
+          $ref: '#/components/schemas/ReplayProvenance'
+        replay_artifact:
+          type: object
+          additionalProperties: true
+        scored_result:
+          type: object
+          additionalProperties: true
+        scores:
+          $ref: '#/components/schemas/Scores'
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/TestCaseResult'
+        triggeredBy:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    EvalRunListEnvelope:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalRun'
     CreateToolRequest:
       type: object
       required:

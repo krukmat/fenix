@@ -235,7 +235,8 @@ func TestEvalHandler_RunEval_200(t *testing.T) {
 	db := mustOpenDBWithMigrationsEval(t)
 	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
 	suiteSvc := eval.NewSuiteService(db)
-	h := NewEvalHandler(suiteSvc, eval.NewRunnerService(db))
+	runner := eval.NewRunnerService(db)
+	h := NewEvalHandlerWithBenchmarkRegistry(suiteSvc, runner, eval.NewBenchmarkRegistryService(db, runner))
 
 	suite, err := suiteSvc.Create(context.Background(), eval.CreateSuiteInput{
 		WorkspaceID: wsID,
@@ -404,6 +405,7 @@ func TestEvalHandler_CreateSuite_ForbiddenByAuthorizer(t *testing.T) {
 	h := NewEvalHandlerWithAuthorizer(
 		eval.NewSuiteService(db),
 		eval.NewRunnerService(db),
+		nil,
 		&toolAuthzStub{allow: false},
 	)
 
@@ -427,6 +429,7 @@ func TestEvalHandler_ListSuites_MissingUserIDWithAuthorizer_401(t *testing.T) {
 	h := NewEvalHandlerWithAuthorizer(
 		eval.NewSuiteService(db),
 		eval.NewRunnerService(db),
+		nil,
 		&toolAuthzStub{allow: true},
 	)
 
@@ -484,6 +487,33 @@ func TestEvalHandler_RunEval_SuiteNotFound_404(t *testing.T) {
 	}
 }
 
+func TestEvalHandler_CreateBenchmark_201(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
+	runner := eval.NewRunnerService(db)
+	h := NewEvalHandlerWithBenchmarkRegistry(eval.NewSuiteService(db), runner, eval.NewBenchmarkRegistryService(db, runner))
+
+	body := `{"slug":"password-reset","name":"Password Reset","domain":"support","version":1,"input_payload":{"prompt":"reset"},"expected_outcome":{"status":"success"},"tags":["support","deterministic"]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/benchmarks", bytes.NewBufferString(body))
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.CreateBenchmark(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp["slug"] != "password-reset" {
+		t.Fatalf("expected slug password-reset, got %v", resp["slug"])
+	}
+}
+
 func TestEvalHandler_RunEval_ServiceError_500(t *testing.T) {
 	t.Parallel()
 	db := mustOpenDBWithMigrationsEval(t)
@@ -500,6 +530,94 @@ func TestEvalHandler_RunEval_ServiceError_500(t *testing.T) {
 	}
 }
 
+func TestEvalHandler_RunEval_BenchmarkCase_UsesRegistry(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
+	suiteSvc := eval.NewSuiteService(db)
+	suite, err := suiteSvc.Create(context.Background(), eval.CreateSuiteInput{
+		WorkspaceID: wsID,
+		Name:        "Benchmark Suite",
+		Domain:      "support",
+		TestCases:   []eval.TestCase{{Input: "hello", ExpectedKeywords: []string{"hello"}, ShouldAbstain: false}},
+		Thresholds:  eval.Thresholds{Groundedness: 0.5, Exactitude: 0.5, Abstention: 0.5, Policy: 0.5},
+	})
+	if err != nil {
+		t.Fatalf("create suite: %v", err)
+	}
+
+	runner := eval.NewRunnerService(db)
+	benchmarkSvc := eval.NewBenchmarkRegistryService(db, runner)
+	benchmark, err := benchmarkSvc.Create(context.Background(), eval.CreateBenchmarkCaseInput{
+		WorkspaceID:     wsID,
+		Slug:            "password-reset",
+		Name:            "Password Reset",
+		Domain:          "support",
+		Version:         1,
+		InputPayload:    json.RawMessage(`{"prompt":"reset password"}`),
+		ExpectedOutcome: json.RawMessage(`{"status":"success"}`),
+		Tags:            []string{"support"},
+	})
+	if err != nil {
+		t.Fatalf("create benchmark: %v", err)
+	}
+
+	h := NewEvalHandlerWithBenchmarkRegistry(suiteSvc, runner, benchmarkSvc)
+	body := `{"eval_suite_id":"` + suite.ID + `","benchmark_case_id":"` + benchmark.ID + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/run", bytes.NewBufferString(body))
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.RunEval(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	provenance, ok := resp["provenance"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected provenance object, got %#v", resp["provenance"])
+	}
+	if provenance["benchmarkCaseId"] != benchmark.ID {
+		t.Fatalf("expected benchmarkCaseId %s, got %v", benchmark.ID, provenance["benchmarkCaseId"])
+	}
+}
+
+func TestEvalHandler_RunEval_BenchmarkCaseNotFound_404(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
+	suiteSvc := eval.NewSuiteService(db)
+	suite, err := suiteSvc.Create(context.Background(), eval.CreateSuiteInput{
+		WorkspaceID: wsID,
+		Name:        "Benchmark Suite",
+		Domain:      "support",
+		TestCases:   []eval.TestCase{{Input: "hello", ExpectedKeywords: []string{"hello"}, ShouldAbstain: false}},
+		Thresholds:  eval.Thresholds{Groundedness: 0.5, Exactitude: 0.5, Abstention: 0.5, Policy: 0.5},
+	})
+	if err != nil {
+		t.Fatalf("create suite: %v", err)
+	}
+
+	runner := eval.NewRunnerService(db)
+	h := NewEvalHandlerWithBenchmarkRegistry(suiteSvc, runner, eval.NewBenchmarkRegistryService(db, runner))
+	body := `{"eval_suite_id":"` + suite.ID + `","benchmark_case_id":"missing-benchmark"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/run", bytes.NewBufferString(body))
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.RunEval(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestEvalHandler_ListRuns_MissingWorkspace_400(t *testing.T) {
 	t.Parallel()
 	db := mustOpenDBWithMigrationsEval(t)
@@ -509,6 +627,87 @@ func TestEvalHandler_ListRuns_MissingWorkspace_400(t *testing.T) {
 	h.ListRuns(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+// TestEvalHandler_RunEval_ReplaySourceErrorMapped asserts that a replay source
+// error from the runner is mapped to HTTP 422. (task-C2.4)
+//
+// Setup: agent_run exists so provenance FK passes, but reasoning_event/audit_event
+// rows are absent — replay engine finds no trace, returning ReplaySourceError.
+func TestEvalHandler_RunEval_ReplaySourceErrorMapped(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
+
+	// Insert agent_definition and agent_run so FK on agent_run is satisfied.
+	mustInsertAgentDefinitionEval(t, db, wsID, "agent-def-1")
+	mustInsertAgentRunWithTraceEval(t, db, wsID, "agent-run-1", "agent-def-1", "trace-missing")
+
+	suiteSvc := eval.NewSuiteService(db)
+	suite, err := suiteSvc.Create(context.Background(), eval.CreateSuiteInput{
+		WorkspaceID: wsID,
+		Name:        "Replay Suite",
+		Domain:      "support",
+		TestCases:   []eval.TestCase{{Input: "hello", ExpectedKeywords: []string{"hello"}}},
+		Thresholds:  eval.Thresholds{Groundedness: 0.5, Exactitude: 0.5, Abstention: 0.5, Policy: 0.5},
+	})
+	if err != nil {
+		t.Fatalf("create suite: %v", err)
+	}
+
+	runner := eval.NewRunnerServiceWithReplay(db, eval.NewSQLiteReplayEngine(db))
+	h := NewEvalHandler(suiteSvc, runner)
+
+	body := `{"eval_suite_id":"` + suite.ID + `","source_agent_run_id":"agent-run-1","source_trace_id":"trace-missing"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/run", bytes.NewBufferString(body))
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.RunEval(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+// TestEvalHandler_RunEval_BackwardCompatibleWithoutProvenance asserts that the
+// handler returns 200 when no provenance fields are present. (task-C2.4)
+func TestEvalHandler_RunEval_BackwardCompatibleWithoutProvenance(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrationsEval(t)
+	wsID, _ := setupWorkspaceAndOwnerEval(t, db)
+	suiteSvc := eval.NewSuiteService(db)
+	suite, err := suiteSvc.Create(context.Background(), eval.CreateSuiteInput{
+		WorkspaceID: wsID,
+		Name:        "Legacy Suite",
+		Domain:      "support",
+		TestCases:   []eval.TestCase{{Input: "hello", ExpectedKeywords: []string{"hello"}}},
+		Thresholds:  eval.Thresholds{Groundedness: 0.5, Exactitude: 0.5, Abstention: 0.5, Policy: 0.5},
+	})
+	if err != nil {
+		t.Fatalf("create suite: %v", err)
+	}
+
+	h := NewEvalHandler(suiteSvc, eval.NewRunnerService(db))
+	body := `{"eval_suite_id":"` + suite.ID + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/eval/run", bytes.NewBufferString(body))
+	req = req.WithContext(contextWithWorkspaceIDEval(req.Context(), wsID))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.RunEval(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp["replay_artifact"] != nil {
+		t.Fatal("expected replay_artifact to be absent on legacy path")
 	}
 }
 
@@ -524,5 +723,40 @@ func TestEvalHandler_ListRuns_ServiceError_500(t *testing.T) {
 	h.ListRuns(rr, req)
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", rr.Code)
+	}
+}
+
+func mustInsertAgentDefinitionEval(t *testing.T, db *sql.DB, wsID, agentID string) {
+	t.Helper()
+	if _, err := db.Exec(`
+		INSERT INTO agent_definition (id, workspace_id, name, agent_type, allowed_tools, limits, trigger_config, status, created_at, updated_at)
+		VALUES (?, ?, ?, 'support', '[]', '{}', '{}', 'active', datetime('now'), datetime('now'))`,
+		agentID, wsID, "Agent "+agentID,
+	); err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+}
+
+func mustInsertAgentRunWithTraceEval(t *testing.T, db *sql.DB, wsID, runID, agentDefID, traceID string) {
+	t.Helper()
+	if _, err := db.Exec(`
+		INSERT INTO agent_run (
+			id, workspace_id, agent_definition_id, trigger_type, status,
+			trigger_context, inputs, retrieval_queries, retrieved_evidence_ids,
+			reasoning_trace, tool_calls, output, trace_id,
+			started_at, completed_at, created_at, updated_at, cognitive_workspace_id
+		) VALUES (?, ?, ?, 'manual', 'success', ?, ?, ?, ?, ?, ?, ?, ?,
+		          datetime('now'), datetime('now'), datetime('now'), datetime('now'), NULL)`,
+		runID, wsID, agentDefID,
+		`{"type":"case.updated"}`,
+		`{"caseId":"case-1"}`,
+		`["search cases"]`,
+		`["ev-1"]`,
+		`{"steps":["observe"]}`,
+		`[{"tool":"crm.case.get","status":"executed","params":{"id":"case-1"}}]`,
+		`{"summary":"done"}`,
+		traceID,
+	); err != nil {
+		t.Fatalf("insert agent_run: %v", err)
 	}
 }

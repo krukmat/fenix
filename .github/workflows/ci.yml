@@ -239,6 +239,9 @@ jobs:
       - name: Run Go BDD baseline
         run: make test-bdd-go
 
+      - name: Deterministic eval gate
+        run: make eval
+
       - name: Race stability gate
         run: RACE_STABILITY_COUNT=3 make race-stability
 

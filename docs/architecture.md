@@ -141,7 +141,7 @@ This is a client presentation contract for FR-300, not a new business capability
 | **Context layer** | `workspace`, `user_account`, `role`, `account`, `contact`, `lead`, `deal`, `case_ticket`, `activity`, `note`, `attachment`, `timeline_event` | Operational context for support and sales workflows |
 | **Knowledge layer** | `knowledge_item`, `embedding_document`, `evidence` | Searchable knowledge corpus and persisted evidence records |
 | **Governed runtime** | `policy_set`, `tool_definition`, `agent_definition`, `agent_run`, `approval_request`, `audit_event` | Execution control, action safety, approval state, immutable trace |
-| **Versioning and eval** | `prompt_version`, `policy_version`, `eval_suite`, `eval_run`, `workflow` metadata | Controlled rollout, verification, and future replay/simulation |
+| **Versioning and eval** | `prompt_version`, `policy_version`, `eval_suite`, `eval_run`, `benchmark_case`, `synthetic_org`, `workflow` metadata | Controlled rollout, deterministic replay, benchmark registration, and simulation |
 | **Usage and quota** | `usage_event`, `quota_policy`, `quota_state` | Required target domain for per-run attribution and workspace-level cost controls |
 
 ### 2.2 Simplified ERD
@@ -347,6 +347,27 @@ erDiagram
         text workspace_id FK
         text prompt_version_id FK
         text status
+        text replay_mode
+        text benchmark_case_id FK
+        text synthetic_org_id FK
+        text source_agent_run_id FK
+        text source_cognitive_workspace_id FK
+        text source_trace_id
+    }
+
+    benchmark_case {
+        text id PK
+        text workspace_id FK
+        text synthetic_org_id FK
+        text domain
+        integer version
+    }
+
+    synthetic_org {
+        text id PK
+        text workspace_id FK
+        integer version
+        integer seed
     }
 
     workspace ||--o{ user_account : contains
@@ -381,6 +402,12 @@ erDiagram
     agent_run ||--o{ usage_event : emits
     quota_policy ||--o{ quota_state : accumulates
     prompt_version ||--o{ eval_run : tested_in
+    workspace ||--o{ benchmark_case : registers
+    workspace ||--o{ synthetic_org : seeds
+    synthetic_org ||--o{ benchmark_case : powers
+    benchmark_case ||--o{ eval_run : executes
+    synthetic_org ||--o{ eval_run : seeds
+    agent_run ||--o{ eval_run : replays
 ```
 
 ### 2.3 Required domain adjustments
@@ -390,6 +417,7 @@ erDiagram
 3. **Usage domain added**: `usage_event`, `quota_policy`, and `quota_state` now exist as first-class persistence and domain primitives; runtime emission and public read APIs are active on the current wedge path.
 4. **Approval states formalized**: the target model uses `pending`, `approved`, `rejected`, `expired`, `cancelled`.
 5. **Evidence pack is a contract**: the persisted `evidence` table supports a versioned evidence-pack response contract defined in Section 8.
+6. **Deterministic eval provenance is structured**: `eval_run` now stores `replay_mode` plus optional links to `benchmark_case`, `synthetic_org`, `agent_run`, `cognitive_workspace`, and `trace_id`, so replay consumers do not need to reverse-engineer opaque JSON blobs.
 
 ---
 
