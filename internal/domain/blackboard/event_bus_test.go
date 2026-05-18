@@ -4,6 +4,7 @@ package blackboard_test
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"testing"
 	"time"
 
@@ -229,6 +230,67 @@ func TestWorkspaceBus_PublishInvalidEventType_Rejected(t *testing.T) {
 	if err == nil {
 		t.Error("Publish() with invalid event_type returned nil; want error")
 	}
+}
+
+func TestWorkspaceBus_PublishAfterClose_ReturnsErrBusClosed(t *testing.T) {
+	db, cwID := setupBlackboardDB(t)
+	bus := blackboard.NewWorkspaceBus(cwID, db)
+	bus.Close()
+
+	evt := blackboard.ReasoningEvent{
+		ID:                   "re-after-close",
+		CognitiveWorkspaceID: cwID,
+		EventType:            blackboard.EventTypeObservation,
+		Payload:              []byte(`{}`),
+		CreatedAt:            time.Now().UTC(),
+	}
+
+	err := bus.Publish(context.Background(), evt)
+	if err == nil {
+		t.Fatal("Publish() after Close() returned nil; want ErrBusClosed")
+	}
+	if err != blackboard.ErrBusClosed {
+		t.Errorf("Publish() after Close() = %v; want ErrBusClosed", err)
+	}
+
+	// Confirm nothing was written to DB after Close.
+	var count int
+	if scanErr := db.QueryRow("SELECT COUNT(*) FROM reasoning_event WHERE id = ?", evt.ID).Scan(&count); scanErr != nil {
+		t.Fatalf("query reasoning_event: %v", scanErr)
+	}
+	if count != 0 {
+		t.Errorf("reasoning_event count = %d; want 0 after Publish post-Close", count)
+	}
+}
+
+func TestWorkspaceBus_ConcurrentPublishAndClose_NoRaceNoPanic(t *testing.T) {
+	db, cwID := setupBlackboardDB(t)
+	bus := blackboard.NewWorkspaceBus(cwID, db)
+	_ = bus.Subscribe(blackboard.EventTypeObservation)
+
+	const publishers = 100
+	startGun := make(chan struct{})
+	var wg sync.WaitGroup
+
+	for i := 0; i < publishers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-startGun
+			_ = bus.Publish(context.Background(), blackboard.ReasoningEvent{
+				ID:                   "re-race-" + itoa(i),
+				CognitiveWorkspaceID: cwID,
+				EventType:            blackboard.EventTypeObservation,
+				Payload:              []byte(`{}`),
+				CreatedAt:            time.Now().UTC(),
+			})
+		}(i)
+	}
+
+	close(startGun) // all goroutines race to publish
+	time.Sleep(time.Millisecond) // let some publish before Close
+	bus.Close()
+	wg.Wait() // must complete without panic or data race
 }
 
 // itoa is a minimal int-to-string helper to avoid importing strconv.

@@ -33,7 +33,7 @@ type TrajectoryType string
 const (
 	TrajectoryImproving  TrajectoryType = "improving"
 	TrajectoryStable     TrajectoryType = "stable"
-	TrajectortyDeclining TrajectoryType = "declining"
+	TrajectoryDeclining TrajectoryType = "declining"
 )
 
 // SignalType classifies the CRM interaction that produced an interaction_signal.

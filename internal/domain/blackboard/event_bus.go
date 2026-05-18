@@ -5,12 +5,16 @@ package blackboard
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
 )
 
 const busBufferSize = 100
+
+// ErrBusClosed is returned by Publish when the bus has already been closed.
+var ErrBusClosed = errors.New("workspace bus closed")
 
 // WorkspaceBus is the interface for the workspace-scoped publish/subscribe bus.
 type WorkspaceBus interface {
@@ -39,8 +43,15 @@ func NewWorkspaceBus(cognitiveWorkspaceID string, db *sql.DB) WorkspaceBus {
 }
 
 // Publish persists the event to reasoning_event and delivers it to all subscribers.
-// Returns an error if persistence fails. In-memory delivery is best-effort (drops on full buffer).
+// Returns ErrBusClosed if the bus is already closed. In-memory delivery is best-effort (drops on full buffer).
 func (b *workspaceBus) Publish(ctx context.Context, event ReasoningEvent) error {
+	b.mu.RLock()
+	if b.closed {
+		b.mu.RUnlock()
+		return ErrBusClosed
+	}
+	b.mu.RUnlock()
+
 	if err := b.persist(ctx, event); err != nil {
 		return fmt.Errorf("workspace bus publish: %w", err)
 	}
@@ -98,13 +109,15 @@ func (b *workspaceBus) persist(ctx context.Context, event ReasoningEvent) error 
 }
 
 // deliver fans out the event to all subscribers of the matching event type.
+// Holds RLock for the entire fan-out to prevent Close() from closing channels mid-send.
 // Drops silently on full buffer with a warning log.
 func (b *workspaceBus) deliver(event ReasoningEvent) {
 	b.mu.RLock()
-	subs := b.subscribers[event.EventType]
-	b.mu.RUnlock()
-
-	for _, ch := range subs {
+	defer b.mu.RUnlock()
+	if b.closed {
+		return
+	}
+	for _, ch := range b.subscribers[event.EventType] {
 		select {
 		case ch <- event:
 		default:

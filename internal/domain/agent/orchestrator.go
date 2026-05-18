@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/blackboard"
+	blackboardagents "github.com/matiasleandrokruk/fenix/internal/domain/blackboard/agents"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
@@ -150,19 +152,30 @@ type ToolCall struct {
 // Orchestrator service
 
 type Orchestrator struct {
-	db             *sql.DB
-	runnerRegistry *RunnerRegistry
+	db                     *sql.DB
+	runnerRegistry         *RunnerRegistry
+	blackboardOrchestrator blackboardPipelineRunner
+	busRegistry            *blackboard.BusRegistry
+}
+
+type blackboardPipelineRunner interface {
+	RunPipeline(ctx context.Context, cognitiveWorkspaceID string) (*blackboard.ExecutionOutcome, error)
 }
 
 func NewOrchestrator(db *sql.DB) *Orchestrator {
-	return &Orchestrator{db: db}
+	return &Orchestrator{db: db, busRegistry: blackboard.NewBusRegistry(db)}
 }
 
 func NewOrchestratorWithRegistry(db *sql.DB, registry *RunnerRegistry) *Orchestrator {
 	return &Orchestrator{
 		db:             db,
 		runnerRegistry: registry,
+		busRegistry:    blackboard.NewBusRegistry(db),
 	}
+}
+
+func (o *Orchestrator) SetBlackboardOrchestrator(orchestrator blackboardPipelineRunner) {
+	o.blackboardOrchestrator = orchestrator
 }
 
 // TriggerAgent creates a new agent run and returns it
@@ -249,6 +262,28 @@ func (o *Orchestrator) ExecuteAgent(ctx context.Context, rc *RunContext, in Trig
 		return nil, ErrInvalidTriggerType
 	}
 
+	runner, err := o.resolveExecutableRunner(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+
+	runCtx := prepareRunContext(rc, o, in)
+	specializedRuntime := startSpecializedBlackboardRuntime(ctx, runCtx)
+	if specializedRuntime != nil {
+		defer specializedRuntime.Close()
+	}
+
+	run, err := runner.Run(ctx, runCtx, in)
+	if err != nil {
+		return nil, fmt.Errorf("execute agent runner: %w", err)
+	}
+	if closeErr := o.closeBlackboardWorkspace(ctx, in.CognitiveWorkspaceID); closeErr != nil {
+		return nil, closeErr
+	}
+	return run, nil
+}
+
+func (o *Orchestrator) resolveExecutableRunner(ctx context.Context, in TriggerAgentInput) (Runner, error) {
 	definition, err := o.getAgentDefinition(ctx, in.AgentID, in.WorkspaceID)
 	if err != nil {
 		return nil, err
@@ -256,19 +291,7 @@ func (o *Orchestrator) ExecuteAgent(ctx context.Context, rc *RunContext, in Trig
 	if definition.Status != agentStatusActive {
 		return nil, ErrAgentNotActive
 	}
-
-	runner, err := o.ResolveRunner(ctx, in.WorkspaceID, in.AgentID)
-	if err != nil {
-		return nil, err
-	}
-
-	runCtx := prepareRunContext(rc, o, in)
-
-	run, err := runner.Run(ctx, runCtx, in)
-	if err != nil {
-		return nil, fmt.Errorf("execute agent runner: %w", err)
-	}
-	return run, nil
+	return o.ResolveRunner(ctx, in.WorkspaceID, in.AgentID)
 }
 
 // ResolveRunner looks up the runner registered for the agent definition type.
@@ -991,19 +1014,71 @@ func prepareRunContext(rc *RunContext, o *Orchestrator, in TriggerAgentInput) *R
 		runCtx.RunnerRegistry = o.runnerRegistry
 	}
 	if in.CognitiveWorkspaceID != nil {
-		runCtx.Blackboard = buildBlackboardAttachment(o.db, *in.CognitiveWorkspaceID)
+		runCtx.Blackboard = buildBlackboardAttachment(o.db, o.busRegistry, *in.CognitiveWorkspaceID)
 	}
 	return runCtx
 }
 
-// buildBlackboardAttachment constructs the three blackboard components scoped to cwID. (Task A.5)
-func buildBlackboardAttachment(db *sql.DB, cwID string) *blackboard.Attachment {
+// buildBlackboardAttachment constructs the blackboard components for cwID.
+// Bus is retrieved from the shared registry so agents on the same workspace share subscribers. (Task R.12)
+func buildBlackboardAttachment(db *sql.DB, reg *blackboard.BusRegistry, cwID string) *blackboard.Attachment {
 	return &blackboard.Attachment{
 		CognitiveWorkspaceID: cwID,
-		Bus:                  blackboard.NewWorkspaceBus(cwID, db),
+		Bus:                  reg.GetOrCreate(cwID),
 		Memory:               blackboard.NewMemoryStore(db),
 		Timeline:             blackboard.NewReasoningTimeline(db),
 	}
+}
+
+func startSpecializedBlackboardRuntime(ctx context.Context, runCtx *RunContext) *blackboardagents.Runtime {
+	if runCtx == nil || runCtx.Blackboard == nil {
+		return nil
+	}
+	return blackboardagents.Start(ctx, runCtx.Blackboard)
+}
+
+func (o *Orchestrator) closeBlackboardWorkspace(ctx context.Context, cognitiveWorkspaceID *string) error {
+	if cognitiveWorkspaceID == nil || *cognitiveWorkspaceID == "" {
+		return nil
+	}
+
+	closed, err := o.markCognitiveWorkspaceClosed(ctx, *cognitiveWorkspaceID)
+	if err != nil || !closed {
+		return err
+	}
+	o.busRegistry.Evict(*cognitiveWorkspaceID) // release cached bus on workspace close (Task R.12)
+	o.triggerBlackboardPipeline(*cognitiveWorkspaceID)
+	return nil
+}
+
+func (o *Orchestrator) markCognitiveWorkspaceClosed(ctx context.Context, cognitiveWorkspaceID string) (bool, error) {
+	res, err := o.db.ExecContext(ctx, `
+		UPDATE cognitive_workspace
+		SET status = ?, closed_at = ?
+		WHERE id = ? AND status != ?
+	`, string(blackboard.WorkspaceStatusClosed), time.Now().UTC(), cognitiveWorkspaceID, string(blackboard.WorkspaceStatusClosed))
+	if err != nil {
+		return false, fmt.Errorf("close cognitive workspace: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("close cognitive workspace rows affected: %w", err)
+	}
+	return rows > 0, nil
+}
+
+func (o *Orchestrator) triggerBlackboardPipeline(cognitiveWorkspaceID string) {
+	if o.blackboardOrchestrator == nil {
+		return
+	}
+
+	go func() {
+		bg, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if _, err := o.blackboardOrchestrator.RunPipeline(bg, cognitiveWorkspaceID); err != nil {
+			log.Printf("agent orchestrator: blackboard pipeline trigger failed for %s: %v", cognitiveWorkspaceID, err)
+		}
+	}()
 }
 
 func stringPtr(s string) *string {
