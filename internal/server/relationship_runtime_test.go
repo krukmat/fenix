@@ -37,6 +37,10 @@ func openRuntimeTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("sqlite.NewDB: %v", err)
 	}
+	// Serialize all writes through a single connection to avoid SQLITE_BUSY
+	// when multiple background goroutines (Summarizer, MemoryEmbedder, etc.)
+	// compete for the write lock in the same process.
+	db.SetMaxOpenConns(1)
 	if err := sqlite.MigrateUp(db); err != nil {
 		t.Fatalf("sqlite.MigrateUp: %v", err)
 	}
@@ -94,7 +98,7 @@ func seedDealDependencies(t *testing.T, db *sql.DB, workspaceID, ownerID string)
 
 func waitForDB(t *testing.T, db *sql.DB, query string, args ...any) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		var count int
 		if err := db.QueryRow(query, args...).Scan(&count); err == nil && count > 0 {
