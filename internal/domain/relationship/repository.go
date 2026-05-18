@@ -5,6 +5,8 @@ package relationship
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -16,6 +18,7 @@ const (
 	TopicActivityCreated          = "activity.created"
 	TopicNoteCreated              = "note.created"
 	TopicCaseUpdated              = "case.updated"
+	TopicDealUpdated              = "deal.updated"
 	TopicInteractionSignalCreated = "interaction_signal.created"
 )
 
@@ -45,15 +48,23 @@ type LifecycleRepository interface {
 // compile-time interface check.
 var _ SignalRepository = (*SQLiteSignalRepository)(nil)
 var _ LifecycleRepository = (*SQLiteSignalRepository)(nil)
+var _ TrustRepository = (*SQLiteSignalRepository)(nil)
+var _ GraphRepository = (*SQLiteSignalRepository)(nil)
 
 // SQLiteSignalRepository is the SQLite-backed implementation of SignalRepository.
 type SQLiteSignalRepository struct {
-	db *sql.DB
+	db           *sql.DB
+	embeddingDim int
 }
 
 // NewSQLiteSignalRepository returns a repository backed by the given db connection.
 func NewSQLiteSignalRepository(db *sql.DB) *SQLiteSignalRepository {
 	return &SQLiteSignalRepository{db: db}
+}
+
+// NewSQLiteSignalRepositoryWithEmbeddingDim returns a repository with vector dimension validation enabled.
+func NewSQLiteSignalRepositoryWithEmbeddingDim(db *sql.DB, embeddingDim int) *SQLiteSignalRepository {
+	return &SQLiteSignalRepository{db: db, embeddingDim: embeddingDim}
 }
 
 // UpsertMemory inserts or updates the relationship_memory anchor row for a CRM entity.
@@ -110,6 +121,124 @@ func (r *SQLiteSignalRepository) InsertSignal(ctx context.Context, memoryID stri
 		return "", fmt.Errorf("relationship.InsertSignal: %w", err)
 	}
 	return id, nil
+}
+
+// UpsertTrustScore inserts or updates the trust score row for one relationship memory.
+func (r *SQLiteSignalRepository) UpsertTrustScore(ctx context.Context, memoryID string, score float64,
+	confidence ConfidenceLevel, decayFactor float64, lastScoredAt time.Time) error {
+	id := uuid.Must(uuid.NewV7()).String()
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO trust_score
+			(id, relationship_memory_id, score, confidence, decay_factor, last_scored_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(relationship_memory_id) DO UPDATE SET
+			score = excluded.score,
+			confidence = excluded.confidence,
+			decay_factor = excluded.decay_factor,
+			last_scored_at = excluded.last_scored_at,
+			updated_at = excluded.updated_at
+	`, id, memoryID, score, string(confidence), decayFactor, lastScoredAt.UTC().Format(time.RFC3339), now, now)
+	if err != nil {
+		return fmt.Errorf("relationship.UpsertTrustScore: %w", err)
+	}
+	return nil
+}
+
+// UpsertEdge inserts or updates one stakeholder graph edge keyed by its logical identity.
+func (r *SQLiteSignalRepository) UpsertEdge(ctx context.Context,
+	workspaceID, fromEntityType, fromEntityID,
+	toEntityType, toEntityID string,
+	influenceType InfluenceType,
+	strength float64,
+) error {
+	id := uuid.Must(uuid.NewV7()).String()
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO stakeholder_graph
+			(id, workspace_id, from_entity_type, from_entity_id,
+			 to_entity_type, to_entity_id, influence_type,
+			 strength, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(workspace_id, from_entity_type, from_entity_id,
+		            to_entity_type, to_entity_id, influence_type)
+		DO UPDATE SET
+			strength = excluded.strength,
+			updated_at = excluded.updated_at
+	`, id, workspaceID, fromEntityType, fromEntityID, toEntityType, toEntityID, string(influenceType), strength, now, now)
+	if err != nil {
+		return fmt.Errorf("relationship.UpsertEdge: %w", err)
+	}
+	return nil
+}
+
+// UpsertSignalEmbedding stores one embedding vector per interaction signal.
+func (r *SQLiteSignalRepository) UpsertSignalEmbedding(ctx context.Context, workspaceID, signalID string, vector []float32) error {
+	if r.embeddingDim > 0 && len(vector) != r.embeddingDim {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding dim mismatch: want %d got %d", r.embeddingDim, len(vector))
+	}
+
+	embeddingJSON, err := encodeEmbeddingVector(vector)
+	if err != nil {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding encode vector: %w", err)
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	var existingVecID sql.NullString
+	queryErr := tx.QueryRowContext(ctx, `
+		SELECT vec_embedding_id
+		FROM interaction_signal_embedding
+		WHERE workspace_id = ? AND signal_id = ?
+	`, workspaceID, signalID).Scan(&existingVecID)
+	if queryErr != nil && queryErr != sql.ErrNoRows {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding select existing vector: %w", queryErr)
+	}
+
+	if existingVecID.Valid {
+		if err = deleteSyntheticEmbeddingArtifacts(ctx, tx, existingVecID.String, workspaceID); err != nil {
+			return err
+		}
+	}
+
+	vecID := uuid.Must(uuid.NewV7()).String()
+	knowledgeItemID := uuid.Must(uuid.NewV7()).String()
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	if err = insertSyntheticEmbeddingBackingRows(ctx, tx, workspaceID, signalID, knowledgeItemID, vecID, now); err != nil {
+		return err
+	}
+
+	if _, err = tx.ExecContext(ctx, `
+		INSERT INTO vec_embedding (id, workspace_id, embedding, created_at)
+		VALUES (?, ?, ?, ?)
+	`, vecID, workspaceID, embeddingJSON, now); err != nil {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding insert vec_embedding: %w", err)
+	}
+
+	linkID := uuid.Must(uuid.NewV7()).String()
+	if _, err = tx.ExecContext(ctx, `
+		INSERT INTO interaction_signal_embedding
+			(id, workspace_id, signal_id, vec_embedding_id, dim, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(signal_id) DO UPDATE SET
+			vec_embedding_id = excluded.vec_embedding_id,
+			dim = excluded.dim,
+			updated_at = excluded.updated_at
+	`, linkID, workspaceID, signalID, vecID, len(vector), now, now); err != nil {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding upsert link: %w", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding commit: %w", err)
+	}
+	return nil
 }
 
 // ListStaleMemories returns relationship_memory rows whose updated_at is at or before cutoff.
@@ -176,6 +305,34 @@ func (r *SQLiteSignalRepository) ListStaleSignals(ctx context.Context, workspace
 	return out, nil
 }
 
+// ListSignalsByMemory returns all interaction signals linked to one memory in chronological order.
+func (r *SQLiteSignalRepository) ListSignalsByMemory(ctx context.Context, memoryID string) ([]InteractionSignal, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, relationship_memory_id, signal_type, sentiment, summary,
+		       source_entity_type, source_entity_id, occurred_at, created_at
+		FROM interaction_signal
+		WHERE relationship_memory_id = ?
+		ORDER BY occurred_at ASC, created_at ASC
+	`, memoryID)
+	if err != nil {
+		return nil, fmt.Errorf("relationship.ListSignalsByMemory query: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+
+	out := make([]InteractionSignal, 0, 8)
+	for rows.Next() {
+		item, scanErr := scanInteractionSignal(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("relationship.ListSignalsByMemory scan: %w", scanErr)
+		}
+		out = append(out, item)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("relationship.ListSignalsByMemory rows: %w", rowsErr)
+	}
+	return out, nil
+}
+
 func (r *SQLiteSignalRepository) UpdateMemorySummary(ctx context.Context, memoryID, summary string) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE relationship_memory
@@ -236,6 +393,10 @@ func runEraseSteps(ctx context.Context, tx *sql.Tx, workspaceID string, entityTy
 }
 
 func scanStaleSignal(rows *sql.Rows) (InteractionSignal, error) {
+	return scanInteractionSignal(rows)
+}
+
+func scanInteractionSignal(rows *sql.Rows) (InteractionSignal, error) {
 	var item InteractionSignal
 	var sentiment sql.NullString
 	var sourceEntityType sql.NullString
@@ -271,6 +432,58 @@ func nullableString(value sql.NullString) *string {
 	}
 	text := value.String
 	return &text
+}
+
+func encodeEmbeddingVector(vec []float32) (string, error) {
+	raw, err := json.Marshal(vec)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+func insertSyntheticEmbeddingBackingRows(ctx context.Context, tx *sql.Tx, workspaceID, signalID, knowledgeItemID, embeddingDocumentID, now string) error {
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO knowledge_item (
+			id, workspace_id, source_type, title, raw_content, normalized_content, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, knowledgeItemID, workspaceID, "other", "relationship-signal-"+signalID, signalID, signalID, now, now); err != nil {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding insert knowledge_item: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO embedding_document (
+			id, knowledge_item_id, workspace_id, chunk_index, chunk_text, embedding_status, embedded_at, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, embeddingDocumentID, knowledgeItemID, workspaceID, 0, signalID, "embedded", now, now); err != nil {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding insert embedding_document: %w", err)
+	}
+	return nil
+}
+
+func deleteSyntheticEmbeddingArtifacts(ctx context.Context, tx *sql.Tx, embeddingDocumentID, workspaceID string) error {
+	var knowledgeItemID string
+	err := tx.QueryRowContext(ctx, `
+		SELECT knowledge_item_id
+		FROM embedding_document
+		WHERE id = ? AND workspace_id = ?
+	`, embeddingDocumentID, workspaceID).Scan(&knowledgeItemID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding select old embedding_document: %w", err)
+	}
+
+	if _, err = tx.ExecContext(ctx, `DELETE FROM vec_embedding WHERE id = ? AND workspace_id = ?`, embeddingDocumentID, workspaceID); err != nil {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding delete old vector: %w", err)
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM embedding_document WHERE id = ? AND workspace_id = ?`, embeddingDocumentID, workspaceID); err != nil {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding delete old embedding_document: %w", err)
+	}
+	if knowledgeItemID != "" {
+		if _, err = tx.ExecContext(ctx, `DELETE FROM knowledge_item WHERE id = ? AND workspace_id = ?`, knowledgeItemID, workspaceID); err != nil {
+			return fmt.Errorf("relationship.UpsertSignalEmbedding delete old knowledge_item: %w", err)
+		}
+	}
+	return nil
 }
 
 func eraseEntityEmbeddings(ctx context.Context, tx *sql.Tx, workspaceID string, entityType EntityType, entityID string) error {

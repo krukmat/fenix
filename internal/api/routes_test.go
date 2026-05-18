@@ -117,6 +117,20 @@ func TestNewRouter_KnowledgeIngestEndpoint_Unauthorized(t *testing.T) {
 	}
 }
 
+func TestNewRouter_BlackboardPlanEndpoint_Unauthorized(t *testing.T) {
+	db := mustOpenAPITestDB(t)
+
+	router := mustNewRouter(t, db)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/blackboard/cw-test/plan", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for unauthenticated /api/v1/admin/blackboard/{cwID}/plan, got %d", w.Code)
+	}
+}
+
 // ===== C2: CORS integration tests =====
 
 // testCfg returns a Config with a known BFFOrigin for router-level tests.

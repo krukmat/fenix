@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
+	"github.com/matiasleandrokruk/fenix/internal/domain/relationship"
+	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
@@ -80,13 +82,18 @@ type CreateApprovalRequestInput struct {
 type ApprovalService struct {
 	db    *sql.DB
 	audit *audit.AuditService
+	bus   eventbus.EventBus
 }
 
 func NewApprovalService(db *sql.DB, auditService *audit.AuditService) *ApprovalService {
+	return NewApprovalServiceWithBus(db, auditService, nil)
+}
+
+func NewApprovalServiceWithBus(db *sql.DB, auditService *audit.AuditService, bus eventbus.EventBus) *ApprovalService {
 	if auditService == nil {
 		auditService = audit.NewAuditService(db)
 	}
-	return &ApprovalService{db: db, audit: auditService}
+	return &ApprovalService{db: db, audit: auditService, bus: bus}
 }
 
 func (s *ApprovalService) CreateApprovalRequest(ctx context.Context, input CreateApprovalRequestInput) (*ApprovalRequest, error) {
@@ -147,6 +154,8 @@ func (s *ApprovalService) CreateApprovalRequest(ctx context.Context, input Creat
 		&audit.EventDetails{Metadata: map[string]any{"approval_id": approval.ID, "action": approval.Action}},
 		audit.OutcomeSuccess,
 	)
+
+	s.publishApprovalRequested(approval)
 
 	return approval, nil
 }
@@ -324,7 +333,38 @@ func (s *ApprovalService) applyDecision(ctx context.Context, req *ApprovalReques
 		audit.OutcomeSuccess,
 	)
 
+	s.publishApprovalDecided(req, decidedBy, status)
+
 	return nil
+}
+
+func (s *ApprovalService) publishApprovalRequested(req *ApprovalRequest) {
+	if s.bus == nil || req == nil || req.ResourceType == nil || req.ResourceID == nil {
+		return
+	}
+	s.bus.Publish(relationship.TopicApprovalRequested, map[string]any{
+		"workspace_id": req.WorkspaceID,
+		"actor_id":     req.ApproverID,
+		"entity_type":  *req.ResourceType,
+		"entity_id":    *req.ResourceID,
+		"approval_id":  req.ID,
+		"action":       req.Action,
+	})
+}
+
+func (s *ApprovalService) publishApprovalDecided(req *ApprovalRequest, decidedBy string, status ApprovalStatus) {
+	if s.bus == nil || req == nil || req.ResourceType == nil || req.ResourceID == nil {
+		return
+	}
+	s.bus.Publish(relationship.TopicApprovalDecided, map[string]any{
+		"workspace_id": req.WorkspaceID,
+		"actor_id":     decidedBy,
+		"entity_type":  *req.ResourceType,
+		"entity_id":    *req.ResourceID,
+		"approval_id":  req.ID,
+		"action":       req.Action,
+		"status":       string(status),
+	})
 }
 
 func collectPendingApprovals(rows *sql.Rows, now time.Time) ([]*ApprovalRequest, []string, error) {

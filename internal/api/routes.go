@@ -18,6 +18,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent/agents"
 	domainaudit "github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
+	"github.com/matiasleandrokruk/fenix/internal/domain/blackboard"
 	copilotdomain "github.com/matiasleandrokruk/fenix/internal/domain/copilot"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	domaineval "github.com/matiasleandrokruk/fenix/internal/domain/eval"
@@ -37,6 +38,13 @@ import (
 // routeByID is the chi route pattern for resource-by-ID endpoints (used 27 times).
 const routeByID = "/{id}"
 
+// RouterRuntime carries optional shared runtime dependencies for router-scoped services.
+type RouterRuntime struct {
+	Bus               eventbus.EventBus
+	BackgroundContext context.Context
+	StartBackground   func(func())
+}
+
 // NewRouter creates and configures a new chi router with all routes.
 // Task 1.3.8: Setup go-chi router with middleware + account endpoints
 // Task 1.6.13: Public routes (/health, /auth/*) vs protected routes (/api/v1/*)
@@ -45,7 +53,12 @@ const routeByID = "/{id}"
 //nolint:funlen,maintidx // router principal mantiene registro centralizado de rutas por diseño
 func NewRouter(db *sql.DB) (*chi.Mux, error) {
 	cfg := config.Load()
-	return newRouterWithConfig(db, cfg)
+	return NewRouterWithRuntime(db, cfg, RouterRuntime{})
+}
+
+// NewRouterWithRuntime creates a router wired to an optional shared runtime.
+func NewRouterWithRuntime(db *sql.DB, cfg config.Config, runtime RouterRuntime) (*chi.Mux, error) {
+	return newRouterWithConfigAndRuntime(db, cfg, runtime)
 }
 
 // newRouterWithConfig is the testable constructor — accepts an explicit Config so tests can
@@ -53,6 +66,13 @@ func NewRouter(db *sql.DB) (*chi.Mux, error) {
 //
 //nolint:funlen,maintidx // router principal mantiene registro centralizado de rutas por diseño
 func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
+	return newRouterWithConfigAndRuntime(db, cfg, RouterRuntime{})
+}
+
+//nolint:funlen,maintidx // router principal mantiene registro centralizado de rutas por diseño
+func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime RouterRuntime) (*chi.Mux, error) {
+	runtime = normalizeRouterRuntime(runtime)
+
 	r := chi.NewRouter()
 	auditService := domainaudit.NewAuditService(db)
 	chatProvider, err := llm.NewChatProvider(cfg)
@@ -109,30 +129,37 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 		r.Use(apmiddleware.AuditMiddleware(auditService))
 
 		// Shared app services for protected APIs
-		knowledgeBus := eventbus.New()
-		auditService.RegisterEventSubscribers(knowledgeBus)
-		ingestSvc := knowledge.NewIngestService(db, knowledgeBus)
+		sharedBus := runtime.Bus
+		auditService.RegisterEventSubscribers(sharedBus)
+		ingestSvc := knowledge.NewIngestService(db, sharedBus)
 		embedder := knowledge.NewEmbedderService(db, embedProvider)
-		reindexSvc := knowledge.NewReindexService(db, knowledgeBus, ingestSvc, auditService)
-		go embedder.Start(context.Background(), knowledgeBus)
-		go reindexSvc.Start(context.Background())
+		reindexSvc := knowledge.NewReindexService(db, sharedBus, ingestSvc, auditService)
+		runtime.StartBackground(func() { embedder.Start(runtime.BackgroundContext, sharedBus) })
+		runtime.StartBackground(func() { reindexSvc.Start(runtime.BackgroundContext) })
 		policyEngine := policy.NewPolicyEngine(db, nil, auditService)
 		usageService := usagedomain.NewService(db)
 		toolRegistry := tooldomain.NewToolRegistryWithRuntimeAndUsage(db, policyEngine, auditService, usageService)
-		approvalService := policy.NewApprovalService(db, auditService)
+		approvalService := policy.NewApprovalServiceWithBus(db, auditService, sharedBus)
 		runnerRegistry := agent.NewRunnerRegistry()
 		agentOrchestrator := agent.NewOrchestratorWithRegistry(db, runnerRegistry)
 		dslRunner := agent.NewDSLRunner(db)
+		blackboardOrchestrator := blackboard.NewBlackboardOrchestrator(
+			db,
+			blackboard.NewArbitrator(db),
+			blackboard.NewPlanner(db),
+			blackboard.NewPlannerExecutor(db, policyEngine, approvalService, toolRegistry, auditService),
+		)
+		agentOrchestrator.SetBlackboardOrchestrator(blackboardOrchestrator)
 
 		// Lead endpoints (Task 1.5)
-		accountService := crm.NewAccountServiceWithBus(db, knowledgeBus)
+		accountService := crm.NewAccountServiceWithBus(db, sharedBus)
 		contactService := crm.NewContactService(db)
-		dealService := crm.NewDealService(db)
-		caseService := crm.NewCaseServiceWithBus(db, knowledgeBus)
+		dealService := crm.NewDealServiceWithBus(db, sharedBus)
+		caseService := crm.NewCaseServiceWithBus(db, sharedBus)
 		leadHandler := handlers.NewLeadHandler(crm.NewLeadService(db))
 		pipelineHandler := handlers.NewPipelineHandler(crm.NewPipelineService(db))
-		activityHandler := handlers.NewActivityHandler(crm.NewActivityService(db))
-		noteHandler := handlers.NewNoteHandler(crm.NewNoteService(db))
+		activityHandler := handlers.NewActivityHandler(crm.NewActivityServiceWithBus(db, sharedBus))
+		noteHandler := handlers.NewNoteHandler(crm.NewNoteServiceWithBus(db, sharedBus))
 		attachmentHandler := handlers.NewAttachmentHandler(crm.NewAttachmentService(db))
 		timelineHandler := handlers.NewTimelineHandler(crm.NewTimelineService(db))
 		reportHandler := handlers.NewReportHandler(crm.NewReportService(db))
@@ -146,7 +173,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 		evidenceSvc := knowledge.NewEvidencePackService(db, searchSvc, knowledge.DefaultEvidenceConfig())
 		groundsValidator := agent.NewGroundsValidator(evidenceSvc)
 		workflowHandler := handlers.NewWorkflowHandlerWithRuntime(workflowService, policyEngine, db, agentOrchestrator, toolRegistry, policyEngine, approvalService, groundsValidator, dslRunner)
-		signalSvc := signaldomain.NewServiceWithBus(db, signaldomain.NewRepository(db), knowledgeBus)
+		signalSvc := signaldomain.NewServiceWithBus(db, signaldomain.NewRepository(db), sharedBus)
 		signalHandler := handlers.NewSignalHandlerWithAuthorizer(signalSvc, policyEngine)
 		accountHandler := handlers.NewAccountHandlerWithSignalCounter(accountService, signalSvc)
 		contactHandler := handlers.NewContactHandler(contactService)
@@ -294,6 +321,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 		knowledgeReindexHandler := handlers.NewKnowledgeReindexHandler(reindexSvc)
 		approvalHandler := handlers.NewApprovalHandler(approvalService)
 		toolHandler := handlers.NewToolHandlerWithAuthorizer(toolRegistry, policyEngine)
+		blackboardHandler := handlers.NewBlackboardHandlerWithAuthorizer(blackboardOrchestrator, policyEngine)
 		// Task 3.9: Prompt Versioning
 		promptSvc := agent.NewPromptService(db, auditService)
 		promptHandler := handlers.NewPromptHandlerWithAuthorizer(promptSvc, promptSvc, policyEngine)
@@ -330,6 +358,10 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 			r.Put("/{id}/activate", toolHandler.ActivateTool)
 			r.Put("/{id}/deactivate", toolHandler.DeactivateTool)
 			r.Delete(routeByID, toolHandler.DeleteTool) // DELETE /api/v1/admin/tools/{id}
+		})
+
+		r.Route("/admin/blackboard", func(r chi.Router) {
+			r.Post("/{cwID}/plan", blackboardHandler.RunPipeline)
 		})
 
 		// Task 3.9: Prompt Versioning routes
@@ -444,14 +476,14 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 		}
 		resumeHandler := agent.NewWorkflowResumeHandler(dslRunner, resumeRC)
 		schedulerWorker := schedulerdomain.NewWorker(schedulerRepo, resumeHandler.Handle)
-		go func() {
-			if workerErr := schedulerWorker.Start(context.Background()); workerErr != nil && !errors.Is(workerErr, context.Canceled) {
+		runtime.StartBackground(func() {
+			if workerErr := schedulerWorker.Start(runtime.BackgroundContext); workerErr != nil && !errors.Is(workerErr, context.Canceled) {
 				_ = workerErr
 			}
-		}()
+		})
 
-		// Task 3.8: Handoff Manager (reuses caseService + knowledgeBus from above)
-		handoffService := agent.NewHandoffService(db, caseService, knowledgeBus)
+		// Task 3.8: Handoff Manager (reuses caseService + sharedBus from above)
+		handoffService := agent.NewHandoffService(db, caseService, sharedBus)
 		handoffHandler := handlers.NewHandoffHandler(handoffService)
 
 		r.Route("/agents", func(r chi.Router) {
@@ -471,4 +503,19 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 	})
 
 	return r, nil
+}
+
+func normalizeRouterRuntime(runtime RouterRuntime) RouterRuntime {
+	if runtime.Bus == nil {
+		runtime.Bus = eventbus.New()
+	}
+	if runtime.BackgroundContext == nil {
+		runtime.BackgroundContext = context.Background()
+	}
+	if runtime.StartBackground == nil {
+		runtime.StartBackground = func(fn func()) {
+			go fn()
+		}
+	}
+	return runtime
 }

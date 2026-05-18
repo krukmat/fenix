@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -49,12 +50,17 @@ type NoteService struct {
 	db      *sql.DB
 	querier sqlcgen.Querier
 	audit   auditLogger
+	bus     eventbus.EventBus
 }
 
 const noteEntityType = "note"
 
 func NewNoteService(db *sql.DB) *NoteService {
 	return &NoteService{db: db, querier: sqlcgen.New(db), audit: newCRMAuditService(db)}
+}
+
+func NewNoteServiceWithBus(db *sql.DB, bus eventbus.EventBus) *NoteService {
+	return &NoteService{db: db, querier: sqlcgen.New(db), audit: newCRMAuditService(db), bus: bus}
 }
 
 func (s *NoteService) Create(ctx context.Context, input CreateNoteInput) (*Note, error) {
@@ -79,7 +85,12 @@ func (s *NoteService) Create(ctx context.Context, input CreateNoteInput) (*Note,
 		return nil, fmt.Errorf("create note timeline: %w", timelineErr)
 	}
 	logCRMAudit(ctx, s.audit, input.WorkspaceID, input.AuthorID, actionNoteCreated, noteEntityType, id)
-	return s.Get(ctx, input.WorkspaceID, id)
+	note, getErr := s.Get(ctx, input.WorkspaceID, id)
+	if getErr != nil {
+		return nil, getErr
+	}
+	publishNoteCreated(s.bus, note)
+	return note, nil
 }
 
 func (s *NoteService) Get(ctx context.Context, workspaceID, noteID string) (*Note, error) {

@@ -4,76 +4,99 @@
   <img src="img/fenix-readme.png" alt="FenixCRM" width="160" />
 </p>
 
-> An AI layer for customer operations where every answer is backed by evidence, every action goes through policy, and humans stay in control where it matters.
+> A governed AI operations layer for customer-facing workflows where retrieval is grounded, execution is policy-controlled, and human approval stays in the loop.
 
 ---
 
 ## What It Is
 
-Most CRMs are passive databases. Teams enter data after the fact, decisions happen in emails and chats, and the system just stores the result.
+FenixCRM is not positioned as a broad CRM replacement. It is a governed AI layer for customer operations that sits on top of CRM workflows, enterprise context, and execution controls.
 
-FenixCRM works differently. Instead of being a place to record what happened, it is an active layer that helps teams act on what is happening — with AI assistance that is grounded, auditable, and controlled.
+The core promise is simple:
 
-Concretely, it combines three things:
+- answers should be grounded in evidence
+- actions should go through policy
+- risky steps should require human approval
+- every run should be traceable after the fact
 
-- **Context** — CRM records, emails, documents, and call notes in one searchable place
-- **Governed AI** — answers backed by evidence, actions blocked by policy, approvals for sensitive steps
-- **Execution** — copilots and agents that do real work, with a full trace of every decision
+That makes FenixCRM a workflow intelligence and governed execution platform for support and sales operations, not a passive system of record.
 
-The focus today is on two workflows:
+## Product Wedge
 
-- **Support** — help agents resolve cases faster with grounded suggestions and safe actions
-- **Sales** — give reps account context and deal briefs before every call or meeting
+The commercial and product wedge is intentionally narrow:
+
+- **Support Copilot and Support Agent**: grounded case resolution, safe tool execution, approvals, and handoff
+- **Sales Copilot**: account and deal context, risks, next actions, and evidence-backed briefs
+
+CRM entities still matter, but mainly as a **system of context** that feeds governed AI behavior.
 
 ---
 
+## Why It Exists
+
+Most AI features inside business systems fail for predictable reasons:
+
+- they answer without showing grounding
+- they execute without clear policy boundaries
+- they hide approval logic outside the working surface
+- they leave operators with weak auditability when something goes wrong
+
+FenixCRM is built to solve that operational trust gap.
+
 ## What Makes It Different
 
-### Answers come with evidence
+### Evidence before confidence
 
-The AI does not just answer. It shows which documents, emails, or records it used and how confident it is. If there is not enough evidence, it says so instead of guessing.
+FenixCRM is designed so copilots and agents do not just answer. They retrieve context, assemble evidence, expose confidence, and abstain or defer when evidence is weak.
 
-### Actions go through policy
+### Policy before execution
 
-Agents cannot change data directly. Every action goes through a registered tool. The policy layer checks permissions before anything runs. Sensitive actions — like sending an email to an external contact — require human approval.
+Actions do not run directly from model output. They are routed through registered tools, checked by policy, and blocked or escalated when execution is unsafe.
 
-### Everything leaves a trace
+### Approval when needed
 
-Every AI response, tool call, approval decision, and policy check is recorded. Operators can inspect what happened, who approved it, and what it cost — from the same app where the work happens.
+Sensitive operations can stop in a pending-approval state instead of pretending to be fully autonomous. Human review is part of the operating model, not an afterthought.
+
+### Traceability by default
+
+Runs, evidence, policy outcomes, approvals, and execution traces remain inspectable so operators can understand what happened and why.
 
 ---
 
 ## What Is Built Today
 
-The core system is complete and working:
+The repository already includes the core platform pieces for governed AI operations:
 
 | Area | What exists |
 |---|---|
-| CRM records | Accounts, Contacts, Leads, Deals, Cases, Activities, Notes |
-| Knowledge layer | Ingestion, chunking, hybrid search (keyword + semantic) |
-| AI layer | Copilot responses with evidence packs, support and sales agents |
-| Governance | RBAC permissions, policy engine, approval flows, audit trail |
-| Workflows | Declarative workflow engine with visual authoring and a mobile graph viewer |
-| Observability | Usage tracking, cost per run, quota controls, agent run traces |
-| Mobile app | React Native app with inbox, CRM hub, copilot, governance screens |
-| Admin surface | BFF admin shell with session auth, workflow builder, approval review |
+| Customer operations context | Accounts, Contacts, Leads, Deals, Cases, Activities, Notes |
+| Knowledge and retrieval | Ingestion, chunking, hybrid search, evidence packs |
+| Governed AI runtime | Copilot responses, support and sales agents, tool routing |
+| Governance layer | RBAC, policy checks, approval flows, audit trail |
+| Agentic blackboard | Cognitive workspace, reasoning timeline, specialized agents, arbitration, collaborative planning |
+| Workflow control | Declarative workflow engine with visual authoring and graph viewer |
+| Observability | Usage tracking, cost per run, quotas, agent run traces |
+| Surfaces | React Native mobile app and admin/BFF surfaces |
 
 ---
 
-## How It Works
+## Operating Model
 
-When something happens — a new case, a meeting request, a signal from a lead — the system surfaces relevant context, suggests an action, and asks for approval if needed. The result is traced and stored.
+At a high level, FenixCRM turns customer-operation events into governed AI actions:
 
 ```mermaid
 sequenceDiagram
     participant U as User or Event
-    participant C as Copilot or Agent
+    participant C as Copilot, Agent, or Planner
+    participant B as Blackboard
     participant P as Policy
     participant H as Human Approval
     participant A as Audit
 
     U->>C: trigger (case created, question asked)
     C->>C: retrieve evidence from knowledge base
+    C->>B: publish reasoning, signals, and proposals
+    B->>C: ranked hypotheses and collaborative plan
     C->>P: check permissions before acting
     P-->>C: allow or deny
     C->>H: request approval if action is sensitive
@@ -82,13 +105,25 @@ sequenceDiagram
     C-->>U: respond with evidence + outcome
 ```
 
-**Example — support case**
+The blackboard layer lets multiple specialized agents contribute reasoning before execution:
 
-A new case arrives. The copilot searches the knowledge base and finds three relevant past cases and a product doc. It surfaces them with confidence scores. The agent suggests closing the case with a specific resolution. Before that action runs, the policy layer checks the agent's permissions. The result is written, and the full run — retrieval queries, evidence used, tool calls, cost — is stored in the audit trail.
+- `SignalAgent` derives hypotheses
+- `EvidenceAgent` captures supporting findings
+- `PolicyAgent` contributes policy constraints
+- arbitration ranks candidate hypotheses
+- collaborative planning converts ranked reasoning into a deterministic proposal
 
 ---
 
-## The App in Practice
+## Example Flow
+
+A support case arrives. The system retrieves relevant records and knowledge, assembles evidence, publishes reasoning to the blackboard, ranks competing hypotheses, builds a collaborative plan, and only then attempts governed execution. If the action is sensitive, it stops for approval. If the evidence is weak, it defers instead of guessing.
+
+The result is not just an answer. It is an inspectable operational run.
+
+---
+
+## Product Surfaces
 
 Every screen below is generated from the live mobile app using the Maestro screenshot suite.
 
@@ -106,7 +141,7 @@ Every action starts with a user and a workspace. Accountability starts at the do
 
 ![Inbox](mobile/artifacts/screenshots/02_inbox.png)
 
-The inbox answers one question: what needs attention right now? Approvals, handoffs, signals, and policy rejections appear together in one place.
+The inbox centers operational triage: approvals, handoffs, signals, and policy rejections in one place.
 
 ---
 
@@ -114,7 +149,7 @@ The inbox answers one question: what needs attention right now? Approvals, hando
 
 ![Signal detail](mobile/artifacts/screenshots/06_inbox_signal_detail.png)
 
-Signals make AI judgment reviewable. The detail screen shows confidence, related CRM context, and the evidence behind the signal.
+Signals make machine judgment reviewable. The detail screen shows confidence, related context, and supporting evidence.
 
 ---
 
@@ -122,7 +157,7 @@ Signals make AI judgment reviewable. The detail screen shows confidence, related
 
 ![Support case detail](mobile/artifacts/screenshots/03_support_case_detail.png)
 
-The case view shows history, current state, what the AI found, what actions are available, and what the case needs next.
+The case view combines context, evidence, actions, and governance state in the same operational surface.
 
 ---
 
@@ -130,7 +165,7 @@ The case view shows history, current state, what the AI found, what actions are 
 
 ![Sales brief](mobile/artifacts/screenshots/04_sales_brief.png)
 
-The brief shows account context, recent signals, and a suggested next action grounded in evidence. Sales reps start from context, not from raw data.
+The brief gives reps grounded account context, active risks, and suggested next actions before outreach or meetings.
 
 ---
 
@@ -138,7 +173,7 @@ The brief shows account context, recent signals, and a suggested next action gro
 
 ![Denied-by-policy activity trace](mobile/artifacts/screenshots/08_activity_run_detail_denied.png)
 
-A stopped run is not hidden. The user can inspect the reason, the policy that applied, and when the decision happened.
+A blocked action is still first-class product data. Users can inspect the reason, the policy, and when the decision happened.
 
 ---
 
@@ -146,7 +181,7 @@ A stopped run is not hidden. The user can inspect the reason, the policy that ap
 
 ![Governance overview](mobile/artifacts/screenshots/05_governance.png)
 
-Governance is part of the product, not a separate backend view. Usage, quota state, actor, tool, model, latency, and cost are visible together.
+Governance is built into the operating surface. Usage, quotas, actor, tool, model, latency, and cost are visible together.
 
 ---
 
@@ -154,7 +189,7 @@ Governance is part of the product, not a separate backend view. Usage, quota sta
 
 ![Governance audit trail](mobile/artifacts/screenshots/09_governance_audit.png)
 
-Audit is available where work happens. Mobile users can inspect requests and decisions, filter outcomes, and understand how the system behaved.
+Audit remains available where work happens so operators can inspect requests, decisions, and execution outcomes in context.
 
 ---
 
@@ -162,7 +197,7 @@ Audit is available where work happens. Mobile users can inspect requests and dec
 
 ![Workflow graph](mobile/artifacts/screenshots/18b_workflow_graph.png)
 
-Workflows are not hidden code. The graph screen renders the workflow as a visual canvas. Nodes show what each step does and how they connect. The conformance badge shows whether the workflow is within the stable tooling contract.
+Workflows are visible, not hidden. The graph shows how governed logic is structured and whether it stays inside the supported tooling contract.
 
 ---
 
@@ -170,7 +205,7 @@ Workflows are not hidden code. The graph screen renders the workflow as a visual
 
 ![CRM hub](mobile/artifacts/screenshots/19_crm_hub.png)
 
-The CRM hub gives operators a single entry point for all entity types: Accounts, Contacts, Leads, Deals, and Cases.
+The CRM hub provides the system-of-context entities that copilots and agents reason over.
 
 ---
 
@@ -188,7 +223,7 @@ The CRM hub gives operators a single entry point for all entity types: Accounts,
 Mobile app  →  BFF (Express.js)  →  Go backend (go-chi)  →  SQLite
 ```
 
-The BFF is a thin proxy. All business logic, retrieval, policy, and execution live in the Go backend. The mobile app talks only to the BFF.
+The BFF is intentionally thin. Retrieval, governance, agent orchestration, blackboard reasoning, approvals, and execution logic live in the Go backend.
 
 ```mermaid
 flowchart LR
@@ -197,7 +232,11 @@ flowchart LR
     API --> POLICY[Policy Engine]
     API --> COPILOT[Copilot Service]
     API --> AGENTS[Agent Orchestrator]
+    API --> BLACKBOARD[Blackboard Runtime]
+    BLACKBOARD --> ARB[Confidence Arbitration]
+    BLACKBOARD --> PLAN[Collaborative Planner]
     API --> TOOLS[Tool Registry]
+    API --> APPROVALS[Approval Flows]
     API --> AUDIT[Audit Trail]
     API --> IDX[Hybrid Index - FTS5 + vector]
     API --> DB[SQLite]
@@ -212,9 +251,9 @@ fenixcrm/
 ├── cmd/            entrypoints (server, LSP, trace tool)
 ├── internal/
 │   ├── api/        HTTP handlers and middleware
-│   ├── domain/     crm, agent, tool, policy, audit, knowledge, workflow, signal
+│   ├── domain/     crm, agent, blackboard, tool, policy, audit, knowledge, workflow, signal
 │   └── infra/      sqlite, llm, supporting runtime
-├── docs/           architecture, plans, and task docs
+├── docs/           architecture, ADRs, plans, and task records
 ├── reqs/           UC / FR / TST requirement traceability
 ├── tests/          contract and integration tests
 ├── mobile/         mobile app and screenshot artifacts
@@ -224,7 +263,7 @@ fenixcrm/
 
 ---
 
-## Getting Started
+## Local Setup
 
 ```bash
 # run the backend
@@ -244,19 +283,31 @@ make complexity
 cd mobile && npm run screenshots
 ```
 
-**First time setup** — install the pre-push quality gates:
+Install the pre-push quality gates on first setup:
 
 ```bash
 make install-hooks
 ```
 
-This ensures Go and mobile QA runs locally before any push reaches CI.
+That activates the local QA hooks used by the repo for Go and mobile changes.
 
 **Note**: `make ci` is designed for a POSIX/Linux environment. See [`docs/ci.md`](docs/ci.md) for details.
 
 Troubleshooting mobile screenshots:
 - [English runbook](docs/maestro-debug-apk-runbook-en.md)
 - [Spanish runbook](docs/maestro-debug-apk-runbook-es.md)
+
+---
+
+## Positioning Summary
+
+FenixCRM should be read as a governed AI operations platform for support and sales workflows:
+
+- not a generic CRM replacement
+- not blind workflow automation
+- not autonomous execution without evidence or policy
+
+It is a practical operating layer for teams that want AI assistance in customer operations without giving up grounding, approvals, and traceability.
 
 ---
 

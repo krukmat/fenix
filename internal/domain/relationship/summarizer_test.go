@@ -17,9 +17,11 @@ import (
 type fakeLLM struct {
 	response string
 	err      error
+	calls    int
 }
 
 func (f *fakeLLM) ChatCompletion(_ context.Context, _ llm.ChatRequest) (*llm.ChatResponse, error) {
+	f.calls++
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -91,6 +93,15 @@ func makeEvent(topic, workspaceID, entityType, entityID, rawText string) eventbu
 	}
 }
 
+func makeEventWithActivityType(topic, workspaceID, entityType, entityID, rawText, activityType string) eventbus.Event {
+	ev := makeEvent(topic, workspaceID, entityType, entityID, rawText)
+	payload := ev.Payload.(map[string]any)
+	if activityType != "" {
+		payload["activity_type"] = activityType
+	}
+	return ev
+}
+
 // --- Tests ---
 
 func TestSummarizer_HandleActivity(t *testing.T) {
@@ -98,14 +109,14 @@ func TestSummarizer_HandleActivity(t *testing.T) {
 	fl := &fakeLLM{response: `{"summary":"closed ticket","sentiment":"positive"}`}
 	s := NewSummarizer(eventbus.New(), fl, repo)
 
-	s.handle(context.Background(), makeEvent(TopicActivityCreated, "ws-1", "account", "acc-1", "customer called"))
+	s.handle(context.Background(), makeEventWithActivityType(TopicActivityCreated, "ws-1", "account", "acc-1", "customer called", "call"))
 
 	if len(repo.insertCalls) != 1 {
 		t.Fatalf("expected 1 InsertSignal call, got %d", len(repo.insertCalls))
 	}
 	got := repo.insertCalls[0]
-	if got.signalType != SignalEmail {
-		t.Errorf("signalType: want %q, got %q", SignalEmail, got.signalType)
+	if got.signalType != SignalCall {
+		t.Errorf("signalType: want %q, got %q", SignalCall, got.signalType)
 	}
 	if got.sentiment != SentimentPositive {
 		t.Errorf("sentiment: want %q, got %q", SentimentPositive, got.sentiment)
@@ -174,6 +185,21 @@ func TestSummarizer_HandleCaseUpdate(t *testing.T) {
 	}
 }
 
+func TestSummarizer_HandleDealUpdate(t *testing.T) {
+	repo := &fakeRepo{}
+	fl := &fakeLLM{response: `{"summary":"deal advanced","sentiment":"positive"}`}
+	s := NewSummarizer(eventbus.New(), fl, repo)
+
+	s.handle(context.Background(), makeEvent(TopicDealUpdated, "ws-1", "deal", "deal-1", "deal moved stage"))
+
+	if len(repo.insertCalls) != 1 {
+		t.Fatalf("expected 1 InsertSignal call, got %d", len(repo.insertCalls))
+	}
+	if got := repo.insertCalls[0].signalType; got != SignalDealUpdate {
+		t.Errorf("signalType: want %q, got %q", SignalDealUpdate, got)
+	}
+}
+
 func TestSummarizer_LLMErrorSkipsSignal(t *testing.T) {
 	repo := &fakeRepo{}
 	fl := &fakeLLM{err: errors.New("llm down")}
@@ -195,6 +221,99 @@ func TestSummarizer_InvalidJSONSkipsSignal(t *testing.T) {
 
 	if len(repo.insertCalls) != 0 {
 		t.Errorf("expected 0 InsertSignal calls on invalid JSON, got %d", len(repo.insertCalls))
+	}
+}
+
+func TestSignalTypeFor_ActivityTopicMappings(t *testing.T) {
+	tests := []struct {
+		name         string
+		activityType string
+		want         SignalType
+	}{
+		{name: "call", activityType: "call", want: SignalCall},
+		{name: "meeting", activityType: "meeting", want: SignalMeeting},
+		{name: "missing defaults to email", activityType: "", want: SignalEmail},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ev := makeEventWithActivityType(TopicActivityCreated, "ws-1", "account", "acc-1", "text", tc.activityType)
+			got, err := signalTypeFor(TopicActivityCreated, ev.Payload)
+			if err != nil {
+				t.Fatalf("signalTypeFor returned error: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("signalTypeFor = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSummarizer_RejectsUnknownMappingsBeforeLLMOrRepo(t *testing.T) {
+	tests := []struct {
+		name  string
+		event eventbus.Event
+	}{
+		{
+			name:  "unknown activity type",
+			event: makeEventWithActivityType(TopicActivityCreated, "ws-1", "account", "acc-1", "text", "foobar"),
+		},
+		{
+			name:  "unknown topic",
+			event: makeEvent("mystery.topic", "ws-1", "account", "acc-1", "text"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeRepo{}
+			fl := &fakeLLM{response: `{"summary":"ignored","sentiment":"neutral"}`}
+			s := NewSummarizer(eventbus.New(), fl, repo)
+
+			s.handle(context.Background(), tc.event)
+
+			if fl.calls != 0 {
+				t.Fatalf("expected 0 LLM calls, got %d", fl.calls)
+			}
+			if len(repo.upsertCalls) != 0 {
+				t.Fatalf("expected 0 UpsertMemory calls, got %d", len(repo.upsertCalls))
+			}
+			if len(repo.insertCalls) != 0 {
+				t.Fatalf("expected 0 InsertSignal calls, got %d", len(repo.insertCalls))
+			}
+		})
+	}
+}
+
+func TestSummarizer_RunSubscribesToDealUpdated(t *testing.T) {
+	bus := eventbus.New()
+	repo := &fakeRepo{}
+	fl := &fakeLLM{response: `{"summary":"deal advanced","sentiment":"positive"}`}
+	s := NewSummarizer(bus, fl, repo)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		s.Run(ctx)
+		close(done)
+	}()
+
+	deadline := time.After(200 * time.Millisecond)
+	for len(repo.insertCalls) == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("expected deal.updated to be processed by Run")
+		default:
+			bus.Publish(TopicDealUpdated, makeEvent(TopicDealUpdated, "ws-1", "deal", "deal-1", "deal moved stage").Payload)
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	cancel()
+	<-done
+
+	if got := repo.insertCalls[0].signalType; got != SignalDealUpdate {
+		t.Fatalf("signalType: want %q, got %q", SignalDealUpdate, got)
 	}
 }
 

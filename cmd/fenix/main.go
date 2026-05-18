@@ -6,11 +6,15 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 	"github.com/matiasleandrokruk/fenix/internal/server"
@@ -61,14 +65,63 @@ func resolveDefaultPort() int {
 }
 
 func runServe(args []string, out io.Writer) int {
-	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	port := fs.Int("port", resolveDefaultPort(), "HTTP port")
-
-	if err := fs.Parse(args); err != nil {
+	port, parseErr := parseServeFlags(args)
+	if parseErr != nil {
 		return 2
 	}
 
+	db, err := openServeDB()
+	if err != nil {
+		fmt.Fprintf(out, "db init failed: %v\n", err) //nolint:errcheck
+		return 1
+	}
+
+	cfg := server.DefaultConfig()
+	cfg.Port = port
+	srv, err := server.NewServer(db, cfg)
+	if err != nil {
+		fmt.Fprintf(out, "server: init failed: %v\n", err) //nolint:errcheck
+		return 1
+	}
+
+	sigCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.Start(sigCtx)
+	}()
+
+	select {
+	case startErr := <-errCh:
+		if startErr != nil {
+			fmt.Fprintf(out, "server failed: %v\n", startErr) //nolint:errcheck
+			_ = srv.Shutdown(context.Background())
+			return 1
+		}
+	case <-sigCtx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if shutdownErr := srv.Shutdown(shutdownCtx); shutdownErr != nil {
+			fmt.Fprintf(out, "server shutdown failed: %v\n", shutdownErr) //nolint:errcheck
+			return 1
+		}
+	}
+
+	return 0
+}
+
+func parseServeFlags(args []string) (int, error) {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	port := fs.Int("port", resolveDefaultPort(), "HTTP port")
+	if err := fs.Parse(args); err != nil {
+		return 0, err
+	}
+	return *port, nil
+}
+
+func openServeDB() (*sql.DB, error) {
 	dbPath := os.Getenv("DATABASE_URL")
 	if dbPath == "" {
 		dbPath = "./data/fenixcrm.db"
@@ -76,30 +129,13 @@ func runServe(args []string, out io.Writer) int {
 
 	db, err := sqlite.NewDB(dbPath)
 	if err != nil {
-		fmt.Fprintf(out, "db init failed: %v\n", err) //nolint:errcheck
-		return 1
+		return nil, err
 	}
 	if migrateErr := sqlite.MigrateUp(db); migrateErr != nil {
-		fmt.Fprintf(out, "migrations failed: %v\n", migrateErr) //nolint:errcheck
 		_ = db.Close()
-		return 1
+		return nil, migrateErr
 	}
-
-	cfg := server.DefaultConfig()
-	cfg.Port = *port
-	srv, err := server.NewServer(db, cfg)
-	if err != nil {
-		fmt.Fprintf(out, "server: init failed: %v\n", err) //nolint:errcheck
-		return 1
-	}
-
-	if startErr := srv.Start(context.Background()); startErr != nil {
-		fmt.Fprintf(out, "server failed: %v\n", startErr) //nolint:errcheck
-		_ = srv.Shutdown(context.Background())
-		return 1
-	}
-
-	return 0
+	return db, nil
 }
 
 func printHelp(out io.Writer) {

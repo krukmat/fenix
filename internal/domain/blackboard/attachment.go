@@ -10,3 +10,11 @@ type Attachment struct {
 	Memory               MemoryStore
 	Timeline             ReasoningTimeline
 }
+
+// Close releases runtime resources associated with the attachment.
+func (a *Attachment) Close() {
+	if a == nil || a.Bus == nil {
+		return
+	}
+	a.Bus.Close()
+}

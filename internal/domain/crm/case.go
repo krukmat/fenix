@@ -351,7 +351,12 @@ func (s *CaseService) Update(ctx context.Context, workspaceID, caseID string, in
 	logCRMAudit(ctx, s.audit, workspaceID, input.OwnerID, actionCaseUpdated, timelineEntityCase, caseID)
 	s.publishRecordChanged(knowledge.ChangeTypeUpdated, workspaceID, caseID)
 
-	return s.Get(ctx, workspaceID, caseID)
+	ticket, getErr := s.Get(ctx, workspaceID, caseID)
+	if getErr != nil {
+		return nil, getErr
+	}
+	publishCaseUpdated(s.bus, ticket)
+	return ticket, nil
 }
 
 func (s *CaseService) Delete(ctx context.Context, workspaceID, caseID string) error {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -66,10 +67,15 @@ type ListActivitiesInput struct {
 type ActivityService struct {
 	db      *sql.DB
 	querier sqlcgen.Querier
+	bus     eventbus.EventBus
 }
 
 func NewActivityService(db *sql.DB) *ActivityService {
 	return &ActivityService{db: db, querier: sqlcgen.New(db)}
+}
+
+func NewActivityServiceWithBus(db *sql.DB, bus eventbus.EventBus) *ActivityService {
+	return &ActivityService{db: db, querier: sqlcgen.New(db), bus: bus}
 }
 
 func (s *ActivityService) Create(ctx context.Context, input CreateActivityInput) (*Activity, error) {
@@ -104,7 +110,12 @@ func (s *ActivityService) Create(ctx context.Context, input CreateActivityInput)
 		return nil, fmt.Errorf("create activity timeline: %w", timelineErr)
 	}
 
-	return s.Get(ctx, input.WorkspaceID, id)
+	activity, getErr := s.Get(ctx, input.WorkspaceID, id)
+	if getErr != nil {
+		return nil, getErr
+	}
+	publishActivityCreated(s.bus, activity)
+	return activity, nil
 }
 
 func (s *ActivityService) Get(ctx context.Context, workspaceID, activityID string) (*Activity, error) {

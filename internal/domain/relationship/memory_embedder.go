@@ -116,7 +116,7 @@ func waitForNextEmbedAttempt(ctx context.Context, attempt int, delay time.Durati
 func parseSignalPayload(ev eventbus.Event) (signalInput, error) {
 	m, ok := ev.Payload.(map[string]any)
 	if !ok {
-		return signalInput{}, fmt.Errorf("payload is not map[string]any: %T", ev.Payload)
+		return signalInput{}, fmt.Errorf(graphPayloadTypeErrFmt, ev.Payload)
 	}
 
 	str := func(key string) string {

@@ -2,6 +2,12 @@
 package sqlite_test
 
 import (
+	"database/sql"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
@@ -298,6 +304,136 @@ func TestMigrate_StakeholderGraphFromEntityTypeCheck(t *testing.T) {
 	}
 }
 
+func TestMigrate_StakeholderGraphUserEntityTypeAllowed(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp() error = %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-sg-user', 'SG User WS', 'sg-user-ws', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO stakeholder_graph (id, workspace_id, from_entity_type, from_entity_id, to_entity_type, to_entity_id, influence_type, strength, created_at, updated_at)
+		VALUES ('sg-user', 'ws-sg-user', 'user', 'user-001', 'contact', 'ent-036', 'reports_to', 0.7, datetime('now'), datetime('now'))
+	`)
+	if err != nil {
+		t.Fatalf("stakeholder_graph insert with user entity_type failed: %v", err)
+	}
+}
+
+func TestMigrate_StakeholderGraphUserMigrationPreservesRowsAndIndexes(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	applyUpMigrationsThrough(t, db, 32)
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-sg-preserve', 'SG Preserve WS', 'sg-preserve-ws', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO stakeholder_graph (id, workspace_id, from_entity_type, from_entity_id, to_entity_type, to_entity_id, influence_type, strength, created_at, updated_at)
+		VALUES ('sg-before-034', 'ws-sg-preserve', 'contact', 'ent-037', 'account', 'ent-038', 'approves', 0.8, datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("stakeholder_graph pre-034 insert failed: %v", err)
+	}
+
+	applyNamedMigration(t, db, "034_stakeholder_graph_user_actor.up.sql")
+
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM stakeholder_graph WHERE id = 'sg-before-034'`).Scan(&count); err != nil {
+		t.Fatalf("count preserved stakeholder_graph row: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("preserved stakeholder_graph row count = %d; want 1", count)
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO stakeholder_graph (id, workspace_id, from_entity_type, from_entity_id, to_entity_type, to_entity_id, influence_type, strength, created_at, updated_at)
+		VALUES ('sg-after-034', 'ws-sg-preserve', 'user', 'user-002', 'contact', 'ent-039', 'reports_to', 0.6, datetime('now'), datetime('now'))
+	`)
+	if err != nil {
+		t.Fatalf("stakeholder_graph insert with user after 034 failed: %v", err)
+	}
+
+	assertIndexExists(t, db, "idx_stakeholder_graph_workspace")
+	assertIndexExists(t, db, "idx_stakeholder_graph_from")
+	assertIndexExists(t, db, "idx_stakeholder_graph_to")
+}
+
+func TestMigrate_StakeholderGraphUserDownMigrationRestoresOriginalConstraint(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	applyUpMigrationsThrough(t, db, 32)
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-sg-down', 'SG Down WS', 'sg-down-ws', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	if _, err := db.Exec(`
+		INSERT INTO stakeholder_graph (id, workspace_id, from_entity_type, from_entity_id, to_entity_type, to_entity_id, influence_type, strength, created_at, updated_at)
+		VALUES ('sg-down-before', 'ws-sg-down', 'contact', 'ent-040', 'account', 'ent-041', 'approves', 0.9, datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("stakeholder_graph pre-down insert failed: %v", err)
+	}
+
+	applyNamedMigration(t, db, "034_stakeholder_graph_user_actor.up.sql")
+	applyNamedMigration(t, db, "034_stakeholder_graph_user_actor.down.sql")
+
+	_, err := db.Exec(`
+		INSERT INTO stakeholder_graph (id, workspace_id, from_entity_type, from_entity_id, to_entity_type, to_entity_id, influence_type, created_at, updated_at)
+		VALUES ('sg-down-invalid', 'ws-sg-down', 'user', 'user-003', 'contact', 'ent-042', 'influences', datetime('now'), datetime('now'))
+	`)
+	if err == nil {
+		t.Fatal("stakeholder_graph insert with user succeeded after down migration; want CHECK constraint error")
+	}
+}
+
+func TestMigrate_StakeholderGraphUserDownMigrationFailsWhenUserRowsExist(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	applyUpMigrationsThrough(t, db, 32)
+
+	if _, err := db.Exec(`
+		INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		VALUES ('ws-sg-down-user', 'SG Down User WS', 'sg-down-user-ws', datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("workspace insert: %v", err)
+	}
+
+	applyNamedMigration(t, db, "034_stakeholder_graph_user_actor.up.sql")
+
+	if _, err := db.Exec(`
+		INSERT INTO stakeholder_graph (id, workspace_id, from_entity_type, from_entity_id, to_entity_type, to_entity_id, influence_type, strength, created_at, updated_at)
+		VALUES ('sg-down-user-row', 'ws-sg-down-user', 'user', 'user-004', 'contact', 'ent-043', 'reports_to', 0.4, datetime('now'), datetime('now'))
+	`); err != nil {
+		t.Fatalf("stakeholder_graph insert with user before down migration failed: %v", err)
+	}
+
+	err := execSQLFile(db, "034_stakeholder_graph_user_actor.down.sql")
+	if err == nil {
+		t.Fatal("down migration succeeded with user rows present; want error")
+	}
+	if !strings.Contains(err.Error(), "user") {
+		t.Fatalf("down migration error = %v; want message mentioning user rows", err)
+	}
+}
+
 // --- trust_score CHECK and UNIQUE constraints ---
 
 func TestMigrate_TrustScoreScoreCheck(t *testing.T) {
@@ -540,5 +676,67 @@ func TestMigrate_StakeholderGraphValidInsert(t *testing.T) {
 	`)
 	if err != nil {
 		t.Fatalf("valid stakeholder_graph insert failed: %v", err)
+	}
+}
+
+func applyUpMigrationsThrough(t *testing.T, db execer, maxVersion int) {
+	t.Helper()
+
+	paths, err := filepath.Glob(filepath.Join("migrations", "*.up.sql"))
+	if err != nil {
+		t.Fatalf("glob migration files: %v", err)
+	}
+	sort.Strings(paths)
+
+	for _, path := range paths {
+		name := filepath.Base(path)
+		if version := migrationVersionFromName(t, name); version > maxVersion {
+			continue
+		}
+		if execErr := execSQLFile(db, name); execErr != nil {
+			t.Fatalf("apply migration %s: %v", name, execErr)
+		}
+	}
+}
+
+func applyNamedMigration(t *testing.T, db execer, name string) {
+	t.Helper()
+	if err := execSQLFile(db, name); err != nil {
+		t.Fatalf("apply migration %s: %v", name, err)
+	}
+}
+
+type execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+func execSQLFile(db execer, name string) error {
+	content, err := os.ReadFile(filepath.Join("migrations", name))
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(string(content))
+	return err
+}
+
+func migrationVersionFromName(t *testing.T, name string) int {
+	t.Helper()
+
+	var version int
+	if _, err := fmt.Sscanf(name, "%d_", &version); err != nil {
+		t.Fatalf("parse migration version from %q: %v", name, err)
+	}
+	return version
+}
+
+func assertIndexExists(t *testing.T, db *sql.DB, name string) {
+	t.Helper()
+
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?`, name).Scan(&count); err != nil {
+		t.Fatalf("query index %s: %v", name, err)
+	}
+	if count != 1 {
+		t.Fatalf("index %s count = %d; want 1", name, count)
 	}
 }

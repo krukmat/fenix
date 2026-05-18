@@ -516,6 +516,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("failed to open test DB: %v", err)
 	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	if err = sqlite.MigrateUp(db); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}

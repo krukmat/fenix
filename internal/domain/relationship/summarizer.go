@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
@@ -44,17 +45,18 @@ type Summarizer struct {
 	repo SignalRepository
 }
 
-// NewSummarizer constructs a Summarizer with its three required dependencies.
+// NewSummarizer constructs a Summarizer with its required dependencies.
 func NewSummarizer(bus eventbus.EventBus, provider llm.LLMProvider, repo SignalRepository) *Summarizer {
 	return &Summarizer{bus: bus, llm: provider, repo: repo}
 }
 
-// Run subscribes to all three topics and processes events until ctx is cancelled.
+// Run subscribes to all supported topics and processes events until ctx is cancelled.
 // Task B.2.3: select loop — handle is synchronous to preserve per-channel ordering.
 func (s *Summarizer) Run(ctx context.Context) {
 	chActivity := s.bus.Subscribe(TopicActivityCreated)
 	chNote := s.bus.Subscribe(TopicNoteCreated)
 	chCase := s.bus.Subscribe(TopicCaseUpdated)
+	chDeal := s.bus.Subscribe(TopicDealUpdated)
 
 	for {
 		select {
@@ -63,6 +65,8 @@ func (s *Summarizer) Run(ctx context.Context) {
 		case ev := <-chNote:
 			s.handle(ctx, ev)
 		case ev := <-chCase:
+			s.handle(ctx, ev)
+		case ev := <-chDeal:
 			s.handle(ctx, ev)
 		case <-ctx.Done():
 			return
@@ -78,6 +82,12 @@ func (s *Summarizer) handle(ctx context.Context, ev eventbus.Event) {
 		return
 	}
 
+	sigType, err := signalTypeFor(ev.Topic, ev.Payload)
+	if err != nil {
+		log.Printf("relationship.Summarizer: reject topic=%s err=%v", ev.Topic, err)
+		return
+	}
+
 	summary, sentiment, err := s.callLLM(ctx, input.rawText)
 	if err != nil {
 		log.Printf("relationship.Summarizer: LLM call topic=%s err=%v", ev.Topic, err)
@@ -90,7 +100,6 @@ func (s *Summarizer) handle(ctx context.Context, ev eventbus.Event) {
 		return
 	}
 
-	sigType := signalTypeFor(ev.Topic)
 	signalID, insertErr := s.repo.InsertSignal(ctx, mem.ID, sigType, SentimentType(sentiment),
 		summary, input.sourceEntityType, input.sourceEntityID, input.occurredAt)
 	if insertErr != nil {
@@ -101,6 +110,7 @@ func (s *Summarizer) handle(ctx context.Context, ev eventbus.Event) {
 
 	s.bus.Publish(TopicInteractionSignalCreated, map[string]any{
 		"workspace_id": input.workspaceID,
+		"memory_id":    mem.ID,
 		"signal_id":    signalID,
 		"summary":      summary,
 	})
@@ -169,17 +179,43 @@ func parseEventPayload(ev eventbus.Event) (eventInput, error) {
 	}, nil
 }
 
-// signalTypeFor maps an event bus topic constant to its SignalType constant.
-// Task B.2.3: unknown topics return "unknown" — callers should log, not panic.
-func signalTypeFor(topic string) SignalType {
-	switch topic {
-	case TopicActivityCreated:
-		return SignalEmail // activity maps to email/generic interaction signal
-	case TopicNoteCreated:
-		return SignalNote
-	case TopicCaseUpdated:
-		return SignalCaseUpdate
-	default:
-		return SignalType("unknown")
+// signalTypeFor maps an event bus topic and payload to its SignalType constant.
+func signalTypeFor(topic string, payload any) (SignalType, error) {
+	if topic == TopicActivityCreated {
+		return signalTypeForActivity(payload)
 	}
+
+	signalType, ok := signalTypeByTopic[topic]
+	if !ok {
+		return "", fmt.Errorf("unknown topic %q", topic)
+	}
+	return signalType, nil
+}
+
+var signalTypeByTopic = map[string]SignalType{
+	TopicNoteCreated: SignalNote,
+	TopicCaseUpdated: SignalCaseUpdate,
+	TopicDealUpdated: SignalDealUpdate,
+}
+
+func signalTypeForActivity(payload any) (SignalType, error) {
+	switch strings.ToLower(stringFromPayload(payload, "activity_type")) {
+	case "", "email":
+		return SignalEmail, nil
+	case "call":
+		return SignalCall, nil
+	case "meeting", "event":
+		return SignalMeeting, nil
+	default:
+		return "", fmt.Errorf("unknown activity_type %q", stringFromPayload(payload, "activity_type"))
+	}
+}
+
+func stringFromPayload(payload any, key string) string {
+	m, ok := payload.(map[string]any)
+	if !ok {
+		return ""
+	}
+	v, _ := m[key].(string)
+	return v
 }

@@ -9,6 +9,9 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/matiasleandrokruk/fenix/internal/domain/blackboard"
+	bbagents "github.com/matiasleandrokruk/fenix/internal/domain/blackboard/agents"
 )
 
 // insertTestAgentDefinition inserts an agent definition for tests.
@@ -851,6 +854,51 @@ func (r *captureRunner) Run(_ context.Context, rc *RunContext, in TriggerAgentIn
 	}, nil
 }
 
+type blackboardPublishRunner struct{}
+
+func (r *blackboardPublishRunner) Run(_ context.Context, rc *RunContext, in TriggerAgentInput) (*Run, error) {
+	if rc == nil || rc.Blackboard == nil {
+		return nil, errors.New("blackboard attachment is required")
+	}
+
+	if err := rc.Blackboard.Bus.Publish(context.Background(), blackboard.ReasoningEvent{
+		ID:                   "re-orch-specialized-source",
+		CognitiveWorkspaceID: rc.Blackboard.CognitiveWorkspaceID,
+		EventType:            blackboard.EventTypeObservation,
+		Payload:              []byte(`{"run_id":"orch-specialized"}`),
+		CreatedAt:            time.Now().UTC(),
+	}); err != nil {
+		return nil, err
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		events, err := rc.Blackboard.Timeline.List(context.Background(), rc.Blackboard.CognitiveWorkspaceID, blackboard.TimelineFilter{})
+		if err == nil && len(events) == 4 {
+			return &Run{
+				ID:           "bb-run-id",
+				WorkspaceID:  in.WorkspaceID,
+				DefinitionID: in.AgentID,
+				Status:       StatusSuccess,
+				StartedAt:    time.Now().UTC(),
+				CreatedAt:    time.Now().UTC(),
+			}, nil
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	return nil, errors.New("timeout waiting for specialized artifacts")
+}
+
+type blackboardPipelineRecorder struct {
+	calls chan string
+}
+
+func (r *blackboardPipelineRecorder) RunPipeline(_ context.Context, cognitiveWorkspaceID string) (*blackboard.ExecutionOutcome, error) {
+	r.calls <- cognitiveWorkspaceID
+	return &blackboard.ExecutionOutcome{CognitiveWorkspaceID: cognitiveWorkspaceID}, nil
+}
+
 // TestOrchestrator_TriggerAgent_SetsBlackboardColumn verifies that when
 // CognitiveWorkspaceID is provided, it is persisted to agent_run.cognitive_workspace_id.
 // Traces: Task A.5
@@ -1015,5 +1063,138 @@ func TestOrchestrator_ExecuteAgent_NoBlackboard_NilAttachment(t *testing.T) {
 	if capture.capturedRC.Blackboard != nil {
 		t.Errorf("RunContext.Blackboard = %v; want nil when CognitiveWorkspaceID is absent",
 			capture.capturedRC.Blackboard)
+	}
+}
+
+func TestOrchestrator_ExecuteAgent_StartsSpecializedBlackboardAgents(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('def-bb-specialized', 'ws-bb-specialized', 'BB Specialized', 'support', 'active')`); err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		 VALUES ('ws-bb-specialized', 'BB Specialized', 'bb-specialized', datetime('now'), datetime('now'))
+		 ON CONFLICT(id) DO NOTHING`); err != nil {
+		t.Fatalf("insert workspace: %v", err)
+	}
+	cwID := "cw-d1-specialized"
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO cognitive_workspace (id, workspace_id, status, created_at)
+		 VALUES (?, 'ws-bb-specialized', 'active', datetime('now'))`, cwID); err != nil {
+		t.Fatalf("insert cognitive_workspace: %v", err)
+	}
+
+	registry := NewRunnerRegistry()
+	if err := registry.Register("support", &blackboardPublishRunner{}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	orch := NewOrchestratorWithRegistry(db, registry)
+	if _, err := orch.ExecuteAgent(ctx, &RunContext{}, TriggerAgentInput{
+		AgentID:              "def-bb-specialized",
+		WorkspaceID:          "ws-bb-specialized",
+		TriggerType:          TriggerTypeManual,
+		CognitiveWorkspaceID: &cwID,
+	}); err != nil {
+		t.Fatalf("ExecuteAgent(): %v", err)
+	}
+
+	timeline := blackboard.NewReasoningTimeline(db)
+	events, err := timeline.List(ctx, cwID, blackboard.TimelineFilter{})
+	if err != nil {
+		t.Fatalf("Timeline.List(): %v", err)
+	}
+	if len(events) != 4 {
+		t.Fatalf("timeline event count = %d; want 4", len(events))
+	}
+
+	store := blackboard.NewMemoryStore(db)
+	for _, key := range []string{
+		"specialized_agents/" + bbagents.SignalAgentID + "/last_artifact",
+		"specialized_agents/" + bbagents.EvidenceAgentID + "/last_artifact",
+		"specialized_agents/" + bbagents.PolicyAgentID + "/last_artifact",
+	} {
+		if _, err := store.Get(ctx, cwID, key); err != nil {
+			t.Fatalf("Memory.Get(%q): %v", key, err)
+		}
+	}
+}
+
+func TestOrchestrator_ExecuteAgent_ClosesWorkspaceAndTriggersBlackboardPipelineOnce(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('def-bb-close', 'ws-bb-close', 'BB Close', 'support', 'active')`); err != nil {
+		t.Fatalf("insert agent_definition: %v", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO workspace (id, name, slug, created_at, updated_at)
+		 VALUES ('ws-bb-close', 'BB Close', 'bb-close', datetime('now'), datetime('now'))
+		 ON CONFLICT(id) DO NOTHING`); err != nil {
+		t.Fatalf("insert workspace: %v", err)
+	}
+	cwID := "cw-close-trigger"
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO cognitive_workspace (id, workspace_id, status, created_at)
+		 VALUES (?, 'ws-bb-close', 'active', datetime('now'))`, cwID); err != nil {
+		t.Fatalf("insert cognitive_workspace: %v", err)
+	}
+
+	registry := NewRunnerRegistry()
+	if err := registry.Register("support", &captureRunner{}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	orch := NewOrchestratorWithRegistry(db, registry)
+	recorder := &blackboardPipelineRecorder{calls: make(chan string, 2)}
+	orch.SetBlackboardOrchestrator(recorder)
+
+	if _, err := orch.ExecuteAgent(ctx, &RunContext{}, TriggerAgentInput{
+		AgentID:              "def-bb-close",
+		WorkspaceID:          "ws-bb-close",
+		TriggerType:          TriggerTypeManual,
+		CognitiveWorkspaceID: &cwID,
+	}); err != nil {
+		t.Fatalf("ExecuteAgent(): %v", err)
+	}
+
+	select {
+	case got := <-recorder.calls:
+		if got != cwID {
+			t.Fatalf("RunPipeline cwID = %q, want %q", got, cwID)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected blackboard pipeline trigger")
+	}
+
+	var status string
+	if err := db.QueryRowContext(ctx, `SELECT status FROM cognitive_workspace WHERE id = ?`, cwID).Scan(&status); err != nil {
+		t.Fatalf("query cognitive_workspace: %v", err)
+	}
+	if status != string(blackboard.WorkspaceStatusClosed) {
+		t.Fatalf("status = %q, want %q", status, blackboard.WorkspaceStatusClosed)
+	}
+
+	if _, err := orch.ExecuteAgent(ctx, &RunContext{}, TriggerAgentInput{
+		AgentID:              "def-bb-close",
+		WorkspaceID:          "ws-bb-close",
+		TriggerType:          TriggerTypeManual,
+		CognitiveWorkspaceID: &cwID,
+	}); err != nil {
+		t.Fatalf("second ExecuteAgent(): %v", err)
+	}
+
+	select {
+	case got := <-recorder.calls:
+		t.Fatalf("unexpected second blackboard pipeline trigger for %q", got)
+	case <-time.After(150 * time.Millisecond):
 	}
 }

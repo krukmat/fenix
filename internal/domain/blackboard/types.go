@@ -3,7 +3,10 @@
 // enabling collaborative reasoning and multi-agent coordination.
 package blackboard
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // WorkspaceStatus represents the lifecycle state of a cognitive workspace.
 type WorkspaceStatus string
@@ -75,6 +78,90 @@ type SignalHypothesis struct {
 	Status               HypothesisStatus
 	CreatedAt            time.Time
 	ResolvedAt           *time.Time
+}
+
+// ArbitrationConfig defines how confidence arbitration scores hypotheses.
+type ArbitrationConfig struct {
+	Now                    time.Time
+	RecencyHalfLife        time.Duration
+	SourceAgentReliability map[string]float64
+	PersistResult          bool
+	MemoryKey              string
+}
+
+// ArbitrationScoreBreakdown explains how one ranked hypothesis received its score.
+type ArbitrationScoreBreakdown struct {
+	Confidence  float64 `json:"confidence"`
+	Recency     float64 `json:"recency"`
+	Reliability float64 `json:"reliability"`
+	Final       float64 `json:"final"`
+}
+
+// RankedHypothesis is one arbitration output row with explicit score details.
+type RankedHypothesis struct {
+	Rank       int                       `json:"rank"`
+	Hypothesis SignalHypothesis          `json:"hypothesis"`
+	Score      float64                   `json:"score"`
+	Breakdown  ArbitrationScoreBreakdown `json:"breakdown"`
+}
+
+// ArbitrationResult is the deterministic ranking output for one workspace.
+type ArbitrationResult struct {
+	CognitiveWorkspaceID string             `json:"cognitive_workspace_id"`
+	GeneratedAt          time.Time          `json:"generated_at"`
+	Ranked               []RankedHypothesis `json:"ranked"`
+}
+
+// PlanningState represents the planner decision after combining ranked hypotheses,
+// evidence, and policy constraints.
+type PlanningState string
+
+const (
+	PlanningStateNoAction         PlanningState = "no_action"
+	PlanningStateAwaitingEvidence PlanningState = "awaiting_evidence"
+	PlanningStateNeedsReview      PlanningState = "needs_review"
+	PlanningStatePendingApproval  PlanningState = "pending_approval"
+	PlanningStateReady            PlanningState = "ready"
+)
+
+// PlanningConfig defines how collaborative planning reads and persists its outputs.
+type PlanningConfig struct {
+	Now                  time.Time
+	ArbitrationMemoryKey string
+	ResultMemoryKey      string
+	MinReadyScore        float64
+	PersistResult        bool
+}
+
+// ToolSequenceStep is one planned governed action in execution order.
+type ToolSequenceStep struct {
+	Sequence         int             `json:"sequence"`
+	ToolName         string          `json:"tool_name"`
+	Reason           string          `json:"reason"`
+	RequiresApproval bool            `json:"requires_approval"`
+	Params           json.RawMessage `json:"params,omitempty"`
+}
+
+// CollaborativePlanProposal is one deterministic proposal synthesized from a ranked hypothesis.
+type CollaborativePlanProposal struct {
+	ProposalID     string             `json:"proposal_id"`
+	HypothesisID   string             `json:"hypothesis_id"`
+	HypothesisRank int                `json:"hypothesis_rank"`
+	Summary        string             `json:"summary"`
+	Score          float64            `json:"score"`
+	State          PlanningState      `json:"state"`
+	Constraints    []string           `json:"constraints"`
+	Contributors   []string           `json:"contributors"`
+	Steps          []ToolSequenceStep `json:"steps"`
+}
+
+// CollaborativePlanningResult is the planner output persisted for downstream governed execution.
+type CollaborativePlanningResult struct {
+	CognitiveWorkspaceID string                      `json:"cognitive_workspace_id"`
+	GeneratedAt          time.Time                   `json:"generated_at"`
+	State                PlanningState               `json:"state"`
+	SelectedProposal     *CollaborativePlanProposal  `json:"selected_proposal,omitempty"`
+	Proposals            []CollaborativePlanProposal `json:"proposals"`
 }
 
 // AgentMemory is a shared key-value entry accessible by all agents in a workspace.

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -81,10 +82,15 @@ type DealService struct {
 	db      *sql.DB
 	querier sqlcgen.Querier
 	audit   auditLogger
+	bus     eventbus.EventBus
 }
 
 func NewDealService(db *sql.DB) *DealService {
 	return &DealService{db: db, querier: sqlcgen.New(db), audit: newCRMAuditService(db)}
+}
+
+func NewDealServiceWithBus(db *sql.DB, bus eventbus.EventBus) *DealService {
+	return &DealService{db: db, querier: sqlcgen.New(db), audit: newCRMAuditService(db), bus: bus}
 }
 
 func (s *DealService) Create(ctx context.Context, input CreateDealInput) (*Deal, error) {
@@ -322,8 +328,12 @@ func (s *DealService) Update(ctx context.Context, workspaceID, dealID string, in
 		return nil, fmt.Errorf("update deal timeline: %w", timelineErr)
 	}
 	logCRMAudit(ctx, s.audit, workspaceID, input.OwnerID, actionDealUpdated, timelineEntityDeal, dealID)
-
-	return s.Get(ctx, workspaceID, dealID)
+	deal, getErr := s.Get(ctx, workspaceID, dealID)
+	if getErr != nil {
+		return nil, getErr
+	}
+	publishDealUpdated(s.bus, deal)
+	return deal, nil
 }
 
 func (s *DealService) Delete(ctx context.Context, workspaceID, dealID string) error {
