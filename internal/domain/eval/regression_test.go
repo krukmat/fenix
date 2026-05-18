@@ -4,10 +4,51 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
+
+const policyComplianceEnvVar = "FENIX_EVAL_POLICY_COMPLIANCE_MIN"
+const defaultPolicyComplianceMin = 1.0
+
+func policyComplianceMin(t testing.TB) float64 {
+	t.Helper()
+	v := os.Getenv(policyComplianceEnvVar)
+	if v == "" {
+		return defaultPolicyComplianceMin
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		t.Fatalf("%s invalid value %q: %v", policyComplianceEnvVar, v, err)
+	}
+	return f
+}
+
+func TestPolicyComplianceMinDefault(t *testing.T) {
+	t.Setenv(policyComplianceEnvVar, "")
+	if got := policyComplianceMin(t); got != defaultPolicyComplianceMin {
+		t.Fatalf("expected default %.1f, got %.1f", defaultPolicyComplianceMin, got)
+	}
+}
+
+func TestPolicyComplianceMinFromEnv(t *testing.T) {
+	t.Setenv(policyComplianceEnvVar, "0.95")
+	if got := policyComplianceMin(t); got != 0.95 {
+		t.Fatalf("expected 0.95, got %v", got)
+	}
+}
+
+func TestPolicyComplianceMinInvalidEnv(t *testing.T) {
+	t.Setenv(policyComplianceEnvVar, "not-a-float")
+	result := testing.RunTests(func(_, _ string) (bool, error) { return true, nil }, []testing.InternalTest{
+		{Name: "inner", F: func(inner *testing.T) { policyComplianceMin(inner) }},
+	})
+	if result {
+		t.Fatal("expected inner test to fail on invalid env value")
+	}
+}
 
 func makeRegressionHappyScenario() GoldenScenario {
 	return GoldenScenario{
@@ -434,12 +475,14 @@ func TestRegressionFixturePolicyComplianceThreshold(t *testing.T) {
 		},
 	})
 
+	threshold := policyComplianceMin(t)
 	for _, scenario := range report.Scenarios {
-		if scenario.Scorecard.Metrics.PolicyCompliance != 1 {
+		if scenario.Scorecard.Metrics.PolicyCompliance < threshold {
 			t.Fatalf(
-				"scenario %s policy_compliance=%v; want 1.0",
+				"scenario %s policy_compliance=%v; want >= %v (FENIX_EVAL_POLICY_COMPLIANCE_MIN)",
 				scenario.ScenarioID,
 				scenario.Scorecard.Metrics.PolicyCompliance,
+				threshold,
 			)
 		}
 	}

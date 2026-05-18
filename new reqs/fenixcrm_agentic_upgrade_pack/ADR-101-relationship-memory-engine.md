@@ -1,3 +1,5 @@
+> **DEPRECATED** — Promoted to [`docs/decisions/ADR-101-relationship-memory-engine.md`](../../docs/decisions/ADR-101-relationship-memory-engine.md) on 2026-05-18. This copy is retained for audit traceability only. Do not edit.
+
 # ADR-101 — Relationship Memory Engine
 
 Status: Proposed

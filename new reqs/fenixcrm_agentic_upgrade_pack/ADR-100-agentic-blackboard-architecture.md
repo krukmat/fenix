@@ -1,3 +1,5 @@
+> **DEPRECATED** — Promoted to [`docs/decisions/ADR-100-agentic-blackboard-architecture.md`](../../docs/decisions/ADR-100-agentic-blackboard-architecture.md) on 2026-05-18. This copy is retained for audit traceability only. Do not edit.
+
 # ADR-100 — Agentic Blackboard Architecture
 
 Status: Proposed

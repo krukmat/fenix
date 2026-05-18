@@ -344,9 +344,11 @@ eval-regression:
 	@echo "Running deterministic eval regression suite..."
 	go test -count=1 -run '^TestRegressionFixtureSuite$$' ./internal/domain/eval/...
 
+FENIX_EVAL_POLICY_COMPLIANCE_MIN ?= 1.0
+
 eval:
-	@echo "Running deterministic eval gate..."
-	go test -count=1 -run '^(TestRegressionFixtureSuite|TestRegressionFixturePolicyComplianceThreshold)$$' ./internal/domain/eval/...
+	@echo "Running deterministic eval gate (FENIX_EVAL_POLICY_COMPLIANCE_MIN=$(FENIX_EVAL_POLICY_COMPLIANCE_MIN))..."
+	FENIX_EVAL_POLICY_COMPLIANCE_MIN=$(FENIX_EVAL_POLICY_COMPLIANCE_MIN) go test -count=1 -run '^(TestRegressionFixtureSuite|TestRegressionFixturePolicyComplianceThreshold)$$' ./internal/domain/eval/...
 
 contract-test: build
 	@echo "Running API contract tests..."

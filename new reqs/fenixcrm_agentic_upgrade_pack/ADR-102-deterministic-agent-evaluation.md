@@ -1,3 +1,5 @@
+> **DEPRECATED** — Promoted to [`docs/decisions/ADR-102-deterministic-agent-evaluation.md`](../../docs/decisions/ADR-102-deterministic-agent-evaluation.md) on 2026-05-18. This copy is retained for audit traceability only. Do not edit.
+
 # ADR-102 — Deterministic Agent Evaluation Framework
 
 Status: Proposed

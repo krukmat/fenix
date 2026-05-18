@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -36,6 +37,10 @@ type MemoryStore interface {
 	// ClearSession deletes all scope='session' entries for the given cognitiveWorkspaceID.
 	// Entries with scope='persistent' are untouched.
 	ClearSession(ctx context.Context, cognitiveWorkspaceID string) error
+
+	// ListByPrefix returns all entries whose key starts with keyPrefix, ordered by key ascending.
+	// Returns an empty slice (no error) when no entries match.
+	ListByPrefix(ctx context.Context, cognitiveWorkspaceID, keyPrefix string) ([]AgentMemory, error)
 }
 
 type sqliteMemoryStore struct {
@@ -138,6 +143,50 @@ func scanMemory(row *sql.Row) (*AgentMemory, error) {
 	return &m, nil
 }
 
+func scanMemoryListRow(rows *sql.Rows) (AgentMemory, error) {
+	var m AgentMemory
+	var valueStr, scopeStr, createdAtStr, updatedAtStr string
+	var expiresAtRaw sql.NullString
+
+	if err := rows.Scan(
+		&m.ID,
+		&m.CognitiveWorkspaceID,
+		&m.Key,
+		&valueStr,
+		&scopeStr,
+		&expiresAtRaw,
+		&createdAtStr,
+		&updatedAtStr,
+	); err != nil {
+		return AgentMemory{}, fmt.Errorf("memory store ListByPrefix scan: %w", err)
+	}
+
+	m.Value = []byte(valueStr)
+	m.Scope = MemoryScope(scopeStr)
+
+	if expiresAtRaw.Valid {
+		expiresAt, err := parseTime(expiresAtRaw.String)
+		if err != nil {
+			return AgentMemory{}, fmt.Errorf("memory store ListByPrefix parse expires_at: %w", err)
+		}
+		m.ExpiresAt = &expiresAt
+	}
+
+	createdAt, err := parseTime(createdAtStr)
+	if err != nil {
+		return AgentMemory{}, fmt.Errorf("memory store ListByPrefix parse created_at: %w", err)
+	}
+	updatedAt, err := parseTime(updatedAtStr)
+	if err != nil {
+		return AgentMemory{}, fmt.Errorf("memory store ListByPrefix parse updated_at: %w", err)
+	}
+
+	m.CreatedAt = createdAt
+	m.UpdatedAt = updatedAt
+
+	return m, nil
+}
+
 // checkExpiry returns (true, ErrMemoryExpired) if the entry is expired and was deleted.
 // Returns (false, nil) when the entry is valid or has no TTL.
 func (s *sqliteMemoryStore) checkExpiry(ctx context.Context, m *AgentMemory, cwID, key string) (bool, error) {
@@ -177,6 +226,40 @@ func (s *sqliteMemoryStore) deleteRow(ctx context.Context, cognitiveWorkspaceID,
 		return fmt.Errorf("memory store deleteRow: %w", err)
 	}
 	return nil
+}
+
+func (s *sqliteMemoryStore) ListByPrefix(ctx context.Context, cognitiveWorkspaceID, keyPrefix string) ([]AgentMemory, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, cognitive_workspace_id, key, value, scope, expires_at, created_at, updated_at
+		   FROM agent_memory
+		  WHERE cognitive_workspace_id = ? AND key LIKE ? ESCAPE '\'
+		  ORDER BY key ASC`,
+		cognitiveWorkspaceID, escapeLike(keyPrefix)+"%",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("memory store ListByPrefix: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]AgentMemory, 0, 4)
+	for rows.Next() {
+		m, scanErr := scanMemoryListRow(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result = append(result, m)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("memory store ListByPrefix rows: %w", rowsErr)
+	}
+	return result, nil
+}
+
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
 }
 
 // parseTime parses a SQLite datetime string in RFC3339 or SQLite's default format.

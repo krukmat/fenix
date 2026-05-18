@@ -208,6 +208,9 @@ All architectural decisions are in `docs/decisions/`:
 | ADR-027 | DESIGN.md visual contract — agent reads design token file before any mobile UI change | Mobile / Design / Agent |
 | ADR-028 | Dual approval seed for snapshot runner approve/reject coverage — re-evaluate on runner parallelism or FSM reset | Testing / Snapshots / BFF |
 | ADR-029 | BFF admin shell: HTMX read-only surface at `/bff/admin/*` over existing Go governance endpoints — no 4th stack, read-only constraint, governance-for-policy substitute | Architecture / Web / Admin |
+| ADR-100 | Agentic Blackboard Architecture — multi-agent coordination via shared cognitive workspace (Hearsay-II inspired); `cognitive_workspace`, `reasoning_event`, `agent_memory`, `signal_hypothesis` | Architecture / Blackboard / Agentic |
+| ADR-101 | Relationship Memory Engine — persists trust evolution, stakeholder graph, interaction signals, and relationship embeddings for operational relationship cognition | Architecture / Relationship / Memory |
+| ADR-102 | Deterministic Agent Evaluation Framework — 15-metric scorecard, golden scenario regression, `PolicyComplianceScore` CI gate via `FENIX_EVAL_POLICY_COMPLIANCE_MIN` | Quality / Eval / CI |
 
 ---
 

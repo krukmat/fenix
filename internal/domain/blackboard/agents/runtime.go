@@ -27,6 +27,20 @@ type artifactPayload struct {
 	Summary         string               `json:"summary"`
 }
 
+// LastArtifactPointer is the value stored at the last_artifact key.
+// Consumers that only need the current artifact use the embedded fields directly (back-compat).
+// Consumers that need the full history can follow HistoricalKey. (R.16)
+type LastArtifactPointer struct {
+	Contributor     string               `json:"contributor"`
+	ArtifactType    string               `json:"artifact_type"`
+	SourceEventID   string               `json:"source_event_id"`
+	SourceEventType blackboard.EventType `json:"source_event_type"`
+	SourceAgentID   *string              `json:"source_agent_id,omitempty"`
+	Summary         string               `json:"summary"`
+	HistoricalKey   string               `json:"historical_key"`
+	At              time.Time            `json:"at"`
+}
+
 type specializedAgent interface {
 	start(context.Context, *Runtime, *blackboard.Attachment)
 }
@@ -118,20 +132,54 @@ func persistDerivedArtifact(
 		return
 	}
 
-	setErr := attachment.Memory.Set(ctx, blackboard.AgentMemory{
+	// Historical entry — never overwritten; preserves full artifact sequence. (R.16)
+	histKey := historicalMemoryKeyFor(actorID, now)
+	if histErr := attachment.Memory.Set(ctx, blackboard.AgentMemory{
+		ID:                   uuid.NewV7().String(),
+		CognitiveWorkspaceID: attachment.CognitiveWorkspaceID,
+		Key:                  histKey,
+		Value:                raw,
+		Scope:                blackboard.MemoryScopePersistent,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}); histErr != nil {
+		log.Printf("blackboard specialized agents: set historical memory actor=%s: %v", actorID, histErr)
+		return
+	}
+
+	// Pointer entry at the existing last_artifact key — overwritten on every run, back-compat. (R.16)
+	pointer := LastArtifactPointer{
+		Contributor:     payload.Contributor,
+		ArtifactType:    payload.ArtifactType,
+		SourceEventID:   payload.SourceEventID,
+		SourceEventType: payload.SourceEventType,
+		SourceAgentID:   payload.SourceAgentID,
+		Summary:         payload.Summary,
+		HistoricalKey:   histKey,
+		At:              now,
+	}
+	pointerRaw, marshalErr := json.Marshal(pointer)
+	if marshalErr != nil {
+		log.Printf("blackboard specialized agents: marshal pointer actor=%s: %v", actorID, marshalErr)
+		return
+	}
+	if setErr := attachment.Memory.Set(ctx, blackboard.AgentMemory{
 		ID:                   uuid.NewV7().String(),
 		CognitiveWorkspaceID: attachment.CognitiveWorkspaceID,
 		Key:                  memoryKey,
-		Value:                raw,
+		Value:                pointerRaw,
 		Scope:                blackboard.MemoryScopeSession,
 		CreatedAt:            now,
 		UpdatedAt:            now,
-	})
-	if setErr != nil {
+	}); setErr != nil {
 		log.Printf("blackboard specialized agents: set memory actor=%s: %v", actorID, setErr)
 	}
 }
 
 func memoryKeyFor(actorID string) string {
 	return fmt.Sprintf("specialized_agents/%s/last_artifact", actorID)
+}
+
+func historicalMemoryKeyFor(actorID string, t time.Time) string {
+	return fmt.Sprintf("specialized_agents/%s/history/%s/artifact", actorID, t.UTC().Format(time.RFC3339Nano))
 }
