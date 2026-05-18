@@ -147,6 +147,6 @@ func (s *Server) waitBackground(ctx context.Context) error {
 	case <-done:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("server waitBackground: %w", ctx.Err())
 	}
 }

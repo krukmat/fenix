@@ -59,7 +59,7 @@ func (o *Orchestrator) RunPipeline(ctx context.Context, cognitiveWorkspaceID str
 		PersistResult: true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("orchestrator rank workspace: %w", err)
 	}
 	if len(arbitration.Ranked) == 0 {
 		return &ExecutionOutcome{
@@ -75,9 +75,13 @@ func (o *Orchestrator) RunPipeline(ctx context.Context, cognitiveWorkspaceID str
 		PersistResult: true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("orchestrator build plan: %w", err)
 	}
-	return o.executor.Execute(ctx, *workspace, plan)
+	result, err := o.executor.Execute(ctx, *workspace, plan)
+	if err != nil {
+		return nil, fmt.Errorf("orchestrator execute plan: %w", err)
+	}
+	return result, nil
 }
 
 func (o *Orchestrator) loadWorkspace(ctx context.Context, cognitiveWorkspaceID string) (*CognitiveWorkspace, error) {

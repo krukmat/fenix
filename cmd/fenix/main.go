@@ -116,7 +116,7 @@ func parseServeFlags(args []string) (int, error) {
 	fs.SetOutput(io.Discard)
 	port := fs.Int("port", resolveDefaultPort(), "HTTP port")
 	if err := fs.Parse(args); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("parse serve flags: %w", err)
 	}
 	return *port, nil
 }
@@ -129,11 +129,11 @@ func openServeDB() (*sql.DB, error) {
 
 	db, err := sqlite.NewDB(dbPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open database: %w", err)
 	}
 	if migrateErr := sqlite.MigrateUp(db); migrateErr != nil {
 		_ = db.Close()
-		return nil, migrateErr
+		return nil, fmt.Errorf("migrate database: %w", migrateErr)
 	}
 	return db, nil
 }

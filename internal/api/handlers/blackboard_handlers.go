@@ -21,10 +21,6 @@ type BlackboardHandler struct {
 	authz        ActionAuthorizer
 }
 
-func NewBlackboardHandler(orchestrator blackboardPipelineRunner) *BlackboardHandler {
-	return &BlackboardHandler{orchestrator: orchestrator}
-}
-
 func NewBlackboardHandlerWithAuthorizer(orchestrator blackboardPipelineRunner, authz ActionAuthorizer) *BlackboardHandler {
 	return &BlackboardHandler{orchestrator: orchestrator, authz: authz}
 }

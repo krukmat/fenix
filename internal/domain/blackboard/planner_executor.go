@@ -315,7 +315,11 @@ func (e *PlannerExecutor) decideStep(
 	if e.policy == nil {
 		return PlannerPolicyDecision{Effect: PlannerPolicyEffectAllow}, nil
 	}
-	return e.policy.DecideStep(ctx, workspaceID, actorIDFromContext(ctx), step)
+	decision, decideErr := e.policy.DecideStep(ctx, workspaceID, actorIDFromContext(ctx), step)
+	if decideErr != nil {
+		return PlannerPolicyDecision{}, fmt.Errorf("planner policy decide step: %w", decideErr)
+	}
+	return decision, nil
 }
 
 func (e *PlannerExecutor) executeStep(
@@ -341,17 +345,19 @@ func (e *PlannerExecutor) executeStep(
 		return result, errors.New(result.Error)
 	}
 
-	raw, err := e.tools.Execute(ctx, workspace.WorkspaceID, step.ToolName, params)
+	raw, toolErr := e.tools.Execute(ctx, workspace.WorkspaceID, step.ToolName, params)
 	if raw != nil {
 		result.Result = raw
 	}
-	if err != nil {
-		result.Error = err.Error()
+	var execErr error
+	if toolErr != nil {
+		result.Error = toolErr.Error()
+		execErr = fmt.Errorf("planner tool execute %s: %w", step.ToolName, toolErr)
 	}
 	if appendErr := e.appendObservation(ctx, workspace.ID, proposal.ProposalID, result); appendErr != nil {
 		return result, appendErr
 	}
-	return result, err
+	return result, execErr
 }
 
 func (e *PlannerExecutor) finishPolicyDeny(
@@ -482,7 +488,7 @@ func (e *PlannerExecutor) createApprovalRequest(
 	if err != nil {
 		return nil, fmt.Errorf("marshal planner approval payload: %w", err)
 	}
-	return e.approval.CreateApprovalRequest(ctx, policy.CreateApprovalRequestInput{
+	req, approvalErr := e.approval.CreateApprovalRequest(ctx, policy.CreateApprovalRequestInput{
 		WorkspaceID:  workspace.WorkspaceID,
 		RequestedBy:  requestedBy,
 		ApproverID:   approverID,
@@ -493,12 +499,16 @@ func (e *PlannerExecutor) createApprovalRequest(
 		Reason:       &reason,
 		ExpiresAt:    e.currentTime().Add(e.approvalDuration()),
 	})
+	if approvalErr != nil {
+		return nil, fmt.Errorf("planner create approval request: %w", approvalErr)
+	}
+	return req, nil
 }
 
 func (e *PlannerExecutor) persistExecutionOutcome(ctx context.Context, cognitiveWorkspaceID string, outcome *ExecutionOutcome, clearPending bool) error {
 	if clearPending {
-		if err := e.memory.Delete(ctx, cognitiveWorkspaceID, e.pendingKey()); err != nil {
-			return err
+		if deleteErr := e.memory.Delete(ctx, cognitiveWorkspaceID, e.pendingKey()); deleteErr != nil {
+			return fmt.Errorf("planner delete pending state: %w", deleteErr)
 		}
 	}
 	return e.persistMemoryJSON(ctx, cognitiveWorkspaceID, e.resultKey(), outcome)
@@ -514,7 +524,7 @@ func (e *PlannerExecutor) loadPendingState(ctx context.Context, cognitiveWorkspa
 		return nil, ErrPlannerExecutionPendingNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("planner load pending state: %w", err)
 	}
 
 	var state plannerPendingExecutionState
@@ -534,7 +544,7 @@ func (e *PlannerExecutor) persistMemoryJSON(ctx context.Context, cognitiveWorksp
 		return fmt.Errorf("marshal planner execution memory %s: %w", key, err)
 	}
 	now := e.currentTime()
-	return e.memory.Set(ctx, AgentMemory{
+	setErr := e.memory.Set(ctx, AgentMemory{
 		ID:                   uuid.NewV7().String(),
 		CognitiveWorkspaceID: cognitiveWorkspaceID,
 		Key:                  key,
@@ -543,6 +553,10 @@ func (e *PlannerExecutor) persistMemoryJSON(ctx context.Context, cognitiveWorksp
 		CreatedAt:            now,
 		UpdatedAt:            now,
 	})
+	if setErr != nil {
+		return fmt.Errorf("planner persist memory %s: %w", key, setErr)
+	}
+	return nil
 }
 
 func (e *PlannerExecutor) appendObservation(
@@ -576,13 +590,17 @@ func (e *PlannerExecutor) appendTimelineEvent(
 	if err != nil {
 		return fmt.Errorf("marshal planner timeline payload: %w", err)
 	}
-	return e.timeline.Append(ctx, ReasoningEvent{
+	appendErr := e.timeline.Append(ctx, ReasoningEvent{
 		ID:                   uuid.NewV7().String(),
 		CognitiveWorkspaceID: cognitiveWorkspaceID,
 		EventType:            eventType,
 		Payload:              raw,
 		CreatedAt:            e.currentTime(),
 	})
+	if appendErr != nil {
+		return fmt.Errorf("planner append timeline: %w", appendErr)
+	}
+	return nil
 }
 
 func (e *PlannerExecutor) logAudit(
@@ -596,7 +614,7 @@ func (e *PlannerExecutor) logAudit(
 	}
 	entityType := "planner_execution"
 	entityID := proposalID
-	return e.audit.LogWithDetails(
+	auditErr := e.audit.LogWithDetails(
 		ctx,
 		workspaceID,
 		actorIDFromContext(ctx),
@@ -607,6 +625,10 @@ func (e *PlannerExecutor) logAudit(
 		&audit.EventDetails{Metadata: metadata},
 		outcome,
 	)
+	if auditErr != nil {
+		return fmt.Errorf("planner log audit: %w", auditErr)
+	}
+	return nil
 }
 
 func (a *policyEngineAdapter) DecideStep(
@@ -619,7 +641,7 @@ func (a *policyEngineAdapter) DecideStep(
 	}
 	decision, err := a.engine.EvaluatePolicyDecision(ctx, workspaceID, actorID, "tools", step.ToolName, nil)
 	if err != nil {
-		return PlannerPolicyDecision{}, err
+		return PlannerPolicyDecision{}, fmt.Errorf("policy engine evaluate decision: %w", err)
 	}
 	if !decision.Allow {
 		return PlannerPolicyDecision{

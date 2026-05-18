@@ -47,8 +47,9 @@ func (a *sqliteArbitrator) RankWorkspace(ctx context.Context, cognitiveWorkspace
 
 	result := RankHypotheses(cognitiveWorkspaceID, candidates, config)
 	if normalizedConfig(config).PersistResult {
-		if err := a.persistResult(ctx, result, normalizedConfig(config)); err != nil {
-			return nil, err
+		persistErr := a.persistResult(ctx, result, normalizedConfig(config))
+		if persistErr != nil {
+			return nil, persistErr
 		}
 	}
 	return result, nil
@@ -78,22 +79,7 @@ func RankHypotheses(cognitiveWorkspaceID string, candidates []SignalHypothesis, 
 	}
 
 	sort.Slice(ranked, func(i, j int) bool {
-		left := ranked[i]
-		right := ranked[j]
-
-		if !almostEqual(left.Score, right.Score) {
-			return left.Score > right.Score
-		}
-		if !almostEqual(left.Breakdown.Confidence, right.Breakdown.Confidence) {
-			return left.Breakdown.Confidence > right.Breakdown.Confidence
-		}
-		if !left.Hypothesis.CreatedAt.Equal(right.Hypothesis.CreatedAt) {
-			return left.Hypothesis.CreatedAt.After(right.Hypothesis.CreatedAt)
-		}
-		if left.Hypothesis.ID != right.Hypothesis.ID {
-			return left.Hypothesis.ID < right.Hypothesis.ID
-		}
-		return left.Hypothesis.Content < right.Hypothesis.Content
+		return rankedHypothesisLess(ranked[i], ranked[j])
 	})
 
 	for i := range ranked {
@@ -119,49 +105,48 @@ func (a *sqliteArbitrator) listOpenHypotheses(ctx context.Context, cognitiveWork
 	}
 	defer rows.Close()
 
-	hypotheses := []SignalHypothesis{}
+	hypotheses := make([]SignalHypothesis, 0)
 	for rows.Next() {
-		var hypothesis SignalHypothesis
-		var sourceAgentID, resolvedAt sql.NullString
-		var status, createdAt string
-
-		if err := rows.Scan(
-			&hypothesis.ID,
-			&hypothesis.CognitiveWorkspaceID,
-			&sourceAgentID,
-			&hypothesis.Content,
-			&hypothesis.Confidence,
-			&status,
-			&createdAt,
-			&resolvedAt,
-		); err != nil {
-			return nil, fmt.Errorf("arbitrator scan hypothesis: %w", err)
+		h, scanErr := scanHypothesisRow(rows)
+		if scanErr != nil {
+			return nil, scanErr
 		}
-
-		if sourceAgentID.Valid {
-			hypothesis.SourceAgentID = &sourceAgentID.String
-		}
-		hypothesis.Status = HypothesisStatus(status)
-		parsedCreatedAt, err := parseTime(createdAt)
-		if err != nil {
-			return nil, fmt.Errorf("arbitrator parse created_at: %w", err)
-		}
-		hypothesis.CreatedAt = parsedCreatedAt
-		if resolvedAt.Valid {
-			parsedResolvedAt, err := parseTime(resolvedAt.String)
-			if err != nil {
-				return nil, fmt.Errorf("arbitrator parse resolved_at: %w", err)
-			}
-			hypothesis.ResolvedAt = &parsedResolvedAt
-		}
-
-		hypotheses = append(hypotheses, hypothesis)
+		hypotheses = append(hypotheses, h)
 	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("arbitrator rows error: %w", err)
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("arbitrator rows error: %w", rowsErr)
 	}
 	return hypotheses, nil
+}
+
+func scanHypothesisRow(rows *sql.Rows) (SignalHypothesis, error) {
+	var h SignalHypothesis
+	var sourceAgentID, resolvedAt sql.NullString
+	var status, createdAt string
+
+	if err := rows.Scan(
+		&h.ID, &h.CognitiveWorkspaceID, &sourceAgentID,
+		&h.Content, &h.Confidence, &status, &createdAt, &resolvedAt,
+	); err != nil {
+		return h, fmt.Errorf("arbitrator scan hypothesis: %w", err)
+	}
+	if sourceAgentID.Valid {
+		h.SourceAgentID = &sourceAgentID.String
+	}
+	h.Status = HypothesisStatus(status)
+	parsedCreatedAt, err := parseTime(createdAt)
+	if err != nil {
+		return h, fmt.Errorf("arbitrator parse created_at: %w", err)
+	}
+	h.CreatedAt = parsedCreatedAt
+	if resolvedAt.Valid {
+		parsedResolvedAt, parseErr := parseTime(resolvedAt.String)
+		if parseErr != nil {
+			return h, fmt.Errorf("arbitrator parse resolved_at: %w", parseErr)
+		}
+		h.ResolvedAt = &parsedResolvedAt
+	}
+	return h, nil
 }
 
 func (a *sqliteArbitrator) persistResult(ctx context.Context, result *ArbitrationResult, config ArbitrationConfig) error {
@@ -170,7 +155,7 @@ func (a *sqliteArbitrator) persistResult(ctx context.Context, result *Arbitratio
 		return fmt.Errorf("arbitrator marshal result: %w", err)
 	}
 
-	if err := a.memory.Set(ctx, AgentMemory{
+	setErr := a.memory.Set(ctx, AgentMemory{
 		ID:                   uuid.NewV7().String(),
 		CognitiveWorkspaceID: result.CognitiveWorkspaceID,
 		Key:                  config.MemoryKey,
@@ -178,8 +163,9 @@ func (a *sqliteArbitrator) persistResult(ctx context.Context, result *Arbitratio
 		Scope:                MemoryScopeSession,
 		CreatedAt:            config.Now,
 		UpdatedAt:            config.Now,
-	}); err != nil {
-		return fmt.Errorf("arbitrator persist result: %w", err)
+	})
+	if setErr != nil {
+		return fmt.Errorf("arbitrator persist result: %w", setErr)
 	}
 	return nil
 }
@@ -217,6 +203,22 @@ func recencyWeight(now, createdAt time.Time, halfLife time.Duration) float64 {
 	}
 
 	return math.Exp(-math.Ln2 * age.Seconds() / halfLife.Seconds())
+}
+
+func rankedHypothesisLess(a, b RankedHypothesis) bool {
+	if !almostEqual(a.Score, b.Score) {
+		return a.Score > b.Score
+	}
+	if !almostEqual(a.Breakdown.Confidence, b.Breakdown.Confidence) {
+		return a.Breakdown.Confidence > b.Breakdown.Confidence
+	}
+	if !a.Hypothesis.CreatedAt.Equal(b.Hypothesis.CreatedAt) {
+		return a.Hypothesis.CreatedAt.After(b.Hypothesis.CreatedAt)
+	}
+	if a.Hypothesis.ID != b.Hypothesis.ID {
+		return a.Hypothesis.ID < b.Hypothesis.ID
+	}
+	return a.Hypothesis.Content < b.Hypothesis.Content
 }
 
 func reliabilityWeight(sourceAgentID *string, reliability map[string]float64) float64 {

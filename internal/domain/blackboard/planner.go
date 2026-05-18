@@ -68,8 +68,9 @@ func (p *sqlitePlanner) BuildWorkspacePlan(ctx context.Context, cognitiveWorkspa
 
 	result := BuildCollaborativePlan(arbitration, signal, evidence, policy, cfg)
 	if cfg.PersistResult {
-		if err := p.persistResult(ctx, result, cfg); err != nil {
-			return nil, err
+		persistErr := p.persistResult(ctx, result, cfg)
+		if persistErr != nil {
+			return nil, persistErr
 		}
 	}
 	return result, nil
@@ -134,8 +135,8 @@ func (p *sqlitePlanner) loadArbitrationResult(ctx context.Context, cognitiveWork
 	}
 
 	var result ArbitrationResult
-	if err := json.Unmarshal(entry.Value, &result); err != nil {
-		return nil, fmt.Errorf("planner unmarshal arbitration result: %w", err)
+	if unmarshalErr := json.Unmarshal(entry.Value, &result); unmarshalErr != nil {
+		return nil, fmt.Errorf("planner unmarshal arbitration result: %w", unmarshalErr)
 	}
 	return &result, nil
 }
@@ -150,8 +151,8 @@ func (p *sqlitePlanner) loadOptionalArtifact(ctx context.Context, cognitiveWorks
 	}
 
 	var artifact planningArtifact
-	if err := json.Unmarshal(entry.Value, &artifact); err != nil {
-		return nil, fmt.Errorf("planner unmarshal artifact %s: %w", key, err)
+	if unmarshalErr := json.Unmarshal(entry.Value, &artifact); unmarshalErr != nil {
+		return nil, fmt.Errorf("planner unmarshal artifact %s: %w", key, unmarshalErr)
 	}
 	return &artifact, nil
 }
@@ -162,7 +163,7 @@ func (p *sqlitePlanner) persistResult(ctx context.Context, result *Collaborative
 		return fmt.Errorf("planner marshal result: %w", err)
 	}
 
-	if err := p.memory.Set(ctx, AgentMemory{
+	setErr := p.memory.Set(ctx, AgentMemory{
 		ID:                   uuid.NewV7().String(),
 		CognitiveWorkspaceID: result.CognitiveWorkspaceID,
 		Key:                  config.ResultMemoryKey,
@@ -170,8 +171,9 @@ func (p *sqlitePlanner) persistResult(ctx context.Context, result *Collaborative
 		Scope:                MemoryScopeSession,
 		CreatedAt:            config.Now,
 		UpdatedAt:            config.Now,
-	}); err != nil {
-		return fmt.Errorf("planner persist result: %w", err)
+	})
+	if setErr != nil {
+		return fmt.Errorf("planner persist result: %w", setErr)
 	}
 	return nil
 }

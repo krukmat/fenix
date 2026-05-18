@@ -287,7 +287,7 @@ func TestWorkspaceBus_ConcurrentPublishAndClose_NoRaceNoPanic(t *testing.T) {
 		}(i)
 	}
 
-	close(startGun) // all goroutines race to publish
+	close(startGun)              // all goroutines race to publish
 	time.Sleep(time.Millisecond) // let some publish before Close
 	bus.Close()
 	wg.Wait() // must complete without panic or data race

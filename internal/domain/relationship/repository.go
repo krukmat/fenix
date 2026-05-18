@@ -176,21 +176,39 @@ func (r *SQLiteSignalRepository) UpsertEdge(ctx context.Context,
 
 // UpsertSignalEmbedding stores one embedding vector per interaction signal.
 func (r *SQLiteSignalRepository) UpsertSignalEmbedding(ctx context.Context, workspaceID, signalID string, vector []float32) error {
-	if r.embeddingDim > 0 && len(vector) != r.embeddingDim {
-		return fmt.Errorf("relationship.UpsertSignalEmbedding dim mismatch: want %d got %d", r.embeddingDim, len(vector))
+	if err := r.validateEmbeddingDim(vector); err != nil {
+		return err
 	}
-
 	embeddingJSON, err := encodeEmbeddingVector(vector)
 	if err != nil {
 		return fmt.Errorf("relationship.UpsertSignalEmbedding encode vector: %w", err)
 	}
-
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("relationship.UpsertSignalEmbedding begin tx: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
+	if err = r.evictExistingEmbedding(ctx, tx, workspaceID, signalID); err != nil {
+		return err
+	}
+	if err = r.insertNewEmbedding(ctx, tx, workspaceID, signalID, vector, embeddingJSON); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding commit: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLiteSignalRepository) validateEmbeddingDim(vector []float32) error {
+	if r.embeddingDim > 0 && len(vector) != r.embeddingDim {
+		return fmt.Errorf("relationship.UpsertSignalEmbedding dim mismatch: want %d got %d", r.embeddingDim, len(vector))
+	}
+	return nil
+}
+
+func (r *SQLiteSignalRepository) evictExistingEmbedding(ctx context.Context, tx *sql.Tx, workspaceID, signalID string) error {
 	var existingVecID sql.NullString
 	queryErr := tx.QueryRowContext(ctx, `
 		SELECT vec_embedding_id
@@ -200,30 +218,28 @@ func (r *SQLiteSignalRepository) UpsertSignalEmbedding(ctx context.Context, work
 	if queryErr != nil && queryErr != sql.ErrNoRows {
 		return fmt.Errorf("relationship.UpsertSignalEmbedding select existing vector: %w", queryErr)
 	}
-
 	if existingVecID.Valid {
-		if err = deleteSyntheticEmbeddingArtifacts(ctx, tx, existingVecID.String, workspaceID); err != nil {
-			return err
-		}
+		return deleteSyntheticEmbeddingArtifacts(ctx, tx, existingVecID.String, workspaceID)
 	}
+	return nil
+}
 
+func (r *SQLiteSignalRepository) insertNewEmbedding(ctx context.Context, tx *sql.Tx, workspaceID, signalID string, vector []float32, embeddingJSON string) error {
 	vecID := uuid.Must(uuid.NewV7()).String()
 	knowledgeItemID := uuid.Must(uuid.NewV7()).String()
 	now := time.Now().UTC().Format(time.RFC3339)
 
-	if err = insertSyntheticEmbeddingBackingRows(ctx, tx, workspaceID, signalID, knowledgeItemID, vecID, now); err != nil {
+	if err := insertSyntheticEmbeddingBackingRows(ctx, tx, workspaceID, signalID, knowledgeItemID, vecID, now); err != nil {
 		return err
 	}
-
-	if _, err = tx.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO vec_embedding (id, workspace_id, embedding, created_at)
 		VALUES (?, ?, ?, ?)
 	`, vecID, workspaceID, embeddingJSON, now); err != nil {
 		return fmt.Errorf("relationship.UpsertSignalEmbedding insert vec_embedding: %w", err)
 	}
-
 	linkID := uuid.Must(uuid.NewV7()).String()
-	if _, err = tx.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO interaction_signal_embedding
 			(id, workspace_id, signal_id, vec_embedding_id, dim, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -233,10 +249,6 @@ func (r *SQLiteSignalRepository) UpsertSignalEmbedding(ctx context.Context, work
 			updated_at = excluded.updated_at
 	`, linkID, workspaceID, signalID, vecID, len(vector), now, now); err != nil {
 		return fmt.Errorf("relationship.UpsertSignalEmbedding upsert link: %w", err)
-	}
-
-	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("relationship.UpsertSignalEmbedding commit: %w", err)
 	}
 	return nil
 }
@@ -437,7 +449,7 @@ func nullableString(value sql.NullString) *string {
 func encodeEmbeddingVector(vec []float32) (string, error) {
 	raw, err := json.Marshal(vec)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("encodeEmbeddingVector: %w", err)
 	}
 	return string(raw), nil
 }

@@ -11,7 +11,10 @@ import (
 	"sync"
 )
 
-const busBufferSize = 100
+const (
+	busBufferSize    = 100
+	emptyJSONPayload = "{}"
+)
 
 // ErrBusClosed is returned by Publish when the bus has already been closed.
 var ErrBusClosed = errors.New("workspace bus closed")
@@ -89,7 +92,7 @@ func (b *workspaceBus) Close() {
 func (b *workspaceBus) persist(ctx context.Context, event ReasoningEvent) error {
 	payload := event.Payload
 	if len(payload) == 0 {
-		payload = []byte("{}")
+		payload = []byte(emptyJSONPayload)
 	}
 
 	_, err := b.db.ExecContext(ctx,

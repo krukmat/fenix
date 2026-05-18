@@ -105,19 +105,20 @@ func persistDerivedArtifact(
 
 	now := time.Now().UTC()
 	actor := actorID
-	if err := attachment.Timeline.Append(ctx, blackboard.ReasoningEvent{
+	appendErr := attachment.Timeline.Append(ctx, blackboard.ReasoningEvent{
 		ID:                   uuid.NewV7().String(),
 		CognitiveWorkspaceID: attachment.CognitiveWorkspaceID,
 		ActorAgentID:         &actor,
 		EventType:            eventType,
 		Payload:              raw,
 		CreatedAt:            now,
-	}); err != nil {
-		log.Printf("blackboard specialized agents: append timeline actor=%s: %v", actorID, err)
+	})
+	if appendErr != nil {
+		log.Printf("blackboard specialized agents: append timeline actor=%s: %v", actorID, appendErr)
 		return
 	}
 
-	if err := attachment.Memory.Set(ctx, blackboard.AgentMemory{
+	setErr := attachment.Memory.Set(ctx, blackboard.AgentMemory{
 		ID:                   uuid.NewV7().String(),
 		CognitiveWorkspaceID: attachment.CognitiveWorkspaceID,
 		Key:                  memoryKey,
@@ -125,8 +126,9 @@ func persistDerivedArtifact(
 		Scope:                blackboard.MemoryScopeSession,
 		CreatedAt:            now,
 		UpdatedAt:            now,
-	}); err != nil {
-		log.Printf("blackboard specialized agents: set memory actor=%s: %v", actorID, err)
+	})
+	if setErr != nil {
+		log.Printf("blackboard specialized agents: set memory actor=%s: %v", actorID, setErr)
 	}
 }
 

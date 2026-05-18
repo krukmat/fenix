@@ -5,6 +5,7 @@ package relationship
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -55,6 +56,7 @@ type insertArgs struct {
 }
 
 type fakeRepo struct {
+	mu          sync.Mutex
 	upsertCalls []upsertArgs
 	insertCalls []insertArgs
 	upsertErr   error
@@ -62,7 +64,9 @@ type fakeRepo struct {
 }
 
 func (r *fakeRepo) UpsertMemory(_ context.Context, workspaceID string, entityType EntityType, entityID, summary string) (*Memory, error) {
+	r.mu.Lock()
 	r.upsertCalls = append(r.upsertCalls, upsertArgs{workspaceID, entityType, entityID, summary})
+	r.mu.Unlock()
 	if r.upsertErr != nil {
 		return nil, r.upsertErr
 	}
@@ -72,8 +76,22 @@ func (r *fakeRepo) UpsertMemory(_ context.Context, workspaceID string, entityTyp
 func (r *fakeRepo) InsertSignal(_ context.Context, memoryID string, signalType SignalType, sentiment SentimentType,
 	summary, sourceEntityType, sourceEntityID string, occurredAt time.Time) (string, error) {
 	signalID := "sig-1"
+	r.mu.Lock()
 	r.insertCalls = append(r.insertCalls, insertArgs{signalID, memoryID, signalType, sentiment, summary, sourceEntityType, sourceEntityID, occurredAt})
+	r.mu.Unlock()
 	return signalID, r.insertErr
+}
+
+func (r *fakeRepo) insertCallCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.insertCalls)
+}
+
+func (r *fakeRepo) insertCallAt(i int) insertArgs {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.insertCalls[i]
 }
 
 // --- Helper ---
@@ -298,21 +316,24 @@ func TestSummarizer_RunSubscribesToDealUpdated(t *testing.T) {
 		close(done)
 	}()
 
-	deadline := time.After(200 * time.Millisecond)
-	for len(repo.insertCalls) == 0 {
+	// Give Run goroutine time to subscribe before publishing.
+	time.Sleep(20 * time.Millisecond)
+
+	deadline := time.After(2 * time.Second)
+	for repo.insertCallCount() == 0 {
 		select {
 		case <-deadline:
 			t.Fatal("expected deal.updated to be processed by Run")
 		default:
 			bus.Publish(TopicDealUpdated, makeEvent(TopicDealUpdated, "ws-1", "deal", "deal-1", "deal moved stage").Payload)
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(20 * time.Millisecond)
 		}
 	}
 
 	cancel()
 	<-done
 
-	if got := repo.insertCalls[0].signalType; got != SignalDealUpdate {
+	if got := repo.insertCallAt(0).signalType; got != SignalDealUpdate {
 		t.Fatalf("signalType: want %q, got %q", SignalDealUpdate, got)
 	}
 }

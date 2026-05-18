@@ -31,8 +31,8 @@ const (
 type TrajectoryType string
 
 const (
-	TrajectoryImproving  TrajectoryType = "improving"
-	TrajectoryStable     TrajectoryType = "stable"
+	TrajectoryImproving TrajectoryType = "improving"
+	TrajectoryStable    TrajectoryType = "stable"
 	TrajectoryDeclining TrajectoryType = "declining"
 )
 

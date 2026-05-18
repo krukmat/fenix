@@ -178,11 +178,11 @@ func TestRepository_UpsertTrustScoreCreates(t *testing.T) {
 	}
 
 	var (
-		score        float64
-		confidence   string
-		decayFactor  float64
-		lastScored   string
-		count        int
+		score       float64
+		confidence  string
+		decayFactor float64
+		lastScored  string
+		count       int
 	)
 	if err := db.QueryRow(`
 		SELECT COUNT(*), score, confidence, decay_factor, last_scored_at
