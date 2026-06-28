@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useCreateDeal, useDeal, useUpdateDeal } from '../../hooks/useCRM';
 import { useAuthStore } from '../../stores/authStore';
@@ -7,6 +7,7 @@ import { normalizeCRMDeal } from '../../services/api';
 import type { CRMDeal } from '../../services/api';
 import {
   Field,
+  FormScreen,
   FormErrorText,
   LoadingView,
   SubmitButton,
@@ -94,6 +95,24 @@ function payload(values: DealCreateValues, ownerId: string) {
   };
 }
 
+function DealFields({
+  values,
+  setField,
+}: {
+  values: DealCreateValues;
+  setField: (field: DealCreateField, value: string) => void;
+}) {
+  return (
+    <>
+      <Field label="Title" value={values.title} onChangeText={(value) => setField('title', value)} testID="crm-deal-form-title" />
+      <Field label="Amount" value={values.amount} onChangeText={(value) => setField('amount', value)} testID="crm-deal-form-amount" />
+      <Field label="Currency" value={values.currency} onChangeText={(value) => setField('currency', value)} testID="crm-deal-form-currency" />
+      <Field label="Expected close" value={values.expectedClose} onChangeText={(value) => setField('expectedClose', value)} testID="crm-deal-form-expected-close" />
+      <Field label="Status" value={values.status} onChangeText={(value) => setField('status', value)} testID="crm-deal-form-status" />
+    </>
+  );
+}
+
 function CRMDealForm({ mode, dealId }: { mode: DealFormMode; dealId?: string }) {
   const router = useRouter();
   const colors = useCRMColors();
@@ -142,24 +161,20 @@ function CRMDealForm({ mode, dealId }: { mode: DealFormMode; dealId?: string }) 
   }
 
   return (
-    <ScrollView style={[baseFormStyles.container, { backgroundColor: colors.background }]} testID={`crm-deal-${mode}-form-screen`}>
-      <View style={[baseFormStyles.card, { backgroundColor: colors.surface }]}>
-        <Field label="Title" value={values.title} onChangeText={(value) => setField('title', value)} testID="crm-deal-form-title" />
-        <Field label="Amount" value={values.amount} onChangeText={(value) => setField('amount', value)} testID="crm-deal-form-amount" />
-        <Field label="Currency" value={values.currency} onChangeText={(value) => setField('currency', value)} testID="crm-deal-form-currency" />
-        <Field label="Expected close" value={values.expectedClose} onChangeText={(value) => setField('expectedClose', value)} testID="crm-deal-form-expected-close" />
-        <Field label="Status" value={values.status} onChangeText={(value) => setField('status', value)} testID="crm-deal-form-status" />
+    <FormScreen testID={`crm-deal-${mode}-form-screen`} colors={colors}>
+      <DealFields values={values} setField={setField} />
+      <View>
         <CRMDealSelectors values={selectorValues(values)} onChange={setField} onDataChange={setSelectorData} />
-        <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
-        <SubmitButton
-          testID="crm-deal-form-submit"
-          onPress={onSubmit}
-          disabled={submitting}
-          label={mode === 'edit' ? 'Save Deal' : 'Create Deal'}
-          colors={colors}
-        />
       </View>
-    </ScrollView>
+      <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
+      <SubmitButton
+        testID="crm-deal-form-submit"
+        onPress={onSubmit}
+        disabled={submitting}
+        label={mode === 'edit' ? 'Save Deal' : 'Create Deal'}
+        colors={colors}
+      />
+    </FormScreen>
   );
 }
 

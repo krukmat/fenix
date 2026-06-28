@@ -121,6 +121,8 @@ GENERIC_NAME_RE = re.compile(
     r")\b"
 )
 
+CONTEXT_BACKGROUND_RE = re.compile(r"\bcontext\.Background\(\)")
+
 
 def run_git(args: List[str]) -> str:
     result = subprocess.run(
@@ -267,6 +269,23 @@ def group_by_path(lines: Iterable[AddedLine]) -> Dict[str, List[AddedLine]]:
     for line in lines:
         grouped.setdefault(line.path, []).append(line)
     return grouped
+
+
+def is_context_background_ratchet_path(path: str) -> bool:
+    return (
+        path.endswith(".go")
+        and not path.endswith("_test.go")
+        and (path.startswith("internal/") or path.startswith("pkg/"))
+    )
+
+
+def is_allowed_context_background_use(path: str, text: str) -> bool:
+    normalized = normalize_line(text)
+    if "context.WithCancel(context.Background())" in normalized:
+        return True
+    if re.search(r"\bBackgroundContext\s*=\s*context\.Background\(\)", normalized):
+        return True
+    return False
 
 
 def _longest_meaningful_run(hunk_lines: List[AddedLine]) -> int:
@@ -443,6 +462,27 @@ def check_duplicate_blocks(grouped: Dict[str, List[AddedLine]]) -> List[Violatio
     return violations
 
 
+def check_context_background_roots(grouped: Dict[str, List[AddedLine]]) -> List[Violation]:
+    violations: List[Violation] = []
+    for path, lines in grouped.items():
+        if not is_context_background_ratchet_path(path):
+            continue
+        for line in lines:
+            if not CONTEXT_BACKGROUND_RE.search(line.text):
+                continue
+            if is_allowed_context_background_use(path, line.text):
+                continue
+            violations.append(
+                Violation(
+                    path,
+                    "added context.Background() root at line "
+                    f"{line.line_no}; derive from caller context or use an explicitly "
+                    "owned background root pattern",
+                )
+            )
+    return violations
+
+
 def analyze_added_lines(added_lines: List[AddedLine]) -> List[Violation]:
     grouped = group_by_path(added_lines)
     violations: List[Violation] = []
@@ -453,6 +493,7 @@ def analyze_added_lines(added_lines: List[AddedLine]) -> List[Violation]:
     violations.extend(check_generic_name_bursts(grouped))
     violations.extend(check_long_line_bursts(grouped))
     violations.extend(check_duplicate_blocks(grouped))
+    violations.extend(check_context_background_roots(grouped))
     return violations
 
 

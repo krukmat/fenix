@@ -1,13 +1,14 @@
 // Activity Log — run detail screen (W5-T2)
 // public status primary, runtime_status secondary diagnostics, evidence, audit, tool calls, output, per-run usage
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useAgentRun } from '../../../src/hooks/useCRM';
 import { useRunUsage } from '../../../src/hooks/useWedge';
 import { HandoffBanner } from '../../../src/components/agents/HandoffBanner';
 import { UsageDetailCard } from '../../../src/components/governance/UsageDetailCard';
+import { CenteredLoadingState, CenteredMessageState } from '../../../src/components/ui/ScreenState';
 import { wedgeHref } from '../../../src/utils/navigation';
 import type { AgentRunPublicStatus, AgentRunRuntimeStatus, UsageEvent } from '../../../src/services/api.types';
 import type { ThemeColors } from '../../../src/theme/types';
@@ -68,6 +69,17 @@ function formatOutput(output: unknown): string {
 
 function SectionHeader({ title, colors }: { title: string; colors: ThemeColors }) {
   return <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>{title}</Text>;
+}
+
+function activityRunHeaderOptions(colors: ThemeColors) {
+  return {
+    title: 'Activity Run',
+    headerBackButtonDisplayMode: 'minimal' as const,
+    headerShadowVisible: false,
+    headerStyle: { backgroundColor: colors.background },
+    headerTintColor: colors.primary,
+    headerTitleStyle: { color: colors.onSurface, fontSize: 18, fontWeight: '700' as const },
+  };
 }
 
 function EvidenceSection({ items, colors }: { items: RunDetail['evidence_retrieved']; colors: ThemeColors }) {
@@ -238,34 +250,27 @@ export default function ActivityRunDetailScreen() {
   const usage = usageData as UsageEvent[] | undefined;
 
   if (isLoading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="activity-run-detail-loading">
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ color: colors.onSurfaceVariant, marginTop: 12 }}>Loading run...</Text>
-      </View>
-    );
+    return <CenteredLoadingState
+      testID="activity-run-detail-loading"
+      backgroundColor={colors.background}
+      indicatorColor={colors.primary}
+      message="Loading run..."
+      messageColor={colors.onSurfaceVariant}
+    />;
   }
 
   if (error || !run) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="activity-run-detail-error">
-        <Text style={{ color: colors.error, fontSize: 16 }}>{error?.message || 'Run not found'}</Text>
-      </View>
-    );
+    return <CenteredMessageState
+      testID="activity-run-detail-error"
+      backgroundColor={colors.background}
+      message={error?.message || 'Run not found'}
+      messageColor={colors.error}
+    />;
   }
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: 'Activity Run',
-          headerBackButtonDisplayMode: 'minimal',
-          headerShadowVisible: false,
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.primary,
-          headerTitleStyle: { color: colors.onSurface, fontSize: 18, fontWeight: '700' },
-        }}
-      />
+      <Stack.Screen options={activityRunHeaderOptions(colors)} />
       <RunDetailContent
         run={run}
         usage={usage}
@@ -278,7 +283,6 @@ export default function ActivityRunDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   summaryCard: { margin: 16, padding: 16, borderRadius: 8, elevation: 2 },
   agentName: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

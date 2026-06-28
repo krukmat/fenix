@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { normalizeCRMAccount } from '../../services/api';
 import type { CRMAccount } from '../../services/api';
 import { useAccount, useCreateAccount, useUpdateAccount } from '../../hooks/useCRM';
 import {
   Field,
+  FormScreen,
   FormErrorText,
   LoadingView,
   SubmitButton,
@@ -62,6 +62,31 @@ function validate(values: AccountFormValues): string | null {
   return null;
 }
 
+function AccountFields({
+  values,
+  setField,
+}: {
+  values: AccountFormValues;
+  setField: (field: FieldName, value: string) => void;
+}) {
+  return (
+    <>
+      <Field label="Name" value={values.name} onChangeText={(value) => setField('name', value)} testID="crm-account-form-name" />
+      <Field label="Industry" value={values.industry} onChangeText={(value) => setField('industry', value)} testID="crm-account-form-industry" />
+      <Field label="Website" value={values.website} onChangeText={(value) => setField('website', value)} testID="crm-account-form-website" />
+      <Field label="Phone" value={values.phone} onChangeText={(value) => setField('phone', value)} testID="crm-account-form-phone" />
+      <Field label="Email" value={values.email} onChangeText={(value) => setField('email', value)} testID="crm-account-form-email" />
+      <Field
+        label="Description"
+        value={values.description}
+        onChangeText={(value) => setField('description', value)}
+        testID="crm-account-form-description"
+        multiline
+      />
+    </>
+  );
+}
+
 export function CRMAccountForm({ mode, accountId }: { mode: AccountFormMode; accountId?: string }) {
   const router = useRouter();
   const colors = useCRMColors();
@@ -107,29 +132,16 @@ export function CRMAccountForm({ mode, accountId }: { mode: AccountFormMode; acc
   }
 
   return (
-    <ScrollView style={[baseFormStyles.container, { backgroundColor: colors.background }]} testID="crm-account-form-screen">
-      <View style={[baseFormStyles.card, { backgroundColor: colors.surface }]}>
-        <Field label="Name" value={values.name} onChangeText={(value) => setField('name', value)} testID="crm-account-form-name" />
-        <Field label="Industry" value={values.industry} onChangeText={(value) => setField('industry', value)} testID="crm-account-form-industry" />
-        <Field label="Website" value={values.website} onChangeText={(value) => setField('website', value)} testID="crm-account-form-website" />
-        <Field label="Phone" value={values.phone} onChangeText={(value) => setField('phone', value)} testID="crm-account-form-phone" />
-        <Field label="Email" value={values.email} onChangeText={(value) => setField('email', value)} testID="crm-account-form-email" />
-        <Field
-          label="Description"
-          value={values.description}
-          onChangeText={(value) => setField('description', value)}
-          testID="crm-account-form-description"
-          multiline
-        />
-        <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
-        <SubmitButton
-          testID="crm-account-form-submit"
-          onPress={onSubmit}
-          disabled={submitting}
-          label={mode === 'edit' ? 'Save Account' : 'Create Account'}
-          colors={colors}
-        />
-      </View>
-    </ScrollView>
+    <FormScreen testID="crm-account-form-screen" colors={colors}>
+      <AccountFields values={values} setField={setField} />
+      <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
+      <SubmitButton
+        testID="crm-account-form-submit"
+        onPress={onSubmit}
+        disabled={submitting}
+        label={mode === 'edit' ? 'Save Account' : 'Create Account'}
+        colors={colors}
+      />
+    </FormScreen>
   );
 }

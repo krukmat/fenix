@@ -1,41 +1,13 @@
 // Sales wedge — deal detail (W4-T2)
 // Read-only: no edit button. Actions: Sales Brief + Copilot.
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  TouchableOpacity,
-} from 'react-native';
-import { useTheme, Button } from 'react-native-paper';
+import { useTheme } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
-import { CRMDetailHeader } from '../../../src/components/crm';
-import { AgentActivitySection } from '../../../src/components/agents/AgentActivitySection';
-import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
+import { SalesDealDetailContent, type SalesDealDetailData } from '../../../src/components/sales/SalesDealDetailContent';
+import { CenteredLoadingState, CenteredMessageState } from '../../../src/components/ui/ScreenState';
 import { useDeal } from '../../../src/hooks/useCRM';
 import { useTriggerDealRiskAgent } from '../../../src/hooks/useWedge';
-import { wedgeHref, wedgeHrefObject } from '../../../src/utils/navigation';
-import { brandColors } from '../../../src/theme/colors';
-import { radius, spacing } from '../../../src/theme/spacing';
-import { getAgentStatusColor } from '../../../src/theme/semantic';
-import { typography } from '../../../src/theme/typography';
 import type { ThemeColors } from '../../../src/theme/types';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface DealDetailData {
-  id: string;
-  title: string;
-  status: string;
-  amount?: number;
-  stage?: string;
-  closeDate?: string;
-  accountId?: string;
-  accountName?: string;
-  activeSignalCount?: number;
-}
 
 type R = Record<string, unknown>;
 
@@ -55,7 +27,7 @@ function parseAmount(deal: R): number | undefined {
   return typeof raw === 'number' ? raw : undefined;
 }
 
-function parseDealCore(deal: R): Omit<DealDetailData, 'accountName' | 'activeSignalCount'> {
+function parseDealCore(deal: R): Omit<SalesDealDetailData, 'accountName' | 'activeSignalCount'> {
   return {
     id: String(deal.id),
     title: s(deal, 'title') ?? s(deal, 'name') ?? 'Unnamed Deal',
@@ -67,7 +39,7 @@ function parseDealCore(deal: R): Omit<DealDetailData, 'accountName' | 'activeSig
   };
 }
 
-function parseDealPayload(data: unknown): DealDetailData | undefined {
+function parseDealPayload(data: unknown): SalesDealDetailData | undefined {
   const payload = (data ?? null) as R | null;
   if (!payload) return undefined;
   const deal = (payload.deal as R | undefined) ?? payload;
@@ -81,88 +53,16 @@ function parseDealPayload(data: unknown): DealDetailData | undefined {
   };
 }
 
-function getMetadata(d: DealDetailData) {
-  return [
-    { label: 'Status', value: d.status },
-    { label: 'Stage', value: d.stage || 'N/A' },
-    { label: 'Close Date', value: d.closeDate || 'Not set' },
-  ];
+function salesDealHeaderOptions(colors: ThemeColors) {
+  return {
+    title: 'Sales Deal',
+    headerBackButtonDisplayMode: 'minimal' as const,
+    headerShadowVisible: false,
+    headerStyle: { backgroundColor: colors.background },
+    headerTintColor: colors.primary,
+    headerTitleStyle: { color: colors.onSurface, fontSize: 18, fontWeight: '700' as const },
+  };
 }
-
-function getStatusColor(status: string): string {
-  return getAgentStatusColor(status);
-}
-
-// ─── Section components ───────────────────────────────────────────────────────
-
-function DealAmountSection({ amount, colors }: { amount?: number; colors: ThemeColors }) {
-  if (amount === undefined) return null;
-  return (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Value</Text>
-      <View style={[styles.card, { backgroundColor: colors.surface }]} testID="sales-deal-amount">
-        <Text style={{ color: colors.onSurface, fontSize: 24, fontWeight: '700' }}>${amount.toLocaleString()}</Text>
-      </View>
-    </View>
-  );
-}
-
-function DealStageSection({ stage, colors }: { stage?: string; colors: ThemeColors }) {
-  if (!stage) return null;
-  return (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Stage</Text>
-      <View style={[styles.card, { backgroundColor: colors.surface }]} testID="sales-deal-stage">
-        <Text style={{ color: colors.onSurface }}>{stage}</Text>
-      </View>
-    </View>
-  );
-}
-
-function DealAccountSection({
-  accountId, accountName, router, colors,
-}: { accountId?: string; accountName?: string; router: ReturnType<typeof useRouter>; colors: ThemeColors }) {
-  if (!accountId) return null;
-  return (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Account</Text>
-      <TouchableOpacity
-        style={[styles.card, { backgroundColor: colors.surface }]}
-        onPress={() => router.push(wedgeHref(`/sales/${accountId}`))}
-      >
-        <Text style={{ color: colors.onSurface, fontWeight: '500' }}>{accountName || 'View Account'}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function DealRiskActionSection({
-  dealId,
-  router,
-  isPending,
-  onTrigger,
-}: {
-  dealId: string;
-  router: ReturnType<typeof useRouter>;
-  isPending: boolean;
-  onTrigger: (dealId: string, onSuccess: (runId: string) => void) => void;
-}) {
-  const label = isPending ? 'Running...' : 'Analyze Deal Risk';
-  return (
-    <View style={styles.section}>
-      <Button
-        mode="outlined"
-        testID="deal-risk-trigger-button"
-        disabled={isPending}
-        onPress={() => onTrigger(dealId, (runId) => router.push(wedgeHref(`/activity/${runId}`)))}
-      >
-        {label}
-      </Button>
-    </View>
-  );
-}
-
-// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function SalesDealDetailScreen() {
   const colors = useColors();
@@ -176,21 +76,24 @@ export default function SalesDealDetailScreen() {
   const dealData = parseDealPayload(data);
 
   if (isLoading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="sales-deal-detail-loading">
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ color: colors.onSurfaceVariant, marginTop: 12 }}>Loading deal...</Text>
-      </View>
-    );
+    return <CenteredLoadingState
+      testID="sales-deal-detail-loading"
+      backgroundColor={colors.background}
+      indicatorColor={colors.primary}
+      message="Loading deal..."
+      messageColor={colors.onSurfaceVariant}
+    />;
   }
 
   if (error || !dealData) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="sales-deal-detail-error">
-        <Text style={{ color: colors.error, fontSize: 16 }}>{error?.message || 'Deal not found'}</Text>
-      </View>
-    );
+    return <CenteredMessageState
+      testID="sales-deal-detail-error"
+      backgroundColor={colors.background}
+      message={error?.message || 'Deal not found'}
+      messageColor={colors.error}
+    />;
   }
+
   const handleDealRiskTrigger = (currentDealId: string, onSuccess: (runId: string) => void) => {
     triggerDealRiskAgent.mutate(
       { dealId: currentDealId, language: 'es' },
@@ -204,54 +107,15 @@ export default function SalesDealDetailScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: 'Sales Deal',
-          headerBackButtonDisplayMode: 'minimal',
-          headerShadowVisible: false,
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.primary,
-          headerTitleStyle: { color: colors.onSurface, fontSize: 18, fontWeight: '700' },
-        }}
+      <Stack.Screen options={salesDealHeaderOptions(colors)} />
+      <SalesDealDetailContent
+        dealData={dealData}
+        dealRouteId={dealRouteId}
+        colors={colors}
+        router={router}
+        riskPending={triggerDealRiskAgent.isPending}
+        onTriggerRisk={handleDealRiskTrigger}
       />
-      <ScrollView testID="sales-deal-detail-screen" style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.statusBanner, { backgroundColor: getStatusColor(dealData.status) }]}>
-          <Text style={styles.statusText}>STATUS: {dealData.status.toUpperCase()}</Text>
-        </View>
-        <CRMDetailHeader title={dealData.title} subtitle={dealData.accountName} metadata={getMetadata(dealData)} testIDPrefix="sales-deal-detail" />
-        <DealAmountSection amount={dealData.amount} colors={colors} />
-        <DealStageSection stage={dealData.stage} colors={colors} />
-        <DealAccountSection accountId={dealData.accountId} accountName={dealData.accountName} router={router} colors={colors} />
-        <View style={styles.section}>
-          <Button mode="contained" testID="sales-deal-brief-button" style={styles.actionButton}
-            onPress={() => router.push(wedgeHrefObject(`/sales/${dealRouteId}/brief`, { entity_type: 'deal', entity_id: dealData.id }))}>
-            Sales Brief
-          </Button>
-          <Button mode="outlined" testID="sales-deal-copilot-button"
-            onPress={() => router.push(wedgeHrefObject(`/sales/${dealRouteId}/copilot`, { entity_type: 'deal', entity_id: dealData.id }))}>
-            Open Copilot
-          </Button>
-        </View>
-        <DealRiskActionSection
-          dealId={dealData.id}
-          router={router}
-          isPending={triggerDealRiskAgent.isPending}
-          onTrigger={handleDealRiskTrigger}
-        />
-        <AgentActivitySection entityType="deal" entityId={dealData.id} testIDPrefix="sales-deal-detail" />
-        <EntitySignalsSection entityType="deal" entityId={dealData.id} testIDPrefix="sales-deal-detail" />
-      </ScrollView>
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  statusBanner: { padding: spacing.sm, alignItems: 'center' },
-  statusText: { color: brandColors.onError, fontWeight: '600', fontSize: 14 },
-  section: { padding: spacing.base },
-  sectionTitle: { ...typography.headingMD, marginBottom: spacing.md },
-  card: { padding: spacing.base, borderRadius: radius.md },
-  actionButton: { marginBottom: spacing.md },
-});

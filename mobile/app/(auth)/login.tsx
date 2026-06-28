@@ -1,34 +1,20 @@
 // Task 4.2 — FR-300: Login Screen
 
 import React, { useState } from 'react';
-import { StyleSheet } from 'react-native';
-import { TextInput, Button, HelperText } from 'react-native-paper';
-import { useRouter } from 'expo-router';
 import { isAxiosError } from 'axios';
 
 import { authApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
 import { AuthFormLayout } from '../../src/components/ui/AuthFormLayout';
-
-function RegisterLinkButton() {
-  const router = useRouter();
-
-  return (
-    <Button
-      testID="go-to-register-link"
-      mode="text"
-      onPress={() => router.push('/register')}
-      style={styles.linkButton}
-      labelStyle={styles.linkLabel}
-    >
-      Do not have an account? Sign up
-    </Button>
-  );
-}
+import {
+  AuthErrorMessage,
+  AuthRouteLink,
+  AuthSubmitButton,
+  AuthTextField,
+} from '../../src/components/ui/AuthControls';
 
 export default function LoginScreen() {
   const login = useAuthStore((state) => state.login);
-  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -64,7 +50,7 @@ export default function LoginScreen() {
 
   return (
     <AuthFormLayout title="FenixCRM" subtitle="Sign in to your account" testID="login-screen">
-      <TextInput
+      <AuthTextField
         testID="login-email-input"
         label="Email"
         value={email}
@@ -72,68 +58,25 @@ export default function LoginScreen() {
         keyboardType="email-address"
         autoCapitalize="none"
         autoComplete="email"
-        mode="outlined"
-        dense
-        style={styles.input}
-        contentStyle={styles.inputContent}
       />
 
-      <TextInput
+      <AuthTextField
         testID="login-password-input"
         label="Password"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
-        mode="outlined"
-        dense
-        style={styles.input}
-        contentStyle={styles.inputContent}
       />
 
-      {error ? (
-        <HelperText type="error" visible>
-          {error}
-        </HelperText>
-      ) : null}
+      <AuthErrorMessage error={error} />
 
-      <Button
-        testID="login-submit-button"
-        mode="contained"
-        onPress={handleLogin}
-        loading={loading}
-        disabled={loading}
-        style={styles.button}
-        labelStyle={styles.buttonLabel}
-      >
-        Sign In
-      </Button>
+      <AuthSubmitButton testID="login-submit-button" label="Sign In" loading={loading} onPress={handleLogin} />
 
-      <RegisterLinkButton />
+      <AuthRouteLink
+        testID="go-to-register-link"
+        href="/register"
+        label="Do not have an account? Sign up"
+      />
     </AuthFormLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  input: {
-    marginBottom: 10,
-    height: 48,
-    fontSize: 14,
-  },
-  inputContent: {
-    fontSize: 14,
-  },
-  button: {
-    marginTop: 6,
-    borderRadius: 8,
-  },
-  buttonLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  linkButton: {
-    marginTop: 10,
-  },
-  linkLabel: {
-    fontSize: 13,
-  },
-});

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { WorkflowForm, validateWorkflowForm } from '../../../../src/components/workflows/WorkflowForm';
+import { WorkflowEditorScreen } from '../../../../src/components/workflows/WorkflowEditorScreen';
+import { validateWorkflowForm } from '../../../../src/components/workflows/WorkflowForm';
 import { useUpdateWorkflow, useWorkflow } from '../../../../src/hooks/useAgentSpec';
 import type { ThemeColors } from '../../../../src/theme/types';
 
@@ -120,38 +121,26 @@ export default function WorkflowEditScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Edit Workflow', headerShown: true }} />
-      <ScrollView
-        style={[styles.container, { backgroundColor: colors.background }]}
-        contentContainerStyle={styles.content}
+      <WorkflowEditorScreen
+        backgroundColor={colors.background}
         testID="workflow-edit-screen"
-      >
-        <WorkflowForm
-          value={form}
-          validation={validation}
-          showValidation={showValidation}
-          readOnlyName
-          submitError={submitError}
-          onChange={onChange}
-        />
-
-        <Button
-          testID="workflow-edit-submit"
-          mode="contained"
-          onPress={handleSubmit}
-          loading={isLoading || updateWorkflow.isPending}
-          disabled={isLoading || updateWorkflow.isPending || !id || !canEdit}
-          style={styles.button}
-        >
-          Save Changes
-        </Button>
-      </ScrollView>
+        submitTestID="workflow-edit-submit"
+        submitLabel="Save Changes"
+        value={form}
+        validation={validation}
+        showValidation={showValidation}
+        readOnlyName
+        submitError={submitError}
+        submitPending={isLoading || updateWorkflow.isPending}
+        submitDisabled={!id || !canEdit}
+        onChange={onChange}
+        onSubmit={handleSubmit}
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { padding: 16 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   button: { marginTop: 12 },
 });

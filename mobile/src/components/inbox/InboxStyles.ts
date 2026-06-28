@@ -1,0 +1,54 @@
+import { StyleSheet } from 'react-native';
+import { brandColors } from '../../theme/colors';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
+
+export const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: brandColors.background },
+  content: { paddingVertical: spacing.lg },
+  item: { marginBottom: spacing.sm },
+  header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.base, gap: spacing.xs },
+  title: { ...typography.headingLG, color: brandColors.onBackground },
+  subtitle: { fontSize: 14, color: brandColors.onSurfaceVariant },
+  count: { fontSize: 13, fontWeight: '600', color: brandColors.onSurface },
+  visibleCount: { fontSize: 13, color: brandColors.onSurfaceVariant },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingHorizontal: spacing.base, paddingBottom: spacing.base },
+  chip: { borderRadius: radius.full, paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderWidth: 1 },
+  chipSelected: { backgroundColor: brandColors.primary, borderColor: brandColors.primary },
+  chipIdle: { backgroundColor: brandColors.surfaceVariant, borderColor: brandColors.outline },
+  chipText: typography.labelMD,
+  chipTextSelected: { color: brandColors.onPrimary },
+  chipTextIdle: { color: brandColors.onSurface },
+  inlineError: {
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: brandColors.errorContainer,
+    borderWidth: 1,
+    borderColor: brandColors.error,
+  },
+  inlineErrorText: { color: brandColors.onErrorContainer, fontSize: 13, fontWeight: '500' },
+  state: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
+  stateTitle: { ...typography.headingMD, color: brandColors.onBackground, marginTop: spacing.md, marginBottom: spacing.sm },
+  stateBody: { fontSize: 14, color: brandColors.onSurfaceVariant, textAlign: 'center' },
+  retryButton: { marginTop: spacing.base, backgroundColor: brandColors.primary, borderRadius: radius.full, paddingHorizontal: spacing.base, paddingVertical: spacing.md },
+  retryText: { color: brandColors.onPrimary, fontWeight: '600' },
+  handoffCard: {
+    marginHorizontal: spacing.base, marginBottom: spacing.sm, padding: spacing.base, borderRadius: radius.md,
+    backgroundColor: brandColors.secondaryContainer,
+    borderWidth: 1, borderColor: brandColors.secondary, borderLeftWidth: 3,
+  },
+  handoffEyebrow: { ...typography.eyebrow, color: brandColors.onSecondaryContainer, marginBottom: spacing.sm },
+  handoffReason: { fontSize: 16, fontWeight: '600', color: brandColors.onBackground, marginBottom: spacing.sm },
+  handoffMeta: { fontSize: 13, color: brandColors.onSecondaryContainer },
+  rejectedCard: {
+    marginHorizontal: spacing.base, marginBottom: spacing.sm, padding: spacing.base, borderRadius: radius.md,
+    backgroundColor: brandColors.errorContainer,
+    borderWidth: 1, borderColor: brandColors.error, borderLeftWidth: 3,
+  },
+  rejectedEyebrow: { ...typography.eyebrow, color: brandColors.onErrorContainer, marginBottom: spacing.sm },
+  rejectedReason: { fontSize: 16, fontWeight: '600', color: brandColors.onBackground, marginBottom: spacing.sm },
+  rejectedMeta: { fontSize: 13, color: brandColors.onErrorContainer },
+});

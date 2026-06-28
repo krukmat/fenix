@@ -88,7 +88,20 @@ function ContextBanner({ context }: { context: CopilotInitialContext }) {
   );
 }
 
-export function CopilotPanel({ initialContext, onSupportTrigger }: CopilotPanelProps = {}) {
+function buildSendContext(initialContext?: CopilotInitialContext): SendContext | undefined {
+  if (!initialContext) {
+    return undefined;
+  }
+
+  return {
+    entityType: initialContext.entityType,
+    entityId: initialContext.entityId,
+    signalId: initialContext.signalId,
+    signalType: initialContext.signalType,
+  };
+}
+
+function useCopilotPanelModel(initialContext?: CopilotInitialContext, onSupportTrigger?: (customerQuery: string) => void) {
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList<CopilotMessage>>(null);
   const { messages, isStreaming, error, sendQuery } = useSSE();
@@ -104,24 +117,37 @@ export function CopilotPanel({ initialContext, onSupportTrigger }: CopilotPanelP
     }
   }, [messages.length]);
 
-  const buildContext = (): SendContext | undefined => {
-    if (!initialContext) return undefined;
-    return {
-      entityType: initialContext.entityType,
-      entityId: initialContext.entityId,
-      signalId: initialContext.signalId,
-      signalType: initialContext.signalType,
-    };
-  };
-
   const onSend = () => {
     const trimmed = inputText.trim();
     if (!trimmed || isStreaming) return;
-    sendQuery(trimmed, buildContext());
-    // F9.A5: fire support trigger with the submitted query when wired (does not block on streaming)
+    sendQuery(trimmed, buildSendContext(initialContext));
     onSupportTrigger?.(trimmed);
     setInputText('');
   };
+
+  return {
+    inputText,
+    setInputText,
+    flatListRef,
+    messages,
+    isStreaming,
+    error,
+    lastAssistant,
+    onSend,
+  };
+}
+
+export function CopilotPanel({ initialContext, onSupportTrigger }: CopilotPanelProps = {}) {
+  const {
+    inputText,
+    setInputText,
+    flatListRef,
+    messages,
+    isStreaming,
+    error,
+    lastAssistant,
+    onSend,
+  } = useCopilotPanelModel(initialContext, onSupportTrigger);
 
   return (
     <View style={styles.container} testID="copilot-panel">

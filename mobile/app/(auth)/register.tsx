@@ -1,14 +1,17 @@
 // Task 4.2 — FR-300: Register Screen
 
 import React, { useState } from 'react';
-import { StyleSheet } from 'react-native';
-import { TextInput, Button, HelperText } from 'react-native-paper';
-import { useRouter } from 'expo-router';
 import { isAxiosError } from 'axios';
 
 import { authApi } from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
 import { AuthFormLayout } from '../../src/components/ui/AuthFormLayout';
+import {
+  AuthErrorMessage,
+  AuthRouteLink,
+  AuthSubmitButton,
+  AuthTextField,
+} from '../../src/components/ui/AuthControls';
 
 interface RegisterFormProps {
   displayName: string;
@@ -25,23 +28,17 @@ interface RegisterFormProps {
 }
 
 function RegisterForm(props: RegisterFormProps) {
-  const router = useRouter();
-
   return (
     <>
-      <TextInput
+      <AuthTextField
         testID="register-name-input"
         label="Display Name"
         value={props.displayName}
         onChangeText={props.onDisplayNameChange}
         autoCapitalize="words"
-        mode="outlined"
-        dense
-        style={styles.input}
-        contentStyle={styles.inputContent}
       />
 
-      <TextInput
+      <AuthTextField
         testID="register-email-input"
         label="Email"
         value={props.email}
@@ -49,70 +46,44 @@ function RegisterForm(props: RegisterFormProps) {
         keyboardType="email-address"
         autoCapitalize="none"
         autoComplete="email"
-        mode="outlined"
-        dense
-        style={styles.input}
-        contentStyle={styles.inputContent}
       />
 
-      <TextInput
+      <AuthTextField
         testID="register-workspace-input"
         label="Workspace Name"
         value={props.workspaceName}
         onChangeText={props.onWorkspaceChange}
         autoCapitalize="words"
-        mode="outlined"
-        dense
-        style={styles.input}
-        contentStyle={styles.inputContent}
       />
 
-      <TextInput
+      <AuthTextField
         testID="register-password-input"
         label="Password"
         value={props.password}
         onChangeText={props.onPasswordChange}
         secureTextEntry
-        mode="outlined"
-        dense
-        style={styles.input}
-        contentStyle={styles.inputContent}
       />
 
-      {props.error ? (
-        <HelperText type="error" visible>
-          {props.error}
-        </HelperText>
-      ) : null}
+      <AuthErrorMessage error={props.error} />
 
-      <Button
+      <AuthSubmitButton
         testID="register-submit-button"
-        mode="contained"
-        onPress={props.onSubmit}
+        label="Sign Up"
         loading={props.loading}
-        disabled={props.loading}
-        style={styles.button}
-        labelStyle={styles.buttonLabel}
-      >
-        Sign Up
-      </Button>
+        onPress={props.onSubmit}
+      />
 
-      <Button
+      <AuthRouteLink
         testID="go-to-login-link"
-        mode="text"
-        onPress={() => router.push('/login')}
-        style={styles.linkButton}
-        labelStyle={styles.linkLabel}
-      >
-        Already have an account? Sign in
-      </Button>
+        href="/login"
+        label="Already have an account? Sign in"
+      />
     </>
   );
 }
 
 export default function RegisterScreen() {
   const login = useAuthStore((state) => state.login);
-  
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [workspaceName, setWorkspaceName] = useState('');
@@ -167,28 +138,3 @@ export default function RegisterScreen() {
     </AuthFormLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  input: {
-    marginBottom: 10,
-    height: 48,
-    fontSize: 14,
-  },
-  inputContent: {
-    fontSize: 14,
-  },
-  button: {
-    marginTop: 6,
-    borderRadius: 8,
-  },
-  buttonLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  linkButton: {
-    marginTop: 10,
-  },
-  linkLabel: {
-    fontSize: 13,
-  },
-});

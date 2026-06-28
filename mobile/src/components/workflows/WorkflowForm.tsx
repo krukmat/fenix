@@ -5,13 +5,13 @@ import { Text, TextInput, useTheme } from 'react-native-paper';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 
-type WorkflowFormValue = {
+export type WorkflowFormValue = {
   name: string;
   description: string;
   dslSource: string;
 };
 
-type WorkflowFormValidation = {
+export type WorkflowFormValidation = {
   name?: string;
   dslSource?: string;
 };
@@ -23,6 +23,60 @@ interface WorkflowFormProps {
   submitError?: string | null;
   readOnlyName?: boolean;
   onChange: (field: keyof WorkflowFormValue, value: string) => void;
+}
+
+function WorkflowError({
+  visible,
+  message,
+  testID,
+}: {
+  visible: boolean;
+  message?: string;
+  testID: string;
+}) {
+  const theme = useTheme();
+  if (!visible || !message) {
+    return null;
+  }
+  return (
+    <Text style={[styles.error, { color: theme.colors.error }]} testID={testID}>
+      {message}
+    </Text>
+  );
+}
+
+function WorkflowTextField({
+  label,
+  value,
+  onChangeText,
+  testID,
+  error,
+  multiline = false,
+  numberOfLines,
+  style,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  testID: string;
+  error?: boolean;
+  multiline?: boolean;
+  numberOfLines?: number;
+  style?: object;
+}) {
+  return (
+    <TextInput
+      label={label}
+      value={value}
+      onChangeText={onChangeText}
+      mode="outlined"
+      multiline={multiline}
+      numberOfLines={numberOfLines}
+      testID={testID}
+      error={error}
+      style={style}
+    />
+  );
 }
 
 export function validateWorkflowForm(
@@ -47,34 +101,26 @@ export function WorkflowForm({
   readOnlyName = false,
   onChange,
 }: WorkflowFormProps) {
-  const theme = useTheme();
-
   return (
     <View style={styles.container}>
       {!readOnlyName && (
         <View style={styles.field}>
-          <TextInput
+          <WorkflowTextField
             label="Name"
             value={value.name}
             onChangeText={(v) => onChange('name', v)}
-            mode="outlined"
             testID="workflow-form-name-input"
             error={showValidation && !!validation.name}
           />
-          {showValidation && validation.name ? (
-            <Text style={[styles.error, { color: theme.colors.error }]} testID="workflow-form-name-error">
-              {validation.name}
-            </Text>
-          ) : null}
+          <WorkflowError visible={showValidation} message={validation.name} testID="workflow-form-name-error" />
         </View>
       )}
 
       <View style={styles.field}>
-        <TextInput
+        <WorkflowTextField
           label="Description (optional)"
           value={value.description}
           onChangeText={(v) => onChange('description', v)}
-          mode="outlined"
           multiline
           numberOfLines={2}
           testID="workflow-form-description-input"
@@ -82,26 +128,21 @@ export function WorkflowForm({
       </View>
 
       <View style={styles.field}>
-        <TextInput
+        <WorkflowTextField
           label="DSL Source"
           value={value.dslSource}
           onChangeText={(v) => onChange('dslSource', v)}
-          mode="outlined"
           multiline
           numberOfLines={8}
           testID="workflow-form-dsl-input"
           error={showValidation && !!validation.dslSource}
           style={styles.dslInput}
         />
-        {showValidation && validation.dslSource ? (
-          <Text style={[styles.error, { color: theme.colors.error }]} testID="workflow-form-dsl-error">
-            {validation.dslSource}
-          </Text>
-        ) : null}
+        <WorkflowError visible={showValidation} message={validation.dslSource} testID="workflow-form-dsl-error" />
       </View>
 
       {submitError ? (
-        <Text style={[styles.error, styles.submitError, { color: theme.colors.error }]} testID="workflow-form-submit-error">
+        <Text style={[styles.error, styles.submitError]} testID="workflow-form-submit-error">
           {submitError}
         </Text>
       ) : null}
@@ -112,7 +153,7 @@ export function WorkflowForm({
 const styles = StyleSheet.create({
   container: { gap: spacing.xs },
   field: { marginBottom: spacing.md },
-  error: { fontSize: 12, marginTop: spacing.xs },
+  error: { fontSize: 12, marginTop: spacing.xs, color: '#B3261E' },
   submitError: { marginTop: spacing.sm, textAlign: 'center' },
   dslInput: typography.mono,
 });

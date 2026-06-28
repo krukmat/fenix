@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   normalizeCRMAccount,
@@ -9,8 +8,12 @@ import type { CRMAccount, CRMContact } from '../../services/api';
 import { useAccounts, useContact, useCreateContact, useUpdateContact } from '../../hooks/useCRM';
 import {
   Field,
+  FormScreen,
+  FormSectionLabel,
   FormErrorText,
   LoadingView,
+  OptionButtonItem,
+  OptionButtonList,
   SubmitButton,
   baseFormStyles,
   listItems,
@@ -71,41 +74,40 @@ function payload(values: ContactFormValues) {
   ) as Partial<ContactFormValues>;
 }
 
-function AccountPicker({
+function accountOptions(accounts: CRMAccount[]): OptionButtonItem[] {
+  return accounts.map((account) => ({ id: account.id, label: account.name }));
+}
+
+function ContactFields({
+  values,
   accounts,
-  selectedId,
-  onSelect,
+  setField,
 }: {
-  accounts: CRMAccount[];
-  selectedId: string;
-  onSelect: (id: string) => void;
+  values: ContactFormValues;
+  accounts: OptionButtonItem[];
+  setField: (field: FieldName, value: string) => void;
 }) {
-  const colors = useCRMColors();
-  if (accounts.length === 0) {
-    return <Text style={[styles.help, { color: colors.onSurfaceVariant }]}>No accounts loaded</Text>;
-  }
   return (
-    <View style={styles.accountList}>
-      {accounts.map((account) => {
-        const selected = account.id === selectedId;
-        return (
-          <TouchableOpacity
-            key={account.id}
-            testID={`crm-contact-form-account-${account.id}`}
-            style={[styles.accountOption, { borderColor: selected ? colors.primary : colors.outline }]}
-            onPress={() => onSelect(account.id)}
-          >
-            <Text style={[styles.accountName, { color: colors.onSurface }]}>{account.name}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
+    <>
+      <FormSectionLabel>Account</FormSectionLabel>
+      <OptionButtonList
+        items={accounts}
+        selectedId={values.accountId}
+        testIDPrefix="crm-contact-form-account"
+        onSelect={(id) => setField('accountId', id)}
+        emptyLabel="No accounts loaded"
+      />
+      <Field label="First name" value={values.firstName} onChangeText={(value) => setField('firstName', value)} testID="crm-contact-form-first-name" />
+      <Field label="Last name" value={values.lastName} onChangeText={(value) => setField('lastName', value)} testID="crm-contact-form-last-name" />
+      <Field label="Email" value={values.email} onChangeText={(value) => setField('email', value)} testID="crm-contact-form-email" />
+      <Field label="Phone" value={values.phone} onChangeText={(value) => setField('phone', value)} testID="crm-contact-form-phone" />
+      <Field label="Title" value={values.title} onChangeText={(value) => setField('title', value)} testID="crm-contact-form-title" />
+    </>
   );
 }
 
 export function CRMContactForm({ mode, contactId }: { mode: ContactFormMode; contactId?: string }) {
   const router = useRouter();
-  const colors = useCRMColors();
   const contactQuery = useContact(contactId ?? '');
   const accountsQuery = useAccounts();
   const createContact = useCreateContact();
@@ -117,6 +119,8 @@ export function CRMContactForm({ mode, contactId }: { mode: ContactFormMode; con
     return normalizeCRMContact(source);
   }, [contactQuery.data]);
   const accounts = useMemo(() => listAccounts(accountsQuery.data), [accountsQuery.data]);
+  const accountChoices = useMemo(() => accountOptions(accounts), [accounts]);
+  const colors = useCRMColors();
   const loading = (mode === 'edit' && contactQuery.isLoading) || accountsQuery.isLoading;
   const submitting = createContact.isPending || updateContact.isPending;
 
@@ -150,31 +154,16 @@ export function CRMContactForm({ mode, contactId }: { mode: ContactFormMode; con
   }
 
   return (
-    <ScrollView style={[baseFormStyles.container, { backgroundColor: colors.background }]} testID="crm-contact-form-screen">
-      <View style={[baseFormStyles.card, { backgroundColor: colors.surface }]}>
-        <Text style={[baseFormStyles.label, { color: colors.onSurfaceVariant }]}>Account</Text>
-        <AccountPicker accounts={accounts} selectedId={values.accountId} onSelect={(id) => setField('accountId', id)} />
-        <Field label="First name" value={values.firstName} onChangeText={(value) => setField('firstName', value)} testID="crm-contact-form-first-name" />
-        <Field label="Last name" value={values.lastName} onChangeText={(value) => setField('lastName', value)} testID="crm-contact-form-last-name" />
-        <Field label="Email" value={values.email} onChangeText={(value) => setField('email', value)} testID="crm-contact-form-email" />
-        <Field label="Phone" value={values.phone} onChangeText={(value) => setField('phone', value)} testID="crm-contact-form-phone" />
-        <Field label="Title" value={values.title} onChangeText={(value) => setField('title', value)} testID="crm-contact-form-title" />
-        <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
-        <SubmitButton
-          testID="crm-contact-form-submit"
-          onPress={onSubmit}
-          disabled={submitting}
-          label={mode === 'edit' ? 'Save Contact' : 'Create Contact'}
-          colors={colors}
-        />
-      </View>
-    </ScrollView>
+    <FormScreen testID="crm-contact-form-screen" colors={colors}>
+      <ContactFields values={values} accounts={accountChoices} setField={setField} />
+      <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
+      <SubmitButton
+        testID="crm-contact-form-submit"
+        onPress={onSubmit}
+        disabled={submitting}
+        label={mode === 'edit' ? 'Save Contact' : 'Create Contact'}
+        colors={colors}
+      />
+    </FormScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  accountList: { gap: 8, marginBottom: 14 },
-  accountOption: { borderWidth: 1, borderRadius: 8, padding: 12 },
-  accountName: { fontSize: 15, fontWeight: '600' },
-  help: { fontSize: 13, marginBottom: 14 },
-});

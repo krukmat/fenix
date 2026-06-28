@@ -165,11 +165,25 @@ jobs:
       - name: Check config secrets
         run: bash scripts/check-config-secrets.sh
 
+  qa-maintainability:
+    name: Maintainability Gate
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    env:
+      FENIX_MAINTAINABILITY_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run diff-based maintainability gate
+        run: make qa-maintainability
+
   # Job 2: Lint, Test, Build — only runs if complexity gate passes
   test:
     name: Lint and Test
     if: github.event_name != 'schedule'
-    needs: [mobile-quality, bff-quality, complexity, traceability, no-inline-disable-gate, qa-config-secrets]
+    needs: [mobile-quality, bff-quality, complexity, traceability, no-inline-disable-gate, qa-config-secrets, qa-maintainability]
     runs-on: ubuntu-latest
 
     steps:

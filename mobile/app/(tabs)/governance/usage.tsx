@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from 'react-native-paper';
-import { UsageCostSummaryCard } from '../../../src/components/governance/UsageCostSummaryCard';
-import { UsageDetailCard } from '../../../src/components/governance/UsageDetailCard';
+import { UsageEventsList } from '../../../src/components/governance/UsageEventsList';
+import { CenteredLoadingState, CenteredMessageState } from '../../../src/components/ui/ScreenState';
 import { useUsageEvents } from '../../../src/hooks/useWedge';
 import type { PaginatedResponse, UsageCostSummary, UsageEvent, UsageFilters } from '../../../src/services/api.types';
 import type { ThemeColors } from '../../../src/theme/types';
@@ -41,86 +40,50 @@ export default function GovernanceUsageScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="usage-loading">
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ color: colors.onSurfaceVariant, marginTop: 12 }}>Loading usage events...</Text>
-      </View>
+      <CenteredLoadingState
+        testID="usage-loading"
+        backgroundColor={colors.background}
+        indicatorColor={colors.primary}
+        message="Loading usage events..."
+        messageColor={colors.onSurfaceVariant}
+      />
     );
   }
 
   if (error) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="usage-error">
-        <Text style={{ color: colors.error }}>{(error as Error).message}</Text>
-      </View>
+      <CenteredMessageState
+        testID="usage-error"
+        backgroundColor={colors.background}
+        message={(error as Error).message}
+        messageColor={colors.error}
+      />
     );
   }
 
   if (events.length === 0) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]} testID="usage-empty">
-        <Text style={{ color: colors.onSurfaceVariant }}>No usage events found</Text>
-      </View>
+      <CenteredMessageState
+        testID="usage-empty"
+        backgroundColor={colors.background}
+        message="No usage events found"
+        messageColor={colors.onSurfaceVariant}
+      />
     );
   }
 
   return (
-    <FlatList
-      testID="usage-screen"
-      style={{ backgroundColor: colors.background }}
-      data={events}
-      keyExtractor={(item) => item.id}
-      renderItem={({ item, index }) => (
-        <UsageDetailCard event={item} testIDPrefix={`usage-event-${index}`} />
-      )}
-      onEndReached={() => {
-        if (!isFetching && hasMore) {
-          setPage((current) => current + 1);
-        }
-      }}
-      onEndReachedThreshold={0.4}
-      ListHeaderComponent={
-        <View>
-          <UsageCostSummaryCard summary={summary} testIDPrefix="usage-summary" />
-          {runId ? (
-            <View style={[styles.filterBanner, { backgroundColor: colors.surface }]} testID="usage-run-filter">
-              <Text style={{ color: colors.onSurface }}>
-                Filtered by run <Text style={{ fontWeight: '700' }}>{runId}</Text>
-              </Text>
-            </View>
-          ) : null}
-        </View>
-      }
-      ListFooterComponent={
-        isFetching ? (
-          <View style={styles.footer}>
-            <ActivityIndicator size="small" color={colors.primary} />
-          </View>
-        ) : null
-      }
-      contentContainerStyle={styles.listContent}
+    <UsageEventsList
+      backgroundColor={colors.background}
+      surfaceColor={colors.surface}
+      textColor={colors.onSurface}
+      spinnerColor={colors.primary}
+      events={events}
+      summary={summary}
+      runId={runId}
+      isFetching={isFetching}
+      hasMore={hasMore}
+      onReachEnd={() => setPage((current) => current + 1)}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  listContent: {
-    paddingBottom: 16,
-  },
-  filterBanner: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  footer: {
-    paddingVertical: 16,
-  },
-});

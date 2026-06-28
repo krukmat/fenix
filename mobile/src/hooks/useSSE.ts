@@ -1,45 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { copilotApi } from '../services/api';
-import { createSSEClient, type EvidenceSource, type SSEClient, type SSEMessage } from '../services/sse';
-import type { SuggestedAction } from '../components/copilot/ActionButton';
+import { createSSEClient, type SSEClient } from '../services/sse';
+import {
+  buildRequestBody,
+  closeActiveClient,
+  createStreamMessageHandler,
+  makeInitialMessages,
+  updateLastAssistantMessage,
+  type CopilotMessage,
+  type SendContext,
+} from './useSSE.helpers';
 
-export interface CopilotMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  evidenceSources?: EvidenceSource[];
-  actions?: SuggestedAction[];
-  isStreaming?: boolean;
-}
-
-// Task Mobile P1.7 — FR-200/UC-A5: signal context fields for grounded copilot Q&A
-export type SendContext = {
-  entityType?: string;
-  entityId?: string;
-  signalId?: string;
-  signalType?: string;
-};
-
-function makeId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function buildRequestBody(query: string, context?: SendContext): Record<string, unknown> {
-  const body: Record<string, unknown> = { query };
-  if (context?.entityType) body.entityType = context.entityType;
-  if (context?.entityId) body.entityId = context.entityId;
-  if (context?.signalId) body.signalId = context.signalId;
-  if (context?.signalType) body.signalType = context.signalType;
-  return body;
-}
-
-function makeInitialMessages(trimmed: string): [CopilotMessage, CopilotMessage] {
-  return [
-    { id: makeId('u'), role: 'user', content: trimmed },
-    { id: makeId('a'), role: 'assistant', content: '', isStreaming: true },
-  ];
-}
+export type { CopilotMessage, SendContext } from './useSSE.helpers';
 
 export function useSSE() {
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
@@ -54,40 +27,16 @@ export function useSSE() {
   }, []);
 
   const updateLastAssistant = useCallback((fn: (msg: CopilotMessage) => CopilotMessage) => {
-    setMessages((prev) => {
-      const idx = [...prev].reverse().findIndex((m) => m.role === 'assistant');
-      if (idx === -1) return prev;
-      const realIndex = prev.length - 1 - idx;
-      const next = [...prev];
-      next[realIndex] = fn(next[realIndex]);
-      return next;
-    });
+    setMessages((prev) => updateLastAssistantMessage(prev, fn));
   }, []);
 
-  const onStreamMessage = useCallback(
-    (msg: SSEMessage) => {
-      if (msg.type === 'token') {
-        updateLastAssistant((last) => ({ ...last, content: `${last.content}${msg.delta}` }));
-        return;
-      }
-
-      if (msg.type === 'evidence') {
-        updateLastAssistant((last) => ({ ...last, evidenceSources: msg.sources }));
-        return;
-      }
-
-      if (msg.type === 'done') {
-        setIsStreaming(false);
-        updateLastAssistant((last) => ({ ...last, isStreaming: false }));
-        return;
-      }
-
-      if (msg.type === 'error') {
-        setError(msg.message);
-        setIsStreaming(false);
-        updateLastAssistant((last) => ({ ...last, isStreaming: false }));
-      }
-    },
+  const onStreamMessage = useMemo(
+    () =>
+      createStreamMessageHandler({
+      updateAssistant: updateLastAssistant,
+      setStreaming: setIsStreaming,
+      setError,
+    }),
     [updateLastAssistant],
   );
 
@@ -102,7 +51,7 @@ export function useSSE() {
         return;
       }
 
-      clientRef.current?.close();
+      closeActiveClient(clientRef);
       setError(null);
       setIsStreaming(true);
 
@@ -119,7 +68,7 @@ export function useSSE() {
 
   useEffect(
     () => () => {
-      clientRef.current?.close();
+      closeActiveClient(clientRef);
     },
     [],
   );

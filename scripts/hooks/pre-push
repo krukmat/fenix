@@ -24,17 +24,21 @@ CHANGED_FILES="$(git diff --name-only "$DIFF_RANGE" 2>/dev/null || true)"
 GO_CHANGED=0
 MOBILE_CHANGED=0
 BFF_CHANGED=0
+MAINTAINABILITY_CHANGED=0
 
 if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(internal/|cmd/|pkg/|scripts/.*\.go$|go\.mod$|go\.sum$|\.golangci\.yml$|Makefile$)'; then
   GO_CHANGED=1
+  MAINTAINABILITY_CHANGED=1
 fi
 
 if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(mobile/|scripts/check-no-inline-eslint-disable\.sh$|scripts/qa-mobile-prepush\.sh$|\.github/workflows/ci\.yml$)'; then
   MOBILE_CHANGED=1
+  MAINTAINABILITY_CHANGED=1
 fi
 
 if printf '%s\n' "$CHANGED_FILES" | grep -Eq '^(bff/|scripts/qa-bff-prepush\.sh$)'; then
   BFF_CHANGED=1
+  MAINTAINABILITY_CHANGED=1
 fi
 
 if [ "$GO_CHANGED" -eq 0 ] && [ "$MOBILE_CHANGED" -eq 0 ] && [ "$BFF_CHANGED" -eq 0 ]; then
@@ -45,18 +49,19 @@ fi
 if [ "$GO_CHANGED" -eq 1 ]; then
   echo "Go-impacting changes detected in $DIFF_RANGE"
   CHANGED_FILES="$CHANGED_FILES" bash scripts/qa-go-prepush.sh
-  echo "Running maintainability gate (Go)..."
-  python3 scripts/check-maintainability.py --base "${DIFF_RANGE%%...*}"
 fi
 
 if [ "$MOBILE_CHANGED" -eq 1 ]; then
   echo "Mobile-impacting changes detected in $DIFF_RANGE"
   bash scripts/qa-mobile-prepush.sh
-  echo "Running maintainability gate (mobile)..."
-  python3 scripts/check-maintainability.py --base "${DIFF_RANGE%%...*}"
 fi
 
 if [ "$BFF_CHANGED" -eq 1 ]; then
   echo "BFF-impacting changes detected in $DIFF_RANGE"
   bash scripts/qa-bff-prepush.sh
+fi
+
+if [ "$MAINTAINABILITY_CHANGED" -eq 1 ]; then
+  echo "Running maintainability gate (Go/Mobile/BFF)..."
+  python3 scripts/check-maintainability.py --base "${DIFF_RANGE%%...*}"
 fi

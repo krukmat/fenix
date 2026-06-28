@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { normalizeCRMAccount, normalizeCRMCase, normalizeCRMContact } from '../../services/api';
 import type { CRMCase, CRMContact } from '../../services/api';
@@ -7,8 +6,12 @@ import { useAccounts, useCase, useContacts, useCreateCase, useUpdateCase } from 
 import { useAuthStore } from '../../stores/authStore';
 import {
   Field,
+  FormScreen,
+  FormSectionLabel,
   FormErrorText,
   LoadingView,
+  OptionButtonItem,
+  OptionButtonList,
   SubmitButton,
   baseFormStyles,
   listItems,
@@ -76,36 +79,33 @@ function payload(values: CaseFormValues, ownerId: string) {
   };
 }
 
-function OptionList<T extends { id: string }>({
-  items,
-  selectedId,
-  label,
-  testIDPrefix,
+function caseOptionItems<T extends { id: string }>(items: T[], label: (item: T) => string): OptionButtonItem[] {
+  return items.map((item) => ({ id: item.id, label: label(item) }));
+}
+
+function CaseFields({
+  values,
+  accounts,
+  contacts,
   onSelect,
 }: {
-  items: T[];
-  selectedId: string;
-  label: (item: T) => string;
-  testIDPrefix: string;
-  onSelect: (id: string) => void;
+  values: CaseFormValues;
+  accounts: OptionButtonItem[];
+  contacts: OptionButtonItem[];
+  onSelect: (field: FieldName, value: string) => void;
 }) {
-  const colors = useCRMColors();
   return (
-    <View style={styles.optionList}>
-      <TouchableOpacity testID={`${testIDPrefix}-none`} style={[styles.option, { borderColor: selectedId ? colors.outline : colors.primary }]} onPress={() => onSelect('')}>
-        <Text style={[styles.optionText, { color: colors.onSurface }]}>None</Text>
-      </TouchableOpacity>
-      {items.map((item) => (
-        <TouchableOpacity
-          key={item.id}
-          testID={`${testIDPrefix}-${item.id}`}
-          style={[styles.option, { borderColor: item.id === selectedId ? colors.primary : colors.outline }]}
-          onPress={() => onSelect(item.id)}
-        >
-          <Text style={[styles.optionText, { color: colors.onSurface }]}>{label(item)}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
+    <>
+      <Field label="Subject" value={values.subject} onChangeText={(value) => onSelect('subject', value)} testID="crm-case-form-subject" />
+      <Field label="Description" value={values.description} onChangeText={(value) => onSelect('description', value)} testID="crm-case-form-description" multiline />
+      <Field label="Priority" value={values.priority} onChangeText={(value) => onSelect('priority', value)} testID="crm-case-form-priority" />
+      <Field label="Status" value={values.status} onChangeText={(value) => onSelect('status', value)} testID="crm-case-form-status" />
+      <Field label="Channel" value={values.channel} onChangeText={(value) => onSelect('channel', value)} testID="crm-case-form-channel" />
+      <FormSectionLabel>Account</FormSectionLabel>
+      <OptionButtonList items={accounts} selectedId={values.accountId} testIDPrefix="crm-case-form-account" onSelect={(id) => onSelect('accountId', id)} noneLabel="None" />
+      <FormSectionLabel>Contact</FormSectionLabel>
+      <OptionButtonList items={contacts} selectedId={values.contactId} testIDPrefix="crm-case-form-contact" onSelect={(id) => onSelect('contactId', id)} noneLabel="None" />
+    </>
   );
 }
 
@@ -123,6 +123,11 @@ export function CRMCaseForm({ mode, caseId }: { mode: CaseFormMode; caseId?: str
   const caseData = useMemo(() => normalizeCRMCase(record(caseQuery.data)?.case ?? caseQuery.data), [caseQuery.data]);
   const accounts = useMemo(() => listItems(accountsQuery.data, normalizeCRMAccount), [accountsQuery.data]);
   const contacts = useMemo(() => listItems(contactsQuery.data, normalizeCRMContact), [contactsQuery.data]);
+  const accountOptions = useMemo(() => caseOptionItems(accounts, (account) => account.name), [accounts]);
+  const contactOptions = useMemo(
+    () => caseOptionItems(contacts, (contact) => [contact.firstName, contact.lastName].filter(Boolean).join(' ') || contact.email || contact.id),
+    [contacts],
+  );
   const loading = (mode === 'edit' && caseQuery.isLoading) || accountsQuery.isLoading || contactsQuery.isLoading;
   const submitting = createCase.isPending || updateCase.isPending;
 
@@ -156,32 +161,16 @@ export function CRMCaseForm({ mode, caseId }: { mode: CaseFormMode; caseId?: str
   }
 
   return (
-    <ScrollView style={[baseFormStyles.container, { backgroundColor: colors.background }]} testID="crm-case-form-screen">
-      <View style={[baseFormStyles.card, { backgroundColor: colors.surface }]}>
-        <Field label="Subject" value={values.subject} onChangeText={(value) => setField('subject', value)} testID="crm-case-form-subject" />
-        <Field label="Description" value={values.description} onChangeText={(value) => setField('description', value)} testID="crm-case-form-description" multiline />
-        <Field label="Priority" value={values.priority} onChangeText={(value) => setField('priority', value)} testID="crm-case-form-priority" />
-        <Field label="Status" value={values.status} onChangeText={(value) => setField('status', value)} testID="crm-case-form-status" />
-        <Field label="Channel" value={values.channel} onChangeText={(value) => setField('channel', value)} testID="crm-case-form-channel" />
-        <Text style={[baseFormStyles.label, { color: colors.onSurfaceVariant }]}>Account</Text>
-        <OptionList items={accounts} selectedId={values.accountId} label={(account) => account.name} testIDPrefix="crm-case-form-account" onSelect={(id) => setField('accountId', id)} />
-        <Text style={[baseFormStyles.label, { color: colors.onSurfaceVariant }]}>Contact</Text>
-        <OptionList items={contacts} selectedId={values.contactId} label={(contact) => [contact.firstName, contact.lastName].filter(Boolean).join(' ') || contact.email || contact.id} testIDPrefix="crm-case-form-contact" onSelect={(id) => setField('contactId', id)} />
-        <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
-        <SubmitButton
-          testID="crm-case-form-submit"
-          onPress={onSubmit}
-          disabled={submitting}
-          label={mode === 'edit' ? 'Save Case' : 'Create Case'}
-          colors={colors}
-        />
-      </View>
-    </ScrollView>
+    <FormScreen testID="crm-case-form-screen" colors={colors}>
+      <CaseFields values={values} accounts={accountOptions} contacts={contactOptions} onSelect={setField} />
+      <FormErrorText error={error} style={[baseFormStyles.error, { color: colors.error }]} />
+      <SubmitButton
+        testID="crm-case-form-submit"
+        onPress={onSubmit}
+        disabled={submitting}
+        label={mode === 'edit' ? 'Save Case' : 'Create Case'}
+        colors={colors}
+      />
+    </FormScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  optionList: { gap: 8, marginBottom: 14 },
-  option: { borderWidth: 1, borderRadius: 8, padding: 12 },
-  optionText: { fontSize: 15, fontWeight: '600' },
-});

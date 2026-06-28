@@ -379,7 +379,11 @@ qa-task-coverage:
 
 qa-maintainability:
 	@echo "Running maintainability gate..."
-	python3 scripts/check-maintainability.py --base main
+	@if [ -n "$${FENIX_MAINTAINABILITY_BASE:-}" ]; then \
+		python3 scripts/check-maintainability.py --base "$${FENIX_MAINTAINABILITY_BASE}"; \
+	else \
+		python3 scripts/check-maintainability.py --base main; \
+	fi
 
 qa-config-secrets:
 	@echo "Running config-secrets gate..."

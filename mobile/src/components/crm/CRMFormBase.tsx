@@ -3,6 +3,7 @@ import {
   KeyboardTypeOptions,
   StyleProp,
   StyleSheet,
+  ScrollView,
   Text,
   TextInput,
   TextStyle,
@@ -32,6 +33,11 @@ export type SubmitButtonProps = {
   disabled: boolean;
   label: string;
   colors: ThemeColors;
+};
+
+export type OptionButtonItem = {
+  id: string;
+  label: string;
 };
 
 export function useCRMColors(): ThemeColors {
@@ -75,6 +81,76 @@ export function Field({ label, value, onChangeText, testID, multiline, keyboardT
   );
 }
 
+export function FormScreen({
+  testID,
+  colors,
+  children,
+}: {
+  testID: string;
+  colors: ThemeColors;
+  children: React.ReactNode;
+}) {
+  return (
+    <ScrollView style={[baseFormStyles.container, { backgroundColor: colors.background }]} testID={testID}>
+      <View style={[baseFormStyles.card, { backgroundColor: colors.surface }]}>{children}</View>
+    </ScrollView>
+  );
+}
+
+export function FormSectionLabel({ children }: { children: React.ReactNode }) {
+  const colors = useCRMColors();
+  return <Text style={[baseFormStyles.label, { color: colors.onSurfaceVariant }]}>{children}</Text>;
+}
+
+export function OptionButtonList({
+  items,
+  selectedId,
+  testIDPrefix,
+  onSelect,
+  emptyLabel,
+  noneLabel,
+}: {
+  items: OptionButtonItem[];
+  selectedId: string;
+  testIDPrefix: string;
+  onSelect: (id: string) => void;
+  emptyLabel?: string;
+  noneLabel?: string;
+}) {
+  const colors = useCRMColors();
+
+  if (items.length === 0 && emptyLabel) {
+    return <Text style={[baseFormStyles.help, { color: colors.onSurfaceVariant }]}>{emptyLabel}</Text>;
+  }
+
+  return (
+    <View style={baseFormStyles.optionList}>
+      {noneLabel ? (
+        <TouchableOpacity
+          testID={`${testIDPrefix}-none`}
+          style={[baseFormStyles.option, { borderColor: selectedId ? colors.outline : colors.primary }]}
+          onPress={() => onSelect('')}
+        >
+          <Text style={[baseFormStyles.optionText, { color: colors.onSurface }]}>{noneLabel}</Text>
+        </TouchableOpacity>
+      ) : null}
+      {items.map((item) => {
+        const selected = item.id === selectedId;
+        return (
+          <TouchableOpacity
+            key={item.id}
+            testID={`${testIDPrefix}-${item.id}`}
+            style={[baseFormStyles.option, { borderColor: selected ? colors.primary : colors.outline }]}
+            onPress={() => onSelect(item.id)}
+          >
+            <Text style={[baseFormStyles.optionText, { color: colors.onSurface }]}>{item.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 export function SubmitButton({ testID, onPress, disabled, label, colors }: SubmitButtonProps) {
   return (
     <TouchableOpacity
@@ -108,9 +184,13 @@ export const baseFormStyles = StyleSheet.create({
   card: { margin: spacing.base, padding: spacing.base, borderRadius: radius.md } satisfies ViewStyle,
   field: { marginBottom: spacing.base } satisfies ViewStyle,
   label: { ...typography.labelMD, marginBottom: spacing.sm } satisfies TextStyle,
+  help: { fontSize: 13, marginBottom: 14 } satisfies TextStyle,
   input: { borderWidth: 1, borderRadius: radius.sm, minHeight: 44, paddingHorizontal: spacing.md, fontSize: 16 } satisfies TextStyle,
   multiline: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: 'top' } satisfies TextStyle,
   error: { fontSize: 14, marginBottom: spacing.md } satisfies TextStyle,
+  optionList: { gap: 8, marginBottom: 14 } satisfies ViewStyle,
+  option: { borderWidth: 1, borderRadius: 8, padding: 12 } satisfies ViewStyle,
+  optionText: { fontSize: 15, fontWeight: '600' } satisfies TextStyle,
   submit: { minHeight: 48, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' } satisfies ViewStyle,
   disabled: { opacity: 0.7 } satisfies ViewStyle,
   submitText: { fontSize: 16, fontWeight: '700' } satisfies TextStyle,
