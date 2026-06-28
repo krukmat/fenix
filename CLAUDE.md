@@ -20,6 +20,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Historical MVP implementation plan (reference only): `docs/implementation-plan.md`
 - Corrections applied (audit report): `docs/CORRECTIONS-APPLIED.md`
 
+**Agent workflow policies**:
+- Agent orientation read order: `README_AGENT_ORDER.md`
+- RRI task-complexity scoring: `docs/policies/RRI_POLICY.md` (run `python3 scripts/rri.py`)
+- HITL approval gates: `docs/policies/HITL_AUTONOMY_POLICY.md`
+
 **Source of truth rules (MANDATORY)**:
 - Before planning or implementing any task, ALWAYS read `docs/architecture.md` for current architectural constraints and `docs/plans/fenixcrm_strategic_repositioning_spec.md` for product-direction constraints.
 - `docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md` is the canonical implementation ordering for the current strategy.
@@ -73,7 +78,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Maintain the doc vault proactively. If a task changes architecture, scope, roadmap, requirements, APIs, data model, operational rules, or delivery status, update the relevant Obsidian artifacts in the same turn without waiting for an explicit user request.
 - Do not assume markdown files under `docs/` are structured task records unless they start with YAML frontmatter.
 - Any new tracking artifact intended for Obsidian must declare `doc_type` in YAML frontmatter at the top of the file.
-- Allowed `doc_type` values are: `task`, `adr`, `summary`, `audit`, `handoff`.
+- Allowed `doc_type` values are: `task`, `adr`, `summary`, `audit`, `handoff`, `plan`, `policy`, `playbook`, `proposal`, `roadmap`.
 - If a change creates project-understanding drift, update the source document and also create or update the appropriate vault artifact (`summary`, `audit`, `adr`, or `task`) when future planning, governance, or traceability would otherwise be weakened.
 - `docs/tasks/` is reserved for actual task records only. Do not place summaries, audits, handoffs, or scratch notes there unless the user explicitly asks for that structure.
 - New task records in `docs/tasks/` must include at minimum:

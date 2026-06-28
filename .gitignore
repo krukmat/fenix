@@ -71,3 +71,9 @@ docs/templates/*
 docs/plans/fenixcrm_strategic_repositioning_implementation_plan.md
 coverage.out
 fenix.db
+
+# Agent session sentinel — local only, never committed
+.agent/
+
+# Gemma review audit logs — local only
+logs/gemma-audit/

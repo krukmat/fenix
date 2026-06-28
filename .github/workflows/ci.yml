@@ -155,11 +155,21 @@ jobs:
       - name: Check no inline eslint-disable
         run: bash scripts/check-no-inline-eslint-disable.sh
 
+  qa-config-secrets:
+    name: Config Secrets Gate
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Check config secrets
+        run: bash scripts/check-config-secrets.sh
+
   # Job 2: Lint, Test, Build — only runs if complexity gate passes
   test:
     name: Lint and Test
     if: github.event_name != 'schedule'
-    needs: [mobile-quality, bff-quality, complexity, traceability, no-inline-disable-gate]
+    needs: [mobile-quality, bff-quality, complexity, traceability, no-inline-disable-gate, qa-config-secrets]
     runs-on: ubuntu-latest
 
     steps:

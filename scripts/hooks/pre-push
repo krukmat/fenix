@@ -45,11 +45,15 @@ fi
 if [ "$GO_CHANGED" -eq 1 ]; then
   echo "Go-impacting changes detected in $DIFF_RANGE"
   CHANGED_FILES="$CHANGED_FILES" bash scripts/qa-go-prepush.sh
+  echo "Running maintainability gate (Go)..."
+  python3 scripts/check-maintainability.py --base "${DIFF_RANGE%%...*}"
 fi
 
 if [ "$MOBILE_CHANGED" -eq 1 ]; then
   echo "Mobile-impacting changes detected in $DIFF_RANGE"
   bash scripts/qa-mobile-prepush.sh
+  echo "Running maintainability gate (mobile)..."
+  python3 scripts/check-maintainability.py --base "${DIFF_RANGE%%...*}"
 fi
 
 if [ "$BFF_CHANGED" -eq 1 ]; then
