@@ -2,7 +2,7 @@
 # Task 1.1: Project Setup
 # Following implementation plan exactly
 
-.PHONY: all test build run lint wrapcheck-gate fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd bench-critical bench-all check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check bdd-trace-check test-bdd-go test-bdd-bff test-bdd-mobile test-bdd eval eval-regression _ci-traceability contract-test contract-test-strict trace-report install-hooks qa-rri qa-okf-frontmatter qa-docs qa-task-coverage qa-maintainability qa-config-secrets
+.PHONY: all test build run lint wrapcheck-gate fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd bench-critical bench-all check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check bdd-trace-check test-bdd-go test-bdd-bff test-bdd-mobile test-bdd eval eval-regression _ci-traceability contract-test contract-test-strict trace-report install-hooks qa-rri qa-okf-frontmatter qa-docs qa-task-coverage qa-maintainability qa-config-secrets qa-gemma-push-review
 
 # Variables
 BINARY_NAME=fenix
@@ -397,6 +397,24 @@ qa-gemma-review:
 	    echo "Gemma review skipped or unavailable (exit $$rc) — push continues"; \
 	  fi; \
 	  exit 0
+
+qa-gemma-push-review:
+	@if [ "$$FENIX_SKIP_GEMMA_PUSH_REVIEW" = "1" ]; then \
+	    echo "[gemma-push-review] skipped (FENIX_SKIP_GEMMA_PUSH_REVIEW=1)"; \
+	    exit 0; \
+	fi
+	@echo "Running Gemma post-push CI review (advisory)..."
+	python3 scripts/gemma-push-review.py \
+	    $$([ -n "$$FENIX_PUSH_REVIEW_RUN_ID" ]     && echo "--run-id $$FENIX_PUSH_REVIEW_RUN_ID") \
+	    $$([ -n "$$FENIX_PUSH_REVIEW_WORKFLOW" ]    && echo "--workflow $$FENIX_PUSH_REVIEW_WORKFLOW") \
+	    $$([ -n "$$FENIX_PUSH_REVIEW_BRANCH" ]      && echo "--branch $$FENIX_PUSH_REVIEW_BRANCH") \
+	    $$([ -n "$$FENIX_PUSH_REVIEW_BEFORE" ]      && echo "--before $$FENIX_PUSH_REVIEW_BEFORE") \
+	    $$([ -n "$$FENIX_PUSH_REVIEW_AFTER" ]       && echo "--after $$FENIX_PUSH_REVIEW_AFTER") \
+	    $$([ -n "$$FENIX_PUSH_REVIEW_EVENT_PATH" ]  && echo "--event-path $$FENIX_PUSH_REVIEW_EVENT_PATH") \
+	    $$([ -n "$$FENIX_PUSH_REVIEW_OUT_DIR" ]     && echo "--out-dir $$FENIX_PUSH_REVIEW_OUT_DIR") \
+	    $$([ -n "$$FENIX_PUSH_REVIEW_FORCE" ]       && echo "--force") \
+	    $$([ -n "$$FENIX_PUSH_REVIEW_COLLECT_ONLY" ] && echo "--collect-only") \
+	    $$([ -n "$$FENIX_PUSH_REVIEW_DRY_RUN" ]     && echo "--dry-run")
 
 ci: fmt-check complexity pattern-refactor-gate _ci-traceability bdd-trace-check lint test test-bdd-go eval race-stability coverage-gate coverage-tdd build contract-test-strict qa-rri qa-docs
 	@echo "All CI checks passed!"

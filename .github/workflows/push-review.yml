@@ -1,0 +1,65 @@
+name: push-review
+
+on:
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  advisory-push-review:
+    if: github.event.workflow_run.event == 'push'
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Run advisory push review
+        id: push_review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          FENIX_PUSH_REVIEW_EVENT_PATH: ${{ github.event_path }}
+          FENIX_PUSH_REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}
+          FENIX_PUSH_REVIEW_WORKFLOW: ${{ github.event.workflow_run.name }}
+          FENIX_PUSH_REVIEW_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          FENIX_PUSH_REVIEW_AFTER: ${{ github.event.workflow_run.head_sha }}
+          FENIX_PUSH_REVIEW_OUT_DIR: logs/gemma-push-review/${{ github.event.workflow_run.head_sha }}/${{ github.run_id }}
+        run: make qa-gemma-push-review
+
+      - name: Commit push-review report and daily entry
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "push-review[bot]"
+          git config user.email "push-review@fenix.local"
+          python3 scripts/push_review_commit.py \
+            "logs/gemma-push-review/${{ github.event.workflow_run.head_sha }}/${{ github.run_id }}" \
+            "${{ github.event.workflow_run.head_sha }}" \
+            "${{ github.run_id }}"
+
+      - name: Upload push-review artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: push-review-${{ github.event.workflow_run.head_sha }}-${{ github.run_id }}
+          path: logs/gemma-push-review/${{ github.event.workflow_run.head_sha }}/${{ github.run_id }}/
+          if-no-files-found: ignore
+
+      - name: Advisory summary
+        if: always()
+        run: |
+          echo "Primary CI remains authoritative."
+          echo "Push review is advisory and post-pipeline."
+          if [ "${{ steps.push_review.outcome }}" != "success" ]; then
+            echo "Push review produced a blocked/degraded result or operational failure."
+          fi
