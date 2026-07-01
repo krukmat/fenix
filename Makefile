@@ -2,7 +2,7 @@
 # Task 1.1: Project Setup
 # Following implementation plan exactly
 
-.PHONY: all test build run lint wrapcheck-gate fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd bench-critical bench-all check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check bdd-trace-check test-bdd-go test-bdd-bff test-bdd-mobile test-bdd eval eval-regression _ci-traceability contract-test contract-test-strict trace-report install-hooks qa-rri qa-okf-frontmatter qa-docs qa-task-coverage qa-maintainability qa-config-secrets qa-gemma-push-review
+.PHONY: all test build run lint wrapcheck-gate fmt fmt-check complexity pattern-refactor-gate pattern-opportunities-gate race-stability coverage-gate coverage-app coverage-tdd bench-critical bench-all check migrate-up migrate-down migrate-create migrate-version sqlc-generate docker-build docker-run e2e clean db-shell doorstop-check trace-check bdd-trace-check test-bdd-go test-bdd-bff test-bdd-mobile test-bdd eval eval-regression _ci-traceability contract-test contract-test-strict trace-report install-hooks qa-rri qa-okf-frontmatter qa-docs qa-task-coverage qa-maintainability qa-config-secrets qa-gemma-push-review qa-peer-workflow-review
 
 # Variables
 BINARY_NAME=fenix
@@ -388,6 +388,10 @@ qa-maintainability:
 qa-config-secrets:
 	@echo "Running config-secrets gate..."
 	bash scripts/check-config-secrets.sh
+
+qa-peer-workflow-review:
+	@echo "Running peer workflow review tests..."
+	python3 scripts/peer_workflow_review_test.py
 
 qa-docs: qa-okf-frontmatter qa-task-coverage
 	@echo "Running documentation consistency check..."

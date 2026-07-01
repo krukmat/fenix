@@ -22,6 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Agent workflow policies**:
 - Agent orientation read order: `README_AGENT_ORDER.md`
+- Portable workflow sequence: `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`
 - RRI task-complexity scoring: `docs/policies/RRI_POLICY.md` (run `python3 scripts/rri.py`)
 - HITL approval gates: `docs/policies/HITL_AUTONOMY_POLICY.md`
 
@@ -58,6 +59,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Hooks must be installed with `make install-hooks` (see setup above).
 
 **Task file discipline (MANDATORY)**:
+- Shared workflow order, task-readiness sequencing, and closure discipline live in
+  `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`. Keep this section aligned with that
+  playbook instead of copying new workflow variants here.
 - Before starting any implementation work on a task, a corresponding task file MUST exist in `docs/tasks/` with the correct `doc_type: task` frontmatter.
 - If a task file does not exist, STOP. Create the task file first and present it to the user for review before writing any code.
 - Never work on a task that has no individual task file — not even exploratory edits, test stubs, or scaffolding.
@@ -68,6 +72,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - For development tasks that introduce a new service or component, the task file MUST also include a **System Context** section placed before the pseudocode. This section must contain: (1) an ASCII interaction diagram showing where the new component sits in the data/event flow, (2) its upstream triggers and downstream consumers, and (3) key invariants an agent must know to avoid integration mistakes (e.g. goroutine lifecycle, error propagation contract, caller vs. callee responsibility for DB queries). This section is the authoritative reference for any agent or reviewer picking up the task cold.
 
 **Reporting (MANDATORY)**:
+- The shared task lifecycle and closure order are defined in
+  `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`; this section keeps the Claude-facing
+  report fields and local wording.
 - Every substantive report to the user must include:
   - `Complejidad: Baja | Media | Alta | Muy alta`
   - `Tokens: ~N` (approximate estimate of the response/report size)

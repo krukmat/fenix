@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for agent-preflight.py — adapted for fenix authority model."""
+"""Tests for agent-preflight.py — adapted for fenix workflow authority model."""
 from __future__ import annotations
 
 import importlib.util
@@ -38,6 +38,7 @@ class AgentPreflightTest(unittest.TestCase):
 
         self.assertIn("CLAUDE.md", summary)
         self.assertIn("README_AGENT_ORDER.md", summary)
+        self.assertIn("docs/playbooks/AGENT_WORKFLOW_GUIDE.md", summary)
         self.assertIn("docs/policies/RRI_POLICY.md", summary)
         self.assertIn("docs/policies/HITL_AUTONOMY_POLICY.md", summary)
         self.assertIn("docs/architecture.md", summary)

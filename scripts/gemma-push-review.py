@@ -71,6 +71,14 @@ PURE_LOW_HIGH_IMPACT_SEGMENTS = {
 }
 
 
+def _env_first(*keys, default=None):
+    for key in keys:
+        value = os.environ.get(key)
+        if value not in (None, ""):
+            return value
+    return default
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -104,52 +112,77 @@ def parse_args():
 
     # T1B: model-call args (FENIX env namespace)
     parser.add_argument("--host",
-        default=os.environ.get("OLLAMA_HOST", gemma_local.DEFAULT_HOST),
-        help=f"Ollama host (env OLLAMA_HOST, default {gemma_local.DEFAULT_HOST}).")
+        default=_env_first("FENIX_OLLAMA_HOST", "OLLAMA_HOST", default=gemma_local.DEFAULT_HOST),
+        help=f"Ollama host (env FENIX_OLLAMA_HOST, default {gemma_local.DEFAULT_HOST}).")
     parser.add_argument("--model",
-        default=os.environ.get(
+        default=_env_first(
             "FENIX_PUSH_REVIEW_MODEL",
-            os.environ.get("FENIX_LOW_RRI_MODEL", gemma_local.DEFAULT_MODEL),
+            "FENIX_REVIEW_MODEL",
+            "FENIX_LOW_RRI_MODEL",
+            default=gemma_local.DEFAULT_MODEL,
         ),
-        help="Push-review model (env FENIX_PUSH_REVIEW_MODEL -> FENIX_LOW_RRI_MODEL -> default).")
+        help=(
+            "Push-review model (env FENIX_PUSH_REVIEW_MODEL -> FENIX_REVIEW_MODEL -> "
+            "FENIX_LOW_RRI_MODEL -> default)."
+        ))
     parser.add_argument("--num-ctx", type=int, dest="num_ctx",
-        default=int(os.environ.get(
+        default=int(_env_first(
             "FENIX_PUSH_REVIEW_NUM_CTX",
-            os.environ.get("FENIX_LOW_RRI_NUM_CTX", str(DEFAULT_NUM_CTX_PUSH_REVIEW)),
+            "FENIX_REVIEW_NUM_CTX",
+            "FENIX_LOW_RRI_NUM_CTX",
+            default=str(DEFAULT_NUM_CTX_PUSH_REVIEW),
         )),
-        help="Context window size (env FENIX_PUSH_REVIEW_NUM_CTX, default 32768).")
+        help=(
+            "Context window size (env FENIX_PUSH_REVIEW_NUM_CTX -> FENIX_REVIEW_NUM_CTX, "
+            f"default {DEFAULT_NUM_CTX_PUSH_REVIEW})."
+        ))
     parser.add_argument("--num-predict", type=int, dest="num_predict",
-        default=int(os.environ.get(
+        default=int(_env_first(
             "FENIX_PUSH_REVIEW_NUM_PREDICT",
-            os.environ.get("FENIX_LOW_RRI_NUM_PREDICT", "8192"),
+            "FENIX_REVIEW_NUM_PREDICT",
+            "FENIX_LOW_RRI_NUM_PREDICT",
+            default="8192",
         )),
-        help="Max tokens to generate (env FENIX_PUSH_REVIEW_NUM_PREDICT, default 8192).")
+        help=(
+            "Max tokens to generate (env FENIX_PUSH_REVIEW_NUM_PREDICT -> "
+            "FENIX_REVIEW_NUM_PREDICT, default 8192)."
+        ))
     parser.add_argument("--temperature", type=float,
-        default=float(os.environ.get(
+        default=float(_env_first(
             "FENIX_PUSH_REVIEW_TEMPERATURE",
-            os.environ.get("FENIX_LOW_RRI_TEMPERATURE", str(gemma_local.DEFAULT_TEMPERATURE)),
+            "FENIX_REVIEW_TEMPERATURE",
+            "FENIX_LOW_RRI_TEMPERATURE",
+            default=str(gemma_local.DEFAULT_TEMPERATURE),
         )),
-        help="Sampling temperature (env FENIX_PUSH_REVIEW_TEMPERATURE, default 0.1).")
+        help=(
+            "Sampling temperature (env FENIX_PUSH_REVIEW_TEMPERATURE -> "
+            "FENIX_REVIEW_TEMPERATURE, default 0.1)."
+        ))
     parser.add_argument("--think", action="store_true",
         default=gemma_local.bool_from_env(
             "FENIX_PUSH_REVIEW_THINK",
-            gemma_local.bool_from_env("FENIX_LOW_RRI_THINK", True),
+            gemma_local.bool_from_env(
+                "FENIX_REVIEW_THINK",
+                gemma_local.bool_from_env("FENIX_LOW_RRI_THINK", True),
+            ),
         ),
         help="Enable per-pass reflexion (default on for push-reviewer).")
     parser.add_argument("--no-think", action="store_false", dest="think",
         help="Disable think mode for this invocation.")
     parser.add_argument("--idle-timeout", type=int, dest="idle_timeout",
-        default=int(os.environ.get(
+        default=int(_env_first(
             "FENIX_PUSH_REVIEW_IDLE_TIMEOUT_SECONDS",
-            os.environ.get("FENIX_LOW_RRI_IDLE_TIMEOUT_SECONDS",
-                           str(gemma_local.DEFAULT_IDLE_TIMEOUT_SECONDS)),
+            "FENIX_REVIEW_IDLE_TIMEOUT_SECONDS",
+            "FENIX_LOW_RRI_IDLE_TIMEOUT_SECONDS",
+            default=str(gemma_local.DEFAULT_IDLE_TIMEOUT_SECONDS),
         )),
         help="Seconds without a token before treating Gemma as stalled.")
     parser.add_argument("--max-wall", type=int, dest="max_wall",
-        default=int(os.environ.get(
+        default=int(_env_first(
             "FENIX_PUSH_REVIEW_MAX_WALL_SECONDS",
-            os.environ.get("FENIX_LOW_RRI_MAX_WALL_SECONDS",
-                           str(gemma_local.DEFAULT_MAX_WALL_SECONDS)),
+            "FENIX_REVIEW_MAX_WALL_SECONDS",
+            "FENIX_LOW_RRI_MAX_WALL_SECONDS",
+            default=str(gemma_local.DEFAULT_MAX_WALL_SECONDS),
         )),
         help="Hard wall-time cap in seconds.")
 
@@ -781,7 +814,7 @@ def run_push_audit(packet, run_info, args, out_dir, repo_root="."):
         print(f"[push-audit] blocked artifact: {path}", file=sys.stderr)
         return 2
     except RuntimeError as exc:
-        msg = str(exc) + " — increase FENIX_PUSH_REVIEW_NUM_PREDICT or review packet manually"
+        msg = str(exc) + " — increase FENIX_REVIEW_NUM_PREDICT or review packet manually"
         path = write_blocked("stream_error", msg, run_info, out_dir, after_sha)
         write_blocked_report(path, _load_json(path), repo_root=repo_root)
         print(f"[push-audit] blocked (stream error): {exc}", file=sys.stderr)

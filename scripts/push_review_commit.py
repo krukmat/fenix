@@ -161,6 +161,11 @@ def append_daily_row(daily_path, row):
     print(f"[push-review-commit] row appended to {daily_path}", file=sys.stderr)
 
 
+def build_commit_message(head_sha, today):
+    sha = short_sha(head_sha)
+    return f"[push-review] report {sha} + daily {today} entry [skip ci]"
+
+
 def main():
     if len(sys.argv) != 4:
         print(f"Usage: {sys.argv[0]} <out_dir> <head_sha> <run_id>", file=sys.stderr)
@@ -218,7 +223,7 @@ def main():
 
     subprocess.run([
         "git", "commit", "-m",
-        f"chore(push-review): report {sha} + daily {today} entry [skip ci]",
+        build_commit_message(head_sha, today),
     ], check=True)
     subprocess.run(["git", "push", "origin", "HEAD:main"], check=True)
     print(f"[push-review-commit] committed and pushed", file=sys.stderr)

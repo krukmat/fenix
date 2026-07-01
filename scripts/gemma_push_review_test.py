@@ -758,7 +758,7 @@ class RunPushAuditTimeout(unittest.TestCase):
             with open(os.path.join(tmp, "blocked.json")) as fh:
                 data = json.load(fh)
         self.assertEqual(data["blocked_reason"], "stream_error")
-        self.assertIn("FENIX_PUSH_REVIEW_NUM_PREDICT", data["blocked_message"])
+        self.assertIn("FENIX_REVIEW_NUM_PREDICT", data["blocked_message"])
         self.assertIn("run_id", data["run_context"])
 
 
@@ -921,28 +921,54 @@ class RunPushAuditHappyPath(unittest.TestCase):
 # ===========================================================================
 
 class EnvNamespace(unittest.TestCase):
-    def test_push_review_model_takes_priority_over_low_rri(self):
+    def test_push_review_model_takes_priority_over_review_and_low_rri(self):
         env = {
             "FENIX_PUSH_REVIEW_MODEL": "gemma-push-specific",
+            "FENIX_REVIEW_MODEL": "review-model",
             "FENIX_LOW_RRI_MODEL": "fallback-model",
         }
         with patch.dict(os.environ, env, clear=False):
-            model = os.environ.get(
-                "FENIX_PUSH_REVIEW_MODEL",
-                os.environ.get("FENIX_LOW_RRI_MODEL", _mod.gemma_local.DEFAULT_MODEL),
-            )
-        self.assertEqual(model, "gemma-push-specific")
+            args = _mod.parse_args()
+        self.assertEqual(args.model, "gemma-push-specific")
 
-    def test_fallback_to_low_rri_when_push_review_absent(self):
+    def test_fallback_to_review_model_when_push_review_absent(self):
         clean = {k: v for k, v in os.environ.items()
-                 if k != "FENIX_PUSH_REVIEW_MODEL"}
+                 if k not in ("FENIX_PUSH_REVIEW_MODEL", "FENIX_LOW_RRI_MODEL")}
+        clean["FENIX_REVIEW_MODEL"] = "review-model"
+        with patch.dict(os.environ, clean, clear=True):
+            args = _mod.parse_args()
+        self.assertEqual(args.model, "review-model")
+
+    def test_fallback_to_low_rri_when_review_and_push_review_absent(self):
+        clean = {k: v for k, v in os.environ.items()
+                 if k not in ("FENIX_PUSH_REVIEW_MODEL", "FENIX_REVIEW_MODEL")}
         clean["FENIX_LOW_RRI_MODEL"] = "fallback-model"
         with patch.dict(os.environ, clean, clear=True):
-            model = os.environ.get(
-                "FENIX_PUSH_REVIEW_MODEL",
-                os.environ.get("FENIX_LOW_RRI_MODEL", _mod.gemma_local.DEFAULT_MODEL),
-            )
-        self.assertEqual(model, "fallback-model")
+            args = _mod.parse_args()
+        self.assertEqual(args.model, "fallback-model")
+
+    def test_review_timeout_namespace_controls_defaults(self):
+        clean = {k: v for k, v in os.environ.items()
+                 if k not in (
+                     "FENIX_PUSH_REVIEW_IDLE_TIMEOUT_SECONDS",
+                     "FENIX_PUSH_REVIEW_MAX_WALL_SECONDS",
+                     "FENIX_LOW_RRI_IDLE_TIMEOUT_SECONDS",
+                     "FENIX_LOW_RRI_MAX_WALL_SECONDS",
+                 )}
+        clean["FENIX_REVIEW_IDLE_TIMEOUT_SECONDS"] = "77"
+        clean["FENIX_REVIEW_MAX_WALL_SECONDS"] = "901"
+        with patch.dict(os.environ, clean, clear=True):
+            args = _mod.parse_args()
+        self.assertEqual(args.idle_timeout, 77)
+        self.assertEqual(args.max_wall, 901)
+
+    def test_host_prefers_fenix_ollama_host(self):
+        clean = {k: v for k, v in os.environ.items()
+                 if k not in ("FENIX_OLLAMA_HOST", "OLLAMA_HOST")}
+        clean["FENIX_OLLAMA_HOST"] = "http://fenix-host:11434"
+        with patch.dict(os.environ, clean, clear=True):
+            args = _mod.parse_args()
+        self.assertEqual(args.host, "http://fenix-host:11434")
 
     def test_num_ctx_default_higher_than_code_review(self):
         self.assertGreater(
@@ -952,11 +978,14 @@ class EnvNamespace(unittest.TestCase):
 
     def test_think_defaults_true_for_push_reviewer(self):
         clean = {k: v for k, v in os.environ.items()
-                 if k not in ("FENIX_PUSH_REVIEW_THINK", "FENIX_LOW_RRI_THINK")}
+                 if k not in ("FENIX_PUSH_REVIEW_THINK", "FENIX_REVIEW_THINK", "FENIX_LOW_RRI_THINK")}
         with patch.dict(os.environ, clean, clear=True):
             think = _mod.gemma_local.bool_from_env(
                 "FENIX_PUSH_REVIEW_THINK",
-                _mod.gemma_local.bool_from_env("FENIX_LOW_RRI_THINK", True),
+                _mod.gemma_local.bool_from_env(
+                    "FENIX_REVIEW_THINK",
+                    _mod.gemma_local.bool_from_env("FENIX_LOW_RRI_THINK", True),
+                ),
             )
         self.assertTrue(think)
 

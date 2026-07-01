@@ -76,9 +76,24 @@ Execution has not started. Approve this task to proceed.
 - If a required local QA gate cannot be executed, stop and report that explicitly
   before pushing.
 
+## Peer review and HITL
+
+Provider-aware peer review (Phase F) is a complementary workflow gate, not a
+substitute for HITL approval. A PASS verdict from the peer reviewer does not
+unlock any task that would otherwise require explicit human approval under this
+policy. The two gates are independent and both must be satisfied when both
+apply. See `docs/playbooks/AGENT_WORKFLOW_GUIDE.md` — `## Peer review` for the
+full provider resolution rules and failure modes.
+
+When the workflow allows a local-model fallback reviewer, that fallback remains
+part of the peer-review gate only. It does not replace HITL approval, does not
+authorize self-review, and must still fail closed if the fallback verdict is
+missing, invalid, or blocked.
+
 ## Related
 
 - `CLAUDE.md` (highest authority)
 - `AGENTS.md`
 - `README_AGENT_ORDER.md`
 - `docs/policies/RRI_POLICY.md`
+- `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`

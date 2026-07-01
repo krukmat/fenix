@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## Shared Workflow
+
+- The portable, agent-agnostic workflow sequence is defined in `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`.
+- This file keeps repository-specific push, hooks, attribution, reporting, and knowledge-management rules for agents that read `AGENTS.md`.
+- Do not duplicate new workflow-order rules here. Update the playbook first, then keep this wrapper aligned.
+
 ## Push Policy
 
 - `git push` is the final step, not the first validation step.
@@ -48,17 +54,24 @@ Preferred shortcut:
   - `Code affected: <expected files or areas>`
   - `Effort/reasoning: Low | Medium | High - <brief reason>`
   - `Recommended model: <model id>`
+    Default OpenAI rule: recommend `gpt-5.4` unless the task explicitly
+    prioritizes lower cost (`gpt-5.4-mini`) or clearly requires higher autonomy
+    / complexity handling (`gpt-5.5`).
   - `Estimated tokens: ~N`
   - `Pseudocode: <high-level pseudocode sketch of key logic>` — **required for development tasks only** (tasks that involve writing or modifying code). Omit for docs-only, ADR formalization, or README tasks. The sketch must be language-agnostic and concise — enough to verify the approach, not a full implementation.
   - `System context diagram` — **required when the task introduces a new service or component**. Must be a visually structured ASCII interaction diagram in the task file, not a plain bullet summary. Prefer boxes, arrows, swimlanes, or clearly separated stages so the component boundary and data flow are immediately scannable. The diagram must show: upstream triggers, the new component's role, downstream consumers, and key invariants (goroutine lifecycle, error propagation contract, caller vs. callee DB responsibility). Placed before the pseudocode in the task file. This is the authoritative reference for any agent picking up the task cold.
+  - `Peer readiness review: <reviewer> <artifact path> - PASS` — required after PAW-F3 is wired. Omit if the peer review script is not yet available (`BLOCKED` is acceptable). This field confirms the task file and governing docs passed independent peer review before task-card presentation. A non-pass verdict blocks presentation until revised or explicitly waived by the user.
 - If the next planned discrete task does not already have its required `docs/tasks/task_*.md` record, create that task file first using the required frontmatter and task-card fields, then present the task card from that file. Do not present a task card with a missing task file placeholder.
 - **Task card language (MANDATORY)**: The task card must be written in unambiguous agentic English. No Spanish field labels, no mixed language. Every field value must be a direct, machine-parseable statement: what will be done, which files, why, estimated cost. Avoid narrative prose — prefer declarative sentences. This ensures the card is usable by any agent or orchestrator reading the conversation without language ambiguity.
 - When closing a task, report the outcome with:
   - `Result: <what changed>`
   - `Verification: <commands run, or why QA was not applicable>`
+  - `Peer code review: <reviewer> <artifact path> - PASS` — required for development tasks after PAW-F3 is wired. Omit for docs-only tasks or when the peer review script is not yet available (`BLOCKED` is acceptable). A non-pass verdict blocks closure until the code is revised or explicitly waived by the user. Peer review does not replace RRI/HITL human approval.
   - `Files affected: <files changed>`
   - `Effort/reasoning: Low | Medium | High - <forensic note on reasoning effort used>`
   - `Recommended model: <model id>`
+    Use the playbook default for OpenAI task-card recommendations unless the
+    report needs to justify a different model choice.
   - `Tokens: ~N`
 - After the closing report, proactively present the next task card using the same starting-task format, including `Modelo recomendado`, but do not begin that next task until the user explicitly confirms.
 - Every substantive report to the user must include:
@@ -72,7 +85,7 @@ Preferred shortcut:
 - Maintain the doc vault proactively. If a task changes architecture, scope, requirements, roadmap, APIs, data model, delivery status, or other project-operating assumptions, update the relevant Obsidian artifacts in the same turn without waiting for an explicit user request.
 - Do not treat arbitrary markdown in `docs/` as a task record unless it uses explicit YAML frontmatter.
 - When creating a new tracking document for Obsidian, include YAML frontmatter at the top and set `doc_type` explicitly.
-- Allowed `doc_type` values are: `task`, `adr`, `summary`, `audit`, `handoff`.
+- Allowed `doc_type` values are: `task`, `adr`, `summary`, `audit`, `handoff`, `plan`, `policy`, `playbook`, `proposal`, `roadmap`.
 - When a change creates documentary drift, update the source document and also create or update the appropriate vault artifact (`summary`, `audit`, `adr`, or `task`) if the change affects project understanding, governance, or follow-up planning.
 - `docs/tasks/` is reserved for real task records only. Do not place summaries, audits, handoffs, or scratch notes there unless the user explicitly asks for it.
 - New task records in `docs/tasks/` must include at minimum:

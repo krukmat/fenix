@@ -2,8 +2,8 @@
 """Session preflight for fenix coding agents.
 
 Adapted from DubBridge agent-preflight.py; key differences:
-  - Authority summary cites CLAUDE.md (not AGENT_WORKFLOW_GUIDE.md)
-  - References fenix policy paths and README_AGENT_ORDER.md
+  - Authority summary cites the Fenix AGENT_WORKFLOW_GUIDE.md under local wrappers
+  - References fenix playbook, policy paths, and README_AGENT_ORDER.md
   - Gemma/D14 requirement removed (Phase E, deferred)
   - FENIX_ env prefix (reserved for future env-driven overrides)
 """
@@ -26,8 +26,9 @@ SUMMARY_LINES = [
     "Fenix agent preflight",
     "",
     "Authority:",
-    "- CLAUDE.md is the highest-authority workflow source.",
+    "- CLAUDE.md and AGENTS.md are local agent-specific authority wrappers.",
     "- README_AGENT_ORDER.md lists the required read order for a fresh session.",
+    "- docs/playbooks/AGENT_WORKFLOW_GUIDE.md defines the portable workflow sequence.",
     "- docs/policies/RRI_POLICY.md defines risk scoring and model tiers.",
     "- docs/policies/HITL_AUTONOMY_POLICY.md defines approval gates.",
     "",
@@ -82,6 +83,7 @@ def sentinel_payload(repo_root: Path) -> "Dict[str, Any]":
         "requirements": [
             "read CLAUDE.md before staged work",
             "read README_AGENT_ORDER.md to confirm session read order",
+            "read docs/playbooks/AGENT_WORKFLOW_GUIDE.md for the portable workflow sequence",
             "identify architecture, ADR, plan, task, and policy docs that constrain the task",
             "run scripts/rri.py before implementation",
             "wait for explicit approval when RRI is 26 or higher",

@@ -16,9 +16,21 @@ const SSE_HEADERS = {
 };
 const FIXTURE_TIMESTAMP = '<timestamp>';
 
+function readBooleanEnv(name: string): boolean {
+  return process.env[name] === 'true';
+}
+
+function isScreenshotFixtureGuardEnabled(): boolean {
+  return readBooleanEnv('ENABLE_SCREENSHOT_FIXTURES');
+}
+
+function isScreenshotFixtureRuntimeAllowed(): boolean {
+  return isScreenshotFixtureGuardEnabled() && process.env['NODE_ENV'] !== 'production';
+}
+
 // POST /bff/copilot/chat → SSE relay to Go POST /api/v1/copilot/chat
 router.post('/chat', async (req: BffRequest, res: Response, next: NextFunction): Promise<void> => {
-  if (screenshotMode) {
+  if (isScreenshotModeActive()) {
     writeFixtureSSE(res);
     return;
   }
@@ -32,7 +44,7 @@ router.post('/chat', async (req: BffRequest, res: Response, next: NextFunction):
 
 // GET /bff/copilot/events → browser EventSource-compatible SSE wrapper.
 router.get('/events', async (req: BffRequest, res: Response): Promise<void> => {
-  if (screenshotMode) {
+  if (isScreenshotModeActive()) {
     writeFixtureSSE(res);
     return;
   }
@@ -124,7 +136,15 @@ function writeFixtureSSE(res: Response): void {
 
 // Screenshot fixture — returned when screenshotMode is active to bypass LLM latency (~35s)
 // Activated at runtime via POST /bff/internal/screenshot-mode { enabled: true|false }
-let screenshotMode = process.env.SCREENSHOT_MODE === 'true';
+let screenshotModeRequested = readBooleanEnv('SCREENSHOT_MODE');
+
+function isScreenshotModeActive(): boolean {
+  return isScreenshotFixtureRuntimeAllowed() && screenshotModeRequested;
+}
+
+export function resetScreenshotModeStateForTests(): void {
+  screenshotModeRequested = readBooleanEnv('SCREENSHOT_MODE');
+}
 
 const SALES_BRIEF_FIXTURE = {
   outcome: 'completed',
@@ -155,15 +175,19 @@ const SALES_BRIEF_FIXTURE = {
 
 // POST /bff/internal/screenshot-mode — toggle fixture mode at runtime (localhost only, no auth required)
 router.post('/internal/screenshot-mode', (req: Request, res: Response): void => {
+  if (!isScreenshotFixtureRuntimeAllowed()) {
+    res.status(404).json({ error: 'Not Found' });
+    return;
+  }
   const enabled = (req.body as { enabled?: boolean }).enabled === true;
-  screenshotMode = enabled;
-  res.status(200).json({ screenshotMode });
+  screenshotModeRequested = enabled;
+  res.status(200).json({ screenshotMode: isScreenshotModeActive() });
 });
 
 // POST /bff/api/v1/copilot/sales-brief → JSON relay to Go POST /api/v1/copilot/sales-brief
 // screenshotMode=true: returns fixture immediately (bypasses LLM ~35s latency for screenshot runs)
 router.post('/sales-brief', async (req: BffRequest, res: Response, next: NextFunction): Promise<void> => {
-  if (screenshotMode) {
+  if (isScreenshotModeActive()) {
     res.status(200).json(SALES_BRIEF_FIXTURE);
     return;
   }
