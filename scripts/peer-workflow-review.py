@@ -35,9 +35,11 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from typing import Dict, List, Optional
@@ -60,6 +62,10 @@ DEFAULT_OUT_DIR = os.environ.get(
 )
 DEFAULT_TIMEOUT = int(os.environ.get("FENIX_PEER_REVIEW_TIMEOUT", "180"))
 LOCAL_FALLBACK_REVIEWER = "local-gemma"
+REVIEWER_ENV_VARS = {
+    "claude": ("FENIX_CLAUDE_BIN", "CLAUDE_BIN"),
+    "codex": ("FENIX_CODEX_BIN", "CODEX_BIN"),
+}
 
 REVIEW_INSTRUCTIONS = (
     "You are an independent peer reviewer. Do not modify any files. Review the "
@@ -134,6 +140,107 @@ def _env_first(*keys, default=None):
     return default
 
 
+def _is_executable(path):
+    # type: (str) -> bool
+    return bool(path) and os.path.isfile(path) and os.access(path, os.X_OK)
+
+
+def _resolve_explicit_executable(value):
+    # type: (str) -> Optional[str]
+    if not value:
+        return None
+    expanded = os.path.expanduser(value)
+    has_sep = os.path.sep in expanded or (
+        os.path.altsep is not None and os.path.altsep in expanded
+    )
+    if has_sep:
+        candidate = os.path.abspath(expanded)
+        return candidate if _is_executable(candidate) else None
+    found = shutil.which(expanded)
+    if found:
+        return found
+    return expanded if _is_executable(expanded) else None
+
+
+def known_reviewer_location_patterns(reviewer):
+    # type: (str) -> List[str]
+    home = os.path.expanduser("~")
+    if reviewer == "codex":
+        return [
+            os.path.join(
+                home,
+                ".vscode",
+                "extensions",
+                "openai.chatgpt-*",
+                "bin",
+                "*",
+                "codex",
+            ),
+            os.path.join(
+                home,
+                ".vscode-insiders",
+                "extensions",
+                "openai.chatgpt-*",
+                "bin",
+                "*",
+                "codex",
+            ),
+            os.path.join(
+                home,
+                ".cursor",
+                "extensions",
+                "openai.chatgpt-*",
+                "bin",
+                "*",
+                "codex",
+            ),
+            os.path.join(home, ".local", "bin", "codex"),
+            "/opt/homebrew/bin/codex",
+            "/usr/local/bin/codex",
+        ]
+    if reviewer == "claude":
+        return [
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+            os.path.join(home, ".local", "bin", "claude"),
+        ]
+    raise ReviewerUnavailable("unknown reviewer: %s" % reviewer)
+
+
+def resolve_reviewer_executable(reviewer):
+    # type: (str) -> str
+    env_keys = REVIEWER_ENV_VARS.get(reviewer)
+    if env_keys is None:
+        raise ReviewerUnavailable("unknown reviewer: %s" % reviewer)
+
+    explicit = _env_first(*env_keys)
+    if explicit:
+        resolved = _resolve_explicit_executable(explicit)
+        if resolved:
+            return resolved
+        raise ReviewerUnavailable(
+            "reviewer CLI override is not executable for %s: %s=%s"
+            % (reviewer, env_keys[0], explicit)
+        )
+
+    discovered = shutil.which(reviewer)
+    if discovered:
+        return discovered
+
+    checked = ["PATH:%s" % reviewer]
+    for pattern in known_reviewer_location_patterns(reviewer):
+        checked.append(pattern)
+        matches = sorted(glob.glob(os.path.expanduser(pattern)), reverse=True)
+        for match in matches:
+            if _is_executable(match):
+                return match
+
+    raise ReviewerUnavailable(
+        "reviewer CLI not found for %s (checked %s)"
+        % (reviewer, ", ".join(checked))
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Secret redaction
 # --------------------------------------------------------------------------- #
@@ -188,27 +295,26 @@ def _read_text(path):
 
 def read_diff(base):
     # type: (Optional[str]) -> str
-    """Return the working-tree diff against `base` (read-only git call)."""
+    """Return the working-tree diff against `base` (read-only git call).
+
+    Uses the two-dot `git diff <base>` form, which compares `base` against the
+    current working tree (committed + uncommitted changes). The three-dot
+    `<base>...HEAD` form was intentionally dropped: it compares commits only and
+    returns an empty diff in the common pre-commit closure flow, which would let
+    the reviewer `pass` code it never saw.
+    """
     if not base:
         return ""
     try:
         result = subprocess.run(
-            ["git", "diff", "--no-color", "%s...HEAD" % base],
+            ["git", "diff", "--no-color", base],
             capture_output=True,
             text=True,
         )
     except (OSError, subprocess.SubprocessError):
         return ""
     if result.returncode != 0:
-        # Fall back to a plain diff against the ref (e.g. uncommitted work).
-        try:
-            result = subprocess.run(
-                ["git", "diff", "--no-color", base],
-                capture_output=True,
-                text=True,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return ""
+        return ""
     return result.stdout
 
 
@@ -258,26 +364,68 @@ def build_local_fallback_system_prompt():
 # Reviewer adapters — command construction kept in isolated functions so tests
 # can assert argv without invoking a real CLI.
 # --------------------------------------------------------------------------- #
-def claude_command(prompt):
-    # type: (str) -> List[str]
+def claude_command(prompt, executable="claude"):
+    # type: (str, str) -> List[str]
     """Claude Code in non-mutating print mode requesting a JSON verdict."""
-    return ["claude", "-p", prompt, "--output-format", "json"]
+    return [executable, "-p", prompt, "--output-format", "json"]
 
 
-def codex_exec_command(prompt):
-    # type: (str) -> List[str]
+def codex_exec_command(prompt, executable="codex"):
+    # type: (str, str) -> List[str]
     """Codex readiness review: `codex exec` with read-only sandboxing."""
-    return ["codex", "exec", "--sandbox", "read-only", prompt]
+    return [executable, "exec", "--sandbox", "read-only", prompt]
 
 
-def codex_review_command(base, prompt):
+def codex_review_command(base, executable="codex"):
     # type: (Optional[str], str) -> List[str]
-    """Codex post-code review against a base ref with custom instructions."""
-    cmd = ["codex", "review"]
+    """Codex post-code review against a base ref.
+
+    Codex CLI 0.142.5 rejects a positional PROMPT together with `--base`
+    (`the argument '--base <BRANCH>' cannot be used with '[PROMPT]'`), and
+    `codex review` emits natural-language findings rather than the JSON verdict
+    this gate parses. We therefore invoke `codex review` with only the base ref
+    and translate its native output via `parse_codex_review_output`.
+    """
+    cmd = [executable, "review"]
     if base:
         cmd += ["--base", base]
-    cmd += ["--instructions", prompt]
     return cmd
+
+
+# `codex review` finding line: "- [P1] <title> — <file>:<lines>".
+_CODEX_FINDING = re.compile(r"^\s*-\s*\[(P\d+)\]\s*(.+)$")
+
+
+def parse_codex_review_output(raw):
+    # type: (str) -> str
+    """Translate `codex review` text output into a gate JSON verdict string.
+
+    `codex review` returns a summary paragraph followed by bulleted
+    `- [P1] ...` findings. A run with one or more findings maps to
+    `needs_changes`; a run with no findings maps to `pass`. The return value is
+    a JSON string so the existing `parse_verdict` path is unchanged.
+    """
+    text = raw or ""
+    findings = []  # type: List[str]
+    for line in text.splitlines():
+        match = _CODEX_FINDING.match(line)
+        if match:
+            findings.append("[%s] %s" % (match.group(1), match.group(2).strip()))
+    # Summary = first non-empty line, or a default.
+    summary = ""
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped:
+            summary = stripped
+            break
+    status = "needs_changes" if findings else "pass"
+    return json.dumps(
+        {
+            "status": status,
+            "summary": summary or "codex review completed",
+            "findings": findings,
+        }
+    )
 
 
 def _run(cmd, timeout):
@@ -302,12 +450,14 @@ def invoke_reviewer(reviewer, mode, packet, base, timeout):
     # type: (str, str, dict, Optional[str], int) -> str
     """Dispatch to the correct adapter and return raw reviewer stdout."""
     prompt = build_prompt(mode, packet)
+    executable = resolve_reviewer_executable(reviewer)
     if reviewer == "claude":
-        return _run(claude_command(prompt), timeout)
+        return _run(claude_command(prompt, executable=executable), timeout)
     if reviewer == "codex":
         if mode == "task-readiness":
-            return _run(codex_exec_command(prompt), timeout)
-        return _run(codex_review_command(base, prompt), timeout)
+            return _run(codex_exec_command(prompt, executable=executable), timeout)
+        raw = _run(codex_review_command(base, executable=executable), timeout)
+        return parse_codex_review_output(raw)
     raise ReviewerUnavailable("unknown reviewer: %s" % reviewer)
 
 
@@ -358,6 +508,13 @@ def invoke_local_fallback_reviewer(mode, packet, timeout):
         "FENIX_REVIEW_THINK",
         gemma_local.bool_from_env("FENIX_LOW_RRI_THINK", gemma_local.DEFAULT_THINK),
     )
+
+    # Honor the caller-supplied timeout as an upper bound on the fallback's idle
+    # and wall limits, so a short `--timeout` still fails fast instead of letting
+    # the local model block for minutes on the env/default limits.
+    if timeout and timeout > 0:
+        idle_timeout = min(idle_timeout, timeout)
+        max_wall = min(max_wall, timeout)
 
     try:
         gemma_local.ensure_model_available(host, model, idle_timeout)

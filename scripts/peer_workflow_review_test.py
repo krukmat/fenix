@@ -78,10 +78,110 @@ class CommandConstructionTest(unittest.TestCase):
         self.assertIn("read-only", cmd)
 
     def test_codex_review_command_uses_base_ref(self):
-        cmd = _mod.codex_review_command("main", "PROMPT")
-        self.assertEqual(cmd[:2], ["codex", "review"])
-        self.assertIn("--base", cmd)
-        self.assertIn("main", cmd)
+        # Codex CLI 0.142.5: `--base` and a positional PROMPT are mutually
+        # exclusive, so the review command carries only the base ref.
+        cmd = _mod.codex_review_command("main")
+        self.assertEqual(cmd, ["codex", "review", "--base", "main"])
+        self.assertNotIn("--instructions", cmd)
+
+    def test_codex_review_command_without_base(self):
+        cmd = _mod.codex_review_command(None)
+        self.assertEqual(cmd, ["codex", "review"])
+
+    def test_custom_executable_flows_into_commands(self):
+        self.assertEqual(
+            _mod.claude_command("PROMPT", executable="/x/claude")[0], "/x/claude"
+        )
+        self.assertEqual(
+            _mod.codex_exec_command("PROMPT", executable="/x/codex")[0], "/x/codex"
+        )
+        self.assertEqual(
+            _mod.codex_review_command("main", executable="/x/codex")[0],
+            "/x/codex",
+        )
+
+
+class CodexReviewOutputParsingTest(unittest.TestCase):
+    def test_findings_map_to_needs_changes(self):
+        raw = (
+            "Two issues found.\n\nFull review comments:\n\n"
+            "- [P1] Fix the diff scope — scripts/x.py:10-12\n"
+            "  detail line\n"
+            "- [P2] Honor the timeout — scripts/x.py:40\n"
+        )
+        v = _mod.parse_verdict(_mod.parse_codex_review_output(raw))
+        self.assertEqual(v["status"], "needs_changes")
+        self.assertEqual(len(v["findings"]), 2)
+        self.assertTrue(v["findings"][0].startswith("[P1]"))
+        self.assertEqual(v["summary"], "Two issues found.")
+
+    def test_no_findings_map_to_pass(self):
+        raw = "No blocking issues. The change looks correct and well tested.\n"
+        v = _mod.parse_verdict(_mod.parse_codex_review_output(raw))
+        self.assertEqual(v["status"], "pass")
+        self.assertEqual(v["findings"], [])
+
+    def test_empty_output_maps_to_pass_with_default_summary(self):
+        v = _mod.parse_verdict(_mod.parse_codex_review_output(""))
+        self.assertEqual(v["status"], "pass")
+        self.assertEqual(v["summary"], "codex review completed")
+
+
+class ReviewerExecutableResolutionTest(unittest.TestCase):
+    def test_explicit_codex_override_wins(self):
+        with patch.dict(os.environ, {"FENIX_CODEX_BIN": "/tmp/codex-bin"}, clear=False):
+            with patch.object(_mod, "_is_executable", return_value=True), \
+                 patch.object(_mod.shutil, "which", return_value="/wrong/path/codex"):
+                self.assertEqual(
+                    _mod.resolve_reviewer_executable("codex"),
+                    "/tmp/codex-bin",
+                )
+
+    def test_claude_uses_path_lookup_when_available(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with patch.object(
+                _mod.shutil, "which", side_effect=lambda name: "/opt/homebrew/bin/claude" if name == "claude" else None
+            ):
+                self.assertEqual(
+                    _mod.resolve_reviewer_executable("claude"),
+                    "/opt/homebrew/bin/claude",
+                )
+
+    def test_codex_uses_known_install_location_when_path_missing(self):
+        known_path = "/Users/example/.vscode/extensions/openai.chatgpt-1/bin/macos/codex"
+        with patch.dict(os.environ, {}, clear=True):
+            with patch.object(_mod.shutil, "which", return_value=None), \
+                 patch.object(_mod.glob, "glob", side_effect=lambda pattern: [known_path] if "openai.chatgpt-" in pattern else []), \
+                 patch.object(_mod, "_is_executable", side_effect=lambda path: path == known_path):
+                self.assertEqual(
+                    _mod.resolve_reviewer_executable("codex"),
+                    known_path,
+                )
+
+    def test_invalid_override_raises_actionable_error(self):
+        with patch.dict(os.environ, {"FENIX_CODEX_BIN": "/missing/codex"}, clear=False):
+            with patch.object(_mod, "_is_executable", return_value=False):
+                with self.assertRaises(_mod.ReviewerUnavailable) as ctx:
+                    _mod.resolve_reviewer_executable("codex")
+        self.assertIn("FENIX_CODEX_BIN=/missing/codex", str(ctx.exception))
+
+    def test_missing_codex_reports_lookup_attempts(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with patch.object(_mod.shutil, "which", return_value=None), \
+                 patch.object(_mod.glob, "glob", return_value=[]):
+                with self.assertRaises(_mod.ReviewerUnavailable) as ctx:
+                    _mod.resolve_reviewer_executable("codex")
+        self.assertIn("PATH:codex", str(ctx.exception))
+        self.assertIn("reviewer CLI not found for codex", str(ctx.exception))
+
+    def test_missing_claude_reports_lookup_attempts(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with patch.object(_mod.shutil, "which", return_value=None), \
+                 patch.object(_mod.glob, "glob", return_value=[]):
+                with self.assertRaises(_mod.ReviewerUnavailable) as ctx:
+                    _mod.resolve_reviewer_executable("claude")
+        self.assertIn("PATH:claude", str(ctx.exception))
+        self.assertIn("reviewer CLI not found for claude", str(ctx.exception))
 
 
 class VerdictParsingTest(unittest.TestCase):
@@ -109,31 +209,48 @@ class VerdictParsingTest(unittest.TestCase):
 
 
 class InvokeReviewerTest(unittest.TestCase):
+    def test_invoker_resolves_executable_before_running(self):
+        with patch.object(_mod, "resolve_reviewer_executable", return_value="/x/codex"), \
+             patch.object(
+                 _mod.subprocess, "run", return_value=_completed(stdout=_verdict_json())
+             ) as run:
+            _mod.invoke_reviewer("codex", "task-readiness", {}, None, 5)
+            argv = run.call_args[0][0]
+            self.assertEqual(argv[0], "/x/codex")
+
     def test_unavailable_cli_raises(self):
-        with patch.object(_mod.subprocess, "run", side_effect=FileNotFoundError()):
+        with patch.object(_mod, "resolve_reviewer_executable", return_value="/x/claude"), \
+             patch.object(_mod.subprocess, "run", side_effect=FileNotFoundError()):
             with self.assertRaises(_mod.ReviewerUnavailable):
                 _mod.invoke_reviewer("claude", "task-readiness", {}, None, 5)
 
     def test_timeout_raises(self):
         exc = subprocess.TimeoutExpired(cmd="claude", timeout=5)
-        with patch.object(_mod.subprocess, "run", side_effect=exc):
+        with patch.object(_mod, "resolve_reviewer_executable", return_value="/x/claude"), \
+             patch.object(_mod.subprocess, "run", side_effect=exc):
             with self.assertRaises(_mod.ReviewerTimeout):
                 _mod.invoke_reviewer("claude", "task-readiness", {}, None, 5)
 
     def test_nonzero_exit_raises_unavailable(self):
-        with patch.object(
-            _mod.subprocess, "run", return_value=_completed(returncode=1, stderr="auth")
-        ):
+        with patch.object(_mod, "resolve_reviewer_executable", return_value="/x/claude"), \
+             patch.object(
+                 _mod.subprocess, "run", return_value=_completed(returncode=1, stderr="auth")
+             ):
             with self.assertRaises(_mod.ReviewerUnavailable):
                 _mod.invoke_reviewer("claude", "task-readiness", {}, None, 5)
 
     def test_codex_post_code_dispatches_review(self):
-        with patch.object(
-            _mod.subprocess, "run", return_value=_completed(stdout=_verdict_json())
-        ) as run:
-            _mod.invoke_reviewer("codex", "post-code-review", {}, "main", 5)
+        review_text = "- [P1] Something to fix — scripts/x.py:1\n"
+        with patch.object(_mod, "resolve_reviewer_executable", return_value="/x/codex"), \
+             patch.object(
+                 _mod.subprocess, "run", return_value=_completed(stdout=review_text)
+             ) as run:
+            out = _mod.invoke_reviewer("codex", "post-code-review", {}, "main", 5)
             argv = run.call_args[0][0]
-            self.assertEqual(argv[:2], ["codex", "review"])
+            # `--base` is present; no positional PROMPT is passed alongside it.
+            self.assertEqual(argv, ["/x/codex", "review", "--base", "main"])
+            # Native codex-review text is normalized into the gate JSON verdict.
+            self.assertEqual(_mod.parse_verdict(out)["status"], "needs_changes")
 
 
 class RedactionTest(unittest.TestCase):
@@ -322,6 +439,74 @@ class MainTest(unittest.TestCase):
                     return_value=_completed(stdout=_verdict_json("pass")),
                 ):
                     self.assertEqual(_mod.main(argv), 0)
+
+
+class ReadDiffTest(unittest.TestCase):
+    def test_empty_base_returns_empty(self):
+        self.assertEqual(_mod.read_diff(None), "")
+        self.assertEqual(_mod.read_diff(""), "")
+
+    def test_uses_two_dot_working_tree_diff(self):
+        # Must compare base vs working tree (two-dot), not commits only
+        # (three-dot), so uncommitted changes are included in the review.
+        with patch.object(
+            _mod.subprocess, "run", return_value=_completed(stdout="diff --git a b")
+        ) as run:
+            out = _mod.read_diff("main")
+        argv = run.call_args[0][0]
+        self.assertEqual(argv, ["git", "diff", "--no-color", "main"])
+        self.assertNotIn("main...HEAD", argv)
+        self.assertEqual(out, "diff --git a b")
+
+    def test_nonzero_returncode_returns_empty(self):
+        with patch.object(
+            _mod.subprocess, "run", return_value=_completed(returncode=128, stderr="bad rev")
+        ):
+            self.assertEqual(_mod.read_diff("nope"), "")
+
+    def test_git_oserror_returns_empty(self):
+        with patch.object(_mod.subprocess, "run", side_effect=OSError("no git")):
+            self.assertEqual(_mod.read_diff("main"), "")
+
+
+class FallbackTimeoutTest(unittest.TestCase):
+    def _run_fallback(self, timeout, env=None):
+        captured = {}
+
+        def fake_stream_chat(endpoint, payload, idle_timeout, max_wall, progress_label):
+            captured["idle_timeout"] = idle_timeout
+            captured["max_wall"] = max_wall
+            return object()
+
+        gemma = _mod.gemma_local
+        with patch.dict(os.environ, env or {}, clear=False), \
+             patch.object(gemma, "ensure_model_available", return_value=None), \
+             patch.object(gemma, "build_chat_payload", return_value={}), \
+             patch.object(gemma, "stream_chat", side_effect=fake_stream_chat), \
+             patch.object(gemma, "stream_result_content", return_value=_verdict_json("pass")):
+            _mod.invoke_local_fallback_reviewer("task-readiness", {"task": "x"}, timeout)
+        return captured
+
+    def test_short_timeout_caps_idle_and_wall(self):
+        cap = self._run_fallback(timeout=5)
+        self.assertLessEqual(cap["idle_timeout"], 5)
+        self.assertLessEqual(cap["max_wall"], 5)
+
+    def test_zero_timeout_leaves_env_defaults(self):
+        # A falsy timeout must not shrink the limits to 0.
+        cap = self._run_fallback(timeout=0)
+        self.assertGreater(cap["idle_timeout"], 0)
+        self.assertGreater(cap["max_wall"], 0)
+
+    def test_large_timeout_does_not_raise_env_limits(self):
+        # timeout larger than the env/default limit must not increase them.
+        env = {
+            "FENIX_REVIEW_IDLE_TIMEOUT_SECONDS": "30",
+            "FENIX_REVIEW_MAX_WALL_SECONDS": "60",
+        }
+        cap = self._run_fallback(timeout=9999, env=env)
+        self.assertEqual(cap["idle_timeout"], 30)
+        self.assertEqual(cap["max_wall"], 60)
 
 
 if __name__ == "__main__":

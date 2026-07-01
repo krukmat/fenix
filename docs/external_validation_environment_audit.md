@@ -49,7 +49,7 @@ The backend is Go + SQLite. `cmd/fenix/main.go` opens `DATABASE_URL` or `./data/
 Readiness risks:
 
 - `go.mod` requires Go 1.25.10, but Go is not available in the shell.
-- `deploy/Dockerfile` uses `golang:1.24-alpine`, which does not match `go.mod` and is likely wrong for a validation image.
+- `deploy/Dockerfile` now uses `golang:1.25.10-alpine`, matching `go.mod` toolchain (resolved by EXTVAL-DOCKER-001).
 - `internal/infra/config/config.go` defaults to `OLLAMA_CHAT_MODEL=gemma4:e4b` and `OLLAMA_MODEL=nomic-embed-text`.
 - `.env.example`, `docker-compose.yml`, and `docker-compose.prod.yml` contain model defaults that do not match the local model list. Compose defaults use `llama3.2:3b-instruct-q4_K_M`; `.env.example` uses `gemma4:e4b`; neither is installed locally.
 - `nomic-embed-text` is not installed locally, but embeddings are required by the knowledge/evidence paths and by the mobile seed script.

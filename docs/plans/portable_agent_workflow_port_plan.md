@@ -47,7 +47,10 @@ Phases **A–F** of the adapted port:
 - **Phase C — Anti-forgetting**: `scripts/agent-preflight.py` (+ tests), `.claude/settings.json` (`SessionStart` + `PreToolUse`), `.gitignore` `.agent/`. ✅ Done.
 - **Phase D — QA gates**: `scripts/check-maintainability.py` + `scripts/check-config-secrets.sh`, wired to pre-push and CI. ✅ Done.
 - **Phase E — Local-model (Gemma) layer**: `gemma_local.py` transport, `delegate-low-rri.py`, `gemma-code-review.py`, `check-review-budget.py`, `adjudicator-packet.py`, `gemma-push-review.py`, `push_review_commit.py`, `gemma-audit-report.py`, `docs/policies/LOCAL_MODEL_POLICY.md`, Makefile targets, pre-push budget gate, opt-in CI job. Complete as of 2026-07-01.
-- **Phase F — Provider-aware peer workflow review gates**: a scripted blocking peer-review layer for task readiness and post-code task closure. Claude Code callers are reviewed by Codex; Codex callers are reviewed by Claude; other local or remote providers default to Claude review. Approved 2026-07-01; implemented 2026-07-01 (PAW-F2 script + tests, PAW-F4 QA target + workflow-guide wiring). Phase F complete.
+- **Phase F — Provider-aware peer workflow review gates**: a scripted blocking peer-review layer for task readiness and post-code task closure. Claude Code callers are reviewed by Codex; Codex callers are reviewed by Claude; other local or remote providers default to Claude review. Approved 2026-07-01; implemented 2026-07-01 (PAW-F2 script + tests, PAW-F4 QA target + workflow-guide wiring). Hardening task `PAW-F7` completed 2026-07-01 to make reviewer CLI discovery robust across cross-agent sessions.
+- **Phase F8 addendum — Reviewer CLI override operations**: the workflow guide documents `FENIX_CODEX_BIN` and `FENIX_CLAUDE_BIN`, plus the expected troubleshooting order for blocked peer review caused by discovery or authentication issues.
+- **Phase F9 addendum — Codex review adapter compatibility (Codex CLI 0.142.5)**: `PAW-F9` fixed the `post-code-review` Codex adapter after `codex review` dropped `--instructions`, made `--base` and a positional prompt mutually exclusive, and standardized on natural-language findings. The adapter now invokes `codex review --base <ref>` and translates its native `- [P#]` findings into the gate JSON verdict (`needs_changes` if any finding, else `pass`) via `parse_codex_review_output`. Without this, every Claude Code post-code review silently fell back to the local Gemma reviewer. Completed 2026-07-01.
+- **Phase F10 addendum — Peer-review diff scoping and fallback timeout fixes**: `PAW-F10` fixed two correctness defects surfaced by the Codex review of the gate itself. (1) `read_diff` used the three-dot `<base>...HEAD` form, which compares commits only and returned an empty diff in the common pre-commit closure flow — letting a reviewer `pass` unreviewed code; it now uses the two-dot `git diff <base>` (working tree) form. (2) `invoke_local_fallback_reviewer` ignored the caller `--timeout`; it now caps the local model's idle and wall limits at the supplied timeout. Reviewed by local Gemma at both checkpoints (readiness + code review, both PASS). Completed 2026-07-01.
 - **Phase F6 addendum — Local fallback reviewer policy**: peer workflow review may use a local-model backup reviewer only after the primary reviewer is blocked by timeout or reviewer unavailability. The fallback remains fail-closed, must be explicit in artifacts, and does not replace HITL approval.
 - **Phase F3 addendum — Agnostic workflow guide**: `docs/playbooks/AGENT_WORKFLOW_GUIDE.md` is now ported as the portable workflow source of truth for ordering, with `README_AGENT_ORDER.md`, `CLAUDE.md`, `AGENTS.md`, and preflight referencing it instead of encoding separate workflow orders.
 - **Phase F5 addendum — OpenAI task-card model defaults**: task-card workflow guidance now defaults OpenAI recommendations to `gpt-5.4`, uses `gpt-5.4-mini` for cost-prioritized work, and reserves `gpt-5.5` for clearly higher-autonomy or higher-complexity tasks.
@@ -138,6 +141,8 @@ Each task has its own ledger file in `docs/tasks/`. Tasks are executed one at a 
 | PAW-F4 | `task_paw_f4_peer_review_wiring.md` | Wire QA target and workflow guidance for peer review gates | config | F | ✅ done |
 | PAW-F6A | `task_paw_f6a_peer_review_local_fallback_policy.md` | Define policy for local fallback in peer workflow review | docs | F | ✅ done |
 | PAW-F6B | `task_paw_f6b_peer_review_local_fallback_script.md` | Implement local fallback in peer workflow review script | development | F | ✅ done |
+| PAW-F7 | `task_paw_f7_peer_reviewer_cli_discovery.md` | Harden reviewer CLI discovery for cross-agent peer review sessions | development | F | ✅ done |
+| PAW-F8 | `task_paw_f8_peer_review_cli_override_docs.md` | Document reviewer CLI overrides and peer-review troubleshooting flow | docs | F | ✅ done |
 
 > **Note on id numbering:** the peer-review wiring task is numbered **PAW-F4**, not PAW-F3. The id `PAW-F3` was already claimed by the completed "Agent workflow documentation order refactor" addendum (`task_paw_f3_agent_workflow_document_order.md`, see §3 Phase F3 addendum). The wiring task was renumbered to PAW-F4 to avoid a duplicate id and preserve traceability.
 
@@ -162,6 +167,8 @@ PAW-E2, PAW-E3, PAW-E4, PAW-E5 ──> PAW-E6
 
 PAW-F0 ──> PAW-F1 ──> PAW-F2 ──> PAW-F4
 PAW-F4 ──> PAW-F6A ──> PAW-F6B
+PAW-F4, PAW-F6B ──> PAW-F7
+PAW-F7 ──> PAW-F8
 
 Phase F prerequisite anchors:
 
@@ -170,6 +177,8 @@ Phase F prerequisite anchors:
 - `PAW-F4` (peer-review wiring; renumbered from the plan's original F3 slot to avoid the completed PAW-F3 addendum id) depends on `PAW-F2`; wiring cannot happen before the script and mocked tests exist.
 - `PAW-F6A` depends on `PAW-F4`; the fallback policy must be documented before behavior changes.
 - `PAW-F6B` depends on `PAW-F6A`; the script must implement only the documented fallback contract.
+- `PAW-F7` depends on `PAW-F4` and `PAW-F6B`; CLI discovery hardening must preserve the wired workflow contract and the existing fallback behavior.
+- `PAW-F8` depends on `PAW-F7`; operator guidance should reflect the implemented discovery behavior and override knobs.
 - Phase F does **not** depend on unfinished/advisory Gemma push-review work. It is a provider-independence safety gate for future task execution.
 
 Hard ordering: A before B before C before D before E for the original *wiring* steps; within a phase, doc/script authoring can proceed in parallel until the Makefile/hook/CI wiring step, which is serialized. Within Phase E: E1 first (transport); E2 and E3 in parallel (both depend on E1 only); E4 after E3; E5 after E2 and E3; E6 last. Within Phase F: F0 reconciles dependency/status drift first, F1 defines the policy contract, F2 implements the script, F4 wires the workflow, F6A defines fallback policy, and F6B implements the fallback behavior.

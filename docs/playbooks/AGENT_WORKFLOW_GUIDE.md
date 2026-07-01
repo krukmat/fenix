@@ -192,6 +192,31 @@ python3 scripts/peer-workflow-review.py post-code-review \
 The script resolves the reviewer from `--caller-kind`, writes a redacted artifact
 under `logs/peer-workflow-review/`, and exits 0 only on a `pass` verdict.
 
+**Reviewer CLI overrides.**
+
+- Set `FENIX_CODEX_BIN` to force the Codex executable path when Claude Code work
+  must be reviewed by Codex and the shell environment does not expose `codex`
+  on `PATH`.
+- Set `FENIX_CLAUDE_BIN` to force the Claude Code executable path when Codex or
+  another provider must be reviewed by Claude Code and the shell environment
+  does not expose `claude` on `PATH`.
+- Overrides win over `PATH` lookup. If an override is set but is not
+  executable, the script fails closed with a `blocked` artifact that names the
+  bad override.
+
+**Troubleshooting order.**
+
+1. Confirm whether an explicit reviewer override is needed:
+   `FENIX_CODEX_BIN=/absolute/path/to/codex` or
+   `FENIX_CLAUDE_BIN=/absolute/path/to/claude`.
+2. Confirm the reviewer CLI exists and is executable in the current session:
+   `which codex`, `which claude`, or the resolved absolute path.
+3. Confirm the reviewer CLI is authenticated and usable outside the workflow
+   gate: `codex login` / `codex doctor` or `claude` in non-mutating print mode.
+4. Re-run `scripts/peer-workflow-review.py`. If the primary reviewer still
+   returns `reviewer_unavailable` or `reviewer_timeout`, rely on the documented
+   local fallback path and report the resulting artifact instead of self-review.
+
 **Artifact:** the review script writes a JSON artifact at a path determined by
 the script. Include the artifact path in the task card or closure report field.
 

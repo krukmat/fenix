@@ -1,5 +1,5 @@
 ---
-doc_type: summary
+doc_type: plan
 title: "External Validation First Test Battery Plan"
 status: active
 created: 2026-06-29
@@ -39,7 +39,7 @@ Backend/BFF host:
 Agentic runtime:
 
 - Primary chat model: `gemma4:26b-a4b-it-qat`.
-- Fallback chat model: `gemma4:12b-it-qat`.
+- Fallback chat model: `gemma4:12b-mlx` (installed on host; supersedes the earlier `gemma4:12b-it-qat` reference, which is not installed).
 - Required embedding model: `nomic-embed-text`.
 - Runtime: Ollama, not LM Studio or vLLM for the first battery.
 
@@ -54,18 +54,19 @@ Mobile:
 
 ### S0.1 Local Tooling
 
-Install or fix shell wiring until these commands pass:
+Install or fix shell wiring until these commands pass. Commands marked `[required]` are hard gates; `[optional]` are advisory for the first battery only (Maestro is not on the critical path for manual API + UI validation):
 
 ```sh
-go version
-node --version
-npm --version
-java -version
-adb version
-maestro --version
-ollama --version
-curl -fsS http://localhost:11434/api/tags
+go version          # [required]
+node --version      # [required]
+npm --version       # [required]
+java -version       # [required]
+adb version         # [required]
+ollama --version    # [required] — binary must be on PATH before starting daemon
+maestro --version   # [optional] — Maestro is not required for first battery (manual flows); fix for scripted Maestro runs
 ```
+
+Ollama daemon readiness (`curl -fsS http://localhost:11434/api/tags`) is a separate prerequisite: run `ollama serve` first, then verify. It is required before any model or embedding check, but is a daemon concern, not a toolchain PATH concern.
 
 Required actions:
 
@@ -84,7 +85,7 @@ colima start
 docker info
 ```
 
-Native backend/BFF is preferred for this first battery because the current Dockerfile uses Go 1.24 while `go.mod` requires Go 1.25.10.
+Native backend/BFF is preferred for this first battery. The Dockerfile Go version mismatch has been resolved (EXTVAL-DOCKER-001): `deploy/Dockerfile` now uses `golang:1.25.10-alpine`, matching `go.mod`.
 
 ### S0.2 Repo Dependencies
 
@@ -105,7 +106,7 @@ Run:
 ```sh
 ollama pull nomic-embed-text
 ollama show gemma4:26b-a4b-it-qat
-ollama show gemma4:12b-it-qat
+ollama show gemma4:12b-mlx
 ```
 
 Smoke test chat model:
@@ -113,10 +114,10 @@ Smoke test chat model:
 ```sh
 curl -fsS http://localhost:11434/api/chat \
   -H 'Content-Type: application/json' \
-  -d '{"model":"gemma4:12b-it-qat","stream":false,"messages":[{"role":"user","content":"Return exactly: ok"}]}'
+  -d '{"model":"gemma4:12b-mlx","stream":false,"messages":[{"role":"user","content":"Return exactly: ok"}]}'
 ```
 
-Use `gemma4:12b-it-qat` for fast smoke checks and `gemma4:26b-a4b-it-qat` for the actual external validation run.
+Use `gemma4:12b-mlx` for fast smoke checks and `gemma4:26b-a4b-it-qat` for the actual external validation run.
 
 ### S0.4 Validation Env
 
@@ -436,13 +437,13 @@ No-Go:
 - Ollama model mismatch.
 - Any validation relies on BFF fixture responses.
 - Mobile build uses `.env.e2e` for real product claims.
-- Docker/Compose path is used before fixing Go version mismatch in `deploy/Dockerfile`.
+- Docker/Compose path is used before verifying the Go version in `deploy/Dockerfile` (currently `golang:1.25.10-alpine`, matching `go.mod`).
 
 ## Follow-Up Tasks
 
 Recommended follow-up task records:
 
-1. Align Dockerfile Go version with `go.mod`.
+1. ~~Align Dockerfile Go version with `go.mod`.~~ Done via EXTVAL-DOCKER-001: `deploy/Dockerfile` now uses `golang:1.25.10-alpine`.
 2. Align `.env.example` and Compose model defaults with locally validated models.
 3. Add a dedicated external-validation Maestro flow that does not use `seed-and-run.sh`, `e2e-bootstrap`, or screenshot-mode.
 4. Add a readiness script that checks Go, Java, Android SDK, Ollama models, backend/BFF health, and fixture-mode disabled state.
