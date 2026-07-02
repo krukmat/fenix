@@ -341,16 +341,28 @@ func nearDuplicateVectors(a, b []float32, threshold float64) bool {
 	return float64(cosineSimilarity(a, b)) >= threshold
 }
 
-// normalizeConfidenceScore maps RRF score to [0,1] for confidence thresholds.
-// RRF absolute values are tiny (e.g. ~0.01-0.03 with k=60), so we normalize
-// against the theoretical max with two retrieval methods (BM25 + vector).
-func (s *EvidencePackService) normalizeConfidenceScore(raw float64) float64 {
+// MaxHybridSearchScore returns the theoretical max RRF score for the current
+// two-method hybrid search (BM25 + vector).
+func MaxHybridSearchScore() float64 {
+	return 2.0 / float64(rrfK+1)
+}
+
+// NormalizeHybridSearchScore maps a raw hybrid-search RRF score to [0,1] for
+// downstream confidence thresholds and action gating.
+func NormalizeHybridSearchScore(raw float64) float64 {
 	if raw <= 0 {
 		return 0
 	}
-	maxScore := 2.0 / float64(rrfK+1)
+	maxScore := MaxHybridSearchScore()
 	if maxScore <= 0 {
 		return 0
 	}
 	return math.Min(1.0, raw/maxScore)
+}
+
+// normalizeConfidenceScore maps RRF score to [0,1] for confidence thresholds.
+// RRF absolute values are tiny (e.g. ~0.01-0.03 with k=60), so we normalize
+// against the theoretical max with two retrieval methods (BM25 + vector).
+func (s *EvidencePackService) normalizeConfidenceScore(raw float64) float64 {
+	return NormalizeHybridSearchScore(raw)
 }

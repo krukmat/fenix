@@ -197,6 +197,23 @@ func TestEvidencePackService_PackConfidenceAndNormalizeScore(t *testing.T) {
 	}
 }
 
+func TestNormalizeHybridSearchScore(t *testing.T) {
+	maxScore := MaxHybridSearchScore()
+	if maxScore <= 0 {
+		t.Fatalf("MaxHybridSearchScore()=%f, want > 0", maxScore)
+	}
+
+	if got := NormalizeHybridSearchScore(maxScore); got != 1.0 {
+		t.Fatalf("NormalizeHybridSearchScore(max)=%f, want 1.0", got)
+	}
+	if got := NormalizeHybridSearchScore(maxScore / 2); got != 0.5 {
+		t.Fatalf("NormalizeHybridSearchScore(max/2)=%f, want 0.5", got)
+	}
+	if got := NormalizeHybridSearchScore(-0.1); got != 0 {
+		t.Fatalf("NormalizeHybridSearchScore(negative)=%f, want 0", got)
+	}
+}
+
 func TestEvidencePackService_EmptyEvidencePackAndWarnings(t *testing.T) {
 	svc := &EvidencePackService{cfg: DefaultEvidenceConfig()}
 

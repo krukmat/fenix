@@ -34,6 +34,7 @@ All Architecture Decision Records for this repository. Each row links to the ADR
 | [ADR-028](ADR-028-snapshot-approval-dual-seed.md) | Dual approval seed for snapshot runner approve/reject coverage | accepted |
 | [ADR-029](ADR-029-bff-admin-shell.md) | BFF admin shell: HTMX read-only surface at /bff/admin/* over existing Go governance endpoints | accepted |
 | [ADR-030](ADR-030-gemma-local-adjudication.md) | Gemma local reviewer multi-pass contract and context-isolated adjudication (D14) | accepted |
+| [ADR-031](ADR-031-support-approval-trigger-contract.md) | Support approval trigger contract: approval gates sensitive case mutation, handoff remains a human-routing fallback | accepted |
 | [ADR-032](ADR-032-workspace-bootstrap-defaults.md) | Workspace bootstrap defaults: a freshly registered workspace has no usable role or pipeline | proposed |
 | [ADR-100](ADR-100-agentic-blackboard-architecture.md) | Agentic Blackboard Architecture | accepted |
 | [ADR-101](ADR-101-relationship-memory-engine.md) | Relationship Memory Engine | accepted |

@@ -54,6 +54,9 @@ Phases **A–F** of the adapted port:
 - **Phase F6 addendum — Local fallback reviewer policy**: peer workflow review may use a local-model backup reviewer only after the primary reviewer is blocked by timeout or reviewer unavailability. The fallback remains fail-closed, must be explicit in artifacts, and does not replace HITL approval.
 - **Phase F3 addendum — Agnostic workflow guide**: `docs/playbooks/AGENT_WORKFLOW_GUIDE.md` is now ported as the portable workflow source of truth for ordering, with `README_AGENT_ORDER.md`, `CLAUDE.md`, `AGENTS.md`, and preflight referencing it instead of encoding separate workflow orders.
 - **Phase F5 addendum — OpenAI task-card model defaults**: task-card workflow guidance now defaults OpenAI recommendations to `gpt-5.4`, uses `gpt-5.4-mini` for cost-prioritized work, and reserves `gpt-5.5` for clearly higher-autonomy or higher-complexity tasks.
+- **Phase F11 addendum — Multi-provider task-card model recommendations**: task-card workflow guidance now permits recommended models from either OpenAI or Anthropic, defines the canonical dual-provider format `OpenAI: <model id> | Anthropic: <model id>`, sets balanced defaults to `gpt-5.4` and `claude-sonnet-4-6`, and now treats the dual-provider format as the default when no single provider is clearly preferred. Completed 2026-07-01; clarified 2026-07-01.
+- **Phase F12 addendum — Remove duplicated model-selection rule from AGENTS wrapper**: `AGENTS.md` now points to `docs/playbooks/AGENT_WORKFLOW_GUIDE.md` for the canonical `Recommended model` policy instead of restating model-selection details locally. Completed 2026-07-01.
+- **Phase F14 addendum — Explicit peer-review approval artifact presentation**: workflow reporting now requires peer-review approval fields to show `reviewer`, `artifact`, and `status` explicitly so the proof file and approval state are immediately scannable in task cards and closure reports. Completed 2026-07-01.
 
 ## 4. Scope excluded
 

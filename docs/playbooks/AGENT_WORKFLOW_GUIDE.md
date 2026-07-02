@@ -34,9 +34,12 @@ status: active
    reviewer from the caller's provider (see `## Peer review` below). A non-pass
    verdict blocks task-card presentation until the task file is revised, the user
    explicitly waives review, or the verdict is reported as blocked (peer CLI
-   unavailable). Include the result in the task card as:
-   `Peer readiness review: <reviewer> <artifact path> - PASS` (or `BLOCKED`).
-   Peer review does not replace RRI/HITL human approval.
+   unavailable). Include the result in the task card under a peer-review approval
+   field that makes the evidence file and approval state explicit, for example:
+   `Peer readiness review approval: reviewer=<reviewer>; artifact=<artifact path>; status=PASS`
+   (or `status=BLOCKED`). The artifact value is the proof file written by the
+   review script; the status value is the approval verdict. Peer review does not
+   replace RRI/HITL human approval.
 7. **Present or execute** - for RRI 0-25, execute directly within the bounded
    low-band rules. For RRI 26+, present the task card and wait for explicit human
    approval before editing.
@@ -48,9 +51,13 @@ status: active
     workflow review script against the diff. Resolve the reviewer from the
     caller's provider (see `## Peer review` below). A non-pass verdict blocks
     closure until the code is revised, the user explicitly waives review, or the
-    verdict is reported as blocked. Include the result in the closure report as:
-    `Peer code review: <reviewer> <artifact path> - PASS` (or `BLOCKED`).
-    Peer review does not replace RRI/HITL human approval.
+    verdict is reported as blocked. Include the result in the closure report under
+    a peer-review approval field that makes the evidence file and approval state
+    explicit, for example:
+    `Peer code review approval: reviewer=<reviewer>; artifact=<artifact path>; status=PASS`
+    (or `status=BLOCKED`). The artifact value is the proof file written by the
+    review script; the status value is the approval verdict. Peer review does not
+    replace RRI/HITL human approval.
 11. **Sync status** - update materially affected task, plan, ADR, dashboard,
     handoff, or audit artifacts before reporting completion.
 12. **Close and stop** - report result, verification, files affected, reasoning
@@ -63,12 +70,22 @@ status: active
   implementation begins.
 - Task cards must use unambiguous agentic English and the field names required by
   `AGENTS.md`.
-- When a task card recommends an OpenAI model, default to `gpt-5.4` for balanced
-  reliability and cost. Use `gpt-5.4-mini` when the task explicitly prioritizes
-  cost or speed over reliability, and reserve `gpt-5.5` for tasks that clearly
-  need higher autonomy, broader codebase navigation, or harder multi-step
-  reasoning. If another OpenAI model is recommended, justify the deviation in
-  the task card summary or effort note.
+- Task cards may recommend models from either OpenAI or Anthropic. Use a single
+  provider-specific model id when one provider is clearly preferred for the
+  task, or use a provider-qualified dual recommendation when both are valid.
+- Canonical single-provider examples: `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.5`,
+  `claude-sonnet-4-6`, `claude-opus-4-8`.
+- Canonical dual-provider format: `OpenAI: <model id> | Anthropic: <model id>`.
+- **Default rule:** when no single provider is clearly preferred for the task,
+  task cards should use the canonical dual-provider format rather than picking a
+  single provider arbitrarily.
+- Default balanced recommendations are `gpt-5.4` for OpenAI and
+  `claude-sonnet-4-6` for Anthropic. Use `gpt-5.4-mini` when the task
+  explicitly prioritizes cost or speed over reliability. Use `gpt-5.5` or
+  `claude-opus-4-8` only when the task clearly needs higher autonomy, broader
+  codebase navigation, or harder multi-step reasoning.
+- If a non-default model is recommended, justify the deviation in the task card
+  summary or effort note.
 - Development tasks must include concise, language-agnostic pseudocode in the task
   file and task card.
 - A task that introduces a new service or component must include an ASCII system

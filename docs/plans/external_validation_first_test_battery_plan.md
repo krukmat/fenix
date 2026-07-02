@@ -326,6 +326,8 @@ Go/no-go:
 
 Goal: prove human-in-the-loop control is visible and operational.
 
+Current status: unblocked for rerun. The original blocker `EXTVAL-BUG-APPROVAL-UNREACHABLE-001` was resolved by the completed implementation tasks `EXTVAL-IMPL-APPROVAL-TRIGGER-001` and `EXTVAL-IMPL-APPROVER-RESOLUTION-001`, which restored a real API-reachable support approval trigger and removed self-approval. The follow-up blocker `EXTVAL-BUG-RESOLVE-THRESHOLD-UNREACHABLE-001` is also resolved: support-agent action gating now normalizes raw hybrid-search RRF scores to the same [0,1] confidence scale used by evidence packing, so strong evidence can reach the resolve and approval path again. T4 remains contingent on runtime provenance: execute it only against backend/BFF processes started from a checkout that includes those completed fixes.
+
 Steps:
 
 1. Use a high-priority or weak-evidence support scenario that should produce approval or handoff.

@@ -138,10 +138,39 @@ func TestDetermineAction_HighScore_Resolves(t *testing.T) {
 	action := sa.determineAction(
 		SupportAgentConfig{CaseID: "case-1", CustomerQuery: "help", Priority: "medium"},
 		&CaseContext{ID: "case-1", WorkspaceID: "ws-1", Priority: "medium"},
-		searchResultsToEvidencePack("help", &knowledge.SearchResults{Items: []knowledge.SearchResult{{Score: 0.95}}}),
+		searchResultsToEvidencePack("help", &knowledge.SearchResults{Items: []knowledge.SearchResult{{Score: supportRawHybridScore(0.95)}}}),
 	)
 	if action.Type != supportActionUpdateCase {
 		t.Fatalf("expected update_case, got %s", action.Type)
+	}
+}
+
+func TestDetermineAction_HighScoreHighPriorityRequiresApproval(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+
+	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+	action := sa.determineAction(
+		SupportAgentConfig{CaseID: "case-1", CustomerQuery: "help"},
+		&CaseContext{ID: "case-1", WorkspaceID: "ws-1", Priority: "high"},
+		searchResultsToEvidencePack("help", &knowledge.SearchResults{Items: []knowledge.SearchResult{{Score: supportRawHybridScore(0.95)}}}),
+	)
+	if !actionRequiresApproval(action) {
+		t.Fatalf("expected action to require approval, metadata = %q", action.Metadata)
+	}
+
+	var metadata map[string]string
+	if err := json.Unmarshal([]byte(action.Metadata), &metadata); err != nil {
+		t.Fatalf("unmarshal metadata: %v", err)
+	}
+	if metadata["sensitivity"] != sensitivityHigh {
+		t.Fatalf("sensitivity = %q want %q", metadata["sensitivity"], sensitivityHigh)
+	}
+	if metadata["approval_reason"] != sensitivityHighReason {
+		t.Fatalf("approval_reason = %q want %q", metadata["approval_reason"], sensitivityHighReason)
+	}
+	if metadata["source"] != "support-agent" {
+		t.Fatalf("source = %q want %q", metadata["source"], "support-agent")
 	}
 }
 
@@ -153,7 +182,7 @@ func TestDetermineAction_MediumScore_Abstains(t *testing.T) {
 	action := sa.determineAction(
 		SupportAgentConfig{CaseID: "case-1", CustomerQuery: "help", Priority: "medium"},
 		&CaseContext{ID: "case-1", WorkspaceID: "ws-1", Priority: "medium"},
-		searchResultsToEvidencePack("help", &knowledge.SearchResults{Items: []knowledge.SearchResult{{Score: 0.7}}}),
+		searchResultsToEvidencePack("help", &knowledge.SearchResults{Items: []knowledge.SearchResult{{Score: supportRawHybridScore(0.7)}}}),
 	)
 	if action.Type != supportActionAbstain {
 		t.Fatalf("expected abstain, got %s", action.Type)
@@ -227,7 +256,7 @@ func TestSupportAgent_Run_ResolvesWhenHighConfidence(t *testing.T) {
 	caseID := seedSupportCase(t, db, wsID, ownerID, "medium")
 	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{
 		results: &knowledge.SearchResults{
-			Items: []knowledge.SearchResult{{KnowledgeItemID: "ki-1", Score: 0.9, Snippet: "restart the service"}},
+			Items: []knowledge.SearchResult{{KnowledgeItemID: "ki-1", Score: supportRawHybridScore(0.9), Snippet: "restart the service"}},
 		},
 	})
 
@@ -275,6 +304,79 @@ func TestSupportAgent_Run_ResolvesWhenHighConfidence(t *testing.T) {
 	}
 }
 
+func TestSupportAgent_Run_HighConfidenceHighPriorityCreatesApprovalRequest(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+
+	wsID, ownerID := seedSupportWorkspace(t, db)
+	approverID := seedSupportUser(t, db, wsID)
+	insertSupportAgentDefinition(t, db, wsID)
+	caseID := seedSupportCase(t, db, wsID, ownerID, "high")
+	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{
+		results: &knowledge.SearchResults{
+			Items: []knowledge.SearchResult{{KnowledgeItemID: "ki-1", Score: supportRawHybridScore(0.9), Snippet: "apply privileged remediation"}},
+		},
+	})
+
+	run, err := sa.Run(supportRunContext(context.Background(), wsID, ownerID), SupportAgentConfig{
+		WorkspaceID:   wsID,
+		CaseID:        caseID,
+		CustomerQuery: "service is down for all enterprise users",
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	stored, err := agent.NewOrchestrator(db).GetAgentRun(context.Background(), wsID, run.ID)
+	if err != nil {
+		t.Fatalf("load run: %v", err)
+	}
+	if stored.Status != agent.StatusEscalated {
+		t.Fatalf("expected escalated, got %s", stored.Status)
+	}
+
+	var output map[string]any
+	if err := json.Unmarshal(stored.Output, &output); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if got, _ := output["Type"].(string); got != supportPendingApprovalAction {
+		t.Fatalf("output type = %q want %q", got, supportPendingApprovalAction)
+	}
+	approvalID, _ := output["ApprovalID"].(string)
+	if approvalID == "" {
+		t.Fatal("expected approval id in stored output")
+	}
+
+	var action, reason, status, storedApproverID string
+	if err := db.QueryRowContext(context.Background(), `
+		SELECT action, reason, status, approver_id
+		FROM approval_request
+		WHERE id = ?
+	`, approvalID).Scan(&action, &reason, &status, &storedApproverID); err != nil {
+		t.Fatalf("query approval_request: %v", err)
+	}
+	if action != "support.case.update" {
+		t.Fatalf("approval action = %q want %q", action, "support.case.update")
+	}
+	if reason != sensitivityHighReason {
+		t.Fatalf("approval reason = %q want %q", reason, sensitivityHighReason)
+	}
+	if status != "pending" {
+		t.Fatalf("approval status = %q want pending", status)
+	}
+	if storedApproverID != approverID {
+		t.Fatalf("approval approver_id = %q want %q", storedApproverID, approverID)
+	}
+
+	caseTicket, err := crm.NewCaseService(db).Get(context.Background(), wsID, caseID)
+	if err != nil {
+		t.Fatalf("get case: %v", err)
+	}
+	if caseTicket.Status != "open" {
+		t.Fatalf("expected case to remain open pending approval, got %s", caseTicket.Status)
+	}
+}
+
 func TestSupportAgent_Run_AbstainsWhenConfidenceIsMedium(t *testing.T) {
 	db := setupAgentTestDB(t)
 	defer db.Close()
@@ -284,7 +386,7 @@ func TestSupportAgent_Run_AbstainsWhenConfidenceIsMedium(t *testing.T) {
 	caseID := seedSupportCase(t, db, wsID, ownerID, "medium")
 	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{
 		results: &knowledge.SearchResults{
-			Items: []knowledge.SearchResult{{Score: 0.7, Snippet: "possible workaround"}},
+			Items: []knowledge.SearchResult{{Score: supportRawHybridScore(0.7), Snippet: "possible workaround"}},
 		},
 	})
 
@@ -327,10 +429,11 @@ func searchResultsToEvidencePack(query string, results *knowledge.SearchResults)
 	methods := make([]knowledge.EvidenceMethod, 0, len(results.Items))
 	confidence := knowledge.ConfidenceLow
 	if len(results.Items) > 0 {
+		normalizedScore := knowledge.NormalizeHybridSearchScore(results.Items[0].Score)
 		switch {
-		case results.Items[0].Score >= 0.85:
+		case normalizedScore >= 0.85:
 			confidence = knowledge.ConfidenceHigh
-		case results.Items[0].Score >= 0.55:
+		case normalizedScore >= 0.55:
 			confidence = knowledge.ConfidenceMedium
 		}
 	}
@@ -371,6 +474,10 @@ func searchResultsToEvidencePack(query string, results *knowledge.SearchResults)
 	}
 }
 
+func supportRawHybridScore(normalized float64) float64 {
+	return normalized * knowledge.MaxHybridSearchScore()
+}
+
 func seedSupportWorkspace(t *testing.T, db *sql.DB) (string, string) {
 	t.Helper()
 	suffix := time.Now().UTC().Format("150405.000000000")
@@ -391,6 +498,20 @@ func seedSupportWorkspace(t *testing.T, db *sql.DB) (string, string) {
 		t.Fatalf("insert user: %v", err)
 	}
 	return wsID, ownerID
+}
+
+func seedSupportUser(t *testing.T, db *sql.DB, wsID string) string {
+	t.Helper()
+	suffix := time.Now().UTC().Format("150405.000000000")
+	userID := "user-support-extra-" + suffix
+	_, err := db.Exec(`
+		INSERT INTO user_account (id, workspace_id, email, display_name, status, created_at, updated_at)
+		VALUES (?, ?, ?, 'Support Approver', 'active', datetime('now'), datetime('now'))
+	`, userID, wsID, userID+"@example.com")
+	if err != nil {
+		t.Fatalf("insert support user: %v", err)
+	}
+	return userID
 }
 
 func seedSupportCase(t *testing.T, db *sql.DB, wsID, ownerID, priority string) string {
@@ -459,6 +580,7 @@ func TestSupportAgent_RequestSupportApprovalAndBuildApprovalEscalationResult(t *
 	defer db.Close()
 
 	wsID, ownerID := seedSupportWorkspace(t, db)
+	approverID := seedSupportUser(t, db, wsID)
 	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
 	ctx := supportRunContext(context.Background(), wsID, ownerID)
 	caseContext := &CaseContext{
@@ -484,16 +606,19 @@ func TestSupportAgent_RequestSupportApprovalAndBuildApprovalEscalationResult(t *
 		t.Fatal("expected non-empty approval id")
 	}
 
-	var storedAction string
+	var storedAction, storedApproverID string
 	if err := db.QueryRowContext(context.Background(), `
-		SELECT action
+		SELECT action, approver_id
 		FROM approval_request
 		WHERE id = ?
-	`, approvalID).Scan(&storedAction); err != nil {
+	`, approvalID).Scan(&storedAction, &storedApproverID); err != nil {
 		t.Fatalf("query approval_request: %v", err)
 	}
 	if storedAction != "support.case.update" {
 		t.Fatalf("approval action = %q want %q", storedAction, "support.case.update")
+	}
+	if storedApproverID != approverID {
+		t.Fatalf("approval approver_id = %q want %q", storedApproverID, approverID)
 	}
 
 	tokens := int64(0)
@@ -524,6 +649,34 @@ func TestSupportAgent_RequestSupportApprovalAndBuildApprovalEscalationResult(t *
 	}
 	if got, _ := output["ApprovalID"].(string); got == "" {
 		t.Fatal("expected approval_id in output")
+	}
+}
+
+func TestSupportAgent_RequestSupportApproval_FailsClosedWithoutDistinctApprover(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+
+	wsID, ownerID := seedSupportWorkspace(t, db)
+	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+	ctx := supportRunContext(context.Background(), wsID, ownerID)
+	caseContext := &CaseContext{
+		ID:          "case-approval-blocked-1",
+		WorkspaceID: wsID,
+		OwnerID:     ownerID,
+		Subject:     "Sensitive support issue",
+		Priority:    "high",
+	}
+	action := &Action{
+		Type:       supportActionUpdateCase,
+		CaseID:     caseContext.ID,
+		Status:     "resolved",
+		Details:    "Apply sensitive remediation",
+		Confidence: 90,
+	}
+
+	_, err := sa.requestSupportApproval(ctx, caseContext, action)
+	if !errors.Is(err, ErrSupportApprovalApproverNotFound) {
+		t.Fatalf("requestSupportApproval() error = %v want %v", err, ErrSupportApprovalApproverNotFound)
 	}
 }
 
@@ -584,7 +737,7 @@ func TestSupportAgent_Run_RecordsUsageForCompletedRun(t *testing.T) {
 	}
 	usageStub := &supportUsageStub{}
 	sa := NewSupportAgentWithDBAndUsage(agent.NewOrchestrator(db), registry, &mockKnowledgeSearch{
-		results: &knowledge.SearchResults{Items: []knowledge.SearchResult{{KnowledgeItemID: "ki-1", Score: 0.9, Snippet: "restart the service"}}},
+		results: &knowledge.SearchResults{Items: []knowledge.SearchResult{{KnowledgeItemID: "ki-1", Score: supportRawHybridScore(0.9), Snippet: "restart the service"}}},
 	}, db, usageStub)
 	caseID := seedSupportCase(t, db, wsID, ownerID, "medium")
 

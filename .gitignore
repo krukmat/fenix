@@ -69,6 +69,7 @@ docs/plans/*
 !docs/plans/docs_tracking_ignore_alignment_plan.md
 !docs/plans/external_validation_first_test_battery_plan.md
 !docs/plans/portable_agent_workflow_port_plan.md
+!docs/plans/adr-032-workspace-bootstrap-remediation-plan.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/
@@ -85,3 +86,10 @@ logs/gemma-audit/
 
 # Peer workflow review audit logs — local only
 logs/peer-workflow-review/
+
+# External validation local secrets/DB/logs/artifacts — never committed
+.env.external-validation
+data/external-validation/
+data/extval-*
+mobile/app/(tabs)/home/.index.tsx.swp
+logs/verification/

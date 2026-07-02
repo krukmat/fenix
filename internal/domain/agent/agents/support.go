@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -43,6 +44,8 @@ const supportActionAbstain = "abstain"
 const supportActionEscalate = "escalate"
 const supportPendingApprovalAction = "pending_approval"
 const supportSystemActorID = "system"
+const supportPriorityHigh = "high"
+const supportPriorityUrgent = "urgent"
 
 const (
 	supportResolveThreshold  = 0.85
@@ -242,7 +245,7 @@ func (a *SupportAgent) getCaseContext(ctx context.Context, workspaceID, caseID s
 func (a *SupportAgent) determineAction(config SupportAgentConfig, caseContext *CaseContext, evidence *knowledge.EvidencePack) *Action {
 	score := topEvidenceScore(evidence)
 	if shouldResolveSupportAction(score) {
-		return supportResolvedAction(config)
+		return supportResolvedAction(config, caseContext)
 	}
 	if shouldEscalateSupportAction(score, config, caseContext) {
 		return supportEscalatedAction(config)
@@ -378,6 +381,10 @@ func (a *SupportAgent) requestSupportApproval(ctx context.Context, caseContext *
 	if requestedBy == "" {
 		requestedBy = "support_lead"
 	}
+	approverID, err := a.resolveSupportApprover(ctx, caseContext, requestedBy)
+	if err != nil {
+		return "", err
+	}
 	payload := map[string]any{
 		"case_id":          caseContext.ID,
 		"proposed_action":  action.Type,
@@ -387,7 +394,7 @@ func (a *SupportAgent) requestSupportApproval(ctx context.Context, caseContext *
 	return createApprovalGateRequest(ctx, a.db, approvalGateInput{
 		WorkspaceID:  caseContext.WorkspaceID,
 		RequestedBy:  requestedBy,
-		ApproverID:   requestedBy,
+		ApproverID:   approverID,
 		Action:       "support.case.update",
 		ResourceType: "case_ticket",
 		ResourceID:   caseContext.ID,
@@ -395,6 +402,53 @@ func (a *SupportAgent) requestSupportApproval(ctx context.Context, caseContext *
 		Payload:      payload,
 		TTL:          24 * time.Hour,
 	})
+}
+
+func (a *SupportAgent) resolveSupportApprover(ctx context.Context, caseContext *CaseContext, requestedBy string) (string, error) {
+	if approverID, ok := supportOwnerApprover(caseContext, requestedBy); ok {
+		return approverID, nil
+	}
+	if err := validateSupportApproverLookup(a.db, caseContext); err != nil {
+		return "", err
+	}
+	return a.lookupSupportApprover(ctx, caseContext.WorkspaceID, requestedBy)
+}
+
+func supportOwnerApprover(caseContext *CaseContext, requestedBy string) (string, bool) {
+	if caseContext == nil || caseContext.OwnerID == "" || caseContext.OwnerID == requestedBy {
+		return "", false
+	}
+	return caseContext.OwnerID, true
+}
+
+func validateSupportApproverLookup(db *sql.DB, caseContext *CaseContext) error {
+	if db == nil || caseContext == nil || caseContext.WorkspaceID == "" {
+		return ErrSupportApprovalApproverNotFound
+	}
+	return nil
+}
+
+func (a *SupportAgent) lookupSupportApprover(ctx context.Context, workspaceID, requestedBy string) (string, error) {
+	var approverID string
+	err := a.db.QueryRowContext(ctx, `
+		SELECT id
+		FROM user_account
+		WHERE workspace_id = ?
+		  AND status = 'active'
+		  AND id <> ?
+		ORDER BY created_at ASC, id ASC
+		LIMIT 1
+	`, workspaceID, requestedBy).Scan(&approverID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrSupportApprovalApproverNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("resolve support approver: %w", err)
+	}
+	if approverID == "" {
+		return "", ErrSupportApprovalApproverNotFound
+	}
+	return approverID, nil
 }
 
 func buildReasoningTrace(_ SupportAgentConfig, evidence *knowledge.EvidencePack, action *Action) json.RawMessage {
@@ -581,7 +635,11 @@ func shouldResolveSupportAction(score float64) bool {
 	return score >= supportResolveThreshold
 }
 
-func supportResolvedAction(config SupportAgentConfig) *Action {
+func supportResolvedAction(config SupportAgentConfig, caseContext *CaseContext) *Action {
+	priority := config.Priority
+	if caseContext != nil {
+		priority = firstNonEmptySupport(priority, caseContext.Priority)
+	}
 	return &Action{
 		Type:       supportActionUpdateCase,
 		Details:    "Applied solution from knowledge base",
@@ -589,8 +647,23 @@ func supportResolvedAction(config SupportAgentConfig) *Action {
 		Status:     "resolved",
 		Confidence: 90,
 		NextSteps:  []string{"send_resolution_email"},
-		Metadata:   config.Priority,
+		Metadata:   supportApprovalMetadata(priority),
 	}
+}
+
+func supportApprovalMetadata(priority string) string {
+	if !isHighPrioritySupportCase(priority) {
+		return ""
+	}
+	raw, err := json.Marshal(map[string]string{
+		"sensitivity":     sensitivityHigh,
+		"approval_reason": sensitivityHighReason,
+		"source":          "support-agent",
+	})
+	if err != nil {
+		return ""
+	}
+	return string(raw)
 }
 
 func supportEscalatedAction(config SupportAgentConfig) *Action {
@@ -683,6 +756,7 @@ var ErrCaseIDRequired = &SupportError{message: "case_id is required"}
 var ErrWorkspaceIDRequired = &SupportError{message: "workspace_id is required"}
 var ErrSupportDBNotConfigured = &SupportError{message: "support agent db is required"}
 var ErrSupportApprovalCreationFailed = &SupportError{message: "failed to create approval request"}
+var ErrSupportApprovalApproverNotFound = &SupportError{message: "failed to resolve support approval approver"}
 var ErrSupportCaseContextLoadFailed = &SupportError{message: "failed to load support case context"}
 
 type SupportError struct {
@@ -712,7 +786,7 @@ func topEvidenceScore(evidence *knowledge.EvidencePack) float64 {
 	if evidence == nil || len(evidence.Sources) == 0 {
 		return 0
 	}
-	return evidence.Sources[0].Score
+	return knowledge.NormalizeHybridSearchScore(evidence.Sources[0].Score)
 }
 
 func shouldEscalateSupportAction(score float64, config SupportAgentConfig, caseContext *CaseContext) bool {
@@ -970,7 +1044,7 @@ func firstNonEmptySupport(values ...string) string {
 }
 
 func isHighPrioritySupportCase(priority string) bool {
-	return priority == "high" || priority == "urgent"
+	return priority == supportPriorityHigh || priority == supportPriorityUrgent
 }
 
 func (a *SupportAgent) initiateSupportHandoff(ctx context.Context, runID string, caseContext *CaseContext, action *Action) error {
