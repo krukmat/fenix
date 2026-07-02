@@ -11,6 +11,7 @@ import (
 	"time"
 
 	domainaudit "github.com/matiasleandrokruk/fenix/internal/domain/audit"
+	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
 	pkgauth "github.com/matiasleandrokruk/fenix/pkg/auth"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
@@ -22,7 +23,14 @@ var ErrInvalidCredentials = errors.New("invalid credentials")
 // ErrEmailAlreadyExists is returned by Register when the email is already taken.
 var ErrEmailAlreadyExists = errors.New("email already registered")
 
-const actionLogin = "login"
+const (
+	actionLogin     = "login"
+	defaultRoleName = "workspace_owner"
+)
+
+const defaultRoleDescription = "Default first-user role created during workspace registration bootstrap."
+
+const defaultWorkspaceOwnerPermissions = `{"records":["read_all"],"agents":["execute"],"tools":["create_task","update_case","update_deal","send_reply","get_lead","get_account","get_deal","create_knowledge_item","update_knowledge_item","query_metrics"]}`
 
 // RegisterInput holds the data needed to create a new workspace and user.
 // Task 1.6: WorkspaceName creates the tenant; Email is the unique login identifier.
@@ -59,9 +67,12 @@ type AuthService interface {
 
 // authService is the concrete implementation backed by SQLite.
 type authService struct {
-	db          *sql.DB
-	auditLogger auditLogger
+	db                    *sql.DB
+	auditLogger           auditLogger
+	bootstrapRegistration registrationBootstrapper
 }
+
+type registrationBootstrapper func(context.Context, *sqlcgen.Queries, insertParams, string) error
 
 type auditLogger interface {
 	LogWithDetails(
@@ -162,10 +173,101 @@ func (s *authService) insertWorkspaceAndUser(ctx context.Context, p insertParams
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
+	if bootstrapErr := s.bootstrapper()(ctx, sqlcgen.New(tx), p, now); bootstrapErr != nil {
+		return fmt.Errorf("bootstrap workspace defaults: %w", bootstrapErr)
+	}
+
 	if commitErr := tx.Commit(); commitErr != nil {
 		return fmt.Errorf("commit workspace and user transaction: %w", commitErr)
 	}
 	return nil
+}
+
+func (s *authService) bootstrapper() registrationBootstrapper {
+	if s.bootstrapRegistration != nil {
+		return s.bootstrapRegistration
+	}
+	return bootstrapWorkspaceDefaults
+}
+
+func bootstrapWorkspaceDefaults(ctx context.Context, q *sqlcgen.Queries, p insertParams, now string) error {
+	roleID := uuid.NewV7().String()
+	if err := q.CreateRole(ctx, sqlcgen.CreateRoleParams{
+		ID:          roleID,
+		WorkspaceID: p.workspaceID,
+		Name:        defaultRoleName,
+		Description: strPtr(defaultRoleDescription),
+		Permissions: defaultWorkspaceOwnerPermissions,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}); err != nil {
+		return fmt.Errorf("create default role: %w", err)
+	}
+
+	if err := q.AssignRole(ctx, sqlcgen.AssignRoleParams{
+		ID:        uuid.NewV7().String(),
+		UserID:    p.userID,
+		RoleID:    roleID,
+		CreatedAt: now,
+	}); err != nil {
+		return fmt.Errorf("assign default role: %w", err)
+	}
+
+	for _, seed := range defaultPipelineSeeds() {
+		if err := createDefaultPipeline(ctx, q, p.workspaceID, seed, now); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+type defaultPipelineSeed struct {
+	entityType string
+	name       string
+	stageName  string
+}
+
+func defaultPipelineSeeds() []defaultPipelineSeed {
+	return []defaultPipelineSeed{
+		{entityType: "deal", name: "Sales", stageName: "Discovery"},
+		{entityType: "case", name: "Support", stageName: "Open"},
+	}
+}
+
+func createDefaultPipeline(ctx context.Context, q *sqlcgen.Queries, workspaceID string, seed defaultPipelineSeed, now string) error {
+	pipelineID := uuid.NewV7().String()
+	if err := q.CreatePipeline(ctx, sqlcgen.CreatePipelineParams{
+		ID:          pipelineID,
+		WorkspaceID: workspaceID,
+		Name:        seed.name,
+		EntityType:  seed.entityType,
+		Settings:    nil,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}); err != nil {
+		return fmt.Errorf("create default %s pipeline: %w", seed.entityType, err)
+	}
+
+	if err := q.CreatePipelineStage(ctx, sqlcgen.CreatePipelineStageParams{
+		ID:             uuid.NewV7().String(),
+		PipelineID:     pipelineID,
+		Name:           seed.stageName,
+		Position:       1,
+		Probability:    nil,
+		SlaHours:       nil,
+		RequiredFields: nil,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}); err != nil {
+		return fmt.Errorf("create default %s pipeline stage: %w", seed.entityType, err)
+	}
+
+	return nil
+}
+
+func strPtr(v string) *string {
+	return &v
 }
 
 // Login verifies credentials and returns a JWT.

@@ -248,6 +248,9 @@ Steps:
 1. Register or login validation operator through BFF auth route.
 2. Store bearer token for manual API checks.
 3. Create account, contact, deal, and support case through BFF proxied `/bff/api/v1/*` routes.
+   For workspaces registered from a checkout that includes `ADR032-BOOTSTRAP-IMPL-001`,
+   use the default `deal` and `case` pipelines created by registration rather than
+   manually provisioning pipelines first.
 4. Verify data through read endpoints and SQLite persistence.
 5. Verify audit events are created for protected API calls.
 
@@ -290,6 +293,12 @@ Go/no-go:
 ### T3 Support Agent Real Trigger
 
 Goal: validate the support agent path with real backend state and no Maestro/BFF fixture.
+
+Current bootstrap note: `ADR032-BOOTSTRAP-IMPL-001` provisions first-user role
+assignment and default `deal`/`case` pipelines for newly registered workspaces.
+It does not seed `agent_definition`; support-agent trigger validation still
+requires an active support-agent definition until that separate provisioning gap
+is resolved.
 
 Steps:
 

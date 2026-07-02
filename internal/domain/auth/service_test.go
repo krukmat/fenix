@@ -6,6 +6,8 @@ package auth_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"os"
 	"testing"
 
@@ -157,6 +159,67 @@ func TestAuthService_Register_WorkspaceCreated(t *testing.T) {
 	}
 }
 
+// TestAuthService_Register_BootstrapsWorkspaceDefaults verifies registration creates
+// the first-user role assignment and deterministic default pipelines.
+func TestAuthService_Register_BootstrapsWorkspaceDefaults(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	svc := domainauth.NewAuthService(db)
+
+	result, err := svc.Register(context.Background(), domainauth.RegisterInput{
+		Email:         "defaults@example.com",
+		Password:      "SecurePass123!",
+		DisplayName:   "Default Owner",
+		WorkspaceName: "Default Workspace",
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v; want nil", err)
+	}
+
+	var roleID, roleName, roleDescription, permissions string
+	err = db.QueryRow(`
+		SELECT r.id, r.name, r.description, r.permissions
+		FROM role r
+		JOIN user_role ur ON ur.role_id = r.id
+		WHERE r.workspace_id = ? AND ur.user_id = ?
+	`, result.WorkspaceID, result.UserID).Scan(&roleID, &roleName, &roleDescription, &permissions)
+	if err != nil {
+		t.Fatalf("default role assignment not found: %v", err)
+	}
+	if roleID == "" {
+		t.Fatal("default role id is empty")
+	}
+	if roleName != "workspace_owner" {
+		t.Errorf("role name = %q; want workspace_owner", roleName)
+	}
+	if roleDescription != "Default first-user role created during workspace registration bootstrap." {
+		t.Errorf("role description = %q; want default bootstrap description", roleDescription)
+	}
+
+	var parsedPermissions map[string][]string
+	if err := json.Unmarshal([]byte(permissions), &parsedPermissions); err != nil {
+		t.Fatalf("permissions JSON is invalid: %v", err)
+	}
+	assertStringSlice(t, parsedPermissions["records"], []string{"read_all"})
+	assertStringSlice(t, parsedPermissions["agents"], []string{"execute"})
+	assertStringSlice(t, parsedPermissions["tools"], []string{
+		"create_task",
+		"update_case",
+		"update_deal",
+		"send_reply",
+		"get_lead",
+		"get_account",
+		"get_deal",
+		"create_knowledge_item",
+		"update_knowledge_item",
+		"query_metrics",
+	})
+
+	assertDefaultPipeline(t, db, result.WorkspaceID, "deal", "Sales", "Discovery")
+	assertDefaultPipeline(t, db, result.WorkspaceID, "case", "Support", "Open")
+}
+
 // TestAuthService_Register_DuplicateEmail verifies that duplicate email returns error.
 func TestAuthService_Register_DuplicateEmail(t *testing.T) {
 	t.Parallel()
@@ -176,11 +239,20 @@ func TestAuthService_Register_DuplicateEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("First Register() error = %v; want nil", err)
 	}
+	before := registrationBootstrapCounts(t, db)
 
 	// Second registration with same email should fail
 	_, err = svc.Register(context.Background(), input)
 	if err == nil {
 		t.Error("Register() with duplicate email should return error; got nil")
+	}
+	if !errors.Is(err, domainauth.ErrEmailAlreadyExists) {
+		t.Errorf("Register() error = %v; want ErrEmailAlreadyExists", err)
+	}
+
+	after := registrationBootstrapCounts(t, db)
+	if before != after {
+		t.Fatalf("duplicate registration committed extra bootstrap rows: before=%+v after=%+v", before, after)
 	}
 }
 
@@ -357,4 +429,101 @@ func mustOpenDB(t *testing.T) *sql.DB {
 	}
 
 	return db
+}
+
+type bootstrapCounts struct {
+	workspaces int
+	users      int
+	roles      int
+	userRoles  int
+	pipelines  int
+	stages     int
+}
+
+func registrationBootstrapCounts(t *testing.T, db *sql.DB) bootstrapCounts {
+	t.Helper()
+	return bootstrapCounts{
+		workspaces: countRows(t, db, "workspace"),
+		users:      countRows(t, db, "user_account"),
+		roles:      countRows(t, db, "role"),
+		userRoles:  countRows(t, db, "user_role"),
+		pipelines:  countRows(t, db, "pipeline"),
+		stages:     countRows(t, db, "pipeline_stage"),
+	}
+}
+
+func countRows(t *testing.T, db *sql.DB, table string) int {
+	t.Helper()
+	var n int
+	if err := db.QueryRow(countQueryForTable(t, table)).Scan(&n); err != nil {
+		t.Fatalf("count %s: %v", table, err)
+	}
+	return n
+}
+
+func countQueryForTable(t *testing.T, table string) string {
+	t.Helper()
+	switch table {
+	case "workspace":
+		return `SELECT COUNT(*) FROM workspace`
+	case "user_account":
+		return `SELECT COUNT(*) FROM user_account`
+	case "role":
+		return `SELECT COUNT(*) FROM role`
+	case "user_role":
+		return `SELECT COUNT(*) FROM user_role`
+	case "pipeline":
+		return `SELECT COUNT(*) FROM pipeline`
+	case "pipeline_stage":
+		return `SELECT COUNT(*) FROM pipeline_stage`
+	default:
+		t.Fatalf("unsupported count table %q", table)
+		return ""
+	}
+}
+
+func assertStringSlice(t *testing.T, got, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("slice length = %d; want %d. got=%v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("slice[%d] = %q; want %q. got=%v", i, got[i], want[i], got)
+		}
+	}
+}
+
+func assertDefaultPipeline(t *testing.T, db *sql.DB, workspaceID, entityType, pipelineName, stageName string) {
+	t.Helper()
+
+	var pipelineID, gotPipelineName string
+	err := db.QueryRow(`
+		SELECT id, name
+		FROM pipeline
+		WHERE workspace_id = ? AND entity_type = ?
+	`, workspaceID, entityType).Scan(&pipelineID, &gotPipelineName)
+	if err != nil {
+		t.Fatalf("default %s pipeline not found: %v", entityType, err)
+	}
+	if gotPipelineName != pipelineName {
+		t.Fatalf("default %s pipeline name = %q; want %q", entityType, gotPipelineName, pipelineName)
+	}
+
+	var gotStageName string
+	var gotPosition int
+	err = db.QueryRow(`
+		SELECT name, position
+		FROM pipeline_stage
+		WHERE pipeline_id = ?
+	`, pipelineID).Scan(&gotStageName, &gotPosition)
+	if err != nil {
+		t.Fatalf("default %s stage not found: %v", entityType, err)
+	}
+	if gotStageName != stageName {
+		t.Fatalf("default %s stage name = %q; want %q", entityType, gotStageName, stageName)
+	}
+	if gotPosition != 1 {
+		t.Fatalf("default %s stage position = %d; want 1", entityType, gotPosition)
+	}
 }

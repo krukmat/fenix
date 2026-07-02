@@ -117,6 +117,34 @@ func TestCRMIntegration_SetupHelper(t *testing.T) {
 	}
 }
 
+func TestCRMIntegration_FreshWorkspace_DefaultPipelinesEnableDealAndCaseCreation(t *testing.T) {
+	env := setupCRMIntegrationTest(t)
+	accountID := createTestAccount(t, &env, "Fresh Bootstrap Corp")
+	dealPipelineID, dealStageID := defaultPipelineAndStage(t, &env, "deal", "Sales", "Discovery")
+	casePipelineID, caseStageID := defaultPipelineAndStage(t, &env, "case", "Support", "Open")
+
+	w := env.doJSON(t, http.MethodPost, "/api/v1/deals", map[string]any{
+		"accountId":  accountID,
+		"pipelineId": dealPipelineID,
+		"stageId":    dealStageID,
+		"ownerId":    env.ownerID,
+		"title":      "Fresh Workspace Deal",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create deal with bootstrap pipeline: got %d, want 201. body: %s", w.Code, w.Body.String())
+	}
+
+	w = env.doJSON(t, http.MethodPost, "/api/v1/cases", map[string]any{
+		"pipelineId": casePipelineID,
+		"stageId":    caseStageID,
+		"ownerId":    env.ownerID,
+		"subject":    "Fresh workspace case",
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create case with bootstrap pipeline: got %d, want 201. body: %s", w.Code, w.Body.String())
+	}
+}
+
 // ─── T2: Account CRUD ────────────────────────────────────────────────────────
 
 func TestCRMIntegration_Account_CreateAndGet(t *testing.T) {
@@ -538,6 +566,53 @@ func createTestStage(t *testing.T, env *crmTestEnv, pipelineID, name string, pos
 	return resp.ID
 }
 
+func defaultPipelineAndStage(t *testing.T, env *crmTestEnv, entityType, pipelineName, stageName string) (string, string) {
+	t.Helper()
+
+	w := env.doJSON(t, http.MethodGet, "/api/v1/pipelines", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list pipelines: got %d. body: %s", w.Code, w.Body.String())
+	}
+	var pipelines struct {
+		Data []struct {
+			ID         string `json:"id"`
+			Name       string `json:"name"`
+			EntityType string `json:"entityType"`
+		} `json:"data"`
+	}
+	decodeJSON(t, w, &pipelines)
+
+	var pipelineID string
+	for _, p := range pipelines.Data {
+		if p.EntityType == entityType && p.Name == pipelineName {
+			pipelineID = p.ID
+			break
+		}
+	}
+	if pipelineID == "" {
+		t.Fatalf("default %s pipeline %q not found in %+v", entityType, pipelineName, pipelines.Data)
+	}
+
+	w = env.doJSON(t, http.MethodGet, "/api/v1/pipelines/"+pipelineID+"/stages", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list %s stages: got %d. body: %s", entityType, w.Code, w.Body.String())
+	}
+	var stages struct {
+		Data []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	decodeJSON(t, w, &stages)
+	for _, s := range stages.Data {
+		if s.Name == stageName {
+			return pipelineID, s.ID
+		}
+	}
+	t.Fatalf("default %s stage %q not found in %+v", entityType, stageName, stages.Data)
+	return "", ""
+}
+
 func TestCRMIntegration_Pipeline_CreateAndGet(t *testing.T) {
 	env := setupCRMIntegrationTest(t)
 
@@ -704,7 +779,7 @@ func TestCRMIntegration_Stage_Delete(t *testing.T) {
 func TestCRMIntegration_Deal_CreateAndGet(t *testing.T) {
 	env := setupCRMIntegrationTest(t)
 	accountID := createTestAccount(t, &env, "Deal Corp")
-	pipelineID := createTestPipeline(t, &env, "Sales")
+	pipelineID := createTestPipeline(t, &env, "Enterprise Sales")
 	stageID := createTestStage(t, &env, pipelineID, "Prospecting", 1)
 
 	amount := 9999.99
