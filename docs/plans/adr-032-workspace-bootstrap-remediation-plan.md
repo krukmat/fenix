@@ -34,7 +34,7 @@ This leaves a brand-new workspace unable to perform baseline CRM operations with
 
 - Reworking the overall RBAC model or inventing a new permissions framework.
 - Backfilling historical workspaces.
-- Agent definition seeding for support-agent execution. That remains a separate follow-up from EXTVAL-BATTERY-T3-001.
+- Agent definition seeding for support-agent execution. That remains a separate follow-up from EXTVAL-BATTERY-T3-001, tracked in [Support-agent definition bootstrap remediation](agent-definition-bootstrap-remediation-plan.md) (opened 2026-07-02).
 - Approval-routing behavior already covered by ADR-031 and its follow-up tasks.
 
 ## Workstreams
@@ -177,7 +177,7 @@ Required doc updates after code lands:
 
 - update `docs/plans/external_validation_first_test_battery_plan.md` so T1 no longer treats manual pipeline creation as expected setup
 - update the relevant external-validation task records that currently document manual SQL/bootstrap workarounds
-- add a short follow-up note if agent-definition bootstrap is still unresolved, so future operators do not conflate the two defects
+- agent-definition bootstrap follow-up: resolved by [Support-agent definition bootstrap remediation](agent-definition-bootstrap-remediation-plan.md) — `AGENTDEF-BOOTSTRAP-IMPL-A-001` seeds a per-workspace `agent_definition` row at `Register` time and `AGENTDEF-BOOTSTRAP-IMPL-B2-001` fixed the literal-id lookup collision, both completed 2026-07-02. This was a separate defect from ADR-032's RBAC/pipeline bootstrap scope; do not conflate the two.
 
 ## Proposed Task Decomposition
 

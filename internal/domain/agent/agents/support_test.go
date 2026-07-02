@@ -8,12 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/agent"
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
+	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
@@ -66,6 +68,12 @@ func setupAgentTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
+// insertSupportAgentDefinition seeds a single workspace's agent_definition
+// row using the literal id "support-agent". Since AGENTDEF-BOOTSTRAP-IMPL-B2-001,
+// triggerSupportRun resolves the id by (workspace_id, agent_type) rather than
+// assuming this literal, so this helper remains valid for single-workspace
+// test setups; it just no longer represents the only id a workspace can have
+// (real bootstrap-provisioned rows get a UUID id via AGENTDEF-BOOTSTRAP-IMPL-A-001).
 func insertSupportAgentDefinition(t *testing.T, db *sql.DB, workspaceID string) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(),
@@ -773,5 +781,181 @@ func TestSupportAgent_Run_RecordsUsageForCompletedRun(t *testing.T) {
 	}
 	if supportEvent.LatencyMs == nil {
 		t.Fatal("expected latency")
+	}
+}
+
+// Tests for triggerSupportRun's workspace-scoped AgentID resolution
+// (AGENTDEF-BOOTSTRAP-IMPL-B1-001 pinned the pre-fix behavior;
+// AGENTDEF-BOOTSTRAP-IMPL-B2-001 replaced the hardcoded literal id lookup
+// with resolveSupportAgentID, which resolves each workspace's own
+// support-typed agent_definition row instead of a globally-shared literal.
+
+// TestSupportAgent_TriggerSupportRun_SucceedsForWorkspaceBootstrappedByRegister
+// is the end-to-end proof that AGENTDEF-BOOTSTRAP-IMPL-A-001 (Register's
+// per-workspace agent_definition bootstrap) and AGENTDEF-BOOTSTRAP-IMPL-B2-001
+// (workspace-scoped id resolution) together close the original gap: a freshly
+// registered workspace can trigger the support agent with no manual
+// agent_definition insert anywhere in the test.
+func TestSupportAgent_TriggerSupportRun_SucceedsForWorkspaceBootstrappedByRegister(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+
+	// domainauth.Register issues a JWT as part of registration; pkgauth.GenerateJWT
+	// panics if JWT_SECRET is unset (this package has no TestMain that sets it).
+	t.Setenv("JWT_SECRET", "test-secret-key-32-chars-min!!!")
+
+	authSvc := domainauth.NewAuthService(db)
+	result, err := authSvc.Register(context.Background(), domainauth.RegisterInput{
+		Email:         "bootstrap@example.com",
+		Password:      "SecurePass123!",
+		DisplayName:   "Bootstrap Owner",
+		WorkspaceName: "Bootstrap Workspace",
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+
+	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+
+	run, err := sa.triggerSupportRun(context.Background(), SupportAgentConfig{
+		WorkspaceID:   result.WorkspaceID,
+		CaseID:        "case-1",
+		CustomerQuery: "help",
+	})
+	if err != nil {
+		t.Fatalf("triggerSupportRun() error = %v; want nil (workspace was bootstrapped by Register)", err)
+	}
+	if run == nil {
+		t.Fatal("expected non-nil run")
+	}
+	if run.WorkspaceID != result.WorkspaceID {
+		t.Fatalf("run.WorkspaceID = %q want %q", run.WorkspaceID, result.WorkspaceID)
+	}
+	if run.DefinitionID == "" {
+		t.Fatal("expected non-empty run.DefinitionID")
+	}
+}
+
+func TestSupportAgent_TriggerSupportRun_SucceedsWithLiteralIDInSingleWorkspace(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+
+	wsID, _ := seedSupportWorkspace(t, db)
+	insertSupportAgentDefinition(t, db, wsID)
+	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+
+	run, err := sa.triggerSupportRun(context.Background(), SupportAgentConfig{
+		WorkspaceID:   wsID,
+		CaseID:        "case-1",
+		CustomerQuery: "help",
+	})
+	if err != nil {
+		t.Fatalf("triggerSupportRun() error = %v", err)
+	}
+	if run == nil {
+		t.Fatal("expected non-nil run")
+	}
+	if run.WorkspaceID != wsID {
+		t.Fatalf("run.WorkspaceID = %q want %q", run.WorkspaceID, wsID)
+	}
+	if run.DefinitionID != "support-agent" {
+		t.Fatalf("run.DefinitionID = %q want %q", run.DefinitionID, "support-agent")
+	}
+}
+
+func TestSupportAgent_TriggerSupportRun_FailsWhenNoAgentDefinitionRowExists(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+
+	wsID, _ := seedSupportWorkspace(t, db)
+	// Deliberately do not provision any agent_definition row: this
+	// simulates a workspace that predates the AGENTDEF-BOOTSTRAP-IMPL-A-001
+	// bootstrap default and was never provisioned.
+	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+
+	run, err := sa.triggerSupportRun(context.Background(), SupportAgentConfig{
+		WorkspaceID:   wsID,
+		CaseID:        "case-1",
+		CustomerQuery: "help",
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if run != nil {
+		t.Fatalf("expected nil run, got %#v", run)
+	}
+	if !errors.Is(err, ErrSupportAgentNotProvisioned) {
+		t.Fatalf("triggerSupportRun() error = %v, want %v", err, ErrSupportAgentNotProvisioned)
+	}
+}
+
+func TestSupportAgent_TriggerSupportRun_ResolvesOwnRowForDifferentWorkspaceWithSameLiteralID(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+
+	wsA, _ := seedSupportWorkspace(t, db)
+	wsB, _ := seedSupportWorkspace(t, db)
+	insertSupportAgentDefinition(t, db, wsA)
+	// wsB gets its own row with a distinct id, mirroring what
+	// AGENTDEF-BOOTSTRAP-IMPL-A-001's bootstrap now does per-workspace (a
+	// UUID id, not the literal "support-agent"). The lookup is scoped by
+	// (workspace_id, agent_type), so wsB must resolve its own row and
+	// succeed even though wsA independently has a row of agent_type
+	// "support" too.
+	wsBAgentID := "agent-def-ws-b"
+	if _, err := db.ExecContext(context.Background(),
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES (?, ?, 'Support Agent', 'support', 'active')`,
+		wsBAgentID, wsB,
+	); err != nil {
+		t.Fatalf("insert agent_definition for wsB: %v", err)
+	}
+	sa := newTestSupportAgent(t, db, &mockKnowledgeSearch{results: emptyResults()})
+
+	run, err := sa.triggerSupportRun(context.Background(), SupportAgentConfig{
+		WorkspaceID:   wsB,
+		CaseID:        "case-1",
+		CustomerQuery: "help",
+	})
+	if err != nil {
+		t.Fatalf("triggerSupportRun() error = %v", err)
+	}
+	if run == nil {
+		t.Fatal("expected non-nil run")
+	}
+	if run.WorkspaceID != wsB {
+		t.Fatalf("run.WorkspaceID = %q want %q", run.WorkspaceID, wsB)
+	}
+	if run.DefinitionID != wsBAgentID {
+		t.Fatalf("run.DefinitionID = %q want %q (wsB's own row, not wsA's)", run.DefinitionID, wsBAgentID)
+	}
+}
+
+func TestSupportAgent_InsertSupportAgentDefinition_CollidesAcrossWorkspacesOnGlobalPrimaryKey(t *testing.T) {
+	db := setupAgentTestDB(t)
+	defer db.Close()
+
+	wsA, _ := seedSupportWorkspace(t, db)
+	wsB, _ := seedSupportWorkspace(t, db)
+
+	_, err := db.ExecContext(context.Background(),
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('support-agent', ?, 'Support Agent', 'support', 'active')`,
+		wsA,
+	)
+	if err != nil {
+		t.Fatalf("insert agent_definition for wsA: %v", err)
+	}
+
+	_, err = db.ExecContext(context.Background(),
+		`INSERT INTO agent_definition (id, workspace_id, name, agent_type, status)
+		 VALUES ('support-agent', ?, 'Support Agent', 'support', 'active')`,
+		wsB,
+	)
+	if err == nil {
+		t.Fatal("expected PRIMARY KEY constraint violation inserting duplicate id for a second workspace, got nil error")
+	}
+	if !strings.Contains(err.Error(), "UNIQUE constraint failed") && !strings.Contains(err.Error(), "PRIMARY KEY") {
+		t.Fatalf("expected UNIQUE/PRIMARY KEY constraint violation, got: %v", err)
 	}
 }

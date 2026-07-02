@@ -97,8 +97,18 @@ go_dupl_issues=0
 go_dupl_available="yes"
 go_dupl_sample=""
 
-if command -v golangci-lint >/dev/null 2>&1; then
-  go_dupl_out=$(golangci-lint run --enable-only=dupl --out-format line-number ./... 2>&1 || true)
+# Resolve golangci-lint explicitly: it is a `go install`ed tool in
+# $(go env GOPATH)/bin, which is not always on PATH when this gate runs from the
+# pre-push hook. A bare `command -v golangci-lint` then reports it missing even
+# though the lint/wrapcheck gates found it, producing a false gate failure.
+golangci_lint_bin="$(command -v golangci-lint || true)"
+if [[ -z "$golangci_lint_bin" ]] && command -v go >/dev/null 2>&1; then
+  candidate="$(go env GOPATH)/bin/golangci-lint"
+  [[ -x "$candidate" ]] && golangci_lint_bin="$candidate"
+fi
+
+if [[ -n "$golangci_lint_bin" ]]; then
+  go_dupl_out=$("$golangci_lint_bin" run --enable-only=dupl --out-format line-number ./... 2>&1 || true)
   go_dupl_issues=$(printf '%s\n' "$go_dupl_out" | grep -Ec '^[^[:space:]].*\.go:[0-9]+' || true)
   go_dupl_sample=$(printf '%s\n' "$go_dupl_out" | grep -E '^[^[:space:]].*\.go:[0-9]+' | head -n 5 || true)
 else

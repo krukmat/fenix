@@ -808,6 +808,38 @@ func (o *Orchestrator) GetAgentDefinition(ctx context.Context, workspaceID, agen
 	return o.getAgentDefinition(ctx, agentID, workspaceID)
 }
 
+// ListAgentDefinitionsByType lists agent definitions for a workspace filtered
+// by agent_type, so callers can resolve a workspace's own bootstrap-created
+// definition instead of assuming a literal, globally-shared id.
+func (o *Orchestrator) ListAgentDefinitionsByType(ctx context.Context, workspaceID, agentType string) ([]*Definition, error) {
+	rows, err := o.db.QueryContext(ctx, `
+		SELECT id, workspace_id, name, description, agent_type, objective,
+		       allowed_tools, limits, trigger_config, policy_set_id,
+		       active_prompt_version_id, status, created_at, updated_at
+		FROM agent_definition
+		WHERE workspace_id = ? AND agent_type = ?
+		ORDER BY created_at DESC
+	`, workspaceID, agentType)
+	if err != nil {
+		return nil, fmt.Errorf("list agent definitions by type: %w", err)
+	}
+	defer rows.Close()
+
+	definitions := make([]*Definition, 0)
+	for rows.Next() {
+		def, scanErr := scanAgentDefinition(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		definitions = append(definitions, def)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate agent definitions by type: %w", rowsErr)
+	}
+
+	return definitions, nil
+}
+
 // Helper functions
 
 func (o *Orchestrator) getAgentDefinition(ctx context.Context, id, workspaceID string) (*Definition, error) {

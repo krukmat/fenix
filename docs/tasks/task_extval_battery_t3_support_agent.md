@@ -66,13 +66,17 @@ Plan step 5 ("Repeat via mobile UI button `support-trigger-agent-button`") is ex
 
 ## Findings
 
-### Finding 1 (environment gap, still unresolved): `agent_definition` not seeded for new workspaces
+### Finding 1 (environment gap, resolved for new workspaces): `agent_definition` not seeded for new workspaces
 
 First trigger attempt failed with generic `500 "failed to run support agent"` in 611µs — too fast to be an LLM call. Root cause: `agent_definition` table had 0 rows; `Orchestrator.TriggerAgent` (`internal/domain/agent/orchestrator.go:187`) calls `getAgentDefinition(ctx, "support-agent", workspaceID)` which fails immediately when no row exists. There is no REST endpoint to create an `AgentDefinition` — the only precedent found is a raw SQL `INSERT` in `internal/domain/agent/agents/support_test.go:69-78` (unit test fixture). Resolved by inserting the row directly into the local validation DB, matching the exact test-fixture schema (`id='support-agent'`, `agent_type='support'`, `status='active'`).
 
-**Current status after ADR-032:** still unresolved. `ADR032-BOOTSTRAP-IMPL-001` fixed first-user role assignment and default `deal`/`case` pipelines for newly registered workspaces, but it intentionally did not seed `agent_definition`. A freshly registered workspace can now pass the RBAC/tool-permission bootstrap requirement, but support-agent triggering still depends on separate `agent_definition` provisioning until a dedicated follow-up closes that gap.
+**Current status after ADR-032:** partially resolved at the time. `ADR032-BOOTSTRAP-IMPL-001` fixed first-user role assignment and default `deal`/`case` pipelines for newly registered workspaces, but it intentionally did not seed `agent_definition`. A freshly registered workspace could now pass the RBAC/tool-permission bootstrap requirement, but support-agent triggering still depended on separate `agent_definition` provisioning until a dedicated follow-up closed that gap.
 
-**Risk:** a freshly registered workspace cannot actually trigger any agent without out-of-band `agent_definition` provisioning. No API path exists for a real operator (not a developer running SQL) to do this.
+**Follow-up plan opened:** [Support-agent definition bootstrap remediation](../plans/agent-definition-bootstrap-remediation-plan.md) (2026-07-02), decomposed into `AGENTDEF-BOOTSTRAP-DESIGN-001` (proposed), `AGENTDEF-BOOTSTRAP-IMPL-001`, `AGENTDEF-BOOTSTRAP-DOCS-001`. Design research for that plan surfaced an additional pre-existing bug relevant to this finding: `TriggerSupportAgent` (`internal/domain/agent/agents/support.go:508`) hardcodes a literal global `agent_definition.id` (`"support-agent"`), which only works today because exactly one workspace has ever had this row manually inserted — it cannot be safely bootstrapped per-workspace without also fixing that lookup.
+
+**Current status after AGENTDEF-BOOTSTRAP-IMPL-B2-001:** resolved for newly registered workspaces. `AGENTDEF-BOOTSTRAP-IMPL-A-001` now seeds a per-workspace `agent_definition` row (UUID id, `agent_type='support'`) inside the `Register` transaction. `AGENTDEF-BOOTSTRAP-IMPL-B2-001` fixed the literal-id lookup bug this finding flagged as the remaining blocker: `triggerSupportRun` now resolves the definition id via `Orchestrator.ListAgentDefinitionsByType(workspace_id, "support")` instead of the hardcoded `"support-agent"` literal, so each workspace's own bootstrap row is found correctly instead of colliding on a shared global id. A workspace with no provisioned row now fails with a distinguishable `ErrSupportAgentNotProvisioned` (HTTP 404) rather than the generic `500` this finding originally reported. As with Finding 2's resolution, existing/legacy workspaces created before this fix are not backfilled automatically.
+
+**Risk (historical, at time of original finding):** a freshly registered workspace could not actually trigger any agent without out-of-band `agent_definition` provisioning, and no API path existed for a real operator (not a developer running SQL) to do this. Resolved as described above.
 
 ### Finding 2 (environment gap, resolved for new workspaces): `Register` never assigns a role
 

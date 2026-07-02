@@ -218,6 +218,56 @@ func TestAuthService_Register_BootstrapsWorkspaceDefaults(t *testing.T) {
 
 	assertDefaultPipeline(t, db, result.WorkspaceID, "deal", "Sales", "Discovery")
 	assertDefaultPipeline(t, db, result.WorkspaceID, "case", "Support", "Open")
+
+	assertDefaultSupportAgent(t, db, result.WorkspaceID, parsedPermissions["tools"])
+}
+
+// TestAuthService_Register_SupportAgentToolsSubsetOfOwner asserts the bootstrap
+// support-agent's allowed_tools never exceeds the workspace_owner grant, so the
+// agent can never act beyond the operator who owns the workspace.
+func TestAuthService_Register_SupportAgentToolsSubsetOfOwner(t *testing.T) {
+	t.Parallel()
+
+	db := mustOpenDB(t)
+	svc := domainauth.NewAuthService(db)
+
+	result, err := svc.Register(context.Background(), domainauth.RegisterInput{
+		Email:         "subset@example.com",
+		Password:      "SecurePass123!",
+		DisplayName:   "Subset Owner",
+		WorkspaceName: "Subset Workspace",
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v; want nil", err)
+	}
+
+	var permissions string
+	if err := db.QueryRow(`
+		SELECT r.permissions
+		FROM role r
+		JOIN user_role ur ON ur.role_id = r.id
+		WHERE r.workspace_id = ? AND ur.user_id = ?
+	`, result.WorkspaceID, result.UserID).Scan(&permissions); err != nil {
+		t.Fatalf("owner role not found: %v", err)
+	}
+	var parsed map[string][]string
+	if err := json.Unmarshal([]byte(permissions), &parsed); err != nil {
+		t.Fatalf("permissions JSON invalid: %v", err)
+	}
+	ownerTools := make(map[string]struct{}, len(parsed["tools"]))
+	for _, tool := range parsed["tools"] {
+		ownerTools[tool] = struct{}{}
+	}
+
+	agentTools := supportAgentAllowedTools(t, db, result.WorkspaceID)
+	if len(agentTools) == 0 {
+		t.Fatal("support agent allowed_tools is empty; want non-empty subset")
+	}
+	for _, tool := range agentTools {
+		if _, ok := ownerTools[tool]; !ok {
+			t.Errorf("support agent tool %q not in workspace_owner grant %v", tool, parsed["tools"])
+		}
+	}
 }
 
 // TestAuthService_Register_DuplicateEmail verifies that duplicate email returns error.
@@ -432,23 +482,25 @@ func mustOpenDB(t *testing.T) *sql.DB {
 }
 
 type bootstrapCounts struct {
-	workspaces int
-	users      int
-	roles      int
-	userRoles  int
-	pipelines  int
-	stages     int
+	workspaces       int
+	users            int
+	roles            int
+	userRoles        int
+	pipelines        int
+	stages           int
+	agentDefinitions int
 }
 
 func registrationBootstrapCounts(t *testing.T, db *sql.DB) bootstrapCounts {
 	t.Helper()
 	return bootstrapCounts{
-		workspaces: countRows(t, db, "workspace"),
-		users:      countRows(t, db, "user_account"),
-		roles:      countRows(t, db, "role"),
-		userRoles:  countRows(t, db, "user_role"),
-		pipelines:  countRows(t, db, "pipeline"),
-		stages:     countRows(t, db, "pipeline_stage"),
+		workspaces:       countRows(t, db, "workspace"),
+		users:            countRows(t, db, "user_account"),
+		roles:            countRows(t, db, "role"),
+		userRoles:        countRows(t, db, "user_role"),
+		pipelines:        countRows(t, db, "pipeline"),
+		stages:           countRows(t, db, "pipeline_stage"),
+		agentDefinitions: countRows(t, db, "agent_definition"),
 	}
 }
 
@@ -476,6 +528,8 @@ func countQueryForTable(t *testing.T, table string) string {
 		return `SELECT COUNT(*) FROM pipeline`
 	case "pipeline_stage":
 		return `SELECT COUNT(*) FROM pipeline_stage`
+	case "agent_definition":
+		return `SELECT COUNT(*) FROM agent_definition`
 	default:
 		t.Fatalf("unsupported count table %q", table)
 		return ""
@@ -525,5 +579,68 @@ func assertDefaultPipeline(t *testing.T, db *sql.DB, workspaceID, entityType, pi
 	}
 	if gotPosition != 1 {
 		t.Fatalf("default %s stage position = %d; want 1", entityType, gotPosition)
+	}
+}
+
+// supportAgentAllowedTools reads the bootstrap support-agent's allowed_tools.
+func supportAgentAllowedTools(t *testing.T, db *sql.DB, workspaceID string) []string {
+	t.Helper()
+
+	var allowedTools string
+	err := db.QueryRow(`
+		SELECT allowed_tools
+		FROM agent_definition
+		WHERE workspace_id = ? AND agent_type = 'support'
+	`, workspaceID).Scan(&allowedTools)
+	if err != nil {
+		t.Fatalf("default support agent not found: %v", err)
+	}
+	var tools []string
+	if err := json.Unmarshal([]byte(allowedTools), &tools); err != nil {
+		t.Fatalf("support agent allowed_tools JSON invalid: %v", err)
+	}
+	return tools
+}
+
+// assertDefaultSupportAgent verifies the bootstrap support-agent row exists with
+// the expected identity, an active status, a UUID id (not a literal), and an
+// allowed_tools set that is a subset of the owner tool grant.
+func assertDefaultSupportAgent(t *testing.T, db *sql.DB, workspaceID string, ownerTools []string) {
+	t.Helper()
+
+	var id, name, agentType, status, limits string
+	err := db.QueryRow(`
+		SELECT id, name, agent_type, status, limits
+		FROM agent_definition
+		WHERE workspace_id = ? AND agent_type = 'support'
+	`, workspaceID).Scan(&id, &name, &agentType, &status, &limits)
+	if err != nil {
+		t.Fatalf("default support agent not found: %v", err)
+	}
+	if id == "" || id == "support-agent" {
+		t.Fatalf("support agent id = %q; want a bootstrap-generated UUID, not empty or the literal", id)
+	}
+	if name != "Support Agent" {
+		t.Errorf("support agent name = %q; want Support Agent", name)
+	}
+	if status != "active" {
+		t.Errorf("support agent status = %q; want active", status)
+	}
+	if limits == "" || limits == "{}" {
+		t.Errorf("support agent limits = %q; want a non-empty cost ceiling", limits)
+	}
+
+	ownerSet := make(map[string]struct{}, len(ownerTools))
+	for _, tool := range ownerTools {
+		ownerSet[tool] = struct{}{}
+	}
+	agentTools := supportAgentAllowedTools(t, db, workspaceID)
+	if len(agentTools) == 0 {
+		t.Fatal("support agent allowed_tools is empty; want non-empty subset")
+	}
+	for _, tool := range agentTools {
+		if _, ok := ownerSet[tool]; !ok {
+			t.Errorf("support agent tool %q not in owner grant %v", tool, ownerTools)
+		}
 	}
 }

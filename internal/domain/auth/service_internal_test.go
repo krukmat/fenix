@@ -32,6 +32,12 @@ func TestInsertWorkspaceAndUser_RollsBackBootstrapFailure(t *testing.T) {
 			}); err != nil {
 				return err
 			}
+			// Create the support agent definition too, then fail — this proves
+			// the agent_definition insert (AGENTDEF-BOOTSTRAP-IMPL-A-001) is
+			// inside the same atomic boundary and rolls back on later failure.
+			if err := createDefaultSupportAgent(ctx, q, p.workspaceID); err != nil {
+				return err
+			}
 			return injectedErr
 		},
 	}
@@ -48,7 +54,7 @@ func TestInsertWorkspaceAndUser_RollsBackBootstrapFailure(t *testing.T) {
 		t.Fatalf("insertWorkspaceAndUser() error = %v; want injected bootstrap failure", err)
 	}
 
-	for _, table := range []string{"workspace", "user_account", "role", "user_role", "pipeline", "pipeline_stage"} {
+	for _, table := range []string{"workspace", "user_account", "role", "user_role", "pipeline", "pipeline_stage", "agent_definition"} {
 		if got := countInternalRows(t, db, table); got != 0 {
 			t.Fatalf("%s rows after failed bootstrap = %d; want 0", table, got)
 		}
@@ -88,12 +94,13 @@ func countInternalRows(t *testing.T, db *sql.DB, table string) int {
 	t.Helper()
 
 	allowedTables := map[string]struct{}{
-		"workspace":      {},
-		"user_account":   {},
-		"role":           {},
-		"user_role":      {},
-		"pipeline":       {},
-		"pipeline_stage": {},
+		"workspace":        {},
+		"user_account":     {},
+		"role":             {},
+		"user_role":        {},
+		"pipeline":         {},
+		"pipeline_stage":   {},
+		"agent_definition": {},
 	}
 	if _, ok := allowedTables[table]; !ok {
 		t.Fatalf("unsupported count table %q", table)

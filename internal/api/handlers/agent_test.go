@@ -2180,8 +2180,12 @@ func TestInsightsAgentHandler_TriggerInsights_DailyLimitExceeded(t *testing.T) {
 	}
 }
 
-// TestSupportAgentHandler_TriggerSupportAgent_RunError verifies 500 when agent.Run fails.
-func TestSupportAgentHandler_TriggerSupportAgent_RunError(t *testing.T) {
+// TestSupportAgentHandler_TriggerSupportAgent_NotProvisioned verifies 404
+// when the workspace has no support agent_definition row (AGENTDEF-BOOTSTRAP-IMPL-B2-001:
+// triggerSupportRun resolves the id by workspace + agent_type, so a
+// workspace with zero rows now fails with the distinguishable
+// ErrSupportAgentNotProvisioned instead of a generic 500).
+func TestSupportAgentHandler_TriggerSupportAgent_NotProvisioned(t *testing.T) {
 	t.Parallel()
 
 	h := newTestSupportAgentHandler(t)
@@ -2189,14 +2193,14 @@ func TestSupportAgentHandler_TriggerSupportAgent_RunError(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{"case_id": "case-1", "customer_query": "how do I reset my password?"})
 	req := httptest.NewRequest(http.MethodPost, "/agents/support/trigger", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	// Use a workspace that doesn't exist so the agent.Run fails with a DB error.
+	// Use a workspace with no agent_definition row provisioned.
 	req = req.WithContext(contextWithWorkspaceID(req.Context(), "ws-nonexistent"))
 	rr := httptest.NewRecorder()
 
 	h.TriggerSupportAgent(rr, req)
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
 

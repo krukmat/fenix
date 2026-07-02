@@ -14,3 +14,8 @@
 !task_extval_battery_t6_deterministic_eval.md
 !task_extval_battery_t7_mobile_real_mode.md
 !task_mobile_approvals_response_shape_crash.md
+!task_agentdef_bootstrap_design.md
+!task_agentdef_bootstrap_impl_a_auth.md
+!task_agentdef_bootstrap_impl_b1_characterization.md
+!task_agentdef_bootstrap_impl_b2_lookup_fix.md
+!task_agentdef_bootstrap_docs_sync.md

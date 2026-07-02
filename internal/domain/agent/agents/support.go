@@ -498,6 +498,11 @@ func validateSupportConfig(config SupportAgentConfig) error {
 }
 
 func (a *SupportAgent) triggerSupportRun(ctx context.Context, config SupportAgentConfig) (*agent.Run, error) {
+	agentID, err := a.resolveSupportAgentID(ctx, config.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
 	triggerContext, inputs := supportRunPayloads(config, a.AllowedTools())
 	triggeredBy := supportUserID(ctx)
 	var triggeredByPtr *string
@@ -505,7 +510,7 @@ func (a *SupportAgent) triggerSupportRun(ctx context.Context, config SupportAgen
 		triggeredByPtr = &triggeredBy
 	}
 	run, err := a.orchestrator.TriggerAgent(ctx, agent.TriggerAgentInput{
-		AgentID:        "support-agent",
+		AgentID:        agentID,
 		WorkspaceID:    config.WorkspaceID,
 		TriggeredBy:    triggeredByPtr,
 		TriggerType:    agent.TriggerTypeManual,
@@ -516,6 +521,24 @@ func (a *SupportAgent) triggerSupportRun(ctx context.Context, config SupportAgen
 		return nil, fmt.Errorf("trigger support run: %w", err)
 	}
 	return run, nil
+}
+
+// resolveSupportAgentID looks up the workspace's own support-typed
+// agent_definition row instead of assuming a hardcoded literal id, which
+// previously collided across workspaces because agent_definition.id is a
+// global PRIMARY KEY. Returns ErrSupportAgentNotProvisioned (distinct from
+// the orchestrator's ErrAgentNotFound) when the workspace predates the
+// bootstrap default and has no such row, so callers can tell "not
+// provisioned" apart from "bad id".
+func (a *SupportAgent) resolveSupportAgentID(ctx context.Context, workspaceID string) (string, error) {
+	defs, err := a.orchestrator.ListAgentDefinitionsByType(ctx, workspaceID, "support")
+	if err != nil {
+		return "", fmt.Errorf("resolve support agent definition: %w", err)
+	}
+	if len(defs) == 0 {
+		return "", ErrSupportAgentNotProvisioned
+	}
+	return defs[0].ID, nil
 }
 
 func supportRunPayloads(config SupportAgentConfig, allowedTools []string) (json.RawMessage, json.RawMessage) {
@@ -758,6 +781,7 @@ var ErrSupportDBNotConfigured = &SupportError{message: "support agent db is requ
 var ErrSupportApprovalCreationFailed = &SupportError{message: "failed to create approval request"}
 var ErrSupportApprovalApproverNotFound = &SupportError{message: "failed to resolve support approval approver"}
 var ErrSupportCaseContextLoadFailed = &SupportError{message: "failed to load support case context"}
+var ErrSupportAgentNotProvisioned = &SupportError{message: "workspace has no support agent_definition provisioned"}
 
 type SupportError struct {
 	message string

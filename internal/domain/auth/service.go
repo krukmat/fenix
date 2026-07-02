@@ -5,6 +5,7 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -219,6 +220,56 @@ func bootstrapWorkspaceDefaults(ctx context.Context, q *sqlcgen.Queries, p inser
 		}
 	}
 
+	if err := createDefaultSupportAgent(ctx, q, p.workspaceID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Support-agent bootstrap defaults (AGENTDEF-BOOTSTRAP-IMPL-A-001).
+// A freshly registered workspace gets a usable support-agent definition so
+// UC-C1 can be triggered without out-of-band SQL. The id is a bootstrap-
+// generated UUID (not a literal), so it never collides across workspaces;
+// AGENTDEF-BOOTSTRAP-IMPL-B2-001 switches the trigger path to resolve this
+// row by workspace + agent_type instead of a hardcoded literal.
+const (
+	defaultSupportAgentName = "Support Agent"
+	defaultSupportAgentType = "support"
+)
+
+// defaultSupportAgentTools is the strict subset of the workspace_owner grant
+// (defaultWorkspaceOwnerPermissions) that the support agent actually executes
+// through enforced built-in tool executors. AllowedTools() also declares
+// search_knowledge/get_case/get_contact, but those have no registered executor
+// and are not in the owner grant, so they are intentionally excluded to keep
+// the agent's reach a subset of the owner's.
+const defaultSupportAgentTools = `["update_case","send_reply","create_task"]`
+
+// defaultSupportAgentLimits is a conservative non-empty bootstrap ceiling per
+// the cost-governance direction (ADR-020). Not a final tuning number.
+const defaultSupportAgentLimits = `{"max_runs_day":100,"max_cost_day_eur":5}`
+
+// emptyJSONObject satisfies the agent_definition NOT NULL columns whose schema
+// DEFAULT ('{}') is bypassed because the sqlc INSERT names them explicitly.
+const emptyJSONObject = `{}`
+
+func createDefaultSupportAgent(ctx context.Context, q *sqlcgen.Queries, workspaceID string) error {
+	if _, err := q.CreateAgentDefinition(ctx, sqlcgen.CreateAgentDefinitionParams{
+		ID:          uuid.NewV7().String(),
+		WorkspaceID: workspaceID,
+		Name:        defaultSupportAgentName,
+		AgentType:   defaultSupportAgentType,
+		// objective is nullable in schema, but the sqlc query RETURNs it and
+		// json.RawMessage cannot Scan a NULL — pass an empty object instead of
+		// leaving it nil. The agent's real objective is applied at runtime.
+		Objective:     json.RawMessage(emptyJSONObject),
+		AllowedTools:  json.RawMessage(defaultSupportAgentTools),
+		Limits:        json.RawMessage(defaultSupportAgentLimits),
+		TriggerConfig: json.RawMessage(emptyJSONObject),
+	}); err != nil {
+		return fmt.Errorf("create default support agent definition: %w", err)
+	}
 	return nil
 }
 

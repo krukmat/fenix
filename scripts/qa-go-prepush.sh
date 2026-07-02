@@ -31,7 +31,22 @@ echo "==> Gate: coverage-tdd"
 make coverage-tdd
 
 echo "==> Gate: deadcode"
-deadcode -test ./... 2>&1 \
+# Resolve the deadcode binary explicitly. It is a `go install`ed tool that lives
+# in $(go env GOPATH)/bin, which is not always on PATH when this script runs from
+# the pre-push hook. Without this, a bare `deadcode` call fails with
+# "command not found", and because stderr is folded into the pipe below, that
+# shell error survives the grep filters and is miscounted as a real dead-code
+# finding — a false failure. Fail loudly with an actionable message instead.
+DEADCODE_BIN="$(command -v deadcode || true)"
+if [ -z "$DEADCODE_BIN" ]; then
+  DEADCODE_BIN="$(go env GOPATH)/bin/deadcode"
+fi
+if [ ! -x "$DEADCODE_BIN" ]; then
+  echo "FAILED: deadcode tool not found. Install it with:"
+  echo "  go install golang.org/x/tools/cmd/deadcode@latest"
+  exit 1
+fi
+"$DEADCODE_BIN" -test ./... 2>&1 \
   | grep -v "mcp_adapter\|MCPGateway\|BuildServer\|MCPResourceProvider\|MCPResourceDescriptor\|MCPResourcePayload" \
   | grep -v "_test\.go:\|ruleguard" \
   | grep -v "bff/node_modules/" \

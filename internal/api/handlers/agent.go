@@ -541,6 +541,10 @@ func handleSupportRunError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if errors.Is(err, agents.ErrSupportAgentNotProvisioned) {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "case not found")
 		return
