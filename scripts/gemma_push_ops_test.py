@@ -2,6 +2,7 @@
 """Operational wiring tests for the push-review make target and workflow."""
 
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -111,6 +112,99 @@ class PushReviewCommitBehavior(unittest.TestCase):
             ["git", "commit", "-m", "[push-review] report abcdef1 + daily 2026-07-01 entry [skip ci]"],
             recorded,
         )
+
+    def test_copy_report_publishes_stable_blocked_bundle_and_rewrites_fallback_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "out"
+            reports = out_dir / "reports"
+            reports.mkdir(parents=True)
+            raw_completion = out_dir / "raw-completion.txt"
+            raw_completion.write_text("STATUS: FINDINGS\nSUMMARY: x\n", encoding="utf-8")
+            blocked = {
+                "blocked_reason": "parser_rejection",
+                "blocked_message": "invalid push-audit response",
+                "forensics": {
+                    "raw_completion_path": str(raw_completion),
+                    "raw_completion_redacted": True,
+                    "raw_completion_normalized": True,
+                },
+                "reports": {
+                    "blocked_json_path": str(out_dir / "blocked.json"),
+                    "fallback_packet_path": str(out_dir / "blocked.json"),
+                    "markdown_summary_path": str(reports / "2026-07-01-abcdef1.md"),
+                },
+            }
+            (out_dir / "blocked.json").write_text(json.dumps(blocked), encoding="utf-8")
+            (reports / "2026-07-01-abcdef1.md").write_text(
+                "\n".join([
+                    "# Push Review Summary — 2026-07-01 abcdef1",
+                    "",
+                    "| Field | Value |",
+                    "|---|---|",
+                    f"| Fallback packet | {out_dir / 'blocked.json'} |",
+                    "",
+                ]),
+                encoding="utf-8",
+            )
+
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            prev = os.getcwd()
+            os.chdir(repo)
+            try:
+                report_dst = _MOD.copy_report(str(out_dir), "abcdef1234567890", "2026-07-01")
+                self.assertEqual(
+                    report_dst,
+                    os.path.join("docs", "reports", "push-review", "2026-07-01-abcdef1.md"),
+                )
+                published = Path(report_dst)
+                self.assertTrue(published.is_file())
+                text = published.read_text(encoding="utf-8")
+                stable_blocked = Path("docs/reports/push-review/artifacts/2026-07-01-abcdef1/blocked.json")
+                self.assertIn(str(stable_blocked), text)
+                self.assertTrue(stable_blocked.is_file())
+                stable_raw = stable_blocked.parent / "raw-completion.txt"
+                self.assertTrue(stable_raw.is_file())
+                published_blocked = json.loads(stable_blocked.read_text(encoding="utf-8"))
+                self.assertEqual(
+                    published_blocked["reports"]["fallback_packet_path"],
+                    str(stable_blocked),
+                )
+                self.assertEqual(
+                    published_blocked["forensics"]["raw_completion_path"],
+                    str(stable_raw),
+                )
+            finally:
+                os.chdir(prev)
+
+    def test_copy_report_fails_closed_when_blocked_artifact_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "out"
+            reports = out_dir / "reports"
+            reports.mkdir(parents=True)
+            (reports / "2026-07-01-abcdef1.md").write_text(
+                "\n".join([
+                    "# Push Review Summary — 2026-07-01 abcdef1",
+                    "",
+                    "| Field | Value |",
+                    "|---|---|",
+                    "| Fallback packet | logs/gemma-push-review/missing/blocked.json |",
+                    "",
+                ]),
+                encoding="utf-8",
+            )
+
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            prev = os.getcwd()
+            os.chdir(repo)
+            try:
+                with self.assertRaisesRegex(RuntimeError, "missing out_dir/blocked.json"):
+                    _MOD.copy_report(str(out_dir), "abcdef1234567890", "2026-07-01")
+                self.assertFalse(Path("docs/reports/push-review/2026-07-01-abcdef1.md").exists())
+                self.assertFalse(Path("docs/reports/push-review/artifacts/2026-07-01-abcdef1").exists())
+            finally:
+                os.chdir(prev)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ import re
 import subprocess
 import sys
 import time
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -728,13 +729,22 @@ def ground_findings(findings, diff, changed_paths, slack=GROUNDING_SLACK):
     return findings
 
 
-def write_blocked(reason, message, run_info, out_dir, after_sha):
+def _normalize_blocked_completion(content):
+    normalized = gemma_local.normalize_tagged_content(content, "push-audit")
+    return gemma_local._redact(normalized)
+
+
+def write_blocked(reason, message, run_info, out_dir, after_sha, *, raw_completion=None):
     """Write a blocked artifact for model-invocation failures.
 
     Includes full run_context so the non-Gemma daily agent can reconstruct
     the push context without re-running the CLI.
     """
     base = _out_dir_for(after_sha, out_dir)
+    raw_completion_path = None
+    if raw_completion is not None:
+        raw_completion_path = os.path.join(base, "raw-completion.txt")
+        _write_text_atomic(raw_completion_path, _normalize_blocked_completion(raw_completion))
     artifact = {
         "role": "gemma-push-reviewer",
         "schema_version": SCHEMA_VERSION,
@@ -750,6 +760,12 @@ def write_blocked(reason, message, run_info, out_dir, after_sha):
         },
         "ts": datetime.datetime.utcnow().isoformat() + "Z",
     }
+    if raw_completion_path:
+        artifact["forensics"] = {
+            "raw_completion_path": raw_completion_path,
+            "raw_completion_redacted": True,
+            "raw_completion_normalized": True,
+        }
     path = os.path.join(base, "blocked.json")
     gemma_local.write_result(artifact, path)
     return path
@@ -830,7 +846,14 @@ def run_push_audit(packet, run_info, args, out_dir, repo_root="."):
         result = parse_push_audit_response(content, changed_paths)
     except RuntimeError as exc:
         reason = "patch_like_output" if "patch-like" in str(exc) else "parser_rejection"
-        path = write_blocked(reason, str(exc), run_info, out_dir, after_sha)
+        path = write_blocked(
+            reason,
+            str(exc),
+            run_info,
+            out_dir,
+            after_sha,
+            raw_completion=content,
+        )
         write_blocked_report(path, _load_json(path), repo_root=repo_root)
         print(f"[push-audit] blocked (parser): {exc}", file=sys.stderr)
         print(f"[push-audit] non-Gemma agent should review this push manually", file=sys.stderr)
@@ -990,6 +1013,21 @@ def _write_text(path, content):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(content)
+
+
+def _write_text_atomic(path, content):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=".tmp-", dir=os.path.dirname(path), text=True)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def _load_json(path):

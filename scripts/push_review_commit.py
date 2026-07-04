@@ -9,8 +9,10 @@ Usage:
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 
 
@@ -38,16 +40,118 @@ def git_branch():
     return r.stdout.strip() or "main"
 
 
+def _stable_blocked_artifact_dir(today, sha):
+    return os.path.join("docs", "reports", "push-review", "artifacts", f"{today}-{sha}")
+
+
+def _write_text_atomic(path, content):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=".tmp-", dir=os.path.dirname(path), text=True)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _write_json_atomic(path, data):
+    _write_text_atomic(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
+
+
+def _blocked_fallback_line(content):
+    for line in content.splitlines():
+        if line.startswith("| Fallback packet | "):
+            return line
+    return None
+
+
+def _replace_fallback_line(content, fallback_path):
+    old_line = _blocked_fallback_line(content)
+    if not old_line:
+        return content
+    return content.replace(old_line, f"| Fallback packet | {fallback_path} |", 1)
+
+
+def publish_blocked_artifacts(out_dir, head_sha, today):
+    sha = short_sha(head_sha)
+    blocked_src = os.path.join(out_dir, "blocked.json")
+    if not os.path.isfile(blocked_src):
+        raise RuntimeError("blocked push-review report is missing out_dir/blocked.json")
+
+    with open(blocked_src, encoding="utf-8") as f:
+        blocked = json.load(f)
+
+    final_dir = _stable_blocked_artifact_dir(today, sha)
+    artifacts_root = os.path.dirname(final_dir)
+    os.makedirs(artifacts_root, exist_ok=True)
+    temp_dir = tempfile.mkdtemp(prefix=f".tmp-{today}-{sha}-", dir=artifacts_root)
+
+    try:
+        blocked_rel = os.path.join(final_dir, "blocked.json")
+        raw_src = ((blocked.get("forensics") or {}).get("raw_completion_path"))
+        raw_rel = None
+        if raw_src:
+            if not os.path.isfile(raw_src):
+                raise RuntimeError(f"blocked raw completion missing: {raw_src}")
+            raw_rel = os.path.join(final_dir, os.path.basename(raw_src))
+            shutil.copyfile(raw_src, os.path.join(temp_dir, os.path.basename(raw_src)))
+
+        blocked["source_artifacts"] = {
+            "blocked_json_path": blocked_src,
+            "raw_completion_path": raw_src,
+        }
+        reports = dict(blocked.get("reports") or {})
+        reports["blocked_json_path"] = blocked_rel
+        reports["fallback_packet_path"] = blocked_rel
+        blocked["reports"] = reports
+        if raw_rel:
+            forensics = dict(blocked.get("forensics") or {})
+            forensics["raw_completion_path"] = raw_rel
+            blocked["forensics"] = forensics
+
+        temp_blocked = os.path.join(temp_dir, "blocked.json")
+        _write_json_atomic(temp_blocked, blocked)
+
+        if not os.path.isfile(temp_blocked):
+            raise RuntimeError("stable blocked artifact payload was not written")
+
+        if os.path.isdir(final_dir):
+            shutil.rmtree(final_dir)
+        shutil.move(temp_dir, final_dir)
+
+        if not os.path.isfile(os.path.join(final_dir, "blocked.json")):
+            raise RuntimeError("stable blocked artifact missing after publish")
+        if raw_rel and not os.path.isfile(os.path.join(final_dir, os.path.basename(raw_rel))):
+            raise RuntimeError("stable raw completion missing after publish")
+        return blocked_rel
+    except Exception:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+
 def copy_report(out_dir, head_sha, today):
     sha = short_sha(head_sha)
     src = os.path.join(out_dir, "reports", f"{today}-{sha}.md")
     dst = os.path.join("docs", "reports", "push-review", f"{today}-{sha}.md")
     if os.path.isfile(src):
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
         with open(src, encoding="utf-8") as f:
             content = f.read()
-        with open(dst, "w", encoding="utf-8") as f:
-            f.write(content)
+
+        fallback_line = _blocked_fallback_line(content)
+        if fallback_line:
+            stable_blocked_path = publish_blocked_artifacts(out_dir, head_sha, today)
+            content = _replace_fallback_line(content, stable_blocked_path)
+            if stable_blocked_path not in content:
+                raise RuntimeError("blocked summary did not retain the stable fallback packet path")
+            if not os.path.isfile(stable_blocked_path):
+                raise RuntimeError(f"stable fallback packet missing after publish: {stable_blocked_path}")
+
+        _write_text_atomic(dst, content)
         return dst
     return None
 
@@ -213,6 +317,9 @@ def main():
     files_to_add = [daily_path]
     if report_dst:
         files_to_add.append(report_dst)
+        artifact_dir = os.path.join("docs", "reports", "push-review", "artifacts", f"{today}-{sha}")
+        if os.path.isdir(artifact_dir):
+            files_to_add.append(artifact_dir)
 
     subprocess.run(["git", "add"] + files_to_add, check=False)
 

@@ -491,6 +491,20 @@ class ParsePushAuditResponse(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             _mod.parse_push_audit_response(resp, ["scripts/a.py"])
 
+    def test_findings_with_no_findings_still_raises(self):
+        resp = "STATUS: FINDINGS\nSUMMARY: claims issues but has none"
+        with self.assertRaises(RuntimeError) as ctx:
+            _mod.parse_push_audit_response(resp, [])
+        self.assertIn("STATUS FINDINGS requires findings", str(ctx.exception))
+
+    def test_duplicate_status_conflicting_value_raises(self):
+        resp = "\n".join([
+            "STATUS: PASS", "SUMMARY: ok", "STATUS: BLOCKED",
+        ])
+        with self.assertRaises(RuntimeError) as ctx:
+            _mod.parse_push_audit_response(resp, [])
+        self.assertIn("duplicate STATUS header", str(ctx.exception))
+
     def test_non_integer_line_normalized_to_one(self):
         resp = "\n".join([
             "STATUS: FINDINGS", "SUMMARY: one issue",
@@ -775,9 +789,13 @@ class RunPushAuditParserRejection(unittest.TestCase):
             self.assertEqual(rc, 2)
             with open(os.path.join(tmp, "blocked.json")) as fh:
                 data = json.load(fh)
-        self.assertIn(data["blocked_reason"], ("parser_rejection", "patch_like_output"))
-        self.assertIn("run_context", data)
-        self.assertIn("run_id", data["run_context"])
+            self.assertIn(data["blocked_reason"], ("parser_rejection", "patch_like_output"))
+            self.assertIn("run_context", data)
+            self.assertIn("run_id", data["run_context"])
+            raw_path = data["forensics"]["raw_completion_path"]
+            self.assertTrue(os.path.isfile(raw_path))
+            with open(raw_path, encoding="utf-8") as fh:
+                self.assertIn("STATUS: FINDINGS", fh.read())
 
     def test_ec2_blocked_report_keeps_workflow_run_identity(self):
         args = _model_args()
@@ -825,6 +843,7 @@ class RunPushAuditParserRejection(unittest.TestCase):
             markdown_path = data["reports"]["markdown_summary_path"]
             self.assertTrue(os.path.isfile(markdown_path))
             self.assertTrue(markdown_path.endswith("feed123.md"))
+            self.assertTrue(os.path.isfile(data["forensics"]["raw_completion_path"]))
 
 
 class RunPushAuditHappyPath(unittest.TestCase):
