@@ -203,6 +203,10 @@ func TestAuthService_Register_BootstrapsWorkspaceDefaults(t *testing.T) {
 	}
 	assertStringSlice(t, parsedPermissions["records"], []string{"read_all"})
 	assertStringSlice(t, parsedPermissions["agents"], []string{"execute"})
+	// Regression guard for EXTVAL-O7-SIGNALS-403-001: without "global":["admin"],
+	// policy.roleAllowsAction denies every resource="api" action (signals,
+	// blackboard, eval, prompt, tool, workflow) for a freshly registered owner.
+	assertStringSlice(t, parsedPermissions["global"], []string{"admin"})
 	assertStringSlice(t, parsedPermissions["tools"], []string{
 		"create_task",
 		"update_case",

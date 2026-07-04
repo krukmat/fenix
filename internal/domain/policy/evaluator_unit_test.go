@@ -243,3 +243,45 @@ func TestEvaluatePolicyDecision_ConditionMismatch_Denies(t *testing.T) {
 		t.Fatal("expected deny when condition does not match")
 	}
 }
+
+// --- roleAllowsAction: EXTVAL-O7-SIGNALS-403-001 regression guard ---
+//
+// Mirrors the exact shape of auth.defaultWorkspaceOwnerPermissions (the
+// workspace_owner bootstrap grant). Without "global":["admin"], a freshly
+// registered workspace owner was denied every resource="api" action
+// (signals.list, signals.dismiss, and any other admin-gated api action),
+// because none of records/agents/tools satisfy roleAllowsAction for
+// resource="api".
+
+func workspaceOwnerPermsFixture() map[string][]string {
+	return map[string][]string{
+		"records": {"read_all"},
+		"agents":  {"execute"},
+		"tools": {
+			"create_task", "update_case", "update_deal", "send_reply",
+			"get_lead", "get_account", "get_deal", "create_knowledge_item",
+			"update_knowledge_item", "query_metrics",
+		},
+		"global": {"admin"},
+	}
+}
+
+func TestRoleAllowsAction_WorkspaceOwnerGrantsSignalsList(t *testing.T) {
+	if !roleAllowsAction(workspaceOwnerPermsFixture(), "api", "signals.list") {
+		t.Fatal("expected workspace_owner grant to authorize api:signals.list via global:admin")
+	}
+}
+
+func TestRoleAllowsAction_WorkspaceOwnerGrantsSignalsDismiss(t *testing.T) {
+	if !roleAllowsAction(workspaceOwnerPermsFixture(), "api", "signals.dismiss") {
+		t.Fatal("expected workspace_owner grant to authorize api:signals.dismiss via global:admin")
+	}
+}
+
+func TestRoleAllowsAction_WithoutGlobalAdmin_DeniesSignalsList(t *testing.T) {
+	perms := workspaceOwnerPermsFixture()
+	delete(perms, "global")
+	if roleAllowsAction(perms, "api", "signals.list") {
+		t.Fatal("expected api:signals.list to be denied without global:admin (pre-fix behavior)")
+	}
+}

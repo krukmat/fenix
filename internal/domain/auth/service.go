@@ -31,7 +31,11 @@ const (
 
 const defaultRoleDescription = "Default first-user role created during workspace registration bootstrap."
 
-const defaultWorkspaceOwnerPermissions = `{"records":["read_all"],"agents":["execute"],"tools":["create_task","update_case","update_deal","send_reply","get_lead","get_account","get_deal","create_knowledge_item","update_knowledge_item","query_metrics"]}`
+// The "global":["admin"] grant satisfies policy.hasGlobalAdminPermission, which
+// authorizes every resource="api" action (signals, blackboard, eval, prompt,
+// tool, workflow) without enumerating each one — consistent with the owner
+// being the workspace's first/administrative user.
+const defaultWorkspaceOwnerPermissions = `{"records":["read_all"],"agents":["execute"],"tools":["create_task","update_case","update_deal","send_reply","get_lead","get_account","get_deal","create_knowledge_item","update_knowledge_item","query_metrics"],"global":["admin"]}`
 
 // RegisterInput holds the data needed to create a new workspace and user.
 // Task 1.6: WorkspaceName creates the tenant; Email is the unique login identifier.

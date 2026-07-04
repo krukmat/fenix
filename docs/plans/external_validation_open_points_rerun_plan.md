@@ -109,24 +109,39 @@ Source: `EXTVAL-BATTERY-T3-001`, `EXTVAL-BATTERY-T5-001`
 
 Source: `EXTVAL-BATTERY-T7-001`
 
-- Status: open
-- Current evidence: after real `/bff/auth/login`, Home crashes because the
-  mobile approvals client treats a `{data, meta}` payload as a bare array.
-- Why it matters: this blocks navigation to Support, Inbox, Activity, Sales
-  Brief, and Governance, and it prevents the mobile support-trigger rerun.
-- Blocking effect on rerun: rerun T7 cannot proceed until the crash is fixed.
+- Status: fixed and verified (`task_mobile_approvals_response_shape_crash.md`,
+  `EXTVAL-BATTERY-T7-RERUN-001`, 2026-07-05)
+- Fix: the mobile approvals client (`mobile/src/services/api.secondary.ts`)
+  now normalizes the BFF's `{data, meta}` payload instead of treating it as a
+  bare array (`mobile/app/(tabs)/home/index.tsx`,
+  `mobile/src/components/approvals/ApprovalCard.tsx` field alignment).
+- Verified in real mode: fresh owner registered and logged in through the
+  visible `/login` UI, Home rendered its empty state with no crash after the
+  real `GET /api/v1/approvals` fetch (`200`), and all five bottom-nav surfaces
+  (Support, Inbox, Activity, Sales, Governance) were reached without error.
 
 ### O7. Workspace owner `GET /api/v1/signals` returns 403 on fresh workspace
 
 Source: `EXTVAL-BATTERY-T7-001`
 
-- Status: open
-- Current evidence: the same real-mode session that crashed on Home also logged
-  denied `GET /api/v1/signals` calls for the workspace owner.
-- Why it matters: even after the approvals crash is fixed, the Home feed may
-  remain partially broken or misleading for a newly registered operator.
-- Blocking effect on rerun: treat as part of the T7 home-screen stabilization
-  wave, not as an isolated validation detail.
+- Status: fixed and verified (`task_extval_o7_signals_403_workspace_owner.md`,
+  2026-07-05)
+- Root cause: `defaultWorkspaceOwnerPermissions`
+  (`internal/domain/auth/service.go:34`) — the bootstrap grant for the
+  `workspace_owner` role — only had `records`/`agents`/`tools` keys, none of
+  which satisfy the policy engine's `roleAllowsAction` fallback for
+  `resource="api"`. Every handler that calls `checkActionAuthorization` with
+  that resource (`signals`, `blackboard`, `eval`, `prompt`, `tool`,
+  `workflow`) denied the freshly registered owner, while ungated handlers
+  (approvals, cases, accounts, governance) worked fine — masking the defect
+  until the real-mode T7 rerun hit `signals` specifically.
+- Fix: added `"global":["admin"]` to the grant, satisfying
+  `hasGlobalAdminPermission` for any `resource="api"` action, consistent with
+  "owner" semantics.
+- Verified: unit tests (`internal/domain/policy/evaluator_unit_test.go`,
+  `internal/domain/auth/service_test.go`) plus a live check against the
+  restarted backend — a freshly registered owner now receives `200` (not
+  `403`) from `GET /api/v1/signals`.
 
 ### O8. Mobile Sales Brief and mobile Copilot remain unvalidated in real mode
 
