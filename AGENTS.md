@@ -52,6 +52,8 @@ Preferred shortcut:
   - `Plan file: <path to docs/plans/*.md>`
   - `Summary: <what will be done in 1-2 sentences>`
   - `Code affected: <expected files or areas>`
+  - `Criticality: critical | standard`
+  - `Criticality basis: <RRI signal and/or developer judgment that explains the label>`
   - `Effort/reasoning: Low | Medium | High - <brief reason>`
   - `Recommended model: <model id>`
     Use the canonical rule from `docs/playbooks/AGENT_WORKFLOW_GUIDE.md` for the
@@ -60,6 +62,8 @@ Preferred shortcut:
   - `Pseudocode: <high-level pseudocode sketch of key logic>` — **required for development tasks only** (tasks that involve writing or modifying code). Omit for docs-only, ADR formalization, or README tasks. The sketch must be language-agnostic and concise — enough to verify the approach, not a full implementation.
   - `System context diagram` — **required when the task introduces a new service or component**. Must be a visually structured ASCII interaction diagram in the task file, not a plain bullet summary. Prefer boxes, arrows, swimlanes, or clearly separated stages so the component boundary and data flow are immediately scannable. The diagram must show: upstream triggers, the new component's role, downstream consumers, and key invariants (goroutine lifecycle, error propagation contract, caller vs. callee DB responsibility). Placed before the pseudocode in the task file. This is the authoritative reference for any agent picking up the task cold.
   - `Peer readiness review approval: reviewer=<reviewer>; artifact=<artifact path>; status=PASS` — required after PAW-F3 is wired. Omit if the peer review script is not yet available (`status=BLOCKED` is acceptable). This field confirms the task file and governing docs passed independent peer review before task-card presentation. The `artifact` value is the proof file; the `status` value is the approval state. A non-pass verdict blocks presentation until revised or explicitly waived by the user.
+- Criticality is a workflow classification, not an RRI band. After running `python3 scripts/rri.py`, the developer agent sets the declared `criticality` label using `criticality_suggested` / `criticality_reason` as advisory input and may escalate to `critical` by judgment when warranted.
+- The task-readiness peer reviewer must explicitly concur with or dispute the declared `criticality` label. A dispute is recorded as a finding for human resolution; it does not silently rewrite the label and does not replace any RRI/HITL approval gate.
 - If the next planned discrete task does not already have its required `docs/tasks/task_*.md` record, create that task file first using the required frontmatter and task-card fields, then present the task card from that file. Do not present a task card with a missing task file placeholder.
 - **Task card language (MANDATORY)**: The task card must be written in unambiguous agentic English. No Spanish field labels, no mixed language. Every field value must be a direct, machine-parseable statement: what will be done, which files, why, estimated cost. Avoid narrative prose — prefer declarative sentences. This ensures the card is usable by any agent or orchestrator reading the conversation without language ambiguity.
 - When closing a task, report the outcome with:
@@ -72,7 +76,7 @@ Preferred shortcut:
     Use the playbook default for task-card model recommendations unless the
     report needs to justify a different model choice.
   - `Tokens: ~N`
-- After the closing report, proactively present the next task card using the same starting-task format, including `Modelo recomendado`, but do not begin that next task until the user explicitly confirms.
+- After the closing report, proactively present the next task card using the same starting-task format, including `Recommended model`, but do not begin that next task until the user explicitly confirms.
 - Every substantive report to the user must include:
   - `Esfuerzo/razonamiento: Bajo | Medio | Alto - <forensic note on reasoning effort used>`
   - `Tokens: ~N` (approximate estimate of the response/report size)
@@ -100,6 +104,8 @@ Preferred shortcut:
   - `blocked_by`
   - `blocks`
   - `files_affected`
+  - `criticality`
+  - `criticality_basis`
   - `created`
   - `completed`
 - ADRs belong in `docs/decisions/`, not in `docs/tasks/`.

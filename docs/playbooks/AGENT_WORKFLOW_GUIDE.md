@@ -28,7 +28,10 @@ status: active
    context diagram before pseudocode.
 5. **Gate by RRI** - run `python3 scripts/rri.py` with the affected paths and
    measured/judged variables. Use `docs/policies/RRI_POLICY.md` for scoring
-   rules and `docs/policies/HITL_AUTONOMY_POLICY.md` for approval gates.
+   rules and `docs/policies/HITL_AUTONOMY_POLICY.md` for approval gates. When
+   the script emits `criticality_suggested` / `criticality_reason`, treat that
+   as advisory input to the task's declared `criticality` label rather than an
+   automatic classification.
 6. **Peer readiness review** - before presenting the task card, run the peer
    workflow review script against the task file and governing docs. Resolve the
    reviewer from the caller's provider (see `## Peer review` below). A non-pass
@@ -38,8 +41,10 @@ status: active
    field that makes the evidence file and approval state explicit, for example:
    `Peer readiness review approval: reviewer=<reviewer>; artifact=<artifact path>; status=PASS`
    (or `status=BLOCKED`). The artifact value is the proof file written by the
-   review script; the status value is the approval verdict. Peer review does not
-   replace RRI/HITL human approval.
+   review script; the status value is the approval verdict. For tasks that
+   declare `criticality`, the readiness reviewer must explicitly concur with or
+   dispute that label and its stated basis. Peer review does not replace
+   RRI/HITL human approval.
 7. **Present or execute** - for RRI 0-25, execute directly within the bounded
    low-band rules. For RRI 26+, present the task card and wait for explicit human
    approval before editing.
@@ -56,8 +61,10 @@ status: active
     explicit, for example:
     `Peer code review approval: reviewer=<reviewer>; artifact=<artifact path>; status=PASS`
     (or `status=BLOCKED`). The artifact value is the proof file written by the
-    review script; the status value is the approval verdict. Peer review does not
-    replace RRI/HITL human approval.
+    review script; the status value is the approval verdict. For `critical`
+    tasks, the primary cross-agent reviewer still governs the exit code and any
+    local advisory review remains non-blocking. Peer review does not replace
+    RRI/HITL human approval.
 11. **Sync status** - update materially affected task, plan, ADR, dashboard,
     handoff, or audit artifacts before reporting completion.
 12. **Close and stop** - report result, verification, files affected, reasoning
@@ -96,6 +103,9 @@ status: active
   certification.
 - Docs-only, ADR, README, audit, handoff, and planning tasks may omit pseudocode
   and behavioral examples unless the task's main risk is behavioral correctness.
+- Tasks that use the critical-task workflow should declare `criticality:
+  critical | standard` plus a `criticality_basis:` field in the task record and
+  task card, following the wrapper contract in `AGENTS.md` / `CLAUDE.md`.
 
 ## RRI, approval, and model guidance
 
@@ -173,6 +183,20 @@ executing the task. The reviewer is the independent peer that checks the work.
   output, missing fallback infrastructure, or another blocked fallback attempt
   still produce a blocked artifact.
 
+**Critical-task advisory reviewer policy:**
+
+- The fallback reviewer policy above is unchanged for normal blocking review.
+- For `post-code-review` runs with `--criticality critical`, run the primary
+  cross-agent reviewer first exactly as usual and keep its verdict as the only
+  exit-code-governing result.
+- After the primary reviewer completes, run one additional advisory-only local
+  reviewer attempt (`local-qwen`) and record it in the same artifact as an
+  `advisory-local` attempt.
+- The advisory reviewer never changes the process exit code. If it times out or
+  hits a runtime failure, retry exactly once, unload the model after every
+  attempt, and degrade to a recorded non-blocking advisory-blocked result if
+  both attempts fail.
+
 **Failure modes:**
 
 - If the designated peer CLI is unavailable or unauthenticated, write a
@@ -203,6 +227,7 @@ python3 scripts/peer-workflow-review.py post-code-review \
   --task docs/tasks/task_<id>.md \
   --plan docs/plans/<plan>.md \
   --base <base-ref> \
+  --criticality <standard|critical> \
   --verification-log <verification-log-path>
 ```
 

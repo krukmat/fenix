@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Unit tests for the RRI calculator. [rri-calculator-script T1]
 # Run: python3 scripts/rri_test.py   (or: python3 -m unittest scripts/rri_test.py)
+import json
 import os
 import subprocess
 import sys
@@ -141,6 +142,37 @@ class Penalties(unittest.TestCase):
         r = rri.evaluate(c_score=0, f_override=0, d=0, k=0, p=0, t=0, a=0, x=0,
                          manual_penalties=["arch_decision", "no_verification"])
         self.assertEqual(r["penalty_total"], 12 + 15)
+
+
+class CriticalitySignal(unittest.TestCase):
+    def test_agent_supplied_p_triggers_suggestion(self):
+        r = rri.evaluate(c_score=0, f_override=0, d=0, k=0, p=4, t=0, a=0, x=0)
+        self.assertTrue(r["criticality_suggested"])
+        self.assertIn("agent-supplied P=4", r["criticality_reason"])
+
+    def test_rubric_floor_triggers_suggestion(self):
+        r = rri.evaluate(c_score=0, touches=["internal/domain/auth/jwt.go"],
+                         d=0, k=0, p=0, t=0, a=0, x=0,
+                         profile=rri.PROFILES["fenix"])
+        self.assertTrue(r["criticality_suggested"])
+        self.assertEqual(r["criticality_reason"],
+                         "anchor-rubric P floor >= 4 (auth/audit/rights/secrets)")
+
+    def test_below_threshold_no_suggestion(self):
+        r = rri.evaluate(c_score=0, f_override=0, d=0, k=0, p=3, t=0, a=0, x=0)
+        self.assertFalse(r["criticality_suggested"])
+        self.assertIn("P < 4", r["criticality_reason"])
+
+    def test_json_includes_criticality_fields(self):
+        r = rri.evaluate(c_score=0, f_override=0, d=0, k=0, p=4, t=0, a=0, x=0)
+        payload = json.loads(rri.render_json(r))
+        self.assertTrue(payload["criticality_suggested"])
+        self.assertIn("agent-supplied P=4", payload["criticality_reason"])
+
+    def test_markdown_includes_criticality_line(self):
+        r = rri.evaluate(c_score=0, f_override=0, d=0, k=0, p=4, t=0, a=0, x=0)
+        md = rri.render_markdown(r)
+        self.assertIn("**Criticality suggested:** yes", md)
 
 
 class Bands(unittest.TestCase):

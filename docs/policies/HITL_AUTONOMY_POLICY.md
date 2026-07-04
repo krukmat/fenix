@@ -54,6 +54,25 @@ When approval is required (RRI > 25), end the task card presentation with:
 Execution has not started. Approve this task to proceed.
 ```
 
+## Criticality classification
+
+`criticality` is a workflow classification, not an approval band. The developer
+agent sets `criticality: critical | standard` after running `python3
+scripts/rri.py`, using the script's advisory `criticality_suggested` /
+`criticality_reason` output as input and escalating to `critical` by judgment
+when warranted.
+
+This label does not change the RRI score, does not lower or raise the HITL
+approval thresholds in this policy, and does not authorize implementation by
+itself. Any task that requires approval because of its RRI band or because it
+touches approval-sensitive areas still requires that approval regardless of
+whether it is labeled `standard` or `critical`.
+
+The task-readiness peer reviewer must explicitly concur with or dispute the
+declared `criticality` label as part of the workflow gate. A dispute is a
+recorded peer-review finding for human resolution; it is not a silent relabel
+and it does not replace HITL approval.
+
 ## Permitted without prior approval
 
 - Read-only analysis, repository search, and codebase navigation.

@@ -62,6 +62,10 @@ DEFAULT_OUT_DIR = os.environ.get(
 )
 DEFAULT_TIMEOUT = int(os.environ.get("FENIX_PEER_REVIEW_TIMEOUT", "180"))
 LOCAL_FALLBACK_REVIEWER = "local-gemma"
+ADVISORY_LOCAL_REVIEWER = "local-qwen"
+DEFAULT_CRITICAL_REVIEW_MODEL = os.environ.get(
+    "FENIX_REVIEW_CRITICAL_MODEL", "qwen3.6:35b-a3b"
+)
 REVIEWER_ENV_VARS = {
     "claude": ("FENIX_CLAUDE_BIN", "CLAUDE_BIN"),
     "codex": ("FENIX_CODEX_BIN", "CODEX_BIN"),
@@ -75,6 +79,14 @@ REVIEW_INSTRUCTIONS = (
     "Use \"pass\" only if the work is ready. Use \"needs_changes\" for required "
     "fixes, \"out_of_scope\" if the work exceeds the task contract, and "
     "\"blocked\" if you cannot review."
+)
+
+TASK_READINESS_CRITICALITY_INSTRUCTIONS = (
+    "For task-readiness review, explicitly assess the declared task "
+    "`criticality` label and `criticality_basis`. Concur when the declared "
+    "label is justified by the task materials. If the label or basis appears "
+    "incorrect or under-justified, record that dispute as a reviewer finding "
+    "for human resolution rather than silently relabeling the task."
 )
 
 
@@ -332,6 +344,7 @@ def build_packet(args, caller_kind, reviewer):
         packet["task_card"] = _read_text(getattr(args, "task_card", None))
     else:
         packet["base_ref"] = args.base or ""
+        packet["criticality"] = getattr(args, "criticality", "standard")
         packet["diff"] = read_diff(args.base)
         packet["verification_log"] = _read_text(
             getattr(args, "verification_log", None)
@@ -343,6 +356,8 @@ def build_prompt(mode, packet):
     # type: (str, dict) -> str
     """Render the review prompt sent to the peer adapter."""
     parts = [REVIEW_INSTRUCTIONS, "", "MODE: %s" % mode, ""]
+    if mode == "task-readiness":
+        parts.extend([TASK_READINESS_CRITICALITY_INSTRUCTIONS, ""])
     for section in ("task", "plan", "task_card", "verification_log", "diff"):
         if section in packet and packet[section]:
             parts.append("=== %s ===" % section.upper())
@@ -356,6 +371,15 @@ def build_local_fallback_system_prompt():
     return (
         "You are an independent local backup peer reviewer. The primary reviewer "
         "was already attempted and blocked. Do not modify any files. "
+        + REVIEW_INSTRUCTIONS
+    )
+
+
+def build_advisory_local_system_prompt():
+    # type: () -> str
+    return (
+        "You are an advisory local peer reviewer for a critical task. The "
+        "primary cross-agent reviewer has already run. Do not modify any files. "
         + REVIEW_INSTRUCTIONS
     )
 
@@ -543,6 +567,106 @@ def invoke_local_fallback_reviewer(mode, packet, timeout):
     return gemma_local.stream_result_content(result)
 
 
+def advisory_blocked_verdict(blocked_reason, detail):
+    # type: (str, str) -> dict
+    return {
+        "status": "blocked",
+        "summary": "advisory review blocked: %s" % blocked_reason,
+        "findings": [detail],
+        "reason": "advisory_blocked",
+        "blocked_reason": blocked_reason,
+    }
+
+
+def invoke_advisory_qwen_reviewer(mode, packet, timeout):
+    # type: (str, dict, int) -> dict
+    host = _env_first("FENIX_OLLAMA_HOST", "OLLAMA_HOST", default=gemma_local.DEFAULT_HOST)
+    model = _env_first("FENIX_REVIEW_CRITICAL_MODEL", default=DEFAULT_CRITICAL_REVIEW_MODEL)
+    idle_timeout = int(
+        _env_first(
+            "FENIX_REVIEW_IDLE_TIMEOUT_SECONDS",
+            "FENIX_LOW_RRI_IDLE_TIMEOUT_SECONDS",
+            default=str(gemma_local.DEFAULT_IDLE_TIMEOUT_SECONDS),
+        )
+    )
+    max_wall = int(
+        _env_first(
+            "FENIX_REVIEW_MAX_WALL_SECONDS",
+            "FENIX_LOW_RRI_MAX_WALL_SECONDS",
+            default=str(gemma_local.DEFAULT_MAX_WALL_SECONDS),
+        )
+    )
+    num_ctx = int(
+        _env_first(
+            "FENIX_REVIEW_NUM_CTX",
+            "FENIX_LOW_RRI_NUM_CTX",
+            default=str(gemma_local.DEFAULT_NUM_CTX),
+        )
+    )
+    num_predict = int(
+        _env_first(
+            "FENIX_REVIEW_NUM_PREDICT",
+            "FENIX_LOW_RRI_NUM_PREDICT",
+            default=str(gemma_local.DEFAULT_NUM_PREDICT),
+        )
+    )
+    temperature = float(
+        _env_first(
+            "FENIX_REVIEW_TEMPERATURE",
+            "FENIX_LOW_RRI_TEMPERATURE",
+            default=str(gemma_local.DEFAULT_TEMPERATURE),
+        )
+    )
+    think = gemma_local.bool_from_env(
+        "FENIX_REVIEW_THINK",
+        gemma_local.bool_from_env("FENIX_LOW_RRI_THINK", gemma_local.DEFAULT_THINK),
+    )
+
+    if timeout and timeout > 0:
+        idle_timeout = min(idle_timeout, timeout)
+        max_wall = min(max_wall, timeout)
+
+    last_err = None  # type: Optional[ReviewerError]
+    for attempt in (1, 2):
+        try:
+            gemma_local.ensure_model_available(host, model, idle_timeout)
+            payload = gemma_local.build_chat_payload(
+                model=model,
+                system_prompt=build_advisory_local_system_prompt(),
+                packet=build_prompt(mode, packet),
+                num_ctx=num_ctx,
+                num_predict=num_predict,
+                temperature=temperature,
+                think=think,
+                keep_alive=0,
+            )
+            result = gemma_local.stream_chat(
+                gemma_local.endpoint(host, "/api/chat"),
+                payload,
+                idle_timeout=idle_timeout,
+                max_wall=max_wall,
+                progress_label="peer-review-critical-advisory",
+            )
+            verdict = parse_verdict(gemma_local.stream_result_content(result))
+            return _attempt_record("advisory-local", ADVISORY_LOCAL_REVIEWER, verdict)
+        except gemma_local.GemmaIdleTimeout as err:
+            last_err = ReviewerTimeout(str(err))
+        except gemma_local.GemmaWallTimeout as err:
+            last_err = ReviewerTimeout(str(err))
+        except RuntimeError as err:
+            last_err = ReviewerUnavailable(str(err))
+        except InvalidVerdict as err:
+            verdict = advisory_blocked_verdict(err.reason, str(err))
+            return _attempt_record("advisory-local", ADVISORY_LOCAL_REVIEWER, verdict)
+        if attempt == 2:
+            break
+
+    blocked_reason = last_err.reason if last_err else "reviewer_error"
+    detail = str(last_err) if last_err else "advisory reviewer failed"
+    verdict = advisory_blocked_verdict(blocked_reason, detail)
+    return _attempt_record("advisory-local", ADVISORY_LOCAL_REVIEWER, verdict)
+
+
 # --------------------------------------------------------------------------- #
 # Verdict parsing
 # --------------------------------------------------------------------------- #
@@ -699,6 +823,11 @@ def parse_args(argv):
     _add_common(postcode)
     postcode.add_argument("--base", required=True)
     postcode.add_argument("--verification-log", default=None)
+    postcode.add_argument(
+        "--criticality",
+        choices=("standard", "critical"),
+        default="standard",
+    )
 
     return parser.parse_args(argv)
 
@@ -728,6 +857,11 @@ def main(argv=None):
         except ReviewerError as err:
             verdict = blocked_verdict(err.reason, str(err))
         attempts.append(_attempt_record("fallback", reviewer, verdict))
+
+    if args.mode == "post-code-review" and getattr(args, "criticality", "standard") == "critical":
+        attempts.append(
+            invoke_advisory_qwen_reviewer(args.mode, packet, args.timeout)
+        )
 
     artifact = write_artifact(
         args.out_dir, args.mode, caller_kind, reviewer, packet, verdict, attempts

@@ -100,6 +100,22 @@ class CommandConstructionTest(unittest.TestCase):
             "/x/codex",
         )
 
+    def test_parse_args_accepts_post_code_review_criticality(self):
+        ns = _mod.parse_args(
+            [
+                "post-code-review",
+                "--task",
+                "task.md",
+                "--plan",
+                "plan.md",
+                "--base",
+                "main",
+                "--criticality",
+                "critical",
+            ]
+        )
+        self.assertEqual(ns.criticality, "critical")
+
 
 class CodexReviewOutputParsingTest(unittest.TestCase):
     def test_findings_map_to_needs_changes(self):
@@ -206,6 +222,22 @@ class VerdictParsingTest(unittest.TestCase):
     def test_unknown_status_raises(self):
         with self.assertRaises(_mod.InvalidVerdict):
             _mod.parse_verdict(_verdict_json("approved"))
+
+
+class PromptBuildingTest(unittest.TestCase):
+    def test_task_readiness_prompt_includes_criticality_concurrence_instruction(self):
+        prompt = _mod.build_prompt(
+            "task-readiness",
+            {"task": "criticality: standard\ncriticality_basis: docs-only"},
+        )
+        self.assertIn("explicitly assess the declared task `criticality` label", prompt)
+        self.assertIn("record that dispute as a reviewer finding", prompt)
+
+    def test_post_code_review_prompt_does_not_include_criticality_concurrence_instruction(self):
+        prompt = _mod.build_prompt("post-code-review", {"diff": "diff --git a b"})
+        self.assertNotIn(
+            "explicitly assess the declared task `criticality` label", prompt
+        )
 
 
 class InvokeReviewerTest(unittest.TestCase):
@@ -440,6 +472,61 @@ class MainTest(unittest.TestCase):
                 ):
                     self.assertEqual(_mod.main(argv), 0)
 
+    def test_standard_post_code_review_does_not_add_advisory_attempt(self):
+        with tempfile.TemporaryDirectory() as d:
+            argv = self._args("post-code-review", d, extra=["--base", "main"])
+            with patch.object(_mod, "read_diff", return_value="diff --git ..."), \
+                 patch.object(
+                     _mod.subprocess,
+                     "run",
+                     return_value=_completed(stdout=_verdict_json("pass")),
+                 ), \
+                 patch.object(_mod, "invoke_advisory_qwen_reviewer") as advisory:
+                self.assertEqual(_mod.main(argv), 0)
+            advisory.assert_not_called()
+            artifacts = os.listdir(os.path.join(d, "artifacts"))
+            with open(
+                os.path.join(d, "artifacts", artifacts[0]), "r", encoding="utf-8"
+            ) as fh:
+                data = json.load(fh)
+            self.assertEqual(len(data["attempts"]), 1)
+            self.assertEqual(data["attempts"][0]["role"], "primary")
+
+    def test_critical_post_code_review_adds_advisory_attempt_without_changing_pass(self):
+        with tempfile.TemporaryDirectory() as d:
+            argv = self._args(
+                "post-code-review",
+                d,
+                extra=["--base", "main", "--criticality", "critical"],
+            )
+            advisory_attempt = {
+                "role": "advisory-local",
+                "reviewer": "local-qwen",
+                "verdict": {"status": "blocked", "reason": "advisory_blocked"},
+            }
+            with patch.object(_mod, "read_diff", return_value="diff --git ..."), \
+                 patch.object(
+                     _mod.subprocess,
+                     "run",
+                     return_value=_completed(stdout=_verdict_json("pass")),
+                 ), \
+                 patch.object(
+                     _mod,
+                     "invoke_advisory_qwen_reviewer",
+                     return_value=advisory_attempt,
+                 ) as advisory:
+                self.assertEqual(_mod.main(argv), 0)
+            advisory.assert_called_once()
+            artifacts = os.listdir(os.path.join(d, "artifacts"))
+            with open(
+                os.path.join(d, "artifacts", artifacts[0]), "r", encoding="utf-8"
+            ) as fh:
+                data = json.load(fh)
+            self.assertEqual(data["verdict"]["status"], "pass")
+            self.assertEqual(len(data["attempts"]), 2)
+            self.assertEqual(data["attempts"][1]["role"], "advisory-local")
+            self.assertEqual(data["attempts"][1]["reviewer"], "local-qwen")
+
 
 class ReadDiffTest(unittest.TestCase):
     def test_empty_base_returns_empty(self):
@@ -507,6 +594,47 @@ class FallbackTimeoutTest(unittest.TestCase):
         cap = self._run_fallback(timeout=9999, env=env)
         self.assertEqual(cap["idle_timeout"], 30)
         self.assertEqual(cap["max_wall"], 60)
+
+
+class AdvisoryQwenTest(unittest.TestCase):
+    def test_advisory_qwen_uses_keep_alive_zero(self):
+        captured = {}
+
+        def fake_build_chat_payload(**kwargs):
+            captured["keep_alive"] = kwargs["keep_alive"]
+            return {}
+
+        gemma = _mod.gemma_local
+        with patch.object(gemma, "ensure_model_available", return_value=None), \
+             patch.object(gemma, "build_chat_payload", side_effect=fake_build_chat_payload), \
+             patch.object(gemma, "stream_chat", return_value=object()), \
+             patch.object(gemma, "stream_result_content", return_value=_verdict_json("pass")):
+            attempt = _mod.invoke_advisory_qwen_reviewer(
+                "post-code-review", {"diff": "x"}, timeout=5
+            )
+        self.assertEqual(captured["keep_alive"], 0)
+        self.assertEqual(attempt["role"], "advisory-local")
+        self.assertEqual(attempt["reviewer"], "local-qwen")
+        self.assertEqual(attempt["verdict"]["status"], "pass")
+
+    def test_advisory_qwen_retries_once_then_blocks(self):
+        gemma = _mod.gemma_local
+        with patch.object(gemma, "ensure_model_available", return_value=None), \
+             patch.object(gemma, "build_chat_payload", return_value={}), \
+             patch.object(
+                 gemma,
+                 "stream_chat",
+                 side_effect=[gemma.GemmaIdleTimeout(5), RuntimeError("oom")],
+             ) as stream_chat:
+            attempt = _mod.invoke_advisory_qwen_reviewer(
+                "post-code-review", {"diff": "x"}, timeout=5
+            )
+        self.assertEqual(stream_chat.call_count, 2)
+        self.assertEqual(attempt["role"], "advisory-local")
+        self.assertEqual(attempt["reviewer"], "local-qwen")
+        self.assertEqual(attempt["verdict"]["status"], "blocked")
+        self.assertEqual(attempt["verdict"]["reason"], "advisory_blocked")
+        self.assertEqual(attempt["verdict"]["blocked_reason"], "reviewer_unavailable")
 
 
 if __name__ == "__main__":

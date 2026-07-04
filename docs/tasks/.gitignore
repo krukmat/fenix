@@ -19,3 +19,8 @@
 !task_agentdef_bootstrap_impl_b1_characterization.md
 !task_agentdef_bootstrap_impl_b2_lookup_fix.md
 !task_agentdef_bootstrap_docs_sync.md
+!task_crit_001_rri_criticality_signal.md
+!task_crit_002_task_criticality_schema_and_protocol.md
+!task_crit_003_task_readiness_criticality_concurrence.md
+!task_crit_004_post_code_review_reviewer_mix.md
+!task_crit_005_workflow_playbook_integration.md

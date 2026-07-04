@@ -256,6 +256,23 @@ Then state:
 Low-confidence scores on D, P, or K are themselves a signal: treat the variable
 as one step higher when confidence is Low.
 
+## Criticality signal (advisory)
+
+`scripts/rri.py` also emits an advisory `criticality_suggested` boolean and a
+`criticality_reason` string in both markdown (`**Criticality suggested:**`
+line) and JSON output. It is derived from values already computed during
+scoring — `P >= 4` (after anchor-rubric floors are applied) or the anchor
+rubric's own auth/audit/rights/secrets floor match — and does **not** change
+the RRI score, band, or any penalty.
+
+This signal is purely advisory input to the task `criticality:` label
+(`critical` | `standard`) defined by the task-file contract in `CLAUDE.md` /
+`AGENTS.md`. The developer agent sets the final label, honoring or escalating
+past the suggestion by judgment; the task-readiness peer reviewer records
+concurrence or dispute with that label as part of its verdict. See
+`docs/plans/critical_task_reviewer_mix_plan.md` for the full labeling and
+reviewer-mix design.
+
 ## Script automation
 
 **Agents must run `python3 scripts/rri.py` instead of computing the formula,

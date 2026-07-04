@@ -594,6 +594,18 @@ def evaluate(*, cc=None, c_score=None, auto_cc=False, touches=None,
     band = resolve_band(final)
     triggers = detect_triggers(final, base_val, scores, applied)
 
+    # Advisory criticality signal (does not affect score/band/penalties).
+    # matched_auth is a prior fact independent of the agent's raw --P input;
+    # surfaced separately in the reason even though scores["P"] >= 4 already
+    # covers it (floors only ever raise P, never lower it).
+    criticality_suggested = scores["P"] >= 4
+    if matched_auth:
+        criticality_reason = "anchor-rubric P floor >= 4 (auth/audit/rights/secrets)"
+    elif criticality_suggested:
+        criticality_reason = f"agent-supplied P={scores['P']} >= 4"
+    else:
+        criticality_reason = "P < 4; no critical-task signal"
+
     evidence = {
         "C": c_ev, "F": f_ev, "T": "agent-supplied", "A": "agent-supplied",
         "X": "agent-supplied", "D": floor_ev["D"], "K": floor_ev["K"],
@@ -604,6 +616,8 @@ def evaluate(*, cc=None, c_score=None, auto_cc=False, touches=None,
         "base": base_val, "penalties": applied, "penalty_total": penalty_total,
         "final": final, "band": band, "triggers": triggers,
         "advisories": advisories, "platform": profile.name,
+        "criticality_suggested": criticality_suggested,
+        "criticality_reason": criticality_reason,
     }
 
 
@@ -645,6 +659,8 @@ def render_markdown(r):
         lines.append("**Decomposition:** not triggered")
     for note in r["advisories"]:
         lines.append(f"**Advisory:** {note}")
+    crit = "yes" if r["criticality_suggested"] else "no"
+    lines.append(f"**Criticality suggested:** {crit} — {r['criticality_reason']}")
     return "\n".join(lines)
 
 
@@ -662,6 +678,8 @@ def render_json(r):
         "band": r["band"],
         "triggers": r["triggers"],
         "advisories": r["advisories"],
+        "criticality_suggested": r["criticality_suggested"],
+        "criticality_reason": r["criticality_reason"],
     }, indent=2)
 
 

@@ -113,12 +113,13 @@ def build_chat_payload(
     num_predict,
     temperature,
     think,
+    keep_alive="10m",
 ):
     return {
         "model": model,
         "stream": True,
         "think": think,
-        "keep_alive": "10m",
+        "keep_alive": keep_alive,
         "options": {
             "temperature": temperature,
             "num_predict": num_predict,
