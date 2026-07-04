@@ -36,8 +36,13 @@ The only exception to the approval gate is when the user explicitly says
 ## Low-band handling (RRI 0–25)
 
 When the computed RRI falls in the **0–25 Low band**, the agent executes directly
-without presenting a full approval packet. No local-model delegation is configured
-in this project (Phase E deferred).
+without presenting a full approval packet. Local-model delegation to Gemma via
+Ollama is configured and permitted for this band — see
+`docs/policies/LOCAL_MODEL_POLICY.md` for eligible task shapes, model selection,
+budgets, and the audit contract. Delegation is optional, never mandatory: the
+orchestrating agent may still implement directly when delegation is not a good
+fit (e.g. no Ollama connectivity, path outside the allowlist, or task shape not
+suited to a structured packet).
 
 The agent must still:
 
@@ -115,4 +120,5 @@ missing, invalid, or blocked.
 - `AGENTS.md`
 - `README_AGENT_ORDER.md`
 - `docs/policies/RRI_POLICY.md`
+- `docs/policies/LOCAL_MODEL_POLICY.md` — local Gemma delegation for RRI 0–25
 - `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`

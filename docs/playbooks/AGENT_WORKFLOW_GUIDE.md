@@ -127,6 +127,13 @@ tables into agent-specific templates.
 low-band handling, destructive action approval, commit/push approval, and blocked
 verification reporting.
 
+For **RRI 0–25**, also check `docs/policies/LOCAL_MODEL_POLICY.md` before
+implementing directly: it defines when a task may be delegated to the local
+Gemma model via `scripts/delegate-low-rri.py` instead of the primary agent
+implementing it itself. Delegation is optional and subordinate to this guide and
+to `HITL_AUTONOMY_POLICY.md` — a blocked or unsuitable delegation simply falls
+back to standard direct execution.
+
 ## Verification and push discipline
 
 - `git push` is a final publishing step after local validation.
