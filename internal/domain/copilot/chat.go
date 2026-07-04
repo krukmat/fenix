@@ -151,7 +151,7 @@ func (s *ChatService) buildChatResult(ctx context.Context, query string, pack *k
 		return ChatResult{}, chatUsageRecord{}, fmt.Errorf("request chat completion: %w", err)
 	}
 
-	modelName := strings.TrimSpace(s.llm.ModelInfo().ID)
+	modelName := strings.TrimSpace(resp.Model)
 	record := chatUsageRecord{
 		inputUnits:  int64(resp.Tokens),
 		outputUnits: int64(resp.Tokens),

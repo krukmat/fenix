@@ -107,9 +107,11 @@ func TestOllamaProvider_ChatCompletion_Success(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(ollamaChatResponse{ //nolint:errcheck
-			Message:    ollamaChatMessage{Role: "assistant", Content: "Hello from Ollama"},
-			DoneReason: "stop",
-			Done:       true,
+			Message:         ollamaChatMessage{Role: "assistant", Content: "Hello from Ollama"},
+			DoneReason:      "stop",
+			Done:            true,
+			PromptEvalCount: 10,
+			EvalCount:       15,
 		})
 	}))
 	defer srv.Close()
@@ -126,6 +128,37 @@ func TestOllamaProvider_ChatCompletion_Success(t *testing.T) {
 	}
 	if resp.StopReason != "stop" {
 		t.Errorf("expected StopReason 'stop', got %q", resp.StopReason)
+	}
+	if resp.Tokens != 25 {
+		t.Errorf("expected Tokens 25 (prompt_eval_count + eval_count), got %d", resp.Tokens)
+	}
+}
+
+// EXTVAL-O5B-LLM-USAGE-MODEL-ATTRIBUTION-001: ChatCompletion must report the
+// chat model it actually used, not the embedding model, even though both are
+// configured on the same provider instance.
+func TestOllamaProvider_ChatCompletion_ReportsChatModelNotEmbedModel(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ollamaChatResponse{ //nolint:errcheck
+			Message:    ollamaChatMessage{Role: "assistant", Content: "hi"},
+			DoneReason: "stop",
+			Done:       true,
+		})
+	}))
+	defer srv.Close()
+
+	p := NewOllamaProvider(srv.URL, "nomic-embed-text", "llama3.2:3b")
+	resp, err := p.ChatCompletion(context.Background(), ChatRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("ChatCompletion failed: %v", err)
+	}
+	if resp.Model != "llama3.2:3b" {
+		t.Fatalf("expected chat model 'llama3.2:3b', got %q (embed model must never leak here)", resp.Model)
 	}
 }
 

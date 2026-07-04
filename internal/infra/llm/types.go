@@ -22,6 +22,7 @@ type ChatResponse struct {
 	Content    string // The assistant message text.
 	StopReason string // "stop" | "length" | "error"
 	Tokens     int    // Total tokens consumed (prompt + completion).
+	Model      string // The model that actually served this call (not a static provider default).
 }
 
 // EmbedRequest is the input for a batch embedding call.

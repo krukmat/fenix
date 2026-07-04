@@ -80,30 +80,43 @@ Source: `EXTVAL-BATTERY-T3-001`
 
 Source: `EXTVAL-BATTERY-T5-001`
 
-- Status: open
-- Current evidence: `POST /bff/api/v1/copilot/sales-brief` failed 2/2 with
-  `500` after real 20-26 second LLM calls because the suggested-actions JSON
-  did not parse.
-- Why it matters: a real LLM formatting deviation takes down the entire brief
-  instead of degrading gracefully.
-- Blocking effect on rerun: rerun T5 must wait for a code fix that keeps the
-  brief functional when action parsing fails.
+- Status: fixed and verified (`task_extval_o4_o5a_salesbrief_graceful_degradation.md`,
+  2026-07-05)
+- Fix: `generateSuggestedActions` (`internal/domain/copilot/suggest_actions.go`)
+  now degrades to an empty action list with a `discardReasons: {"parse_failure": 1}`
+  metric instead of propagating a parse error, mirroring the fallback pattern
+  already used by `generateSalesBrief`. `SalesBrief` now records usage on every
+  path that made a real LLM call, including the (now defensive-only) error path.
+- Verified: `go test ./internal/domain/copilot/...` passes, including new tests
+  asserting the brief completes with empty `NextBestActions` on a parse failure
+  and that usage is recorded exactly once.
 
 ### O5. LLM usage accounting is incomplete or incorrect
 
 Source: `EXTVAL-BATTERY-T3-001`, `EXTVAL-BATTERY-T5-001`
 
-- Status: open
-- Current evidence:
-  - failed sales-brief generations do not emit `usage_event`
-  - successful copilot chat records the embedding model instead of the chat
-    model, with zero units
-  - support-agent runs expose zero tokens because the current path does not use
-    the chat model
-- Why it matters: validation evidence for cost, latency, and model provenance is
-  incomplete.
-- Blocking effect on rerun: T5 rerun should verify this directly; T3 rerun
-  depends on the O2 architecture decision.
+- Status: partially fixed — see per-symptom breakdown
+- O5a (failed sales-brief generations don't emit `usage_event`): fixed together
+  with O4, see above.
+- O5b (copilot chat records the embedding model instead of the chat model,
+  with zero units): fixed and verified
+  (`task_extval_o5b_llm_usage_model_token_attribution.md`, 2026-07-05). Root
+  cause: `ChatResponse` never carried which model a given call actually used,
+  so callers fell back to `ModelInfo().ID`, which for Ollama always returns the
+  embedding model. `OllamaProvider` also never mapped Ollama's
+  `prompt_eval_count`/`eval_count` fields into `Tokens`. Fix: `ChatResponse`
+  gained a `Model` field populated by the provider that serviced the call
+  (verified live against a running Ollama instance, which confirmed the
+  `prompt_eval_count`/`eval_count` contract), and both `chat.go` and
+  `suggest_actions.go` now read the model from the response instead of a
+  stateless provider lookup.
+- O5c (support-agent runs expose zero tokens because the current path does not
+  use the chat model): still open — this is not an isolated accounting bug,
+  it is the same underlying gap as O2 (Support Agent is fully rule-based and
+  never calls an LLM). Do not attempt to fix in isolation; resolve together
+  with O2's architecture decision.
+- Blocking effect on rerun: T5 rerun can now verify O4/O5a/O5b directly; T3
+  rerun still depends on the O2/O5c architecture decision.
 
 ### O6. Mobile real-mode login succeeds but the home screen crashes immediately
 

@@ -70,7 +70,7 @@ func (s *llmStub) ChatCompletion(_ context.Context, _ llm.ChatRequest) (*llm.Cha
 		}
 		content = s.responses[idx]
 	}
-	return &llm.ChatResponse{Content: content, Tokens: 42}, nil
+	return &llm.ChatResponse{Content: content, Tokens: 42, Model: "stub"}, nil
 }
 
 func (s *llmStub) Embed(_ context.Context, _ llm.EmbedRequest) (*llm.EmbedResponse, error) {

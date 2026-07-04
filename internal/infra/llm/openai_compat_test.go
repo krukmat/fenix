@@ -163,7 +163,7 @@ func TestOpenAICompatProvider_ChatCompletion_ModelOverride(t *testing.T) {
 	defer srv.Close()
 
 	p := NewOpenAICompatProvider(srv.URL, "", "default-model")
-	_, err := p.ChatCompletion(context.Background(), ChatRequest{
+	resp, err := p.ChatCompletion(context.Background(), ChatRequest{
 		Model:    "override-model",
 		Messages: []Message{{Role: "user", Content: "hi"}},
 	})
@@ -172,6 +172,11 @@ func TestOpenAICompatProvider_ChatCompletion_ModelOverride(t *testing.T) {
 	}
 	if gotModel != "override-model" {
 		t.Errorf("expected model 'override-model', got %q", gotModel)
+	}
+	// EXTVAL-O5B-LLM-USAGE-MODEL-ATTRIBUTION-001: the response must report
+	// the model actually used for this call, for correct usage_event attribution.
+	if resp.Model != "override-model" {
+		t.Errorf("expected resp.Model 'override-model', got %q", resp.Model)
 	}
 }
 

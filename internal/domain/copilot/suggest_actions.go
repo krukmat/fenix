@@ -187,13 +187,17 @@ func (s *ActionService) generateSuggestedActions(
 
 	actions, err := parseSuggestedActions(resp.Content)
 	if err != nil {
-		return nil, suggestActionsMetrics{}, err
+		// Degrade gracefully: a malformed suggested-actions response should not
+		// fail the caller (SalesBrief's summary/risks already succeeded, and
+		// SuggestActions' own consumers can handle an empty list). Mirrors the
+		// fallback pattern already used by generateSalesBrief for its payload.
+		return []SuggestedAction{}, suggestActionsMetrics{discardReasons: map[string]int{"parse_failure": 1}}, nil
 	}
 
 	actions = normalizeActions(actions, 3)
 	actions = normalizeActionsWithContext(actions, entityType, entityID)
 	if len(actions) == 0 {
-		return nil, suggestActionsMetrics{}, errSuggestedActionsParseFail
+		return []SuggestedAction{}, suggestActionsMetrics{discardReasons: map[string]int{"parse_failure": 1}}, nil
 	}
 
 	filtered, metrics := scoreAndFilterSuggestedActions(actions, entityType, entityID, pack)
@@ -321,10 +325,17 @@ func (s *ActionService) SalesBrief(ctx context.Context, in SalesBriefInput) (*Sa
 
 	brief, record, err := s.generateSalesBrief(ctx, in.EntityType, in.EntityID, prepared.evidencePack, prepared.redactedSources)
 	if err != nil {
+		// No usage to record: generateSalesBrief only returns an error before a
+		// usage record is built (the chat call itself failed).
 		return nil, err
 	}
 	actions, metrics, err := s.generateSuggestedActions(ctx, in.EntityType, in.EntityID, prepared.evidencePack, prepared.redactedSources)
 	if err != nil {
+		// Defensive: generateSuggestedActions no longer returns a parse-failure
+		// error (it degrades to an empty list), but a genuine transport error
+		// can still occur. The brief's own LLM call already succeeded and
+		// consumed tokens, so record that usage before surfacing the error.
+		s.recordSalesBriefUsage(ctx, in, record, time.Since(startedAt))
 		return nil, err
 	}
 
@@ -361,7 +372,7 @@ func (s *ActionService) generateSalesBrief(
 		return salesBriefPayload{}, salesBriefUsageRecord{}, fmt.Errorf("request sales-brief completion: %w", err)
 	}
 
-	modelName := strings.TrimSpace(s.llm.ModelInfo().ID)
+	modelName := strings.TrimSpace(resp.Model)
 	record := salesBriefUsageRecord{
 		inputUnits:  int64(resp.Tokens),
 		outputUnits: int64(resp.Tokens),

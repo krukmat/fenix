@@ -75,7 +75,8 @@ type openaiChatResponse struct {
 
 // ChatCompletion performs a non-streaming chat via POST /v1/chat/completions.
 func (p *OpenAICompatProvider) ChatCompletion(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
-	body, err := json.Marshal(buildOpenAIChatRequest(req, p.model))
+	oaiReq := buildOpenAIChatRequest(req, p.model)
+	body, err := json.Marshal(oaiReq)
 	if err != nil {
 		return nil, fmt.Errorf("openai-compat: marshal request: %w", err)
 	}
@@ -86,7 +87,7 @@ func (p *OpenAICompatProvider) ChatCompletion(ctx context.Context, req ChatReque
 	}
 	defer respBody.Close()
 
-	return decodeChatResponse(respBody)
+	return decodeChatResponse(respBody, oaiReq.Model)
 }
 
 func buildOpenAIChatRequest(req ChatRequest, defaultModel string) openaiChatRequest {
@@ -118,7 +119,7 @@ func toOpenAIMessages(messages []Message) []openaiMessage {
 	return msgs
 }
 
-func decodeChatResponse(respBody io.Reader) (*ChatResponse, error) {
+func decodeChatResponse(respBody io.Reader, model string) (*ChatResponse, error) {
 	var oaiResp openaiChatResponse
 	if err := json.NewDecoder(respBody).Decode(&oaiResp); err != nil {
 		return nil, fmt.Errorf("openai-compat: decode response: %w", err)
@@ -131,6 +132,7 @@ func decodeChatResponse(respBody io.Reader) (*ChatResponse, error) {
 		Content:    choice.Message.Content,
 		StopReason: choice.FinishReason,
 		Tokens:     oaiResp.Usage.TotalTokens,
+		Model:      model,
 	}, nil
 }
 

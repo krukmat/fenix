@@ -216,9 +216,11 @@ func TestSuggestActions_ParsesJSONFence(t *testing.T) {
 	}
 }
 
-func TestSuggestActions_InvalidOutput_ReturnsError(t *testing.T) {
+func TestSuggestActions_InvalidOutput_DegradesToEmptyList(t *testing.T) {
 	t.Parallel()
 
+	// EXTVAL-O4-O5A-SALESBRIEF-DEGRADATION-001: a malformed suggested-actions
+	// response must degrade to an empty list, not fail the whole call.
 	svc := NewActionService(
 		&evidenceStub{pack: &knowledge.EvidencePack{}},
 		&llmStub{resp: "sin json valido"},
@@ -226,14 +228,17 @@ func TestSuggestActions_InvalidOutput_ReturnsError(t *testing.T) {
 		&auditStub{},
 	)
 
-	_, err := svc.SuggestActions(context.Background(), SuggestActionsInput{
+	actions, err := svc.SuggestActions(context.Background(), SuggestActionsInput{
 		WorkspaceID: "ws_1",
 		UserID:      "u_1",
 		EntityType:  "case",
 		EntityID:    "c1",
 	})
-	if !errors.Is(err, errSuggestedActionsParseFail) {
-		t.Fatalf("expected parse error, got %v", err)
+	if err != nil {
+		t.Fatalf("SuggestActions error: %v", err)
+	}
+	if len(actions) != 0 {
+		t.Fatalf("expected empty actions on parse failure, got %d", len(actions))
 	}
 }
 
@@ -323,6 +328,52 @@ func TestSalesBrief_CompletesForDealContext(t *testing.T) {
 	}
 	if got := result.NextBestActions[1].Params["entity_id"]; got != "d1" {
 		t.Fatalf("expected normalized entity_id, got %#v", got)
+	}
+	if len(recorder.inputs) != 1 {
+		t.Fatalf("expected 1 usage event, got %d", len(recorder.inputs))
+	}
+}
+
+func TestSalesBrief_DegradesToEmptyActionsWhenActionsParseFails(t *testing.T) {
+	t.Parallel()
+
+	// EXTVAL-O4-O5A-SALESBRIEF-DEGRADATION-001: a malformed suggested-actions
+	// response must not fail the whole brief — the summary/risks already
+	// succeeded and should still be returned, with usage recorded once for
+	// the real LLM calls that were made.
+	snippet := "deal has procurement objection and next meeting is pending"
+	recorder := &usageRecorderStub{}
+	svc := NewActionServiceWithUsage(
+		&evidenceStub{pack: &knowledge.EvidencePack{
+			Sources:    []knowledge.Evidence{{ID: "ev_1", Snippet: &snippet}},
+			Confidence: knowledge.ConfidenceHigh,
+		}},
+		&llmStub{responses: []string{
+			"```json\n{\"summary\":\"Deal summary\",\"risks\":[\"Procurement objection\"]}\n```",
+			"sin json valido",
+		}},
+		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
+		&auditStub{},
+		recorder,
+	)
+
+	result, err := svc.SalesBrief(context.Background(), SalesBriefInput{
+		WorkspaceID: "ws_1",
+		UserID:      "u_1",
+		EntityType:  "deal",
+		EntityID:    "d1",
+	})
+	if err != nil {
+		t.Fatalf("SalesBrief error: %v", err)
+	}
+	if result.Outcome != "completed" {
+		t.Fatalf("expected completed, got %q", result.Outcome)
+	}
+	if result.Summary == "" {
+		t.Fatalf("expected non-empty summary, got %+v", result)
+	}
+	if len(result.NextBestActions) != 0 {
+		t.Fatalf("expected empty NextBestActions on parse failure, got %d", len(result.NextBestActions))
 	}
 	if len(recorder.inputs) != 1 {
 		t.Fatalf("expected 1 usage event, got %d", len(recorder.inputs))

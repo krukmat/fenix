@@ -68,9 +68,11 @@ type ollamaChatRequest struct {
 }
 
 type ollamaChatResponse struct {
-	Message    ollamaChatMessage `json:"message"`
-	DoneReason string            `json:"done_reason"`
-	Done       bool              `json:"done"`
+	Message         ollamaChatMessage `json:"message"`
+	DoneReason      string            `json:"done_reason"`
+	Done            bool              `json:"done"`
+	PromptEvalCount int               `json:"prompt_eval_count"`
+	EvalCount       int               `json:"eval_count"`
 }
 
 // ─── LLMProvider implementation ─────────────────────────────────────────────
@@ -155,6 +157,8 @@ func (p *OllamaProvider) ChatCompletion(ctx context.Context, req ChatRequest) (*
 	return &ChatResponse{
 		Content:    ollamaResp.Message.Content,
 		StopReason: ollamaResp.DoneReason,
+		Tokens:     ollamaResp.PromptEvalCount + ollamaResp.EvalCount,
+		Model:      model,
 	}, nil
 }
 
