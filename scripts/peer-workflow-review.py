@@ -63,6 +63,7 @@ DEFAULT_OUT_DIR = os.environ.get(
 DEFAULT_TIMEOUT = int(os.environ.get("FENIX_PEER_REVIEW_TIMEOUT", "180"))
 LOCAL_FALLBACK_REVIEWER = "local-gemma"
 ADVISORY_LOCAL_REVIEWER = "local-qwen"
+DEFAULT_CLAUDE_REVIEW_MODEL = "claude-sonnet-4-6"
 DEFAULT_CRITICAL_REVIEW_MODEL = os.environ.get(
     "FENIX_REVIEW_CRITICAL_MODEL", "qwen3.6:35b-a3b"
 )
@@ -391,7 +392,15 @@ def build_advisory_local_system_prompt():
 def claude_command(prompt, executable="claude"):
     # type: (str, str) -> List[str]
     """Claude Code in non-mutating print mode requesting a JSON verdict."""
-    return [executable, "-p", prompt, "--output-format", "json"]
+    return [
+        executable,
+        "-p",
+        prompt,
+        "--model",
+        DEFAULT_CLAUDE_REVIEW_MODEL,
+        "--output-format",
+        "json",
+    ]
 
 
 def codex_exec_command(prompt, executable="codex"):

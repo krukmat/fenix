@@ -68,6 +68,8 @@ class CommandConstructionTest(unittest.TestCase):
         cmd = _mod.claude_command("PROMPT")
         self.assertEqual(cmd[0], "claude")
         self.assertIn("-p", cmd)
+        self.assertIn("--model", cmd)
+        self.assertIn("claude-sonnet-4-6", cmd)
         self.assertIn("--output-format", cmd)
         self.assertIn("json", cmd)
 
