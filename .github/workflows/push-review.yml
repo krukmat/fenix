@@ -12,7 +12,10 @@ permissions:
 jobs:
   advisory-push-review:
     if: github.event.workflow_run.event == 'push'
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
