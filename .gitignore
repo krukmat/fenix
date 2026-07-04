@@ -53,6 +53,8 @@ docs/plans/*
 !docs/plans/mobile_core_crm_validation_plan.md
 !docs/plans/crm-dentro-governance.md
 !docs/plans/mobile_screenshots_runner_fix_plan.md
+!docs/plans/external_validation_open_points_rerun_plan.md
+!docs/plans/external_validation_android_recovery_plan.md
 !docs/plans/agent-definition-bootstrap-remediation-plan.md
 !docs/plans/wrapcheck_global_remediation_plan.md
 !docs/plans/go_complexity_prepush_unblock_plan.md
@@ -94,3 +96,6 @@ data/external-validation/
 data/extval-*
 mobile/app/(tabs)/home/.index.tsx.swp
 logs/verification/
+logs/
+docs/audits/*
+tmp/*

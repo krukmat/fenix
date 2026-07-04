@@ -102,20 +102,20 @@ export type ApprovalDecision = 'approve' | 'reject';
 
 export interface ApprovalRequest {
   id: string;
-  workspace_id: string;
-  requested_by: string;
-  approver_id: string;
-  decided_by?: string;
+  workspaceId: string;
+  requestedBy: string;
+  approverId: string;
+  decidedBy?: string;
   action: string;
-  resource_type?: string;
-  resource_id?: string;
+  resourceType?: string;
+  resourceId?: string;
   payload: Record<string, unknown>;
   reason?: string;
   status: ApprovalStatus;
   expiresAt: string;
-  decided_at?: string;
-  created_at: string;
-  updated_at: string;
+  decidedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Task Mobile P1.8 — FR-232/UC-A7: handoff package type

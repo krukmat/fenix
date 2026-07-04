@@ -17,6 +17,8 @@ files_affected:
   - mobile/app/(tabs)/home/index.tsx
   - mobile/__tests__/services/api.test.ts
   - mobile/__tests__/components/approvals/ApprovalCard.test.tsx
+criticality: critical
+criticality_basis: "P0 mobile crash on the primary post-login screen. Blocks all real-mode navigation and invalidates the remaining T7 acceptance criteria until fixed."
 created: 2026-07-02
 completed:
 blocked_reason:
@@ -38,11 +40,17 @@ Summary: `approvalApi.getPendingApprovals` (`mobile/src/services/api.secondary.t
 
 Code affected: `mobile/src/services/api.secondary.ts` (fix `getPendingApprovals` unwrap, following the existing `normalizeSignalsResponse` pattern already used by `signalApi.getSignals` in the same file), `mobile/src/services/api.types.ts` (`ApprovalRequest` field casing), `mobile/src/components/approvals/ApprovalCard.tsx` (align field reads with corrected type), `mobile/app/(tabs)/home/index.tsx` (optional defense-in-depth `Array.isArray` guard, matching the pattern already used two lines below for `pendingApprovalCount`). Test files: `mobile/__tests__/services/api.test.ts` (existing `getPendingApprovals` test mocks `{ data: [] }` as a bare array response — the wrong contract shape, which is why this bug shipped undetected; must be corrected to the real `{data: {data: [...], meta: {...}}}` envelope), `mobile/__tests__/components/approvals/ApprovalCard.test.tsx` (add camelCase-field fixture coverage).
 
+Criticality: critical
+
+Criticality basis: P0 mobile crash on the default post-login landing screen. Blocks all real-mode navigation and prevents completion of the remaining external-validation mobile criteria.
+
 Effort/reasoning: RRI 35 (Moderate band — `python3 scripts/rri.py --auto-cc --touches mobile/src/services/api.secondary.ts --touches mobile/src/services/api.types.ts --touches mobile/src/components/approvals/ApprovalCard.tsx --touches mobile/__tests__/services/api.test.ts --touches mobile/__tests__/components/approvals/ApprovalCard.test.tsx --T 2 --A 1 --X 1 --D 2 --K 1 --P 3` → Final RRI 35). Localized to one API module, one type, one component, and their tests, but P (impact) is elevated because this is a crash on the primary post-login screen with a single call site that is easy to fix but currently blocks all real mobile usage. Per HITL_AUTONOMY_POLICY Moderate-band gate, this task card requires explicit approval before implementation.
 
 Recommended model: claude-sonnet-4-6
 
 Estimated tokens: ~6000
+
+Peer readiness review approval: reviewer=local-gemma; artifact=logs/peer-workflow-review/task-readiness_codex_by_local-gemma_20260704T195157Z.json; status=PASS
 
 ## System Context
 
@@ -131,3 +139,45 @@ This task does not re-attempt the blocked portions of `EXTVAL-BATTERY-T7-001` (S
 4. `mobile/__tests__/components/approvals/ApprovalCard.test.tsx` covers rendering with camelCase `resourceType`/`resourceId` fixtures.
 5. `npm run typecheck`, `npm run lint`, and `npm run test:coverage` (or `test`) pass in `mobile/`.
 6. Manual re-verification: real login on the `fenix_t7` emulator (or equivalent) reaches the Home tab without the `approvals.map is not a function` crash.
+
+## Execution Update (2026-07-04)
+
+Implemented:
+
+- `mobile/src/services/api.secondary.ts`: added `normalizeApprovalsResponse` and
+  unwrapped the real `{data, meta}` approvals envelope.
+- `mobile/src/services/api.types.ts`: aligned `ApprovalRequest` to the backend's
+  camelCase contract (`workspaceId`, `requestedBy`, `approverId`,
+  `resourceType`, `resourceId`, `createdAt`, `updatedAt`, `decidedAt`).
+- `mobile/app/(tabs)/home/index.tsx`: added a defensive `Array.isArray(...)`
+  guard before passing approvals into `HomeFeed`.
+- `mobile/app/(tabs)/inbox/index.tsx`: updated approval sorting to use
+  `createdAt`.
+- `mobile/src/components/approvals/ApprovalCard.tsx`: switched the metadata line
+  to `resourceType` / `resourceId`.
+- Tests updated to the real contract in:
+  - `mobile/__tests__/services/api.test.ts`
+  - `mobile/__tests__/components/approvals/ApprovalCard.test.tsx`
+  - `mobile/__tests__/components/home/HomeFeed.test.tsx`
+  - `mobile/__tests__/screens/home.test.tsx`
+  - `mobile/__tests__/app/(tabs)/inbox/index.test.tsx`
+
+Verification:
+
+- `bash scripts/check-no-inline-eslint-disable.sh` — PASS
+- `cd mobile && npm run typecheck` — PASS
+- `cd mobile && npm run lint` — PASS
+- `cd mobile && npm run quality:arch` — PASS
+- `cd mobile && npm run test:coverage` — PASS (`73/73` suites, `555/555` tests)
+
+Peer code review approval: reviewer=local-gemma; artifact=logs/peer-workflow-review/post-code-review_codex_by_local-gemma_20260704T200901Z.json; status=PASS
+
+Manual re-verification status:
+
+- Backend and BFF could be restarted and passed `/health` and `/bff/health`.
+- The planned Android rerun is still blocked by the local AVD state, not by the
+  mobile fix: `fenix_t7` references
+  `system-images/android-34/google_apis/arm64-v8a/`, but that system-image
+  directory is missing on this host, so the emulator exits with
+  `Broken AVD system path`.
+- Because of that environment blocker, acceptance criterion 6 remains pending.

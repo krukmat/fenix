@@ -27,15 +27,15 @@ const signal: Signal = {
 
 const approval: ApprovalRequest = {
   id: 'apr-1',
-  workspace_id: 'ws-1',
-  requested_by: 'user-1',
-  approver_id: 'user-2',
+  workspaceId: 'ws-1',
+  requestedBy: 'user-1',
+  approverId: 'user-2',
   action: 'send_email',
   payload: {},
   status: 'pending',
   expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-  created_at: '2026-03-01T10:00:00Z',
-  updated_at: '2026-03-01T10:00:00Z',
+  createdAt: '2026-03-01T10:00:00Z',
+  updatedAt: '2026-03-01T10:00:00Z',
 };
 
 const defaultProps = {

@@ -14,18 +14,18 @@ const pastExpiry = new Date(Date.now() - 60_000).toISOString(); // 1 min ago
 
 const baseApproval: ApprovalRequest = {
   id: 'apr-1',
-  workspace_id: 'ws-1',
-  requested_by: 'user-1',
-  approver_id: 'user-2',
+  workspaceId: 'ws-1',
+  requestedBy: 'user-1',
+  approverId: 'user-2',
   action: 'send_email',
-  resource_type: 'contact',
-  resource_id: 'c-1',
+  resourceType: 'contact',
+  resourceId: 'c-1',
   payload: {},
   reason: 'Customer requested follow-up',
   status: 'pending',
   expiresAt: futureExpiry,
-  created_at: '2026-03-01T10:00:00Z',
-  updated_at: '2026-03-01T10:00:00Z',
+  createdAt: '2026-03-01T10:00:00Z',
+  updatedAt: '2026-03-01T10:00:00Z',
 };
 
 function renderCard(props?: Partial<Parameters<typeof ApprovalCard>[0]>) {

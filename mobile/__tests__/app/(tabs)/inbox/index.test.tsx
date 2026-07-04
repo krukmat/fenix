@@ -75,15 +75,15 @@ jest.mock('../../../../src/components/signals/SignalCard', () => {
 
 const approval = {
   id: 'apr-1',
-  workspace_id: 'ws-1',
-  requested_by: 'u-1',
-  approver_id: 'u-2',
+  workspaceId: 'ws-1',
+  requestedBy: 'u-1',
+  approverId: 'u-2',
   action: 'send_email',
   payload: {},
   status: 'pending',
   expiresAt: '2026-04-09T10:00:00Z',
-  created_at: '2026-04-08T10:00:00Z',
-  updated_at: '2026-04-08T10:00:00Z',
+  createdAt: '2026-04-08T10:00:00Z',
+  updatedAt: '2026-04-08T10:00:00Z',
 };
 
 const approvalLaterExpiry = {
@@ -91,8 +91,8 @@ const approvalLaterExpiry = {
   id: 'apr-2',
   action: 'update_case',
   expiresAt: '2026-04-10T10:00:00Z',
-  created_at: '2026-04-08T11:00:00Z',
-  updated_at: '2026-04-08T11:00:00Z',
+  createdAt: '2026-04-08T11:00:00Z',
+  updatedAt: '2026-04-08T11:00:00Z',
 };
 
 const handoff = {

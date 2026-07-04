@@ -17,7 +17,7 @@ export default function HomeScreen() {
   const signals = (signalData?.pages ?? []).flatMap((p) =>
     Array.isArray(p) ? p : ((p as { data?: Signal[] }).data ?? [])
   );
-  const approvals = approvalsData ?? [];
+  const approvals = Array.isArray(approvalsData) ? approvalsData : [];
   const pendingApprovalCount = Array.isArray(approvalsData) ? approvalsData.length : 0;
 
   const handleRefresh = useCallback(() => {

@@ -14,6 +14,9 @@
 !task_extval_battery_t6_deterministic_eval.md
 !task_extval_battery_t7_mobile_real_mode.md
 !task_mobile_approvals_response_shape_crash.md
+!task_extval_android_recovery_plan.md
+!task_extval_android_avd_repair.md
+!task_extval_t7_real_mode_rerun.md
 !task_agentdef_bootstrap_design.md
 !task_agentdef_bootstrap_impl_a_auth.md
 !task_agentdef_bootstrap_impl_b1_characterization.md

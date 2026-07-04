@@ -412,7 +412,9 @@ describe('api.ts', () => {
 
     describe('approvalApi', () => {
       it('getPendingApprovals should call GET /bff/api/v1/approvals with workspace_id', async () => {
-        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: [] } as never);
+        const getSpy = jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+          data: { data: [], meta: { total: 0 } },
+        } as never);
 
         await approvalApi.getPendingApprovals('ws-1');
 
@@ -422,11 +424,48 @@ describe('api.ts', () => {
       });
 
       it('getPendingApprovals should return empty array when no pending approvals', async () => {
-        jest.spyOn(apiClient, 'get').mockResolvedValueOnce({ data: [] } as never);
+        jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+          data: { data: [], meta: { total: 0 } },
+        } as never);
 
         const result = await approvalApi.getPendingApprovals('ws-1');
 
         expect(result).toEqual([]);
+      });
+
+      it('getPendingApprovals should unwrap the real approvals envelope', async () => {
+        jest.spyOn(apiClient, 'get').mockResolvedValueOnce({
+          data: {
+            data: [{
+              id: 'apr-1',
+              workspaceId: 'ws-1',
+              requestedBy: 'user-1',
+              approverId: 'user-2',
+              action: 'send_email',
+              resourceType: 'contact',
+              resourceId: 'contact-1',
+              payload: {},
+              status: 'pending',
+              expiresAt: '2026-03-01T10:00:00Z',
+              createdAt: '2026-03-01T09:00:00Z',
+              updatedAt: '2026-03-01T09:00:00Z',
+            }],
+            meta: { total: 1 },
+          },
+        } as never);
+
+        const result = await approvalApi.getPendingApprovals('ws-1');
+
+        expect(result).toEqual([
+          expect.objectContaining({
+            id: 'apr-1',
+            workspaceId: 'ws-1',
+            requestedBy: 'user-1',
+            approverId: 'user-2',
+            resourceType: 'contact',
+            resourceId: 'contact-1',
+          }),
+        ]);
       });
 
       it('decideApproval should call PUT /bff/api/v1/approvals/{id} with approve decision', async () => {

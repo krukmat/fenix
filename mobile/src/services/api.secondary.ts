@@ -23,6 +23,16 @@ function normalizeSignalsResponse(data: unknown): Signal[] {
   return [];
 }
 
+function normalizeApprovalsResponse(data: unknown): ApprovalRequest[] {
+  if (Array.isArray(data)) {
+    return data as ApprovalRequest[];
+  }
+  if (Array.isArray((data as { data?: unknown[] } | null)?.data)) {
+    return (data as { data: ApprovalRequest[] }).data;
+  }
+  return [];
+}
+
 // Signal API
 export const signalApi = {
   getSignals: async (
@@ -62,7 +72,7 @@ export const approvalApi = {
     const response = await apiClient.get('/bff/api/v1/approvals', {
       params: { workspace_id: workspaceId },
     });
-    return response.data as ApprovalRequest[];
+    return normalizeApprovalsResponse(response.data);
   },
 
   // W1-T1: BFF alias routes POST /approvals/{id}/approve and /reject map to this handler

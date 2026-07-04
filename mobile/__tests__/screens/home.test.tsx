@@ -66,15 +66,15 @@ const baseSignal = {
 
 const baseApproval = {
   id: 'apr-1',
-  workspace_id: 'ws-1',
-  requested_by: 'u-1',
-  approver_id: 'u-2',
+  workspaceId: 'ws-1',
+  requestedBy: 'u-1',
+  approverId: 'u-2',
   action: 'send_email',
   payload: {},
   status: 'pending',
-  expires_at: new Date(Date.now() + 3_600_000).toISOString(),
-  created_at: '2026-03-01T10:00:00Z',
-  updated_at: '2026-03-01T10:00:00Z',
+  expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+  createdAt: '2026-03-01T10:00:00Z',
+  updatedAt: '2026-03-01T10:00:00Z',
 };
 
 function setupMocks() {

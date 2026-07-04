@@ -98,10 +98,10 @@ export function ApprovalCard({
               {isExpired ? 'Expired' : `Expires in ${countdown}`}
             </Text>
           </View>
-          {approval.resource_type && (
+          {approval.resourceType && (
             <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}
               testID={`${testIDPrefix}-resource`}>
-              {`${approval.resource_type}${approval.resource_id ? ` · ${approval.resource_id}` : ''}`}
+              {`${approval.resourceType}${approval.resourceId ? ` · ${approval.resourceId}` : ''}`}
             </Text>
           )}
           {approval.reason && (
