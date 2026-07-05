@@ -8,6 +8,7 @@ import { CRMDetailHeader } from '../../../src/components/crm';
 import { AgentActivitySection } from '../../../src/components/agents/AgentActivitySection';
 import { EntitySignalsSection } from '../../../src/components/signals/EntitySignalsSection';
 import { SignalCountBadge } from '../../../src/components/signals/SignalCountBadge';
+import { CopilotPanel } from '../../../src/components/copilot';
 import { useAccount } from '../../../src/hooks/useCRM';
 import { wedgeHrefObject } from '../../../src/utils/navigation';
 import type { ThemeColors } from '../../../src/theme/types';
@@ -85,6 +86,12 @@ function AccountDetailContent({ account, colors, router }: {
       </View>
       <AgentActivitySection entityType="account" entityId={account.id} testIDPrefix="sales-account-detail" />
       <EntitySignalsSection entityType="account" entityId={account.id} testIDPrefix="sales-account-detail" />
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Copilot</Text>
+        <View style={styles.copilotContainer} testID="sales-account-detail-copilot-panel">
+          <CopilotPanel initialContext={{ entityType: 'account', entityId: account.id }} />
+        </View>
+      </View>
     </ScrollView>
   );
 }
@@ -137,4 +144,5 @@ const styles = StyleSheet.create({
   section: { padding: 16 },
   sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
   actionButton: { marginBottom: 12 },
+  copilotContainer: { height: 480, borderRadius: 10, overflow: 'hidden' },
 });

@@ -74,6 +74,18 @@ jest.mock('../../../../src/components/signals/SignalCountBadge', () => {
   };
 });
 
+jest.mock('../../../../src/components/copilot', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    CopilotPanel: ({ initialContext }: { initialContext?: { entityType?: string; entityId?: string } }) =>
+      React.createElement(View, {
+        testID: 'sales-account-detail-copilot',
+        accessibilityLabel: `${initialContext?.entityType ?? ''}:${initialContext?.entityId ?? ''}`,
+      }),
+  };
+});
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const accountPayload = {
@@ -141,6 +153,14 @@ describe('Sales account detail screen', () => {
     const { default: Screen } = require('../../../../app/(tabs)/sales/[id]');
     render(React.createElement(Screen));
     expect(screen.getByTestId('sales-copilot-button')).toBeTruthy();
+  });
+
+  it('embeds the CopilotPanel scoped to the account', () => {
+    const { default: Screen } = require('../../../../app/(tabs)/sales/[id]');
+    render(React.createElement(Screen));
+    const panel = screen.getByTestId('sales-account-detail-copilot');
+    expect(panel).toBeTruthy();
+    expect(panel.props.accessibilityLabel).toBe('account:acc-1');
   });
 
   it('does NOT render an edit button', () => {

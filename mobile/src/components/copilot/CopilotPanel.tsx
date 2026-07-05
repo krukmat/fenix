@@ -5,27 +5,17 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { IconButton, Text, TextInput, Banner } from 'react-native-paper';
 import { useSSE, type CopilotMessage, type SendContext } from '../../hooks/useSSE';
 import { brandColors, semanticColors } from '../../theme/colors';
-import { chipShape, radius, spacing, elevation } from '../../theme/spacing';
+import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { toolApi } from '../../services/api';
 import { ActionButton, type SuggestedAction } from './ActionButton';
 import { EvidenceCard } from './EvidenceCard';
+import { ConfidenceBadge } from './ConfidenceBadge';
+import { AbstentionPanel } from './AbstentionPanel';
 
 interface MessageBubbleProps {
   item: CopilotMessage;
 }
-
-const CONFIDENCE_LABELS: Record<NonNullable<CopilotMessage['confidence']>, string> = {
-  high: 'High',
-  medium: 'Medium',
-  low: 'Low',
-};
-
-const CONFIDENCE_COLORS: Record<NonNullable<CopilotMessage['confidence']>, string> = {
-  high: semanticColors.confidenceHigh,
-  medium: semanticColors.confidenceMed,
-  low: semanticColors.confidenceLow,
-};
 
 function formatAbstentionReason(reason?: CopilotMessage['abstentionReason']): string {
   switch (reason) {
@@ -68,34 +58,6 @@ interface FooterProps {
   lastAssistant?: CopilotMessage;
 }
 
-function AbstentionPanel({ reason }: { reason?: CopilotMessage['abstentionReason'] }) {
-  return (
-    <View style={styles.abstentionPanel} testID="copilot-abstention-panel">
-      <Text style={styles.trustEyebrow}>Copilot abstained</Text>
-      <Text style={styles.abstentionText}>{formatAbstentionReason(reason)}</Text>
-      <View style={styles.manualLane} testID="copilot-abstention-manual-lane">
-        <Text style={styles.manualLaneLabel}>Recommended next step</Text>
-        <Text style={styles.manualLaneText}>Escalate or handle manually with the evidence below.</Text>
-      </View>
-    </View>
-  );
-}
-
-function ConfidenceBadge({ confidence }: { confidence?: CopilotMessage['confidence'] }) {
-  if (!confidence) {
-    return null;
-  }
-
-  const confidenceLabel = CONFIDENCE_LABELS[confidence];
-  const confidenceColor = CONFIDENCE_COLORS[confidence];
-
-  return (
-    <View style={[styles.confidenceBadge, { backgroundColor: confidenceColor }]} testID="copilot-confidence-badge">
-      <Text style={styles.confidenceText}>{`${confidenceLabel} confidence`}</Text>
-    </View>
-  );
-}
-
 function WarningsRow({ warnings }: { warnings?: string[] }) {
   if (!warnings || warnings.length === 0) {
     return null;
@@ -119,8 +81,17 @@ function Footer({ lastAssistant }: FooterProps) {
   const isAbstained = lastAssistant.answerType === 'abstention';
   return (
     <View style={styles.footer}>
-      {isAbstained ? <AbstentionPanel reason={lastAssistant.abstentionReason} /> : null}
-      {isAbstained ? null : <ConfidenceBadge confidence={lastAssistant.confidence} />}
+      {isAbstained ? (
+        <AbstentionPanel
+          eyebrow="Copilot abstained"
+          reason={formatAbstentionReason(lastAssistant.abstentionReason)}
+          testID="copilot-abstention-panel"
+          manualLaneTestID="copilot-abstention-manual-lane"
+        />
+      ) : null}
+      {isAbstained ? null : (
+        <ConfidenceBadge confidence={lastAssistant.confidence} testID="copilot-confidence-badge" />
+      )}
       <WarningsRow warnings={lastAssistant.warnings} />
       {(lastAssistant.evidenceSources ?? []).map((source, idx) => (
         <EvidenceCard key={source.id} source={source} index={idx + 1} testIDPrefix={`evidence-card-${idx}`} />
@@ -284,14 +255,6 @@ const styles = StyleSheet.create({
   assistantRow: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '85%', borderRadius: radius.sm, paddingHorizontal: spacing.base, paddingVertical: spacing.sm },
   footer: { marginTop: spacing.sm, gap: spacing.sm },
-  confidenceBadge: {
-    alignSelf: 'flex-start',
-    ...chipShape,
-  },
-  confidenceText: {
-    color: brandColors.onSurface,
-    ...typography.labelMD,
-  },
   trustEyebrow: {
     color: brandColors.onSurfaceVariant,
     ...typography.eyebrow,
@@ -307,31 +270,6 @@ const styles = StyleSheet.create({
   },
   warningText: {
     color: semanticColors.onWarningContainer,
-  },
-  abstentionPanel: {
-    borderRadius: radius.md,
-    padding: spacing.base,
-    gap: spacing.sm,
-    backgroundColor: brandColors.surfaceVariant,
-    ...elevation.card,
-  },
-  abstentionText: {
-    color: brandColors.onSurface,
-  },
-  manualLane: {
-    borderRadius: radius.sm,
-    padding: spacing.sm,
-    gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: brandColors.outline,
-    backgroundColor: brandColors.surface,
-  },
-  manualLaneLabel: {
-    color: brandColors.onSurfaceVariant,
-    ...typography.labelMD,
-  },
-  manualLaneText: {
-    color: brandColors.onSurface,
   },
   inputBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.sm, paddingBottom: spacing.sm },
   input: { flex: 1 },

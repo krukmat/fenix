@@ -1,7 +1,7 @@
 // Sales brief route tests — W4-T3
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, within } from '@testing-library/react-native';
 import type { SalesBrief } from '../../../../src/services/api';
 
 const mockUseLocalSearchParams = jest.fn();
@@ -20,12 +20,13 @@ jest.mock('../../../../src/hooks/useWedge', () => ({
 
 jest.mock('react-native-paper', () => {
   const mockReact = require('react');
-  const { View } = require('react-native');
+  const { View, Text } = require('react-native');
   return {
     useTheme: () => ({
       colors: { background: '#fff', primary: '#E53935', onSurface: '#000', onSurfaceVariant: '#666', surface: '#fff', error: '#B00020' },
     }),
     ActivityIndicator: ({ testID }: { testID: string }) => mockReact.createElement(View, { testID }),
+    Text,
   };
 });
 
@@ -125,6 +126,10 @@ describe('Sales brief route', () => {
     expect(screen.getByText('Query: account brief')).toBeTruthy();
     expect(screen.getByText('Methods: crm')).toBeTruthy();
     expect(screen.getByText('Pipeline data is 3 days old')).toBeTruthy();
+    expect(within(screen.getByTestId('sales-brief-confidence-badge')).getByText('High confidence')).toBeTruthy();
+    expect(
+      within(screen.getByTestId('sales-brief-next-best-action-0-confidence')).getByText('High confidence'),
+    ).toBeTruthy();
   });
 
   it('shows canonical abstained brief fields when loaded', () => {
@@ -147,6 +152,9 @@ describe('Sales brief route', () => {
     expect(screen.getByText('low')).toBeTruthy();
     expect(screen.getByText('Insufficient evidence')).toBeTruthy();
     expect(screen.getByText('Methods: crm')).toBeTruthy();
+    expect(screen.getByTestId('sales-brief-abstention-panel')).toBeTruthy();
+    expect(screen.getByText('Brief abstained')).toBeTruthy();
+    expect(screen.getByTestId('sales-brief-abstention-manual-lane')).toBeTruthy();
   });
 
   it('shows error state when brief fails', () => {

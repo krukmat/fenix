@@ -83,6 +83,27 @@ jest.mock('../../../../src/components/signals/EntitySignalsSection', () => {
   };
 });
 
+jest.mock('../../../../src/components/sales/DealStagePath', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    DealStagePath: ({ stage, testIDPrefix }: { stage: string; testIDPrefix?: string }) =>
+      React.createElement(View, { testID: testIDPrefix ?? 'deal-stage-path', accessibilityLabel: stage }),
+  };
+});
+
+jest.mock('../../../../src/components/copilot', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    CopilotPanel: ({ initialContext }: { initialContext?: { entityType?: string; entityId?: string } }) =>
+      React.createElement(View, {
+        testID: 'sales-deal-detail-copilot',
+        accessibilityLabel: `${initialContext?.entityType ?? ''}:${initialContext?.entityId ?? ''}`,
+      }),
+  };
+});
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const dealPayload = {
@@ -137,6 +158,22 @@ describe('Sales deal detail screen', () => {
     const { default: Screen } = require('../../../../app/(tabs)/sales/deal-[id]');
     render(React.createElement(Screen));
     expect(screen.getByTestId('sales-deal-stage')).toBeTruthy();
+  });
+
+  it('renders DealStagePath with the deal stage', () => {
+    const { default: Screen } = require('../../../../app/(tabs)/sales/deal-[id]');
+    render(React.createElement(Screen));
+    const path = screen.getByTestId('sales-deal-stage-path');
+    expect(path).toBeTruthy();
+    expect(path.props.accessibilityLabel).toBe('Proposal');
+  });
+
+  it('embeds the CopilotPanel scoped to the deal', () => {
+    const { default: Screen } = require('../../../../app/(tabs)/sales/deal-[id]');
+    render(React.createElement(Screen));
+    const panel = screen.getByTestId('sales-deal-detail-copilot');
+    expect(panel).toBeTruthy();
+    expect(panel.props.accessibilityLabel).toBe('deal:deal-1');
   });
 
   it('renders agent activity section', () => {

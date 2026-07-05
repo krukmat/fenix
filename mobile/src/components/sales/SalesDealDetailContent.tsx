@@ -5,12 +5,18 @@ import { useRouter } from 'expo-router';
 import { CRMDetailHeader } from '../crm';
 import { AgentActivitySection } from '../agents/AgentActivitySection';
 import { EntitySignalsSection } from '../signals/EntitySignalsSection';
+import { CopilotPanel } from '../copilot';
+import { DealStagePath } from './DealStagePath';
 import { wedgeHref, wedgeHrefObject } from '../../utils/navigation';
 import { brandColors } from '../../theme/colors';
 import { radius, spacing } from '../../theme/spacing';
 import { getAgentStatusColor } from '../../theme/semantic';
 import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/types';
+
+// Deal-stage FSM order for DealStagePath. An unrecognized deal.stage renders
+// as a neutral "unknown" step rather than guessing a position (see invariants).
+export const DEAL_STAGE_ORDER = ['prospecting', 'qualification', 'proposal', 'negotiation', 'closed_won'];
 
 export interface SalesDealDetailData {
   id: string;
@@ -38,7 +44,7 @@ function DealAmountSection({ amount, colors }: { amount?: number; colors: ThemeC
     <View style={styles.section}>
       <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Value</Text>
       <View style={[styles.card, { backgroundColor: colors.surface }]} testID="sales-deal-amount">
-        <Text style={{ color: colors.onSurface, fontSize: 24, fontWeight: '700' }}>${amount.toLocaleString()}</Text>
+        <Text style={[typography.monoLG, { color: colors.onSurface, fontSize: 24 }]}>${amount.toLocaleString()}</Text>
       </View>
     </View>
   );
@@ -50,7 +56,7 @@ function DealStageSection({ stage, colors }: { stage?: string; colors: ThemeColo
     <View style={styles.section}>
       <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Stage</Text>
       <View style={[styles.card, { backgroundColor: colors.surface }]} testID="sales-deal-stage">
-        <Text style={{ color: colors.onSurface }}>{stage}</Text>
+        <DealStagePath stage={stage} stages={DEAL_STAGE_ORDER} testIDPrefix="sales-deal-stage-path" />
       </View>
     </View>
   );
@@ -184,6 +190,12 @@ export function SalesDealDetailContent({
       />
       <AgentActivitySection entityType="deal" entityId={dealData.id} testIDPrefix="sales-deal-detail" />
       <EntitySignalsSection entityType="deal" entityId={dealData.id} testIDPrefix="sales-deal-detail" />
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Copilot</Text>
+        <View style={styles.copilotContainer} testID="sales-deal-detail-copilot-panel">
+          <CopilotPanel initialContext={{ entityType: 'deal', entityId: dealData.id }} />
+        </View>
+      </View>
     </ScrollView>
   );
 }
@@ -196,4 +208,5 @@ const styles = StyleSheet.create({
   sectionTitle: { ...typography.headingMD, marginBottom: spacing.md },
   card: { padding: spacing.base, borderRadius: radius.md },
   actionButton: { marginBottom: spacing.md },
+  copilotContainer: { height: 480, borderRadius: radius.md, overflow: 'hidden' },
 });
