@@ -1,6 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type { UsageEvent } from '../../services/api.types';
 import { typography } from '../../theme/typography';
 import { UsageDetailCard } from '../governance/UsageDetailCard';

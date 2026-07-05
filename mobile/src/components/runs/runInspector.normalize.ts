@@ -5,44 +5,7 @@ import type {
   RunEvidenceMeta,
   RunInspectorDetail,
 } from './runInspector.types';
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function readString(record: Record<string, unknown> | null, ...keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = record?.[key];
-    if (typeof value === 'string' && value.trim() !== '') {
-      return value.trim();
-    }
-  }
-  return undefined;
-}
-
-function readNumber(record: Record<string, unknown> | null, ...keys: string[]): number | undefined {
-  for (const key of keys) {
-    const value = record?.[key];
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-function readStringArray(record: Record<string, unknown> | null, ...keys: string[]): string[] | undefined {
-  for (const key of keys) {
-    const value = record?.[key];
-    if (!Array.isArray(value)) continue;
-    const items = value.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
-    if (items.length > 0) {
-      return items.map((item) => item.trim());
-    }
-  }
-  return undefined;
-}
+import { asRecord, readNumber, readString, readStringArray } from './runInspector.readers';
 
 export function normalizeEvidenceItems(run: RunInspectorDetail): RunEvidenceItem[] {
   return (run.evidence_retrieved ?? []).map((source, index) => {

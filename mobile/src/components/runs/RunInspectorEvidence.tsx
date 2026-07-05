@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
+import { StyleSheet, View } from 'react-native';
 import { brandColors, semanticColors } from '../../theme/colors';
 import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
