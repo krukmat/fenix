@@ -34,17 +34,19 @@ status: active
    automatic classification.
 6. **Peer readiness review** - before presenting the task card, run the peer
    workflow review script against the task file and governing docs. Resolve the
-   reviewer from the caller's provider (see `## Peer review` below). A non-pass
-   verdict blocks task-card presentation until the task file is revised, the user
-   explicitly waives review, or the verdict is reported as blocked (peer CLI
-   unavailable). Include the result in the task card under a peer-review approval
-   field that makes the evidence file and approval state explicit, for example:
-   `Peer readiness review approval: reviewer=<reviewer>; artifact=<artifact path>; status=PASS`
-   (or `status=BLOCKED`). The artifact value is the proof file written by the
-   review script; the status value is the approval verdict. For tasks that
-   declare `criticality`, the readiness reviewer must explicitly concur with or
-   dispute that label and its stated basis. Peer review does not replace
-   RRI/HITL human approval.
+   reviewer from the caller's provider (see `## Peer review` below). Only a
+   `PASS` verdict unblocks task-card presentation. Any other outcome — `fail`,
+   `blocked`, reviewer unavailable, or reviewer unauthenticated — halts
+   presentation with no exception: there is no waiver and no acceptable
+   terminal `BLOCKED` state. The caller must revise the task file or restore
+   reviewer availability and re-run the gate. Include the result in the task
+   card under a peer-review approval field that makes the evidence file and
+   approval state explicit, for example:
+   `Peer readiness review approval: reviewer=<reviewer>; artifact=<artifact path>; status=PASS`.
+   The artifact value is the proof file written by the review script; the
+   status value is the approval verdict. For tasks that declare `criticality`,
+   the readiness reviewer must explicitly concur with or dispute that label and
+   its stated basis. Peer review does not replace RRI/HITL human approval.
 7. **Present or execute** - for RRI 0-25, execute directly within the bounded
    low-band rules. For RRI 26+, present the task card and wait for explicit human
    approval before editing.
@@ -54,17 +56,20 @@ status: active
    required gate cannot run, stop and report that before any push.
 10. **Peer code review** - before closing a development task, run the peer
     workflow review script against the diff. Resolve the reviewer from the
-    caller's provider (see `## Peer review` below). A non-pass verdict blocks
-    closure until the code is revised, the user explicitly waives review, or the
-    verdict is reported as blocked. Include the result in the closure report under
-    a peer-review approval field that makes the evidence file and approval state
-    explicit, for example:
-    `Peer code review approval: reviewer=<reviewer>; artifact=<artifact path>; status=PASS`
-    (or `status=BLOCKED`). The artifact value is the proof file written by the
-    review script; the status value is the approval verdict. For `critical`
-    tasks, the primary cross-agent reviewer still governs the exit code and any
-    local advisory review remains non-blocking. Peer review does not replace
-    RRI/HITL human approval.
+    caller's provider (see `## Peer review` below). Only a `PASS` verdict
+    unblocks closure. Any other outcome — `fail`, `blocked`, reviewer
+    unavailable, or reviewer unauthenticated — halts closure with no exception:
+    there is no waiver and no acceptable terminal `BLOCKED` state. The caller
+    must revise the code or restore reviewer availability and re-run the gate.
+    Include the result in the closure report under a peer-review approval field
+    that makes the evidence file and approval state explicit, for example:
+    `Peer code review approval: reviewer=<reviewer>; artifact=<artifact path>; status=PASS`.
+    The artifact value is the proof file written by the review script; the
+    status value is the approval verdict. For `critical` tasks, the primary
+    cross-agent reviewer still governs the exit code; the additional local
+    advisory review described below is additive and never substitutes for the
+    primary reviewer's blocking verdict. Peer review does not replace RRI/HITL
+    human approval.
 11. **Sync status** - update materially affected task, plan, ADR, dashboard,
     handoff, or audit artifacts before reporting completion.
 12. **Close and stop** - report result, verification, files affected, reasoning
@@ -188,7 +193,9 @@ executing the task. The reviewer is the independent peer that checks the work.
   reviewer failure that triggered it.
 - A fallback verdict does not relax the fail-closed contract. Invalid fallback
   output, missing fallback infrastructure, or another blocked fallback attempt
-  still produce a blocked artifact.
+  still produce a blocked artifact, and a blocked artifact is a hard stop (see
+  Failure modes below) — it is never an acceptable terminal state to present or
+  close against.
 
 **Critical-task advisory reviewer policy:**
 
@@ -199,20 +206,32 @@ executing the task. The reviewer is the independent peer that checks the work.
 - After the primary reviewer completes, run one additional advisory-only local
   reviewer attempt (`local-qwen`) and record it in the same artifact as an
   `advisory-local` attempt.
-- The advisory reviewer never changes the process exit code. If it times out or
-  hits a runtime failure, retry exactly once, unload the model after every
-  attempt, and degrade to a recorded non-blocking advisory-blocked result if
-  both attempts fail.
+- The advisory reviewer never changes the process exit code. This advisory
+  attempt is strictly additive to the primary reviewer's blocking verdict, not a
+  substitute path around it: the primary reviewer's verdict remains the sole
+  gate on presentation or closure. If the advisory attempt times out or hits a
+  runtime failure, retry exactly once, unload the model after every attempt,
+  and record a non-blocking advisory-blocked result if both attempts fail —
+  this recorded advisory outcome has no bearing on whether the primary gate
+  passes.
 
 **Failure modes:**
 
 - If the designated peer CLI is unavailable or unauthenticated, write a
   `blocked` artifact and report `BLOCKED` in the task card or closure report.
-  The caller must stop rather than self-review.
+  The caller must stop rather than self-review. This applies without
+  exception, including when no fallback reviewer is available.
 - A non-pass verdict (`fail` or `blocked`) at the readiness gate blocks
-  task-card presentation. A non-pass verdict at the code-review gate blocks
-  task closure. In both cases, the caller must revise the work or obtain an
-  explicit user waiver before proceeding.
+  task-card presentation, with no exception. A non-pass verdict at the
+  code-review gate blocks task closure, with no exception. There is no waiver
+  and `BLOCKED` is never an acceptable terminal state to present or close
+  against. In both cases, the only ways forward are: (1) revise the task file
+  or code and re-run the gate until it returns `PASS`, or (2) restore reviewer
+  availability (fix authentication, `PATH`, or the `FENIX_CODEX_BIN` /
+  `FENIX_CLAUDE_BIN` override) and re-run the gate until it returns `PASS`. If
+  neither is achievable in the current session, the caller must stop and
+  escalate the blocker to the user rather than proceed without a `PASS`
+  verdict.
 - Peer review is a workflow reporting contract. It does not replace the RRI
   autonomy gate or any human approval required by `HITL_AUTONOMY_POLICY.md`.
 

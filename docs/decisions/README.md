@@ -36,6 +36,8 @@ All Architecture Decision Records for this repository. Each row links to the ADR
 | [ADR-030](ADR-030-gemma-local-adjudication.md) | Gemma local reviewer multi-pass contract and context-isolated adjudication (D14) | accepted |
 | [ADR-031](ADR-031-support-approval-trigger-contract.md) | Support approval trigger contract: approval gates sensitive case mutation, handoff remains a human-routing fallback | accepted |
 | [ADR-032](ADR-032-workspace-bootstrap-defaults.md) | Workspace bootstrap defaults: a freshly registered workspace has no usable role or pipeline | proposed |
+| [ADR-034](ADR-034-mobile-primary-ux-surface.md) | Mobile is the primary UX surface for the Verifiable Trust wedge | accepted |
+| [ADR-035](ADR-035-peer-review-gate-unconditional-block.md) | Peer review and code review gates are unconditionally blocking, no waiver or BLOCKED-terminal exception | accepted |
 | [ADR-100](ADR-100-agentic-blackboard-architecture.md) | Agentic Blackboard Architecture | accepted |
 | [ADR-101](ADR-101-relationship-memory-engine.md) | Relationship Memory Engine | accepted |
 | [ADR-102](ADR-102-deterministic-agent-evaluation.md) | Deterministic Agent Evaluation Framework | accepted |

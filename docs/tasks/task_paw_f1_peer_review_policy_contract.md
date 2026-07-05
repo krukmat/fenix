@@ -52,7 +52,7 @@ Define the policy-level contract for independent peer review before task-card pr
 2. Provider resolution is explicit: `claude-code -> codex`, `codex -> claude`, `local-provider -> claude`, `remote-provider -> claude`, `unknown -> claude`.
 3. The task card contract includes `Peer readiness review: <reviewer> <artifact path> - PASS`.
 4. The code-task closure report contract includes `Peer code review: <reviewer> <artifact path> - PASS`.
-5. The docs state that non-pass peer verdicts block presentation or closure until revised, explicitly waived by the user, or reported as blocked.
+5. The docs state that non-pass peer verdicts block presentation or closure until revised, explicitly waived by the user, or reported as blocked. **Superseded 2026-07-05 by `ADR-035` / `PAW-F15`: the waiver and BLOCKED-as-acceptable-terminal-state language defined here was removed. Only a `PASS` verdict unblocks presentation or closure; see `docs/decisions/ADR-035-peer-review-gate-unconditional-block.md`.**
 6. The docs state that peer review does not replace human approval required by RRI/HITL.
 7. No script, Makefile target, hook, or CI change is implemented in this task.
 

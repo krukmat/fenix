@@ -62,7 +62,7 @@ Phases **A–F** of the adapted port:
 
 - No fenix **runtime** changes (`internal/`, `bff/`, `mobile/` product code). This is a workflow/DevEx port only.
 - No wholesale rewrite of existing CLAUDE.md/AGENTS.md rules — keep local wrappers, but route shared workflow order through `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`.
-- No hook-enforced peer review in Phase F. Enforcement is scripted and report-contract blocking, not a PreToolUse denial.
+- No hook-enforced peer review in Phase F. Enforcement is scripted and report-contract blocking, not a PreToolUse denial. As of `PAW-F15` / `ADR-035` (2026-07-05), the report contract itself has no waiver or BLOCKED-acceptable exception — only mechanical (hook/CI) enforcement remains deferred, tracked as future work.
 
 ## 5. Governing constraints
 
@@ -146,6 +146,7 @@ Each task has its own ledger file in `docs/tasks/`. Tasks are executed one at a 
 | PAW-F6B | `task_paw_f6b_peer_review_local_fallback_script.md` | Implement local fallback in peer workflow review script | development | F | ✅ done |
 | PAW-F7 | `task_paw_f7_peer_reviewer_cli_discovery.md` | Harden reviewer CLI discovery for cross-agent peer review sessions | development | F | ✅ done |
 | PAW-F8 | `task_paw_f8_peer_review_cli_override_docs.md` | Document reviewer CLI overrides and peer-review troubleshooting flow | docs | F | ✅ done |
+| PAW-F15 | `task_paw_f15_peer_review_gate_unconditional_block.md` | Remove waiver/BLOCKED-acceptable exceptions from peer review gate; ADR-035 | docs | F | ✅ done |
 
 > **Note on id numbering:** the peer-review wiring task is numbered **PAW-F4**, not PAW-F3. The id `PAW-F3` was already claimed by the completed "Agent workflow documentation order refactor" addendum (`task_paw_f3_agent_workflow_document_order.md`, see §3 Phase F3 addendum). The wiring task was renumbered to PAW-F4 to avoid a duplicate id and preserve traceability.
 
