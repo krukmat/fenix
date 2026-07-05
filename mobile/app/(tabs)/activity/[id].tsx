@@ -6,7 +6,7 @@ import { useHandoffPackage } from '../../../src/hooks/useAgentSpec';
 import { useRunUsage } from '../../../src/hooks/useWedge';
 import { RunInspector, type RunInspectorDetail } from '../../../src/components/runs';
 import { CenteredLoadingState, CenteredMessageState } from '../../../src/components/ui/ScreenState';
-import { resolveWedgeHandoffPackageDestination, wedgeHref } from '../../../src/utils/navigation';
+import { resolveWedgeHandoffPackageDestination, wedgeHref, wedgeHrefObject } from '../../../src/utils/navigation';
 import type { UsageEvent } from '../../../src/services/api.types';
 import type { ThemeColors } from '../../../src/theme/types';
 
@@ -63,7 +63,10 @@ function ActivityRunDetailLoaded({
         usage={usage}
         handoff={handoff}
         handoffLoading={handoffLoading}
-        onOpenAuditTrail={() => router.push(wedgeHref('/governance/audit'))}
+        onOpenAuditTrail={() => {
+          const traceId = run.trace_id ?? run.traceId;
+          router.push(traceId ? wedgeHrefObject('/governance/audit', { trace_id: String(traceId) }) : wedgeHref('/governance/audit'));
+        }}
         onOpenInbox={() => router.push(wedgeHref('/inbox'))}
         onOpenHandoffDestination={() => {
           if (!handoff) return;

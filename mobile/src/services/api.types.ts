@@ -248,6 +248,7 @@ export interface AuditFilters {
   entity_type?: string;
   action?: string;
   outcome?: AuditOutcome;
+  trace_id?: string;
   date_from?: string;
   date_to?: string;
 }

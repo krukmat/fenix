@@ -5,6 +5,7 @@ import { Button, Dialog, Portal, Text, TextInput } from 'react-native-paper';
 import type { MD3Theme } from 'react-native-paper';
 import type { ApprovalRequest } from '../../services/api';
 import { brandColors, semanticColors } from '../../theme/colors';
+import { wedgeHrefObject } from '../../utils/navigation';
 import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import type { ApprovalDecisionFeedback } from './ApprovalCard';
@@ -140,7 +141,7 @@ export function DecisionFeedbackBlock({
           <Button
             compact
             mode="text"
-            onPress={() => router.push('/governance/audit')}
+            onPress={() => router.push(wedgeHrefObject('/governance/audit', { trace_id: feedback.traceId as string }))}
             testID={`${testIDPrefix}-audit-link`}
           >
             View audit trail

@@ -178,12 +178,27 @@ describe('Activity log detail screen', () => {
     expect(screen.getByTestId('activity-usage-item-0-card')).toBeTruthy();
   });
 
-  it('shows trace id and opens the audit trail', () => {
+  it('shows trace id and opens the audit trail filtered by trace_id', () => {
     const { default: Screen } = require('../../../../app/(tabs)/activity/[id]');
     render(React.createElement(Screen));
     expect(screen.getByTestId('activity-detail-trace-id')).toBeTruthy();
     fireEvent.press(screen.getByTestId('activity-detail-open-audit'));
-    expect(mockRouterPush).toHaveBeenCalledWith('/governance/audit');
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      pathname: '/governance/audit',
+      params: { trace_id: 'trace-1' },
+    });
+  });
+
+  it('hides the audit trail link entirely when the run has no trace_id', () => {
+    mockUseAgentRun.mockReturnValue({
+      data: { data: { ...fullRun.data, trace_id: undefined } },
+      isLoading: false,
+      error: null,
+    });
+    const { default: Screen } = require('../../../../app/(tabs)/activity/[id]');
+    render(React.createElement(Screen));
+    expect(screen.queryByTestId('activity-detail-trace-id')).toBeNull();
+    expect(screen.queryByTestId('activity-detail-open-audit')).toBeNull();
   });
 
   it('navigates to governance usage drilldown with run filter', () => {

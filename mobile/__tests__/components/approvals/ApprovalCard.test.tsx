@@ -177,7 +177,10 @@ describe('ApprovalCard', () => {
     expect(getByTestId('approval-card-feedback-trace').props.children).toBe('Trace: trace-42');
     expect(queryByTestId('approval-card-approve')).toBeNull();
     fireEvent.press(getByTestId('approval-card-audit-link'));
-    expect(mockPush).toHaveBeenCalledWith('/governance/audit');
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/governance/audit',
+      params: { trace_id: 'trace-42' },
+    });
   });
 
   it('renders designed conflict feedback for expired approvals', () => {

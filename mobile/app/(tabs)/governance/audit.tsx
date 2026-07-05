@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from 'react-native-paper';
 import { AuditEventsList } from '../../../src/components/governance/AuditEventsList';
 import { AuditFilterBar } from '../../../src/components/governance/AuditFilterBar';
@@ -27,7 +28,12 @@ function mergeAuditPages(previous: AuditEvent[], nextPage: AuditEvent[], page: n
 
 export default function GovernanceAuditScreen() {
   const colors = useColors();
-  const [filters, setFilters] = useState<AuditFilters>({});
+  const params = useLocalSearchParams<{ trace_id?: string | string[] }>();
+  const traceIdParam = Array.isArray(params.trace_id) ? params.trace_id[0] : params.trace_id;
+
+  const [filters, setFilters] = useState<AuditFilters>(() =>
+    traceIdParam ? { trace_id: traceIdParam } : {}
+  );
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [allEvents, setAllEvents] = useState<AuditEvent[]>([]);

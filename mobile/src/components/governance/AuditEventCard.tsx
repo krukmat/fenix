@@ -1,11 +1,13 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Card, Text, useTheme } from 'react-native-paper';
 import type { AuditEvent, AuditOutcome } from '../../services/api.types';
 import { brandColors } from '../../theme/colors';
 import { getAgentStatusColor } from '../../theme/semantic';
 import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
+import { wedgeHrefObject } from '../../utils/navigation';
 
 interface AuditEventCardProps {
   event: AuditEvent;
@@ -30,6 +32,42 @@ function formatDetails(details: unknown): string {
   } catch {
     return String(details);
   }
+}
+
+function TraceIdLink({
+  traceId,
+  testIDPrefix,
+  colors,
+}: {
+  traceId: string | undefined;
+  testIDPrefix: string;
+  colors: { primary: string; onSurfaceVariant: string };
+}) {
+  const router = useRouter();
+
+  if (!traceId) {
+    return (
+      <Text
+        testID={`${testIDPrefix}-trace-id`}
+        variant="bodySmall"
+        style={[typography.monoSM, { color: colors.onSurfaceVariant, marginTop: 4 }]}
+      >
+        Trace: —
+      </Text>
+    );
+  }
+
+  return (
+    <Pressable onPress={() => router.push(wedgeHrefObject('/governance/audit', { trace_id: traceId }))}>
+      <Text
+        testID={`${testIDPrefix}-trace-id`}
+        variant="bodySmall"
+        style={[typography.monoSM, { color: colors.primary, marginTop: 4 }]}
+      >
+        Trace: {traceId}
+      </Text>
+    </Pressable>
+  );
 }
 
 export function AuditEventCard({
@@ -90,13 +128,7 @@ export function AuditEventCard({
             >
               {(event.entity_type ?? '—')} · {(event.entity_id ?? '—')}
             </Text>
-            <Text
-              testID={`${testIDPrefix}-trace-id`}
-              variant="bodySmall"
-              style={[typography.monoSM, { color: colors.onSurfaceVariant, marginTop: 4 }]}
-            >
-              Trace: {event.trace_id ?? '—'}
-            </Text>
+            <TraceIdLink traceId={event.trace_id} testIDPrefix={testIDPrefix} colors={colors} />
             <Text
               testID={`${testIDPrefix}-details`}
               variant="bodySmall"

@@ -3,9 +3,15 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 const mockUseAuditEvents = jest.fn();
+let mockSearchParams: Record<string, string | string[] | undefined> = {};
 
 jest.mock('../../../../src/hooks/useWedge', () => ({
   useAuditEvents: (...args: unknown[]) => mockUseAuditEvents(...args),
+}));
+
+jest.mock('expo-router', () => ({
+  __esModule: true,
+  useLocalSearchParams: () => mockSearchParams,
 }));
 
 jest.mock('react-native-paper', () => ({
@@ -44,6 +50,7 @@ const eventPage = {
 describe('Governance audit screen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSearchParams = {};
     mockUseAuditEvents.mockImplementation((_filters = {}, page = 1) => ({
       data: { ...eventPage, meta: { ...eventPage.meta, offset: ((page as number) - 1) * 20 } },
       isLoading: false,
@@ -97,5 +104,25 @@ describe('Governance audit screen', () => {
     render(React.createElement(Screen));
     fireEvent(screen.getByTestId('audit-list'), 'endReached');
     expect(mockUseAuditEvents).toHaveBeenLastCalledWith({}, 2);
+  });
+
+  it('seeds the filter from a trace_id route param on mount', () => {
+    mockSearchParams = { trace_id: 'trace-99' };
+    const { default: Screen } = require('../../../../app/(tabs)/governance/audit');
+    render(React.createElement(Screen));
+    expect(mockUseAuditEvents).toHaveBeenCalledWith({ trace_id: 'trace-99' }, 1);
+  });
+
+  it('normalizes an array trace_id route param to its first value', () => {
+    mockSearchParams = { trace_id: ['trace-1', 'trace-2'] };
+    const { default: Screen } = require('../../../../app/(tabs)/governance/audit');
+    render(React.createElement(Screen));
+    expect(mockUseAuditEvents).toHaveBeenCalledWith({ trace_id: 'trace-1' }, 1);
+  });
+
+  it('starts with empty filters when no trace_id route param is present', () => {
+    const { default: Screen } = require('../../../../app/(tabs)/governance/audit');
+    render(React.createElement(Screen));
+    expect(mockUseAuditEvents).toHaveBeenCalledWith({}, 1);
   });
 });
