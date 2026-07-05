@@ -1,11 +1,24 @@
 import type { SuggestedAction } from '../components/copilot/ActionButton';
-import type { EvidenceSource, SSEClient, SSEMessage } from '../services/sse';
+import type {
+  CopilotAbstentionReason,
+  CopilotAnswerType,
+  CopilotConfidence,
+  CopilotEvidenceMeta,
+  EvidenceSource,
+  SSEClient,
+  SSEMessage,
+} from '../services/sse';
 
 export interface CopilotMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   evidenceSources?: EvidenceSource[];
+  evidenceMeta?: CopilotEvidenceMeta;
+  confidence?: CopilotConfidence;
+  warnings?: string[];
+  answerType?: CopilotAnswerType;
+  abstentionReason?: CopilotAbstentionReason;
   actions?: SuggestedAction[];
   isStreaming?: boolean;
 }
@@ -72,13 +85,23 @@ export function createStreamMessageHandler({
     }
 
     if (message.type === 'evidence') {
-      updateAssistant((last) => ({ ...last, evidenceSources: message.sources }));
+      updateAssistant((last) => ({
+        ...last,
+        evidenceSources: message.sources,
+        evidenceMeta: message.meta,
+        confidence: message.meta?.confidence,
+        warnings: message.meta?.warnings,
+      }));
       return;
     }
 
     if (message.type === 'done') {
       setStreaming(false);
-      updateAssistant(finishStreamingMessage);
+      updateAssistant((last) => ({
+        ...finishStreamingMessage(last),
+        answerType: message.answerType ?? last.answerType,
+        abstentionReason: message.abstentionReason ?? last.abstentionReason,
+      }));
       return;
     }
 

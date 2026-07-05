@@ -1,7 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ApprovalCard } from '../approvals/ApprovalCard';
+import { ApprovalCard, type ApprovalDecisionFeedback } from '../approvals/ApprovalCard';
 import { SignalCard } from '../signals/SignalCard';
 import { resolveWedgeHandoffPackageDestination, wedgeHref, wedgeHrefObject } from '../../utils/navigation';
 import type { AgentRun, ApprovalRequest, HandoffPackage, Signal } from '../../services/api';
@@ -17,13 +17,15 @@ export type InboxRenderableItem =
 export function InboxListItem({
   item,
   index,
+  approvalDecisionFeedback,
   onApprove,
   onReject,
   approvalsPending,
 }: {
   item: InboxRenderableItem;
   index: number;
-  onApprove: (id: string) => void;
+  approvalDecisionFeedback?: ApprovalDecisionFeedback;
+  onApprove: (id: string, comment?: string) => void;
   onReject: (id: string, reason: string) => void;
   approvalsPending: boolean;
 }) {
@@ -40,6 +42,7 @@ export function InboxListItem({
           approval={item.approval}
           onApprove={onApprove}
           onReject={onReject}
+          decisionFeedback={approvalDecisionFeedback}
           testIDPrefix={`inbox-approval-${item.approval.id}`}
           disabled={approvalsPending}
         />

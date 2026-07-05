@@ -67,15 +67,81 @@ describe('createSSEClient (XHR transport)', () => {
     createSSEClient('http://localhost:3000/bff/copilot/chat', 'token', { query: 'x' }, onMessage);
 
     fakeXhr.pushChunk('data: {"type":"token","delta":"hola "}\n\n');
-    fakeXhr.pushChunk('data: {"type":"evidence","sources":[{"id":"e1","snippet":"s","score":0.9,"timestamp":"2026-01-01T00:00:00Z"}]}\n\n');
+    fakeXhr.pushChunk('data: {"type":"evidence","sources":[{"id":"e1","snippet":"s","score":0.9,"timestamp":"2026-01-01T00:00:00Z"}],"meta":{"confidence":"high","warnings":["1 items stale"],"source_count":1}}\n\n');
     fakeXhr.complete(200);
 
     expect(onMessage).toHaveBeenCalledWith({ type: 'token', delta: 'hola ' });
     expect(onMessage).toHaveBeenCalledWith({
       type: 'evidence',
       sources: [{ id: 'e1', snippet: 's', score: 0.9, timestamp: '2026-01-01T00:00:00Z' }],
+      meta: { confidence: 'high', warnings: ['1 items stale'], sourceCount: 1 },
     });
     expect(onMessage).toHaveBeenCalledWith({ type: 'done' });
+  });
+
+  it('parses done metadata for abstention outcomes', () => {
+    const onMessage = jest.fn<(msg: SSEMessage) => void>();
+
+    createSSEClient('http://localhost:3000/bff/copilot/chat', 'token', { query: 'x' }, onMessage);
+
+    fakeXhr.pushChunk(
+      'data: {"type":"done","meta":{"answer_type":"abstention","abstention_reason":"insufficient_evidence"}}\n\n',
+    );
+    fakeXhr.complete(200);
+
+    expect(onMessage).toHaveBeenCalledWith({
+      type: 'done',
+      answerType: 'abstention',
+      abstentionReason: 'insufficient_evidence',
+    });
+  });
+
+  it('normalizes enriched Go evidence fields into the mobile evidence shape', () => {
+    const onMessage = jest.fn<(msg: SSEMessage) => void>();
+
+    createSSEClient('http://localhost:3000/bff/copilot/chat', 'token', { query: 'x' }, onMessage);
+
+    fakeXhr.pushChunk(
+      'data: {"type":"evidence","sources":[{"id":"e1","knowledge_item_id":"ki-1","snippet":"s","score":0.9,"timestamp":"2026-01-01T00:00:00Z","retrieval_method":"hybrid","pii_redacted":true}]}\n\n',
+    );
+    fakeXhr.complete(200);
+
+    expect(onMessage).toHaveBeenCalledWith({
+      type: 'evidence',
+      sources: [{
+        id: 'e1',
+        knowledge_item_id: 'ki-1',
+        snippet: 's',
+        score: 0.9,
+        timestamp: '2026-01-01T00:00:00Z',
+        retrieval_method: 'hybrid',
+        pii_redacted: true,
+      }],
+    });
+  });
+
+  it('normalizes legacy Go-style field casing when evidence chunks use struct field names', () => {
+    const onMessage = jest.fn<(msg: SSEMessage) => void>();
+
+    createSSEClient('http://localhost:3000/bff/copilot/chat', 'token', { query: 'x' }, onMessage);
+
+    fakeXhr.pushChunk(
+      'data: {"type":"evidence","sources":[{"ID":"e1","KnowledgeItemID":"ki-1","Snippet":"s","Score":0.9,"CreatedAt":"2026-01-01T00:00:00Z","Method":"hybrid","PiiRedacted":true}]}\n\n',
+    );
+    fakeXhr.complete(200);
+
+    expect(onMessage).toHaveBeenCalledWith({
+      type: 'evidence',
+      sources: [{
+        id: 'e1',
+        knowledge_item_id: 'ki-1',
+        snippet: 's',
+        score: 0.9,
+        timestamp: '2026-01-01T00:00:00Z',
+        retrieval_method: 'hybrid',
+        pii_redacted: true,
+      }],
+    });
   });
 
   it('handles a chunk split across two pushes (partial frame)', () => {

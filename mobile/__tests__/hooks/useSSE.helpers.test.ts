@@ -71,11 +71,17 @@ describe('useSSE helpers', () => {
     handler({
       type: 'evidence',
       sources: [{ id: 'e1', snippet: 'snippet', score: 1, timestamp: '2026-01-01T00:00:00Z' }],
+      meta: { confidence: 'medium', warnings: ['1 items stale'], sourceCount: 1 },
     });
-    handler({ type: 'done' });
+    handler({ type: 'done', answerType: 'abstention', abstentionReason: 'insufficient_evidence' });
 
     expect(latest.content).toBe('hola');
     expect(latest.evidenceSources?.[0].id).toBe('e1');
+    expect(latest.confidence).toBe('medium');
+    expect(latest.warnings).toEqual(['1 items stale']);
+    expect(latest.evidenceMeta?.sourceCount).toBe(1);
+    expect(latest.answerType).toBe('abstention');
+    expect(latest.abstentionReason).toBe('insufficient_evidence');
     expect(streaming).toBe(false);
     expect(latest.isStreaming).toBe(false);
     expect(error).toBeNull();

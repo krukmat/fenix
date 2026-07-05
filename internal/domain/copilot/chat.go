@@ -63,12 +63,24 @@ type ChatInput struct {
 }
 
 type StreamChunk struct {
-	Type    string               `json:"type"`
-	Delta   string               `json:"delta,omitempty"`
-	Sources []knowledge.Evidence `json:"sources,omitempty"`
-	Meta    map[string]any       `json:"meta,omitempty"`
-	Done    bool                 `json:"done,omitempty"`
-	Error   string               `json:"error,omitempty"`
+	Type    string           `json:"type"`
+	Delta   string           `json:"delta,omitempty"`
+	Sources []EvidenceSource `json:"sources,omitempty"`
+	Meta    map[string]any   `json:"meta,omitempty"`
+	Done    bool             `json:"done,omitempty"`
+	Error   string           `json:"error,omitempty"`
+}
+
+// EvidenceSource is the copilot SSE shape for a single evidence item.
+// It exposes only fields the current backend can assert truthfully.
+type EvidenceSource struct {
+	ID              string  `json:"id"`
+	KnowledgeItemID string  `json:"knowledge_item_id,omitempty"`
+	Snippet         string  `json:"snippet"`
+	Score           float64 `json:"score"`
+	Timestamp       string  `json:"timestamp"`
+	RetrievalMethod string  `json:"retrieval_method,omitempty"`
+	PiiRedacted     bool    `json:"pii_redacted,omitempty"`
 }
 
 type ChatResult struct {
@@ -100,7 +112,7 @@ func (s *ChatService) Chat(ctx context.Context, in ChatInput) (<-chan StreamChun
 
 	s.auditChat(ctx, in, filter, pack, result)
 	s.recordUsage(ctx, in, record, time.Since(startedAt))
-	return streamChatResult(result), nil
+	return streamChatResult(result, pack), nil
 }
 
 func (s *ChatService) prepareChatContext(ctx context.Context, in ChatInput) (policy.Filter, *knowledge.EvidencePack, error) {
@@ -290,11 +302,12 @@ func (s *ChatService) recordUsage(ctx context.Context, in ChatInput, record chat
 	})
 }
 
-func streamChatResult(result ChatResult) <-chan StreamChunk {
+func streamChatResult(result ChatResult, pack *knowledge.EvidencePack) <-chan StreamChunk {
 	ch := make(chan StreamChunk)
 	go func() {
 		defer close(ch)
-		ch <- StreamChunk{Type: "evidence", Sources: result.Sources, Meta: evidenceMeta(result.Sources)}
+		streamSources := streamEvidenceSources(result.Sources)
+		ch <- StreamChunk{Type: "evidence", Sources: streamSources, Meta: evidenceMeta(pack, result.Sources)}
 		for _, tk := range strings.Fields(result.Content) {
 			ch <- StreamChunk{Type: "token", Delta: tk + " "}
 		}
@@ -304,7 +317,27 @@ func streamChatResult(result ChatResult) <-chan StreamChunk {
 	return ch
 }
 
-func evidenceMeta(sources []knowledge.Evidence) map[string]any {
+func streamEvidenceSources(sources []knowledge.Evidence) []EvidenceSource {
+	items := make([]EvidenceSource, 0, len(sources))
+	for _, source := range sources {
+		snippet := ""
+		if source.Snippet != nil {
+			snippet = *source.Snippet
+		}
+		items = append(items, EvidenceSource{
+			ID:              source.ID,
+			KnowledgeItemID: source.KnowledgeItemID,
+			Snippet:         snippet,
+			Score:           source.Score,
+			Timestamp:       source.CreatedAt.UTC().Format(time.RFC3339),
+			RetrievalMethod: string(source.Method),
+			PiiRedacted:     source.PiiRedacted,
+		})
+	}
+	return items
+}
+
+func evidenceMeta(pack *knowledge.EvidencePack, sources []knowledge.Evidence) map[string]any {
 	methods := make([]string, 0, len(sources))
 	seen := make(map[knowledge.EvidenceMethod]struct{}, len(sources))
 	for _, source := range sources {
@@ -315,11 +348,32 @@ func evidenceMeta(sources []knowledge.Evidence) map[string]any {
 		methods = append(methods, string(source.Method))
 	}
 
+	if pack == nil {
+		return map[string]any{
+			"source_count":           len(sources),
+			"retrieval_methods_used": methods,
+		}
+	}
+
+	if len(pack.RetrievalMethodsUsed) > 0 {
+		methods = methods[:0]
+		for _, method := range pack.RetrievalMethodsUsed {
+			methods = append(methods, string(method))
+		}
+	}
+
+	warnings := make([]string, len(pack.Warnings))
+	copy(warnings, pack.Warnings)
+
 	return map[string]any{
-		"schema_version":         knowledge.EvidencePackSchemaVersion,
-		"source_count":           len(sources),
+		"schema_version":         pack.SchemaVersion,
+		"source_count":           pack.SourceCount,
+		"dedup_count":            pack.DedupCount,
+		"filtered_count":         pack.FilteredCount,
+		"confidence":             string(pack.Confidence),
+		"warnings":               warnings,
 		"retrieval_methods_used": methods,
-		"built_at":               time.Now().UTC().Format(time.RFC3339),
+		"built_at":               pack.BuiltAt.UTC().Format(time.RFC3339),
 	}
 }
 

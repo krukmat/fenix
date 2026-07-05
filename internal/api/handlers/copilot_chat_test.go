@@ -34,7 +34,19 @@ func (s *copilotChatServiceStub) Chat(_ context.Context, _ copilot.ChatInput) (<
 
 func TestCopilotChatHandler_SSE_OK(t *testing.T) {
 	h := NewCopilotChatHandler(&copilotChatServiceStub{chunks: []copilot.StreamChunk{
-		{Type: "evidence", Meta: map[string]any{"schema_version": "v1", "source_count": 1}},
+		{
+			Type: "evidence",
+			Sources: []copilot.EvidenceSource{{
+				ID:              "ev_1",
+				KnowledgeItemID: "ki_1",
+				Snippet:         "case summary",
+				Score:           0.91,
+				Timestamp:       "2026-07-05T06:00:00Z",
+				RetrievalMethod: "hybrid",
+				PiiRedacted:     true,
+			}},
+			Meta: map[string]any{"schema_version": "v1", "source_count": 1},
+		},
 		{Type: "token", Delta: "hola "},
 		{Type: "done", Done: true, Meta: map[string]any{"answer_type": "grounded_answer"}},
 	}})
@@ -63,6 +75,12 @@ func TestCopilotChatHandler_SSE_OK(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "\"schema_version\":\"v1\"") {
 		t.Fatalf("expected evidence metadata to be preserved, got %q", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "\"retrieval_method\":\"hybrid\"") {
+		t.Fatalf("expected evidence source retrieval_method to be preserved, got %q", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "\"pii_redacted\":true") {
+		t.Fatalf("expected evidence source pii_redacted to be preserved, got %q", rr.Body.String())
 	}
 }
 

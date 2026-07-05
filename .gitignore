@@ -73,6 +73,7 @@ docs/plans/*
 !docs/plans/external_validation_first_test_battery_plan.md
 !docs/plans/portable_agent_workflow_port_plan.md
 !docs/plans/adr-032-workspace-bootstrap-remediation-plan.md
+!docs/plans/ui_ux_governed_console_strategy_plan.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/

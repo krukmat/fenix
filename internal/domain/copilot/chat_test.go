@@ -97,15 +97,19 @@ func (s *usageRecorderStub) RecordEvent(_ context.Context, input usage.RecordEve
 
 func TestChat_StreamIncludesEvidenceTokenDone(t *testing.T) {
 	sn := "estado del caso abierto para el cliente john@acme.com"
+	builtAt := time.Date(2026, time.January, 2, 15, 4, 5, 0, time.UTC)
 	llmSvc := &llmStub{resp: "respuesta final"}
 	svc := NewChatService(
 		&evidenceStub{pack: &knowledge.EvidencePack{
 			Sources:              []knowledge.Evidence{{ID: "ev_1", Snippet: &sn, Method: knowledge.EvidenceMethodHybrid}},
 			Confidence:           knowledge.ConfidenceHigh,
+			Warnings:             []string{"1 items stale"},
 			SchemaVersion:        knowledge.EvidencePackSchemaVersion,
 			SourceCount:          1,
+			DedupCount:           0,
+			FilteredCount:        2,
 			RetrievalMethodsUsed: []knowledge.EvidenceMethod{knowledge.EvidenceMethodHybrid},
-			BuiltAt:              time.Now().UTC(),
+			BuiltAt:              builtAt,
 		}},
 		llmSvc,
 		&policyStub{filter: policy.Filter{Where: "workspace_id = ?"}},
@@ -127,16 +131,40 @@ func TestChat_StreamIncludesEvidenceTokenDone(t *testing.T) {
 	if chunks[0].Type != "evidence" {
 		t.Fatalf("first chunk should be evidence, got %q", chunks[0].Type)
 	}
+	if len(chunks[0].Sources) != 1 {
+		t.Fatalf("expected one evidence source, got %d", len(chunks[0].Sources))
+	}
+	if got := chunks[0].Sources[0].RetrievalMethod; got != string(knowledge.EvidenceMethodHybrid) {
+		t.Fatalf("expected retrieval_method %q, got %q", knowledge.EvidenceMethodHybrid, got)
+	}
+	if !chunks[0].Sources[0].PiiRedacted {
+		t.Fatal("expected pii_redacted to be true after policy redaction")
+	}
+	if got := chunks[0].Sources[0].Snippet; !strings.Contains(got, "[EMAIL_1]") {
+		t.Fatalf("expected redacted snippet, got %q", got)
+	}
+	if got := chunks[0].Sources[0].Timestamp; got == "" {
+		t.Fatal("expected timestamp to be populated")
+	}
 	if got := chunks[0].Meta["schema_version"]; got != knowledge.EvidencePackSchemaVersion {
 		t.Fatalf("expected schema_version %q, got %#v", knowledge.EvidencePackSchemaVersion, got)
 	}
 	if got := chunks[0].Meta["source_count"]; got != 1 {
 		t.Fatalf("expected source_count 1, got %#v", got)
 	}
+	if got := chunks[0].Meta["filtered_count"]; got != 2 {
+		t.Fatalf("expected filtered_count 2, got %#v", got)
+	}
+	if got := chunks[0].Meta["confidence"]; got != string(knowledge.ConfidenceHigh) {
+		t.Fatalf("expected confidence %q, got %#v", knowledge.ConfidenceHigh, got)
+	}
+	if warnings, ok := chunks[0].Meta["warnings"].([]string); !ok || len(warnings) != 1 || warnings[0] != "1 items stale" {
+		t.Fatalf("unexpected warnings: %#v", chunks[0].Meta["warnings"])
+	}
 	if methods, ok := chunks[0].Meta["retrieval_methods_used"].([]string); !ok || len(methods) != 1 || methods[0] != string(knowledge.EvidenceMethodHybrid) {
 		t.Fatalf("unexpected retrieval_methods_used: %#v", chunks[0].Meta["retrieval_methods_used"])
 	}
-	if builtAt, ok := chunks[0].Meta["built_at"].(string); !ok || builtAt == "" {
+	if gotBuiltAt, ok := chunks[0].Meta["built_at"].(string); !ok || gotBuiltAt != builtAt.Format(time.RFC3339) {
 		t.Fatalf("expected built_at in evidence meta, got %#v", chunks[0].Meta["built_at"])
 	}
 	if chunks[len(chunks)-1].Type != "done" {

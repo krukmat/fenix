@@ -17,6 +17,14 @@ function truncate(value: string, len = 80): string {
   return `${value.slice(0, len)}…`;
 }
 
+function formatRetrievalMethod(value: string): string {
+  return value
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 export function EvidenceCard({ source, index, testIDPrefix = 'evidence' }: EvidenceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { colors } = useTheme();
@@ -32,6 +40,12 @@ export function EvidenceCard({ source, index, testIDPrefix = 'evidence' }: Evide
     return d.toISOString();
   }, [source.timestamp]);
 
+  const retrievalMethodLabel = useMemo(
+    () => (source.retrieval_method ? formatRetrievalMethod(source.retrieval_method) : null),
+    [source.retrieval_method],
+  );
+  const hasTrustFields = Boolean(retrievalMethodLabel || source.pii_redacted || source.knowledge_item_id);
+
   return (
     <Card testID={testIDPrefix} style={styles.card}>
       <TouchableOpacity testID={`${testIDPrefix}-card`} onPress={() => setExpanded((v) => !v)}>
@@ -46,6 +60,29 @@ export function EvidenceCard({ source, index, testIDPrefix = 'evidence' }: Evide
             {expanded ? source.snippet : truncate(source.snippet)}
           </Text>
           <Text variant="labelSmall" style={[typography.monoSM, { color: colors.onSurfaceVariant }]}>{timestamp}</Text>
+          {expanded && hasTrustFields && (
+            <View style={styles.metaSection} testID={`${testIDPrefix}-meta`}>
+              {retrievalMethodLabel ? (
+                <View style={styles.methodChip} testID={`${testIDPrefix}-method`}>
+                  <Text style={styles.methodChipText}>{retrievalMethodLabel}</Text>
+                </View>
+              ) : null}
+              {source.pii_redacted ? (
+                <View style={styles.flag} testID={`${testIDPrefix}-pii`}>
+                  <Text style={[styles.flagText, { color: colors.onSurface }]}>PII redacted</Text>
+                </View>
+              ) : null}
+              {source.knowledge_item_id ? (
+                <Text
+                  variant="labelSmall"
+                  testID={`${testIDPrefix}-knowledge-item`}
+                  style={[typography.monoSM, { color: colors.onSurfaceVariant }]}
+                >
+                  {`Knowledge item: ${source.knowledge_item_id}`}
+                </Text>
+              ) : null}
+            </View>
+          )}
         </Card.Content>
       </TouchableOpacity>
     </Card>
@@ -66,6 +103,33 @@ const styles = StyleSheet.create({
   },
   scoreBadgeText: {
     color: brandColors.onPrimaryContainer,
+    ...typography.labelMD,
+  },
+  metaSection: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  methodChip: {
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: brandColors.surfaceVariant,
+  },
+  methodChipText: {
+    color: brandColors.onSurface,
+    ...typography.labelMD,
+  },
+  flag: {
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: brandColors.primary,
+  },
+  flagText: {
     ...typography.labelMD,
   },
 });

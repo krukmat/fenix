@@ -24,21 +24,29 @@ jest.mock('../../../../src/components/approvals/ApprovalCard', () => {
     ApprovalCard: ({
       approval,
       testIDPrefix,
+      decisionFeedback,
       onApprove,
       onReject,
       disabled,
     }: {
       approval: { id: string; action: string };
       testIDPrefix: string;
-      onApprove: (id: string) => void;
+      decisionFeedback?: { title: string; body: string };
+      onApprove: (id: string, comment?: string) => void;
       onReject: (id: string, reason: string) => void;
       disabled?: boolean;
     }) =>
       React.createElement(View, { testID: testIDPrefix },
         React.createElement(Text, { testID: `${testIDPrefix}-action` }, approval.action),
+        decisionFeedback
+          ? React.createElement(Text, { testID: `${testIDPrefix}-feedback-title` }, decisionFeedback.title)
+          : null,
+        decisionFeedback
+          ? React.createElement(Text, { testID: `${testIDPrefix}-feedback-body` }, decisionFeedback.body)
+          : null,
         React.createElement(Pressable, {
           testID: `${testIDPrefix}-approve`,
-          onPress: () => onApprove(approval.id),
+          onPress: () => onApprove(approval.id, 'ship it'),
           accessibilityState: { disabled: !!disabled },
         }),
         React.createElement(Pressable, {
@@ -400,31 +408,23 @@ describe('InboxScreen', () => {
   });
 
   it('approves inbox approvals inline and refreshes the feed on success', () => {
-    const refetch = jest.fn();
     const mutate = jest.fn((_vars, options: { onSuccess?: () => void }) => options?.onSuccess?.());
     mockUseApproveApproval.mockReturnValue({ mutate, isPending: false });
-    mockUseInbox.mockReturnValue({
-      ...makeInboxState({ approvals: [approval] }),
-      refetch,
-    });
+    mockUseInbox.mockReturnValue(makeInboxState({ approvals: [approval] }));
     renderInbox();
     fireEvent.press(screen.getByTestId('inbox-approval-apr-1-approve'));
-    expect(mutate).toHaveBeenCalledWith({ id: 'apr-1' }, expect.any(Object));
-    expect(refetch).toHaveBeenCalled();
+    expect(mutate).toHaveBeenCalledWith({ id: 'apr-1', reason: 'ship it' }, expect.any(Object));
+    expect(screen.getByTestId('inbox-approval-apr-1-feedback-title').props.children).toBe('Approval recorded');
   });
 
-  it('rejects inbox approvals inline and refreshes the feed on success', () => {
-    const refetch = jest.fn();
+  it('rejects inbox approvals inline and renders terminal feedback on success', () => {
     const mutate = jest.fn((_vars, options: { onSuccess?: () => void }) => options?.onSuccess?.());
     mockUseRejectApproval.mockReturnValue({ mutate, isPending: false });
-    mockUseInbox.mockReturnValue({
-      ...makeInboxState({ approvals: [approval] }),
-      refetch,
-    });
+    mockUseInbox.mockReturnValue(makeInboxState({ approvals: [approval] }));
     renderInbox();
     fireEvent.press(screen.getByTestId('inbox-approval-apr-1-reject'));
     expect(mutate).toHaveBeenCalledWith({ id: 'apr-1', reason: 'not authorized' }, expect.any(Object));
-    expect(refetch).toHaveBeenCalled();
+    expect(screen.getByTestId('inbox-approval-apr-1-feedback-title').props.children).toBe('Rejection recorded');
   });
 
   it('shows an inline error when approval mutation fails', () => {
@@ -437,6 +437,30 @@ describe('InboxScreen', () => {
     fireEvent.press(screen.getByTestId('inbox-approval-apr-1-approve'));
     expect(screen.getByTestId('inbox-approval-action-error')).toBeTruthy();
     expect(screen.getByText('mutation failed')).toBeTruthy();
+  });
+
+  it('renders an expired governed conflict state instead of a generic error', () => {
+    const mutate = jest.fn((_vars, options: { onError?: (error: Error) => void }) =>
+      options?.onError?.(new Error('approval request is expired'))
+    );
+    mockUseApproveApproval.mockReturnValue({ mutate, isPending: false });
+    mockUseInbox.mockReturnValue(makeInboxState({ approvals: [approval] }));
+    renderInbox();
+    fireEvent.press(screen.getByTestId('inbox-approval-apr-1-approve'));
+    expect(screen.getByTestId('inbox-approval-apr-1-feedback-title').props.children).toBe('Approval expired');
+    expect(screen.queryByTestId('inbox-approval-action-error')).toBeNull();
+  });
+
+  it('renders an already-decided governed conflict state instead of a generic error', () => {
+    const mutate = jest.fn((_vars, options: { onError?: (error: Error) => void }) =>
+      options?.onError?.(new Error('approval request is already decided'))
+    );
+    mockUseApproveApproval.mockReturnValue({ mutate, isPending: false });
+    mockUseInbox.mockReturnValue(makeInboxState({ approvals: [approval] }));
+    renderInbox();
+    fireEvent.press(screen.getByTestId('inbox-approval-apr-1-approve'));
+    expect(screen.getByTestId('inbox-approval-apr-1-feedback-title').props.children).toBe('Approval already decided');
+    expect(screen.queryByTestId('inbox-approval-action-error')).toBeNull();
   });
 
   it('disables inbox approval actions while a decision mutation is pending', () => {

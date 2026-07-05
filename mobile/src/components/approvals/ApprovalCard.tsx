@@ -3,15 +3,35 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Card, Text, Button, Dialog, Portal, TextInput, useTheme } from 'react-native-paper';
-import type { ApprovalRequest } from '../../services/api';
+import { Card, Text, useTheme } from 'react-native-paper';
+import type { MD3Theme } from 'react-native-paper';
+import type { ApprovalRequest, ApprovalStatus } from '../../services/api';
+import { ApprovalPath } from './ApprovalPath';
+import {
+  ApprovalActions,
+  ApprovalDecisionDialogs,
+  ApprovalMetadata,
+  DecisionFeedbackBlock,
+  type PolicyExplanation,
+  PolicyExplanationBlock,
+} from './ApprovalCardBlocks';
+
+export interface ApprovalDecisionFeedback {
+  kind: 'success' | 'conflict';
+  title: string;
+  body: string;
+  visibleStatus?: ApprovalStatus;
+  comment?: string;
+  traceId?: string;
+}
 
 interface ApprovalCardProps {
   approval: ApprovalRequest;
-  onApprove: (id: string) => void;
+  onApprove: (id: string, comment?: string) => void;
   onReject: (id: string, reason: string) => void;
   testIDPrefix?: string;
   disabled?: boolean;
+  decisionFeedback?: ApprovalDecisionFeedback | null;
 }
 
 function formatCountdown(expiresAt: string): string {
@@ -24,31 +44,51 @@ function formatCountdown(expiresAt: string): string {
   return `${minutes}m`;
 }
 
-function RejectDialog({
-  visible, reason, testIDPrefix, onChangeReason, onCancel, onSubmit,
-}: {
-  visible: boolean;
-  reason: string;
-  testIDPrefix: string;
-  onChangeReason: (v: string) => void;
-  onCancel: () => void;
-  onSubmit: () => void;
-}) {
-  return (
-    <Portal>
-      <Dialog visible={visible} onDismiss={onCancel} testID={`${testIDPrefix}-reject-dialog`}>
-        <Dialog.Title>Reason for rejection</Dialog.Title>
-        <Dialog.Content>
-          <TextInput label="Reason (required)" value={reason} onChangeText={onChangeReason}
-            multiline numberOfLines={3} testID={`${testIDPrefix}-reject-reason-input`} />
-        </Dialog.Content>
-        <Dialog.Actions>
-          <Button onPress={onCancel} testID={`${testIDPrefix}-reject-cancel`}>Cancel</Button>
-          <Button onPress={onSubmit} disabled={!reason.trim()} testID={`${testIDPrefix}-reject-submit`}>Reject</Button>
-        </Dialog.Actions>
-      </Dialog>
-    </Portal>
-  );
+function readString(record: Record<string, unknown>, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function readStringList(record: Record<string, unknown>, ...keys: string[]): string[] {
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value)) {
+      const items = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+      if (items.length > 0) {
+        return items.map((item) => item.trim());
+      }
+    }
+  }
+  return [];
+}
+
+function getPolicyExplanation(payload: ApprovalRequest['payload']): PolicyExplanation | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
+
+  const record = payload as Record<string, unknown>;
+  const policyId = readString(record, 'policy_id', 'policyId');
+  const policyType = readString(record, 'policy_type', 'policyType');
+  const decision = readString(record, 'decision', 'policy_decision', 'policyDecision');
+  const reason = readString(record, 'reason', 'policy_reason', 'policyReason', 'policy_explanation', 'policyExplanation');
+  const reasonCodes = readStringList(record, 'reason_codes', 'reasonCodes', 'rule_ids', 'ruleIds');
+
+  const lines: string[] = [];
+  if (policyType) lines.push(`Type: ${policyType}`);
+  if (policyId) lines.push(`Policy: ${policyId}`);
+  if (decision) lines.push(`Decision: ${decision}`);
+  if (reason) lines.push(reason);
+  if (reasonCodes.length > 0) lines.push(`Rules: ${reasonCodes.join(', ')}`);
+
+  return lines.length > 0
+    ? { title: 'Policy explanation', lines }
+    : null;
 }
 
 export function ApprovalCard({
@@ -57,19 +97,32 @@ export function ApprovalCard({
   onReject,
   testIDPrefix = 'approval-card',
   disabled = false,
+  decisionFeedback = null,
 }: ApprovalCardProps) {
   const theme = useTheme();
   const [countdown, setCountdown] = useState(() => formatCountdown(approval.expiresAt));
+  const [approveDialogVisible, setApproveDialogVisible] = useState(false);
+  const [approveComment, setApproveComment] = useState('');
   const [rejectDialogVisible, setRejectDialogVisible] = useState(false);
   const [reason, setReason] = useState('');
   const isExpired = countdown === 'Expired';
+  const policyExplanation = getPolicyExplanation(approval.payload);
+  const visibleStatus = resolveVisibleStatus(approval.status, decisionFeedback?.visibleStatus, isExpired);
+  const isTerminal = visibleStatus !== 'pending';
+  const statusColor = resolveStatusColor(visibleStatus, theme.colors.error, theme.colors.primary);
+  const countdownLabel = resolveCountdownLabel(visibleStatus, isExpired, countdown);
 
   useEffect(() => {
     const interval = setInterval(() => setCountdown(formatCountdown(approval.expiresAt)), 60_000);
     return () => clearInterval(interval);
   }, [approval.expiresAt]);
 
-  const handleApprove = useCallback(() => onApprove(approval.id), [approval.id, onApprove]);
+  const handleApproveSubmit = useCallback(() => {
+    const trimmedComment = approveComment.trim();
+    setApproveDialogVisible(false);
+    onApprove(approval.id, trimmedComment || undefined);
+    setApproveComment('');
+  }, [approval.id, approveComment, onApprove]);
 
   const handleRejectSubmit = useCallback(() => {
     if (!reason.trim()) return;
@@ -80,49 +133,109 @@ export function ApprovalCard({
 
   return (
     <>
-      <Card
-        testID={testIDPrefix}
-        style={[
-          styles.card,
-          { borderLeftWidth: 3, borderLeftColor: isExpired ? theme.colors.error : theme.colors.primary },
-        ]}
-      >
-        <Card.Content>
-          <View style={styles.headerRow}>
-            <Text variant="titleSmall" style={styles.action} testID={`${testIDPrefix}-action`}>
-              {approval.action}
-            </Text>
-            <Text variant="labelSmall"
-              style={[styles.countdown, { color: isExpired ? theme.colors.error : theme.colors.onSurfaceVariant }]}
-              testID={`${testIDPrefix}-countdown`}>
-              {isExpired ? 'Expired' : `Expires in ${countdown}`}
-            </Text>
-          </View>
-          {approval.resourceType && (
-            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}
-              testID={`${testIDPrefix}-resource`}>
-              {`${approval.resourceType}${approval.resourceId ? ` · ${approval.resourceId}` : ''}`}
-            </Text>
-          )}
-          {approval.reason && (
-            <Text variant="bodyMedium" style={styles.reason} testID={`${testIDPrefix}-reason`}>
-              {approval.reason}
-            </Text>
-          )}
-          {!isExpired && (
-            <View style={styles.actions}>
-              <Button mode="contained" onPress={handleApprove} style={styles.approveBtn} disabled={disabled}
-                testID={`${testIDPrefix}-approve`}>Approve</Button>
-              <Button mode="outlined" onPress={() => setRejectDialogVisible(true)} disabled={disabled}
-                testID={`${testIDPrefix}-reject`}>Reject</Button>
-            </View>
-          )}
-        </Card.Content>
-      </Card>
-      <RejectDialog visible={rejectDialogVisible} reason={reason} testIDPrefix={testIDPrefix}
-        onChangeReason={setReason} onCancel={() => { setRejectDialogVisible(false); setReason(''); }}
-        onSubmit={handleRejectSubmit} />
+      <ApprovalCardPanel
+        approval={approval}
+        theme={theme}
+        testIDPrefix={testIDPrefix}
+        disabled={disabled}
+        visibleStatus={visibleStatus}
+        statusColor={statusColor}
+        countdownLabel={countdownLabel}
+        isTerminal={isTerminal}
+        isExpired={isExpired}
+        policyExplanation={policyExplanation}
+        decisionFeedback={decisionFeedback}
+        onApprove={() => setApproveDialogVisible(true)}
+        onReject={() => setRejectDialogVisible(true)}
+      />
+      <ApprovalDecisionDialogs
+        approveVisible={approveDialogVisible}
+        approveComment={approveComment}
+        rejectVisible={rejectDialogVisible}
+        rejectReason={reason}
+        testIDPrefix={testIDPrefix}
+        onApproveCommentChange={setApproveComment}
+        onRejectReasonChange={setReason}
+        onApproveCancel={() => { setApproveDialogVisible(false); setApproveComment(''); }}
+        onRejectCancel={() => { setRejectDialogVisible(false); setReason(''); }}
+        onApproveSubmit={handleApproveSubmit}
+        onRejectSubmit={handleRejectSubmit}
+      />
     </>
+  );
+}
+
+function ApprovalCardPanel({
+  approval,
+  theme,
+  testIDPrefix,
+  disabled,
+  visibleStatus,
+  statusColor,
+  countdownLabel,
+  isTerminal,
+  isExpired,
+  policyExplanation,
+  decisionFeedback,
+  onApprove,
+  onReject,
+}: {
+  approval: ApprovalRequest;
+  theme: MD3Theme;
+  testIDPrefix: string;
+  disabled: boolean;
+  visibleStatus: ApprovalStatus;
+  statusColor: string;
+  countdownLabel: string;
+  isTerminal: boolean;
+  isExpired: boolean;
+  policyExplanation: PolicyExplanation | null;
+  decisionFeedback: ApprovalDecisionFeedback | null;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <Card
+      testID={testIDPrefix}
+      style={[
+        styles.card,
+        {
+          borderLeftWidth: 3,
+          borderLeftColor: statusColor,
+        },
+      ]}
+    >
+      <Card.Content>
+        <View style={styles.headerRow}>
+          <Text variant="titleSmall" style={styles.action} testID={`${testIDPrefix}-action`}>
+            {approval.action}
+          </Text>
+          <Text
+            variant="labelSmall"
+            style={[styles.countdown, { color: statusColor }]}
+            testID={`${testIDPrefix}-countdown`}
+          >
+            {countdownLabel}
+          </Text>
+        </View>
+        <ApprovalMetadata approval={approval} testIDPrefix={testIDPrefix} theme={theme} />
+        <ApprovalPath status={visibleStatus} testIDPrefix={`${testIDPrefix}-path`} />
+        {policyExplanation ? (
+          <PolicyExplanationBlock explanation={policyExplanation} testIDPrefix={testIDPrefix} />
+        ) : null}
+        {decisionFeedback ? (
+          <DecisionFeedbackBlock feedback={decisionFeedback} testIDPrefix={testIDPrefix} />
+        ) : null}
+        {!isTerminal && !isExpired ? (
+          <ApprovalActions
+            disabled={disabled}
+            testIDPrefix={testIDPrefix}
+            onApprove={onApprove}
+            onReject={onReject}
+          />
+        ) : null}
+      </Card.Content>
+    </Card>
   );
 }
 
@@ -131,7 +244,38 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   action: { flex: 1, marginRight: 8 },
   countdown: { fontSize: 12 },
-  reason: { marginTop: 8, marginBottom: 4 },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  approveBtn: { flex: 1 },
 });
+
+function resolveVisibleStatus(
+  approvalStatus: ApprovalStatus,
+  feedbackStatus: ApprovalStatus | undefined,
+  isExpired: boolean,
+): ApprovalStatus {
+  if (feedbackStatus) return feedbackStatus;
+  if (isExpired) return 'expired';
+  return approvalStatus;
+}
+
+function resolveStatusColor(visibleStatus: ApprovalStatus, errorColor: string, primaryColor: string): string {
+  if (visibleStatus === 'rejected' || visibleStatus === 'expired') {
+    return errorColor;
+  }
+
+  if (visibleStatus === 'pending') {
+    return primaryColor;
+  }
+
+  return primaryColor;
+}
+
+function resolveCountdownLabel(visibleStatus: ApprovalStatus, isExpired: boolean, countdown: string): string {
+  if (visibleStatus !== 'pending') {
+    return `${visibleStatus.charAt(0).toUpperCase()}${visibleStatus.slice(1)}`;
+  }
+
+  if (isExpired) {
+    return 'Expired';
+  }
+
+  return `Expires in ${countdown}`;
+}

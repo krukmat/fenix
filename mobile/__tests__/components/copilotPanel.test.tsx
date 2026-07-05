@@ -19,6 +19,7 @@ jest.mock('../../src/services/api', () => ({
 
 describe('CopilotPanel', () => {
   const sendQuery = jest.fn();
+  const onSupportTrigger = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -34,7 +35,13 @@ describe('CopilotPanel', () => {
     });
   });
 
-  const wrap = () => render(<PaperProvider><CopilotPanel /></PaperProvider>);
+  const wrap = (props?: React.ComponentProps<typeof CopilotPanel>) => (
+    render(
+      <PaperProvider>
+        <CopilotPanel {...props} />
+      </PaperProvider>
+    )
+  );
 
   it('renders user + assistant messages', () => {
     const { getByText, getAllByText } = wrap();
@@ -56,6 +63,15 @@ describe('CopilotPanel', () => {
 
     expect(sendQuery).toHaveBeenCalledWith('nuevo prompt', undefined);
     expect(getByTestId('copilot-input').props.value).toBe('');
+  });
+
+  it('keeps onSupportTrigger wired when sending', () => {
+    const { getByTestId } = wrap({ onSupportTrigger });
+
+    fireEvent.changeText(getByTestId('copilot-input'), 'nuevo prompt');
+    fireEvent.press(getByTestId('copilot-send'));
+
+    expect(onSupportTrigger).toHaveBeenCalledWith('nuevo prompt');
   });
 
   it('shows streaming indicator', () => {
@@ -83,5 +99,60 @@ describe('CopilotPanel', () => {
     const { getByTestId, getByText } = wrap();
     expect(getByTestId('copilot-error')).toBeTruthy();
     expect(getByText('boom')).toBeTruthy();
+  });
+
+  it('renders a confidence badge and warnings from the assistant trust metadata', () => {
+    mockUseSSE.mockReturnValueOnce({
+      messages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: 'respuesta',
+          confidence: 'high',
+          warnings: ['1 items stale'],
+        },
+      ],
+      isStreaming: false,
+      error: null,
+      sendQuery,
+      clearMessages: jest.fn(),
+    });
+
+    const { getByTestId, getByText } = wrap();
+    expect(getByTestId('copilot-confidence-badge')).toBeTruthy();
+    expect(getByText('High confidence')).toBeTruthy();
+    expect(getByTestId('copilot-warnings-row')).toBeTruthy();
+    expect(getByText('1 items stale')).toBeTruthy();
+  });
+
+  it('renders abstention as a designed panel instead of an empty assistant response', () => {
+    mockUseSSE.mockReturnValueOnce({
+      messages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: '',
+          answerType: 'abstention',
+          abstentionReason: 'insufficient_evidence',
+          warnings: ['No recent evidence'],
+          evidenceSources: [
+            { id: 'e1', snippet: 'Partial snippet', score: 0.4, timestamp: '2026-07-05T10:00:00Z' },
+          ],
+        },
+      ],
+      isStreaming: false,
+      error: null,
+      sendQuery,
+      clearMessages: jest.fn(),
+    });
+
+    const { getByTestId, getByText, queryByTestId } = wrap();
+    expect(getByTestId('copilot-abstention-panel')).toBeTruthy();
+    expect(getByText(/evidence was not strong enough/i)).toBeTruthy();
+    expect(getByTestId('copilot-abstention-manual-lane')).toBeTruthy();
+    expect(queryByTestId('copilot-confidence-badge')).toBeNull();
+    expect(queryByTestId('copilot-message-a1')).toBeNull();
+    expect(getByTestId('copilot-warnings-row')).toBeTruthy();
+    expect(getByTestId('evidence-card-0')).toBeTruthy();
   });
 });

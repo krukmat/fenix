@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { InboxListItem, type InboxRenderableItem } from './InboxListItem';
 import { styles } from './InboxStyles';
+import type { ApprovalDecisionFeedback } from '../approvals/ApprovalCard';
 
 export { InboxError, InboxLoading } from './InboxStateBlocks';
 export type { InboxRenderableItem } from './InboxListItem';
@@ -68,6 +69,7 @@ export function InboxBody({
   filter,
   onFilterChange,
   actionError,
+  approvalFeedbackById,
   onApprove,
   onReject,
   approvalsPending,
@@ -77,7 +79,8 @@ export function InboxBody({
   filter: InboxFilter;
   onFilterChange: (next: InboxFilter) => void;
   actionError: string | null;
-  onApprove: (id: string) => void;
+  approvalFeedbackById: Record<string, ApprovalDecisionFeedback | undefined>;
+  onApprove: (id: string, comment?: string) => void;
   onReject: (id: string, reason: string) => void;
   approvalsPending: boolean;
 }) {
@@ -95,6 +98,7 @@ export function InboxBody({
           key={`${item.type}-${item.id}`}
           item={item}
           index={index}
+          approvalDecisionFeedback={item.type === 'approval' ? approvalFeedbackById[item.approval.id] : undefined}
           onApprove={onApprove}
           onReject={onReject}
           approvalsPending={approvalsPending}

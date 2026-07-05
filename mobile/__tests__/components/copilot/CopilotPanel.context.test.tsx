@@ -161,3 +161,45 @@ describe('CopilotPanel — context is stateless (derived from prop on each send)
     expect(ctx2.signalId).toBe('sig-1');
   });
 });
+
+describe('CopilotPanel — trust unit compatibility', () => {
+  beforeEach(() => { jest.clearAllMocks(); setupSSE(); });
+
+  it('preserves context forwarding and support trigger when trust metadata is present', () => {
+    mockUseSSE.mockReturnValue({
+      messages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: 'Grounded answer',
+          confidence: 'medium',
+          warnings: ['1 items stale'],
+        },
+      ],
+      isStreaming: false,
+      error: null,
+      sendQuery: mockSendQuery,
+      clearMessages: jest.fn(),
+    });
+
+    const onSupportTrigger = jest.fn();
+    const { getByTestId, getByText } = renderPanel({
+      initialContext: { signalId: 'sig-7', signalType: 'risk', entityType: 'deal', entityId: 'd-7' },
+      onSupportTrigger,
+    });
+
+    expect(getByTestId('copilot-confidence-badge')).toBeTruthy();
+    expect(getByText('Medium confidence')).toBeTruthy();
+
+    fireEvent.changeText(getByTestId('copilot-input'), 'Ground this');
+    fireEvent.press(getByTestId('copilot-send'));
+
+    expect(mockSendQuery).toHaveBeenCalledWith('Ground this', {
+      signalId: 'sig-7',
+      signalType: 'risk',
+      entityType: 'deal',
+      entityId: 'd-7',
+    });
+    expect(onSupportTrigger).toHaveBeenCalledWith('Ground this');
+  });
+});

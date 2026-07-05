@@ -85,11 +85,15 @@ describe('useSSE', () => {
       onMessage?.({
         type: 'evidence',
         sources: [{ id: 'e1', snippet: 'texto', score: 0.95, timestamp: '2026-01-01T00:00:00Z' }],
+        meta: { confidence: 'high', warnings: ['stale_knowledge_item'], sourceCount: 1 },
       });
     });
 
     expect(result.current.messages[1].evidenceSources).toHaveLength(1);
     expect(result.current.messages[1].evidenceSources?.[0].id).toBe('e1');
+    expect(result.current.messages[1].confidence).toBe('high');
+    expect(result.current.messages[1].warnings).toEqual(['stale_knowledge_item']);
+    expect(result.current.messages[1].evidenceMeta?.sourceCount).toBe(1);
   });
 
   it('sets isStreaming false on done event', () => {
@@ -107,11 +111,13 @@ describe('useSSE', () => {
     });
 
     act(() => {
-      onMessage?.({ type: 'done' });
+      onMessage?.({ type: 'done', answerType: 'abstention', abstentionReason: 'irrelevant_evidence' });
     });
 
     expect(result.current.isStreaming).toBe(false);
     expect(result.current.messages[1].isStreaming).toBe(false);
+    expect(result.current.messages[1].answerType).toBe('abstention');
+    expect(result.current.messages[1].abstentionReason).toBe('irrelevant_evidence');
   });
 
   it('calls close on unmount', () => {

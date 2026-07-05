@@ -9,6 +9,12 @@ import { Provider as PaperProvider } from 'react-native-paper';
 import { ApprovalCard } from '../../../src/components/approvals/ApprovalCard';
 import type { ApprovalRequest } from '../../../src/services/api';
 
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  __esModule: true,
+  useRouter: () => ({ push: mockPush }),
+}));
+
 const futureExpiry = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(); // 2h from now
 const pastExpiry = new Date(Date.now() - 60_000).toISOString(); // 1 min ago
 
@@ -40,6 +46,10 @@ function renderCard(props?: Partial<Parameters<typeof ApprovalCard>[0]>) {
 }
 
 describe('ApprovalCard', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('renders action and resource', () => {
     const { getByTestId } = renderCard();
     expect(getByTestId('approval-card-action').props.children).toBe('send_email');
@@ -49,6 +59,40 @@ describe('ApprovalCard', () => {
   it('renders reason when present', () => {
     const { getByTestId } = renderCard();
     expect(getByTestId('approval-card-reason').props.children).toBe('Customer requested follow-up');
+  });
+
+  it('renders the approval path with the current state', () => {
+    const { getByTestId } = renderCard();
+    expect(getByTestId('approval-card-path-pending-label').props.children).toBe('Pending');
+  });
+
+  it('renders a policy explanation block when payload carries policy metadata', () => {
+    const { getByTestId, getAllByTestId } = renderCard({
+      approval: {
+        ...baseApproval,
+        payload: {
+          policy_id: 'pol-9',
+          policy_type: 'approval_gate',
+          decision: 'requires_human_approval',
+          reason_codes: ['quota_high', 'sensitive_action'],
+        },
+      },
+    });
+
+    expect(getByTestId('approval-card-policy')).toBeTruthy();
+    expect(getAllByTestId('approval-card-policy-line').map((node) => node.props.children)).toEqual([
+      'Type: approval_gate',
+      'Policy: pol-9',
+      'Decision: requires_human_approval',
+      'Rules: quota_high, sensitive_action',
+    ]);
+  });
+
+  it('does not render a policy explanation block when payload has no policy details', () => {
+    const { queryByTestId } = renderCard({
+      approval: { ...baseApproval, payload: { unrelated: true } },
+    });
+    expect(queryByTestId('approval-card-policy')).toBeNull();
   });
 
   it('shows countdown when not expired', () => {
@@ -66,10 +110,25 @@ describe('ApprovalCard', () => {
     expect(queryByTestId('approval-card-reject')).toBeNull();
   });
 
-  it('calls onApprove with approval id when approve is pressed', () => {
+  it('opens approve dialog when approve is pressed', () => {
+    const { getByTestId } = renderCard();
+    fireEvent.press(getByTestId('approval-card-approve'));
+    expect(getByTestId('approval-card-approve-dialog')).toBeTruthy();
+  });
+
+  it('calls onApprove with undefined comment when approved without one', () => {
     const { getByTestId, onApprove } = renderCard();
     fireEvent.press(getByTestId('approval-card-approve'));
-    expect(onApprove).toHaveBeenCalledWith('apr-1');
+    fireEvent.press(getByTestId('approval-card-approve-submit'));
+    expect(onApprove).toHaveBeenCalledWith('apr-1', undefined);
+  });
+
+  it('calls onApprove with a trimmed optional comment when submitted', () => {
+    const { getByTestId, onApprove } = renderCard();
+    fireEvent.press(getByTestId('approval-card-approve'));
+    fireEvent.changeText(getByTestId('approval-card-approve-comment-input'), '  Ready to send  ');
+    fireEvent.press(getByTestId('approval-card-approve-submit'));
+    expect(onApprove).toHaveBeenCalledWith('apr-1', 'Ready to send');
   });
 
   it('opens reject dialog when reject is pressed', () => {
@@ -98,5 +157,41 @@ describe('ApprovalCard', () => {
     fireEvent.press(getByTestId('approval-card-reject'));
     fireEvent.press(getByTestId('approval-card-reject-cancel'));
     expect(onReject).not.toHaveBeenCalled();
+  });
+
+  it('renders post-decision feedback, terminal path, and audit link when decision feedback exists', () => {
+    const { getByTestId, queryByTestId } = renderCard({
+      decisionFeedback: {
+        kind: 'success',
+        title: 'Approval recorded',
+        body: 'The server accepted this approval decision and the flow is now complete.',
+        visibleStatus: 'approved',
+        comment: 'Ready to send',
+        traceId: 'trace-42',
+      },
+    });
+
+    expect(getByTestId('approval-card-countdown').props.children).toBe('Approved');
+    expect(getByTestId('approval-card-feedback-title').props.children).toBe('Approval recorded');
+    expect(getByTestId('approval-card-feedback-comment').props.children).toBe('Comment: Ready to send');
+    expect(getByTestId('approval-card-feedback-trace').props.children).toBe('Trace: trace-42');
+    expect(queryByTestId('approval-card-approve')).toBeNull();
+    fireEvent.press(getByTestId('approval-card-audit-link'));
+    expect(mockPush).toHaveBeenCalledWith('/governance/audit');
+  });
+
+  it('renders designed conflict feedback for expired approvals', () => {
+    const { getByTestId, queryByTestId } = renderCard({
+      decisionFeedback: {
+        kind: 'conflict',
+        title: 'Approval expired',
+        body: 'This approval expired before your decision could be recorded. Review the audit trail for the final governed state.',
+        visibleStatus: 'expired',
+      },
+    });
+
+    expect(getByTestId('approval-card-countdown').props.children).toBe('Expired');
+    expect(getByTestId('approval-card-feedback-title').props.children).toBe('Approval expired');
+    expect(queryByTestId('approval-card-approve')).toBeNull();
   });
 });

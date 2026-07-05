@@ -1,0 +1,259 @@
+import React from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text, useTheme } from 'react-native-paper';
+import type { UsageEvent } from '../../services/api.types';
+import { brandColors, semanticColors } from '../../theme/colors';
+import { radius, spacing } from '../../theme/spacing';
+import { typography } from '../../theme/typography';
+import { EvidenceCard } from '../copilot/EvidenceCard';
+import { UsageDetailCard } from '../governance/UsageDetailCard';
+import {
+  extractEvidenceMeta,
+  formatJson,
+  formatLabel,
+  formatMs,
+  formatTimestamp,
+  sumUsage,
+  type NormalizedToolCall,
+  type RunEvidenceItem,
+  type RunInspectorDetail,
+} from './runInspector.model';
+import { EmptyState, MetaChip, Section, sharedStyles, SummaryMetric } from './runInspector.shared';
+
+function EvidenceMetaBlock({
+  run,
+  itemCount,
+}: {
+  run: RunInspectorDetail;
+  itemCount: number;
+}) {
+  const { colors } = useTheme();
+  const evidenceMeta = extractEvidenceMeta(run);
+  const chips = [
+    evidenceMeta?.confidence ? `${formatLabel(evidenceMeta.confidence)} confidence` : null,
+    evidenceMeta?.schemaVersion ? `Schema ${evidenceMeta.schemaVersion}` : null,
+    `${itemCount} source${itemCount === 1 ? '' : 's'}`,
+  ].filter((value): value is string => Boolean(value));
+
+  return (
+    <>
+      <View style={sharedStyles.metaRow}>
+        {chips.map((label, index) => (
+          <MetaChip key={`${label}-${index}`} label={label} tone={index === 0 && evidenceMeta?.confidence ? 'status' : 'neutral'} />
+        ))}
+      </View>
+      <EvidenceMethods methods={evidenceMeta?.retrievalMethodsUsed} labelColor={colors.onSurfaceVariant} />
+      <EvidenceWarnings warnings={evidenceMeta?.warnings} labelColor={colors.onSurfaceVariant} />
+      {evidenceMeta?.builtAt ? (
+        <Text style={[typography.monoSM, { color: colors.onSurfaceVariant }]}>
+          Built at {formatTimestamp(evidenceMeta.builtAt)}
+        </Text>
+      ) : null}
+    </>
+  );
+}
+
+function EvidenceMethods({
+  methods,
+  labelColor,
+}: {
+  methods: string[] | undefined;
+  labelColor: string;
+}) {
+  if (!methods?.length) return null;
+
+  return (
+    <View style={styles.subsection}>
+      <Text style={[styles.subsectionTitle, { color: labelColor }]}>Retrieval methods</Text>
+      <View style={sharedStyles.metaRow}>
+        {methods.map((method) => (
+          <MetaChip key={method} label={formatLabel(method)} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function EvidenceWarnings({
+  warnings,
+  labelColor,
+}: {
+  warnings: string[] | undefined;
+  labelColor: string;
+}) {
+  if (!warnings?.length) return null;
+
+  return (
+    <View style={styles.subsection} testID="activity-detail-evidence-warnings">
+      <Text style={[styles.subsectionTitle, { color: labelColor }]}>Warnings</Text>
+      {warnings.map((warning) => (
+        <Text key={warning} style={{ color: semanticColors.warning }}>{`\u2022 ${warning}`}</Text>
+      ))}
+    </View>
+  );
+}
+
+export function EvidenceSection({
+  run,
+  items,
+}: {
+  run: RunInspectorDetail;
+  items: RunEvidenceItem[];
+}) {
+  const { colors } = useTheme();
+
+  return (
+    <Section title="Evidence Pack" testID="activity-detail-evidence">
+      <View style={[sharedStyles.panel, { backgroundColor: colors.surface }]}>
+        <EvidenceMetaBlock run={run} itemCount={items.length} />
+        {items.length === 0 ? (
+          <EmptyState message="No evidence recorded" />
+        ) : (
+          items.map((item, index) => (
+            <EvidenceCard
+              key={item.id || `activity-evidence-${index}`}
+              source={item}
+              index={index + 1}
+              testIDPrefix={`activity-evidence-${index}`}
+            />
+          ))
+        )}
+      </View>
+    </Section>
+  );
+}
+
+export function ToolActivitySection({ calls }: { calls: NormalizedToolCall[] }) {
+  const { colors } = useTheme();
+
+  return (
+    <Section title="Tool Activity" testID="activity-detail-tool-calls">
+      <View style={[sharedStyles.panel, { backgroundColor: colors.surface }]}>
+        {calls.length === 0 ? (
+          <EmptyState message="No tool calls recorded" />
+        ) : (
+          calls.map((call, index) => (
+            <View key={`${call.toolName}-${index}`} style={[sharedStyles.subpanel, { borderColor: colors.outline }]}>
+              <View style={sharedStyles.headerRow}>
+                <Text style={[styles.toolName, { color: colors.primary }]}>{call.toolName}</Text>
+                {call.status ? <MetaChip label={formatLabel(call.status)} tone="status" /> : null}
+              </View>
+              <View style={sharedStyles.metaRow}>
+                <Text style={[typography.monoSM, { color: colors.onSurfaceVariant }]}>{`Latency: ${formatMs(call.latencyMs)}`}</Text>
+                {call.idempotencyKey ? (
+                  <Text style={[typography.monoSM, { color: colors.onSurfaceVariant }]}>{call.idempotencyKey}</Text>
+                ) : null}
+              </View>
+              {call.input !== undefined ? <CodeBlock label="Input" value={call.input} /> : null}
+              {call.output !== undefined ? <CodeBlock label="Output" value={call.output} /> : null}
+            </View>
+          ))
+        )}
+      </View>
+    </Section>
+  );
+}
+
+function CodeBlock({ label, value }: { label: string; value: unknown }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.codeBlock}>
+      <Text style={[styles.codeLabel, { color: colors.onSurfaceVariant }]}>{label}</Text>
+      <Text style={[typography.monoSM, { color: colors.onSurface }]}>{formatJson(value)}</Text>
+    </View>
+  );
+}
+
+export function ReasoningTraceSection({ trace }: { trace: string[] }) {
+  const { colors } = useTheme();
+  if (trace.length === 0) return null;
+
+  return (
+    <Section title="Reasoning Trace" testID="activity-detail-reasoning">
+      <View style={[sharedStyles.panel, { backgroundColor: colors.surface }]}>
+        {trace.map((step, index) => (
+          <View key={`${index}-${step}`} style={[sharedStyles.subpanel, { borderColor: colors.outline }]}>
+            <Text style={[styles.traceStepIndex, { color: colors.onSurfaceVariant }]}>{`Step ${index + 1}`}</Text>
+            <Text style={{ color: colors.onSurface }}>{step}</Text>
+          </View>
+        ))}
+      </View>
+    </Section>
+  );
+}
+
+export function OutputSection({ output }: { output: unknown }) {
+  const { colors } = useTheme();
+  return (
+    <Section title="Outcome Payload" testID="activity-detail-output">
+      <View style={[sharedStyles.panel, { backgroundColor: colors.surface }]}>
+        <Text style={[typography.monoSM, { color: colors.onSurface }]}>{formatJson(output)}</Text>
+      </View>
+    </Section>
+  );
+}
+
+export function UsageSection({
+  runId,
+  events,
+  onViewFullUsage,
+}: {
+  runId: string;
+  events: UsageEvent[] | undefined;
+  onViewFullUsage: () => void;
+}) {
+  const { colors } = useTheme();
+  const totals = sumUsage(events);
+
+  return (
+    <Section title="Run Usage" testID="activity-detail-usage">
+      <View style={[sharedStyles.panel, { backgroundColor: colors.surface }]}>
+        <View style={sharedStyles.summaryGrid}>
+          <SummaryMetric label="Input units" value={String(totals.inputUnits)} monospace />
+          <SummaryMetric label="Output units" value={String(totals.outputUnits)} monospace />
+          <SummaryMetric label="Estimated cost" value={`€${totals.estimatedCost.toFixed(5)}`} monospace />
+          <SummaryMetric label="Latency sum" value={`${totals.latencyMs} ms`} monospace />
+        </View>
+        <Pressable testID="activity-view-full-usage" onPress={onViewFullUsage} style={sharedStyles.inlineAction}>
+          <Text style={[sharedStyles.inlineActionText, { color: colors.primary }]}>View full usage</Text>
+        </Pressable>
+        {!events?.length ? (
+          <EmptyState message="No usage data recorded" />
+        ) : (
+          events.map((event, index) => (
+            <UsageDetailCard
+              key={`${runId}-${event.id}`}
+              event={event}
+              testIDPrefix={`activity-usage-item-${index}`}
+            />
+          ))
+        )}
+      </View>
+    </Section>
+  );
+}
+
+const styles = StyleSheet.create({
+  subsection: {
+    gap: spacing.xs,
+  },
+  subsectionTitle: {
+    ...typography.labelMD,
+  },
+  toolName: {
+    ...typography.headingMD,
+    flex: 1,
+  },
+  codeBlock: {
+    borderRadius: radius.md,
+    backgroundColor: brandColors.surfaceVariant,
+    padding: spacing.sm,
+    gap: spacing.xs,
+  },
+  codeLabel: {
+    ...typography.labelMD,
+  },
+  traceStepIndex: {
+    ...typography.eyebrow,
+  },
+});
