@@ -5,7 +5,7 @@ import type {
   RunEvidenceMeta,
   RunInspectorDetail,
 } from './runInspector.types';
-import { asRecord, readNumber, readString, readStringArray } from './runInspector.readers';
+import { asRecord, readNumber, readString, readStringArray } from '../../utils/recordReaders';
 
 export function normalizeEvidenceItems(run: RunInspectorDetail): RunEvidenceItem[] {
   return (run.evidence_retrieved ?? []).map((source, index) => {

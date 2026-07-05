@@ -1,34 +1,5 @@
 import type { CopilotAbstentionReason, CopilotAnswerType, CopilotEvidenceMeta, EvidenceSource } from './sse.types';
-
-function readString(record: Record<string, unknown>, ...keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === 'string' && value.trim() !== '') {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-function readNumber(record: Record<string, unknown>, ...keys: string[]): number | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-function readBoolean(record: Record<string, unknown>, ...keys: string[]): boolean | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === 'boolean') {
-      return value;
-    }
-  }
-  return undefined;
-}
+import { readBoolean, readNumber, readString } from '../utils/recordReaders';
 
 export function normalizeEvidenceSource(source: unknown): EvidenceSource {
   const record = source && typeof source === 'object' ? (source as Record<string, unknown>) : {};

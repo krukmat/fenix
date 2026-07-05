@@ -1,27 +1,33 @@
 import type { ApprovalRequest } from '../../services/api';
 import type { PolicyExplanation } from './ApprovalCardBlocks';
+import { readString, readStringArray } from '../../utils/recordReaders';
 
-function readString(record: Record<string, unknown>, ...keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-  }
-  return undefined;
+interface PolicyFields {
+  policyId?: string;
+  policyType?: string;
+  decision?: string;
+  reason?: string;
+  reasonCodes: string[];
 }
 
-function readStringList(record: Record<string, unknown>, ...keys: string[]): string[] {
-  for (const key of keys) {
-    const value = record[key];
-    if (Array.isArray(value)) {
-      const items = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
-      if (items.length > 0) {
-        return items.map((item) => item.trim());
-      }
-    }
-  }
-  return [];
+function readPolicyFields(record: Record<string, unknown>): PolicyFields {
+  return {
+    policyId: readString(record, 'policy_id', 'policyId'),
+    policyType: readString(record, 'policy_type', 'policyType'),
+    decision: readString(record, 'decision', 'policy_decision', 'policyDecision'),
+    reason: readString(record, 'reason', 'policy_reason', 'policyReason', 'policy_explanation', 'policyExplanation'),
+    reasonCodes: readStringArray(record, 'reason_codes', 'reasonCodes', 'rule_ids', 'ruleIds') ?? [],
+  };
+}
+
+function buildPolicyLines(fields: PolicyFields): string[] {
+  const lines: string[] = [];
+  if (fields.policyType) lines.push(`Type: ${fields.policyType}`);
+  if (fields.policyId) lines.push(`Policy: ${fields.policyId}`);
+  if (fields.decision) lines.push(`Decision: ${fields.decision}`);
+  if (fields.reason) lines.push(fields.reason);
+  if (fields.reasonCodes.length > 0) lines.push(`Rules: ${fields.reasonCodes.join(', ')}`);
+  return lines;
 }
 
 export function getPolicyExplanation(payload: ApprovalRequest['payload']): PolicyExplanation | null {
@@ -29,19 +35,7 @@ export function getPolicyExplanation(payload: ApprovalRequest['payload']): Polic
     return null;
   }
 
-  const record = payload as Record<string, unknown>;
-  const policyId = readString(record, 'policy_id', 'policyId');
-  const policyType = readString(record, 'policy_type', 'policyType');
-  const decision = readString(record, 'decision', 'policy_decision', 'policyDecision');
-  const reason = readString(record, 'reason', 'policy_reason', 'policyReason', 'policy_explanation', 'policyExplanation');
-  const reasonCodes = readStringList(record, 'reason_codes', 'reasonCodes', 'rule_ids', 'ruleIds');
-
-  const lines: string[] = [];
-  if (policyType) lines.push(`Type: ${policyType}`);
-  if (policyId) lines.push(`Policy: ${policyId}`);
-  if (decision) lines.push(`Decision: ${decision}`);
-  if (reason) lines.push(reason);
-  if (reasonCodes.length > 0) lines.push(`Rules: ${reasonCodes.join(', ')}`);
+  const lines = buildPolicyLines(readPolicyFields(payload as Record<string, unknown>));
 
   return lines.length > 0
     ? { title: 'Policy explanation', lines }

@@ -1,10 +1,12 @@
-export function asRecord(value: unknown): Record<string, unknown> | null {
+export type UnknownRecord = Record<string, unknown>;
+
+export function asRecord(value: unknown): UnknownRecord | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
+    ? (value as UnknownRecord)
     : null;
 }
 
-export function readString(record: Record<string, unknown> | null, ...keys: string[]): string | undefined {
+export function readString(record: UnknownRecord | null, ...keys: string[]): string | undefined {
   for (const key of keys) {
     const value = record?.[key];
     if (typeof value === 'string' && value.trim() !== '') {
@@ -14,7 +16,7 @@ export function readString(record: Record<string, unknown> | null, ...keys: stri
   return undefined;
 }
 
-export function readNumber(record: Record<string, unknown> | null, ...keys: string[]): number | undefined {
+export function readNumber(record: UnknownRecord | null, ...keys: string[]): number | undefined {
   for (const key of keys) {
     const value = record?.[key];
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -24,7 +26,17 @@ export function readNumber(record: Record<string, unknown> | null, ...keys: stri
   return undefined;
 }
 
-export function readStringArray(record: Record<string, unknown> | null, ...keys: string[]): string[] | undefined {
+export function readBoolean(record: UnknownRecord | null, ...keys: string[]): boolean | undefined {
+  for (const key of keys) {
+    const value = record?.[key];
+    if (typeof value === 'boolean') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+export function readStringArray(record: UnknownRecord | null, ...keys: string[]): string[] | undefined {
   for (const key of keys) {
     const value = record?.[key];
     if (!Array.isArray(value)) continue;
