@@ -495,6 +495,7 @@ WHERE workspace_id = ?1
       ?7 = '' OR
       substr(created_at, 1, 19) <= substr(?7, 1, 19)
   )
+  AND (?10 = '' OR trace_id = ?10)
 ORDER BY created_at DESC
 LIMIT ?9 OFFSET ?8
 `
@@ -509,6 +510,7 @@ type QueryAuditEventsParams struct {
 	DateTo      interface{} `db:"date_to" json:"dateTo"`
 	Off         int64       `db:"off" json:"off"`
 	Lim         int64       `db:"lim" json:"lim"`
+	TraceID     interface{} `db:"trace_id" json:"traceId"`
 }
 
 // Lists audit events filtered by optional compound criteria
@@ -523,6 +525,7 @@ func (q *Queries) QueryAuditEvents(ctx context.Context, arg QueryAuditEventsPara
 		arg.DateTo,
 		arg.Off,
 		arg.Lim,
+		arg.TraceID,
 	)
 	if err != nil {
 		return nil, err

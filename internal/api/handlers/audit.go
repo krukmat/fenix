@@ -24,6 +24,7 @@ const (
 	errFailedToGetAudit     = "failed to get audit event: %v"
 	errFormatMustBeCSV      = "format must be csv"
 	queryParamAction        = "action"
+	queryParamTraceID       = "trace_id"
 	queryParamFormat        = "format"
 	formatCSV               = "csv"
 )
@@ -49,6 +50,7 @@ func (h *AuditHandler) Query(w http.ResponseWriter, r *http.Request) {
 		Outcome:     r.URL.Query().Get("outcome"),
 		DateFrom:    r.URL.Query().Get("date_from"),
 		DateTo:      r.URL.Query().Get("date_to"),
+		TraceID:     r.URL.Query().Get(queryParamTraceID),
 		Limit:       page.Limit,
 		Offset:      page.Offset,
 	})

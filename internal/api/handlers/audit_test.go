@@ -81,6 +81,43 @@ func TestAuditHandler_Query_200_WithDateRange(t *testing.T) {
 	}
 }
 
+func TestAuditHandler_Query_200_WithTraceIDFilter(t *testing.T) {
+	t.Parallel()
+	db := mustOpenDBWithMigrations(t)
+	wsID, _ := setupWorkspaceAndOwner(t, db)
+	h := NewAuditHandler(domainaudit.NewAuditService(db))
+	traceID := uuid.NewV7().String()
+
+	matching := &domainaudit.AuditEvent{
+		ID: uuid.NewV7().String(), WorkspaceID: wsID, ActorID: uuid.NewV7().String(),
+		ActorType: domainaudit.ActorTypeUser, Action: "tool.executed", Outcome: domainaudit.OutcomeSuccess,
+		TraceID: &traceID, CreatedAt: time.Now(),
+	}
+	if err := h.auditService.Log(context.Background(), matching); err != nil {
+		t.Fatalf("seed trace event: %v", err)
+	}
+	seedAuditEvent(t, h.auditService, wsID, "tool.executed", domainaudit.OutcomeSuccess, time.Now())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/audit/events?trace_id="+traceID, nil)
+	req = req.WithContext(contextWithWorkspaceID(req.Context(), wsID))
+	rr := httptest.NewRecorder()
+
+	h.Query(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		Data []domainaudit.AuditEvent `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp.Data) != 1 || resp.Data[0].TraceID == nil || *resp.Data[0].TraceID != traceID {
+		t.Fatalf("expected single trace-filtered event, got %+v", resp.Data)
+	}
+}
+
 func TestAuditHandler_GetByID_200(t *testing.T) {
 	t.Parallel()
 	db := mustOpenDBWithMigrations(t)

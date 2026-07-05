@@ -253,6 +253,7 @@ func (s *AuditService) Query(ctx context.Context, in QueryInput) ([]*AuditEvent,
 				DateTo:      normalizeDateArg(in.DateTo),
 				Off:         int64(in.Offset),
 				Lim:         int64(resolveQueryLimit(in.Limit)),
+				TraceID:     in.TraceID,
 			})
 		},
 	)

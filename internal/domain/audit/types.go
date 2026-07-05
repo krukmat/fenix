@@ -75,6 +75,7 @@ type QueryInput struct {
 	Outcome     string
 	DateFrom    string
 	DateTo      string
+	TraceID     string
 	Limit       int
 	Offset      int
 }

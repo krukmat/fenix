@@ -932,6 +932,68 @@ func TestQuery_FilterByActorID_ReturnsOnlyMatching(t *testing.T) {
 	}
 }
 
+func TestQuery_FilterByTraceID_ReturnsOnlyMatching(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	svc := NewAuditService(db)
+	ctx := context.Background()
+	wsID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+	traceID := uuid.NewV7().String()
+
+	if err := svc.Log(ctx, &AuditEvent{
+		ID: uuid.NewV7().String(), WorkspaceID: wsID, ActorID: uuid.NewV7().String(),
+		ActorType: ActorTypeUser, Action: "x", Outcome: OutcomeSuccess,
+		TraceID: strPtr(traceID), CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("log event failed: %v", err)
+	}
+	mustLogEvent(t, svc, wsID, uuid.NewV7().String(), "x", OutcomeSuccess, time.Now())
+
+	items, err := svc.Query(ctx, QueryInput{WorkspaceID: wsID, TraceID: traceID, Limit: 20})
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if len(items) != 1 || items[0].TraceID == nil || *items[0].TraceID != traceID {
+		t.Fatalf("unexpected trace_id filter result: %+v", items)
+	}
+}
+
+func TestQuery_FilterByTraceIDAndOutcome_CombinesCorrectly(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	svc := NewAuditService(db)
+	ctx := context.Background()
+	wsID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, wsID)
+	traceID := uuid.NewV7().String()
+
+	if err := svc.Log(ctx, &AuditEvent{
+		ID: uuid.NewV7().String(), WorkspaceID: wsID, ActorID: uuid.NewV7().String(),
+		ActorType: ActorTypeUser, Action: "x", Outcome: OutcomeSuccess,
+		TraceID: strPtr(traceID), CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("log event failed: %v", err)
+	}
+	if err := svc.Log(ctx, &AuditEvent{
+		ID: uuid.NewV7().String(), WorkspaceID: wsID, ActorID: uuid.NewV7().String(),
+		ActorType: ActorTypeUser, Action: "x", Outcome: OutcomeDenied,
+		TraceID: strPtr(traceID), CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("log event failed: %v", err)
+	}
+
+	items, err := svc.Query(ctx, QueryInput{
+		WorkspaceID: wsID, TraceID: traceID, Outcome: string(OutcomeSuccess), Limit: 20,
+	})
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	if len(items) != 1 || items[0].Outcome != OutcomeSuccess {
+		t.Fatalf("unexpected combined trace_id+outcome result: %+v", items)
+	}
+}
+
 func TestQuery_MultipleFilters_CombinesCorrectly(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()

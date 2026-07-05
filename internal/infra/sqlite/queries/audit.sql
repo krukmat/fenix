@@ -79,6 +79,7 @@ WHERE workspace_id = sqlc.arg(workspace_id)
       sqlc.arg(date_to) = '' OR
       substr(created_at, 1, 19) <= substr(sqlc.arg(date_to), 1, 19)
   )
+  AND (sqlc.arg(trace_id) = '' OR trace_id = sqlc.arg(trace_id))
 ORDER BY created_at DESC
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
