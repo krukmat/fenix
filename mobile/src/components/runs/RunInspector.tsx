@@ -3,7 +3,8 @@ import { ScrollView, StyleSheet } from 'react-native';
 import { useTheme } from 'react-native-paper';
 import type { ThemeColors } from '../../theme/types';
 import { ApprovalLinkageSection, HandoffSection, HighlightsSection, RejectionSection } from './RunInspectorOverview';
-import { EvidenceSection, OutputSection, ReasoningTraceSection, ToolActivitySection, UsageSection } from './RunInspectorDetails';
+import { EvidenceSection, ToolActivitySection } from './RunInspectorEvidence';
+import { OutputSection, ReasoningTraceSection, UsageSection } from './RunInspectorOutcome';
 import {
   normalizeEvidenceItems,
   normalizeReasoningTrace,

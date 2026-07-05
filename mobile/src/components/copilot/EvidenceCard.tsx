@@ -3,8 +3,9 @@ import { TouchableOpacity, View, StyleSheet } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 import type { EvidenceSource } from '../../services/sse';
 import { brandColors } from '../../theme/colors';
-import { radius, spacing } from '../../theme/spacing';
+import { chipShape, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
+import { formatLabel } from '../runs/runInspector.model';
 
 interface EvidenceCardProps {
   source: EvidenceSource;
@@ -15,14 +16,6 @@ interface EvidenceCardProps {
 function truncate(value: string, len = 80): string {
   if (value.length <= len) return value;
   return `${value.slice(0, len)}…`;
-}
-
-function formatRetrievalMethod(value: string): string {
-  return value
-    .split(/[_-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
 }
 
 export function EvidenceCard({ source, index, testIDPrefix = 'evidence' }: EvidenceCardProps) {
@@ -41,7 +34,7 @@ export function EvidenceCard({ source, index, testIDPrefix = 'evidence' }: Evide
   }, [source.timestamp]);
 
   const retrievalMethodLabel = useMemo(
-    () => (source.retrieval_method ? formatRetrievalMethod(source.retrieval_method) : null),
+    () => (source.retrieval_method ? formatLabel(source.retrieval_method) : null),
     [source.retrieval_method],
   );
   const hasTrustFields = Boolean(retrievalMethodLabel || source.pii_redacted || source.knowledge_item_id);
@@ -94,9 +87,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
   scoreBadge: {
     minWidth: 56,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    ...chipShape,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: brandColors.primaryContainer,
@@ -113,9 +104,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   methodChip: {
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    ...chipShape,
     backgroundColor: brandColors.surfaceVariant,
   },
   methodChipText: {
@@ -123,9 +112,7 @@ const styles = StyleSheet.create({
     ...typography.labelMD,
   },
   flag: {
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    ...chipShape,
     borderWidth: 1,
     borderColor: brandColors.primary,
   },

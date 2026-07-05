@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Button, Dialog, Portal, Text, TextInput } from 'react-native-paper';
+import { Button, Text } from 'react-native-paper';
 import type { MD3Theme } from 'react-native-paper';
 import type { ApprovalRequest } from '../../services/api';
 import { brandColors, semanticColors } from '../../theme/colors';
@@ -15,79 +15,14 @@ export interface PolicyExplanation {
   lines: string[];
 }
 
-export function RejectDialog({
-  visible, reason, testIDPrefix, onChangeReason, onCancel, onSubmit,
-}: {
-  visible: boolean;
-  reason: string;
+interface WithTestIDPrefix {
   testIDPrefix: string;
-  onChangeReason: (v: string) => void;
-  onCancel: () => void;
-  onSubmit: () => void;
-}) {
-  return (
-    <Portal>
-      <Dialog visible={visible} onDismiss={onCancel} testID={`${testIDPrefix}-reject-dialog`}>
-        <Dialog.Title>Reason for rejection</Dialog.Title>
-        <Dialog.Content>
-          <TextInput
-            label="Reason (required)"
-            value={reason}
-            onChangeText={onChangeReason}
-            multiline
-            numberOfLines={3}
-            testID={`${testIDPrefix}-reject-reason-input`}
-          />
-        </Dialog.Content>
-        <Dialog.Actions>
-          <Button onPress={onCancel} testID={`${testIDPrefix}-reject-cancel`}>Cancel</Button>
-          <Button onPress={onSubmit} disabled={!reason.trim()} testID={`${testIDPrefix}-reject-submit`}>Reject</Button>
-        </Dialog.Actions>
-      </Dialog>
-    </Portal>
-  );
-}
-
-export function ApproveDialog({
-  visible, comment, testIDPrefix, onChangeComment, onCancel, onSubmit,
-}: {
-  visible: boolean;
-  comment: string;
-  testIDPrefix: string;
-  onChangeComment: (v: string) => void;
-  onCancel: () => void;
-  onSubmit: () => void;
-}) {
-  return (
-    <Portal>
-      <Dialog visible={visible} onDismiss={onCancel} testID={`${testIDPrefix}-approve-dialog`}>
-        <Dialog.Title>Add approval comment</Dialog.Title>
-        <Dialog.Content>
-          <TextInput
-            label="Comment (optional)"
-            value={comment}
-            onChangeText={onChangeComment}
-            multiline
-            numberOfLines={3}
-            testID={`${testIDPrefix}-approve-comment-input`}
-          />
-        </Dialog.Content>
-        <Dialog.Actions>
-          <Button onPress={onCancel} testID={`${testIDPrefix}-approve-cancel`}>Cancel</Button>
-          <Button onPress={onSubmit} testID={`${testIDPrefix}-approve-submit`}>Approve</Button>
-        </Dialog.Actions>
-      </Dialog>
-    </Portal>
-  );
 }
 
 export function PolicyExplanationBlock({
   explanation,
   testIDPrefix,
-}: {
-  explanation: PolicyExplanation;
-  testIDPrefix: string;
-}) {
+}: WithTestIDPrefix & { explanation: PolicyExplanation }) {
   return (
     <View style={styles.policyBlock} testID={`${testIDPrefix}-policy`}>
       <Text style={styles.policyEyebrow}>{explanation.title}</Text>
@@ -108,10 +43,7 @@ export function PolicyExplanationBlock({
 export function DecisionFeedbackBlock({
   feedback,
   testIDPrefix,
-}: {
-  feedback: ApprovalDecisionFeedback;
-  testIDPrefix: string;
-}) {
+}: WithTestIDPrefix & { feedback: ApprovalDecisionFeedback }) {
   const router = useRouter();
 
   return (
@@ -157,12 +89,7 @@ export function ApprovalActions({
   testIDPrefix,
   onApprove,
   onReject,
-}: {
-  disabled: boolean;
-  testIDPrefix: string;
-  onApprove: () => void;
-  onReject: () => void;
-}) {
+}: WithTestIDPrefix & { disabled: boolean; onApprove: () => void; onReject: () => void }) {
   return (
     <View style={styles.actions}>
       <Button
@@ -185,11 +112,7 @@ export function ApprovalMetadata({
   approval,
   testIDPrefix,
   theme,
-}: {
-  approval: ApprovalRequest;
-  testIDPrefix: string;
-  theme: MD3Theme;
-}) {
+}: WithTestIDPrefix & { approval: ApprovalRequest; theme: MD3Theme }) {
   return (
     <>
       {approval.resourceType ? (
@@ -206,53 +129,6 @@ export function ApprovalMetadata({
           {approval.reason}
         </Text>
       ) : null}
-    </>
-  );
-}
-
-export function ApprovalDecisionDialogs({
-  approveVisible,
-  approveComment,
-  rejectVisible,
-  rejectReason,
-  testIDPrefix,
-  onApproveCommentChange,
-  onRejectReasonChange,
-  onApproveCancel,
-  onRejectCancel,
-  onApproveSubmit,
-  onRejectSubmit,
-}: {
-  approveVisible: boolean;
-  approveComment: string;
-  rejectVisible: boolean;
-  rejectReason: string;
-  testIDPrefix: string;
-  onApproveCommentChange: (value: string) => void;
-  onRejectReasonChange: (value: string) => void;
-  onApproveCancel: () => void;
-  onRejectCancel: () => void;
-  onApproveSubmit: () => void;
-  onRejectSubmit: () => void;
-}) {
-  return (
-    <>
-      <ApproveDialog
-        visible={approveVisible}
-        comment={approveComment}
-        testIDPrefix={testIDPrefix}
-        onChangeComment={onApproveCommentChange}
-        onCancel={onApproveCancel}
-        onSubmit={onApproveSubmit}
-      />
-      <RejectDialog
-        visible={rejectVisible}
-        reason={rejectReason}
-        testIDPrefix={testIDPrefix}
-        onChangeReason={onRejectReasonChange}
-        onCancel={onRejectCancel}
-        onSubmit={onRejectSubmit}
-      />
     </>
   );
 }

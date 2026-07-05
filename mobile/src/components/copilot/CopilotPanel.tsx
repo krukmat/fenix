@@ -5,7 +5,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { IconButton, Text, TextInput, Banner } from 'react-native-paper';
 import { useSSE, type CopilotMessage, type SendContext } from '../../hooks/useSSE';
 import { brandColors, semanticColors } from '../../theme/colors';
-import { radius, spacing, elevation } from '../../theme/spacing';
+import { chipShape, radius, spacing, elevation } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { toolApi } from '../../services/api';
 import { ActionButton, type SuggestedAction } from './ActionButton';
@@ -286,9 +286,7 @@ const styles = StyleSheet.create({
   footer: { marginTop: spacing.sm, gap: spacing.sm },
   confidenceBadge: {
     alignSelf: 'flex-start',
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    ...chipShape,
   },
   confidenceText: {
     color: brandColors.onSurface,

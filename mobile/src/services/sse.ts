@@ -2,41 +2,18 @@
 // Uses XHR instead of fetch+ReadableStream because React Native / Hermes does not expose
 // response.body as a ReadableStream — XHR onprogress delivers incremental chunks natively.
 
-export interface EvidenceSource {
-  id: string;
-  snippet: string;
-  score: number;
-  timestamp: string;
-  title?: string;
-  knowledge_item_id?: string;
-  retrieval_method?: string;
-  pii_redacted?: boolean;
-}
+import type { SSEClient, SSEMessage } from './sse.types';
+import { normalizeDoneMeta, normalizeEvidenceMeta, normalizeEvidenceSource } from './sse.normalize';
 
-export type CopilotConfidence = 'high' | 'medium' | 'low';
-export type CopilotAnswerType = 'grounded_answer' | 'abstention';
-export type CopilotAbstentionReason = 'insufficient_evidence' | 'irrelevant_evidence';
-
-export interface CopilotEvidenceMeta {
-  schemaVersion?: string;
-  sourceCount?: number;
-  dedupCount?: number;
-  filteredCount?: number;
-  confidence?: CopilotConfidence;
-  warnings?: string[];
-  retrievalMethodsUsed?: string[];
-  builtAt?: string;
-}
-
-export type SSEMessage =
-  | { type: 'token'; delta: string }
-  | { type: 'evidence'; sources: EvidenceSource[]; meta?: CopilotEvidenceMeta }
-  | { type: 'done'; answerType?: CopilotAnswerType; abstentionReason?: CopilotAbstentionReason }
-  | { type: 'error'; message: string };
-
-export interface SSEClient {
-  close: () => void;
-}
+export type {
+  CopilotAbstentionReason,
+  CopilotAnswerType,
+  CopilotConfidence,
+  CopilotEvidenceMeta,
+  EvidenceSource,
+  SSEClient,
+  SSEMessage,
+} from './sse.types';
 
 type RawStreamEvent = {
   type?: string;
@@ -65,45 +42,40 @@ function parseFrame(frame: string): unknown | null {
   }
 }
 
+function buildTokenMessage(msg: RawStreamEvent): SSEMessage | null {
+  return typeof msg.delta === 'string' ? { type: 'token', delta: msg.delta } : null;
+}
+
+function buildEvidenceMessage(msg: RawStreamEvent): SSEMessage | null {
+  if (!Array.isArray(msg.sources)) return null;
+  return {
+    type: 'evidence',
+    sources: msg.sources.map(normalizeEvidenceSource),
+    meta: normalizeEvidenceMeta(msg.meta),
+  };
+}
+
+function buildDoneMessage(msg: RawStreamEvent): SSEMessage {
+  const meta = normalizeDoneMeta(msg.meta);
+  return { type: 'done', answerType: meta.answerType, abstentionReason: meta.abstentionReason };
+}
+
+function buildErrorMessage(msg: RawStreamEvent): SSEMessage {
+  return { type: 'error', message: msg.error ?? msg.message ?? 'SSE error' };
+}
+
+const MESSAGE_BUILDERS: Record<string, (msg: RawStreamEvent) => SSEMessage | null> = {
+  token: buildTokenMessage,
+  evidence: buildEvidenceMessage,
+  done: buildDoneMessage,
+  error: buildErrorMessage,
+};
+
 function toClientMessage(evt: unknown): SSEMessage | null {
   if (!evt || typeof evt !== 'object') return null;
   const msg = evt as RawStreamEvent;
-
-  if (isTokenEvent(msg)) {
-    return { type: 'token', delta: msg.delta };
-  }
-  if (isEvidenceEvent(msg)) {
-    return {
-      type: 'evidence',
-      sources: msg.sources.map(normalizeEvidenceSource),
-      meta: normalizeEvidenceMeta(msg.meta),
-    };
-  }
-  if (isDoneEvent(msg)) {
-    const meta = normalizeDoneMeta(msg.meta);
-    return { type: 'done', answerType: meta.answerType, abstentionReason: meta.abstentionReason };
-  }
-  if (isErrorEvent(msg)) {
-    return { type: 'error', message: msg.error ?? msg.message ?? 'SSE error' };
-  }
-
-  return null;
-}
-
-function isTokenEvent(msg: RawStreamEvent): msg is RawStreamEvent & { type: 'token'; delta: string } {
-  return msg.type === 'token' && typeof msg.delta === 'string';
-}
-
-function isEvidenceEvent(msg: RawStreamEvent): msg is RawStreamEvent & { type: 'evidence'; sources: unknown[] } {
-  return msg.type === 'evidence' && Array.isArray(msg.sources);
-}
-
-function isDoneEvent(msg: RawStreamEvent): msg is RawStreamEvent & { type: 'done' } {
-  return msg.type === 'done';
-}
-
-function isErrorEvent(msg: RawStreamEvent): msg is RawStreamEvent & { type: 'error' } {
-  return msg.type === 'error';
+  const builder = msg.type ? MESSAGE_BUILDERS[msg.type] : undefined;
+  return builder ? builder(msg) : null;
 }
 
 function mapFrames(frames: string[], onMessage: (msg: SSEMessage) => void): void {
@@ -112,93 +84,6 @@ function mapFrames(frames: string[], onMessage: (msg: SSEMessage) => void): void
     const mapped = toClientMessage(parsed);
     if (mapped) onMessage(mapped);
   }
-}
-
-function readString(record: Record<string, unknown>, ...keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === 'string' && value.trim() !== '') {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-function readNumber(record: Record<string, unknown>, ...keys: string[]): number | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-function readBoolean(record: Record<string, unknown>, ...keys: string[]): boolean | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === 'boolean') {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-function normalizeEvidenceSource(source: unknown): EvidenceSource {
-  const record = source && typeof source === 'object' ? (source as Record<string, unknown>) : {};
-  return {
-    id: readString(record, 'id', 'ID') ?? '',
-    snippet: readString(record, 'snippet', 'Snippet') ?? '',
-    score: readNumber(record, 'score', 'Score') ?? 0,
-    timestamp: readString(record, 'timestamp', 'created_at', 'createdAt', 'CreatedAt') ?? '',
-    title: readString(record, 'title', 'Title'),
-    knowledge_item_id: readString(record, 'knowledge_item_id', 'knowledgeItemID', 'knowledgeItemId', 'KnowledgeItemID'),
-    retrieval_method: readString(record, 'retrieval_method', 'method', 'Method'),
-    pii_redacted: readBoolean(record, 'pii_redacted', 'piiRedacted', 'PiiRedacted'),
-  };
-}
-
-function normalizeConfidence(value: unknown): CopilotConfidence | undefined {
-  return value === 'high' || value === 'medium' || value === 'low' ? value : undefined;
-}
-
-function normalizeStringArray(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const items = value.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
-  return items.length > 0 ? items : undefined;
-}
-
-function normalizeEvidenceMeta(meta: unknown): CopilotEvidenceMeta | undefined {
-  if (!meta || typeof meta !== 'object') return undefined;
-  const record = meta as Record<string, unknown>;
-
-  const normalized: CopilotEvidenceMeta = {
-    schemaVersion: readString(record, 'schema_version', 'schemaVersion'),
-    sourceCount: readNumber(record, 'source_count', 'sourceCount'),
-    dedupCount: readNumber(record, 'dedup_count', 'dedupCount'),
-    filteredCount: readNumber(record, 'filtered_count', 'filteredCount'),
-    confidence: normalizeConfidence(record.confidence),
-    warnings: normalizeStringArray(record.warnings),
-    retrievalMethodsUsed: normalizeStringArray(record.retrieval_methods_used ?? record.retrievalMethodsUsed),
-    builtAt: readString(record, 'built_at', 'builtAt'),
-  };
-
-  return Object.values(normalized).some((value) => value !== undefined) ? normalized : undefined;
-}
-
-function normalizeDoneMeta(meta: unknown): { answerType?: CopilotAnswerType; abstentionReason?: CopilotAbstentionReason } {
-  if (!meta || typeof meta !== 'object') return {};
-  const record = meta as Record<string, unknown>;
-  const rawAnswerType = record.answer_type ?? record.answerType;
-  const rawAbstentionReason = record.abstention_reason ?? record.abstentionReason;
-  const answerType = rawAnswerType === 'grounded_answer' || rawAnswerType === 'abstention'
-    ? rawAnswerType
-    : undefined;
-  const abstentionReason = rawAbstentionReason === 'insufficient_evidence' || rawAbstentionReason === 'irrelevant_evidence'
-    ? rawAbstentionReason
-    : undefined;
-
-  return { answerType, abstentionReason };
 }
 
 // Task 4.4 UAT fix: XHR-based SSE transport.

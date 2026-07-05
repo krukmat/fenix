@@ -6,10 +6,7 @@ import { AuditEventCard } from '../../../src/components/governance/AuditEventCar
 import type { AuditEvent } from '../../../src/services/api.types';
 
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({
-  __esModule: true,
-  useRouter: () => ({ push: mockPush }),
-}));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 
 const baseEvent: AuditEvent = {
   id: 'audit-1',

@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { brandColors } from '../../theme/colors';
-import { radius, spacing } from '../../theme/spacing';
+import { chipShape, radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 
 export function Section({
@@ -111,9 +111,7 @@ export const sharedStyles = StyleSheet.create({
     alignItems: 'center',
   },
   metaChip: {
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    ...chipShape,
   },
   metaChipText: {
     ...typography.labelMD,
