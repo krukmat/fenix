@@ -53,7 +53,26 @@ type copilotSalesBriefResponse struct {
 		Confidence       string                    `json:"confidence"`
 		AbstentionReason *string                   `json:"abstentionReason,omitempty"`
 		EvidencePack     evidenceData              `json:"evidencePack"`
+		// UIX-22A: evidenceIds is brief-scoped (grounds summary, risks, and
+		// nextBestActions together), not attributed per individual item —
+		// the brief generation step does not produce a finer-grained mapping.
+		EvidenceIDs []string `json:"evidenceIds,omitempty"`
+		// UIX-22A: runId is a correlation-only identifier (audit log +
+		// response), NOT a usage_event foreign key — usage_event.run_id
+		// references agent_run(id) and this synchronous call has no backing
+		// AgentRun row. Usage is therefore returned inline below rather than
+		// via a GET /api/v1/usage?run_id= lookup, which could never find it.
+		RunID string                  `json:"runId,omitempty"`
+		Usage *copilotSalesBriefUsage `json:"usage,omitempty"`
 	} `json:"data"`
+}
+
+type copilotSalesBriefUsage struct {
+	ModelName   *string `json:"modelName,omitempty"`
+	InputUnits  int64   `json:"inputUnits"`
+	OutputUnits int64   `json:"outputUnits"`
+	Cost        float64 `json:"cost"`
+	LatencyMs   int64   `json:"latencyMs"`
 }
 
 type actionRequestError struct {
@@ -130,6 +149,15 @@ func (h *CopilotActionsHandler) SalesBrief(w http.ResponseWriter, r *http.Reques
 						resp.Data.AbstentionReason = &reason
 					}
 					resp.Data.EvidencePack = newEvidenceData(result.EvidencePack)
+					resp.Data.EvidenceIDs = result.EvidenceIDs
+					resp.Data.RunID = result.RunID
+					resp.Data.Usage = &copilotSalesBriefUsage{
+						ModelName:   result.Usage.ModelName,
+						InputUnits:  result.Usage.InputUnits,
+						OutputUnits: result.Usage.OutputUnits,
+						Cost:        result.Usage.Cost,
+						LatencyMs:   result.Usage.LatencyMs,
+					}
 				},
 			)
 		},

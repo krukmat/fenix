@@ -16,6 +16,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	"github.com/matiasleandrokruk/fenix/internal/domain/usage"
 	"github.com/matiasleandrokruk/fenix/internal/infra/llm"
+	"github.com/matiasleandrokruk/fenix/pkg/uuid"
 )
 
 var (
@@ -88,6 +89,32 @@ type SalesBriefResult struct {
 	Confidence       ConfidenceLevel
 	AbstentionReason *AbstentionReason
 	EvidencePack     *knowledge.EvidencePack
+	// EvidenceIDs lists the evidence.ID values the brief's LLM call was
+	// grounded on. It applies to the brief as a whole (summary, risks, and
+	// nextBestActions are all generated from this same source set) rather
+	// than attributing a distinct subset per risk/action, since the
+	// generation step does not produce or verify a finer-grained mapping.
+	EvidenceIDs []string
+	// RunID is a per-call correlation identifier surfaced in the audit log
+	// (metadata.brief_run_id) and the API response. It is NOT a usage_event
+	// foreign key: usage_event.run_id references agent_run(id) (migration
+	// 029), and SalesBrief is a synchronous call with no persisted AgentRun —
+	// linking the two would violate that constraint (or silently corrupt data
+	// if the constraint were ever relaxed).
+	RunID string
+	// Usage is the brief's own token/cost/latency accounting, returned inline
+	// rather than via a queryable run reference — the usage_event this
+	// invocation records carries no run_id (see RunID), so a client-side
+	// GET /api/v1/usage?run_id= lookup could never find it.
+	Usage SalesBriefUsage
+}
+
+type SalesBriefUsage struct {
+	ModelName   *string
+	InputUnits  int64
+	OutputUnits int64
+	Cost        float64
+	LatencyMs   int64
 }
 
 type ActionService struct {
@@ -301,12 +328,14 @@ func (s *ActionService) SalesBrief(ctx context.Context, in SalesBriefInput) (*Sa
 	}
 
 	startedAt := time.Now()
+	runID := uuid.NewV7().String()
 	prepared, err := s.prepareSuggestActionsContext(ctx, SuggestActionsInput(in))
 	if err != nil {
 		return nil, err
 	}
 
 	if reason := salesBriefAbstentionReason(prepared.evidencePack); reason != nil {
+		duration := time.Since(startedAt)
 		result := &SalesBriefResult{
 			Outcome:          "abstained",
 			EntityType:       in.EntityType,
@@ -317,9 +346,11 @@ func (s *ActionService) SalesBrief(ctx context.Context, in SalesBriefInput) (*Sa
 			Confidence:       ConfidenceLevelLow,
 			AbstentionReason: reason,
 			EvidencePack:     prepared.evidencePack,
+			RunID:            runID,
+			Usage:            salesBriefUsage(salesBriefUsageRecord{}, duration),
 		}
 		s.logSalesBriefAudit(ctx, in, prepared, result, suggestActionsMetrics{})
-		s.recordSalesBriefUsage(ctx, in, salesBriefUsageRecord{}, time.Since(startedAt))
+		s.recordSalesBriefUsage(ctx, in, salesBriefUsageRecord{}, duration)
 		return result, nil
 	}
 
@@ -339,6 +370,7 @@ func (s *ActionService) SalesBrief(ctx context.Context, in SalesBriefInput) (*Sa
 		return nil, err
 	}
 
+	duration := time.Since(startedAt)
 	result := &SalesBriefResult{
 		Outcome:         "completed",
 		EntityType:      in.EntityType,
@@ -348,10 +380,31 @@ func (s *ActionService) SalesBrief(ctx context.Context, in SalesBriefInput) (*Sa
 		NextBestActions: actions,
 		Confidence:      scoreToConfidenceLevel(baseScoreFromConfidence(prepared.evidencePack)),
 		EvidencePack:    prepared.evidencePack,
+		EvidenceIDs:     evidenceIDs(prepared.redactedSources),
+		RunID:           runID,
+		Usage:           salesBriefUsage(record, duration),
 	}
 	s.logSalesBriefAudit(ctx, in, prepared, result, metrics)
-	s.recordSalesBriefUsage(ctx, in, record, time.Since(startedAt))
+	s.recordSalesBriefUsage(ctx, in, record, duration)
 	return result, nil
+}
+
+func salesBriefUsage(record salesBriefUsageRecord, duration time.Duration) SalesBriefUsage {
+	return SalesBriefUsage{
+		ModelName:   record.modelName,
+		InputUnits:  record.inputUnits,
+		OutputUnits: record.outputUnits,
+		Cost:        record.cost,
+		LatencyMs:   duration.Milliseconds(),
+	}
+}
+
+func evidenceIDs(sources []knowledge.Evidence) []string {
+	ids := make([]string, 0, len(sources))
+	for _, source := range sources {
+		ids = append(ids, source.ID)
+	}
+	return ids
 }
 
 func (s *ActionService) generateSalesBrief(
@@ -412,6 +465,7 @@ func (s *ActionService) logSalesBriefAudit(
 		"confidence":       string(prepared.evidencePack.Confidence),
 		"outcome":          result.Outcome,
 		"returned_actions": len(result.NextBestActions),
+		"brief_run_id":     result.RunID,
 	}
 	if metrics.generated > 0 {
 		metadata["generated_actions"] = metrics.generated
@@ -430,6 +484,12 @@ func (s *ActionService) recordSalesBriefUsage(ctx context.Context, in SalesBrief
 		return
 	}
 
+	// RunID is intentionally omitted: usage_event.run_id is a foreign key into
+	// agent_run(id) (see migration 029), and a sales-brief invocation has no
+	// backing AgentRun row. Fabricating one would misrepresent a synchronous
+	// copilot call as an agent execution; the brief's RunID is a
+	// correlation-only identifier surfaced in the audit log and API response,
+	// not a usage_event foreign key.
 	latencyMs := duration.Milliseconds()
 	_, _ = s.usage.RecordEvent(ctx, usage.RecordEventInput{
 		WorkspaceID:   in.WorkspaceID,

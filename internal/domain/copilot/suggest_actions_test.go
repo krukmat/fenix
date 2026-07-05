@@ -332,6 +332,21 @@ func TestSalesBrief_CompletesForDealContext(t *testing.T) {
 	if len(recorder.inputs) != 1 {
 		t.Fatalf("expected 1 usage event, got %d", len(recorder.inputs))
 	}
+
+	// UIX-22A: brief-scoped evidence linkage and a correlation-only run
+	// reference (surfaced in the response/audit log, not the usage_event FK).
+	if result.RunID == "" {
+		t.Fatalf("expected non-empty RunID, got %+v", result)
+	}
+	if len(result.EvidenceIDs) != 1 || result.EvidenceIDs[0] != "ev_1" {
+		t.Fatalf("expected EvidenceIDs [ev_1], got %+v", result.EvidenceIDs)
+	}
+	// usage_event.run_id is a foreign key into agent_run(id) (migration 029);
+	// a sales-brief invocation has no backing AgentRun row, so the usage event
+	// must NOT carry the synthetic RunID or it would violate that constraint.
+	if recorder.inputs[0].RunID != nil {
+		t.Fatalf("expected usage event RunID to stay nil (no backing agent_run row), got %+v", recorder.inputs[0].RunID)
+	}
 }
 
 func TestSalesBrief_DegradesToEmptyActionsWhenActionsParseFails(t *testing.T) {
@@ -409,6 +424,12 @@ func TestSalesBrief_AbstainsWhenEvidenceIsInsufficient(t *testing.T) {
 	}
 	if llmSvc.call != 0 {
 		t.Fatalf("expected llm not to be called, got %d", llmSvc.call)
+	}
+	// UIX-22A: a RunID is still minted for an abstained brief so the (empty)
+	// usage event it records stays correlatable, even though no evidence
+	// grounded a summary/risks/actions payload.
+	if result.RunID == "" {
+		t.Fatalf("expected non-empty RunID even when abstained, got %+v", result)
 	}
 }
 

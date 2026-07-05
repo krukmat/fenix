@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { SalesBrief, SalesBriefAction } from '../../services/api';
+import type { SalesBrief, SalesBriefAction, SalesBriefUsage } from '../../services/api';
 import { ConfidenceBadge } from '../copilot/ConfidenceBadge';
 import { AbstentionPanel } from '../copilot/AbstentionPanel';
 import type { ThemeColors } from '../../theme/types';
@@ -96,6 +96,47 @@ function AbstainedSection({ brief, colors }: { brief: SalesBrief; colors: ThemeC
   );
 }
 
+function EvidenceGroundingNote({
+  evidenceIds,
+  colors,
+  testID,
+}: {
+  evidenceIds: string[] | undefined;
+  colors: ThemeColors;
+  testID: string;
+}) {
+  if (!evidenceIds || evidenceIds.length === 0) return null;
+  return (
+    <Text style={[styles.section, { color: colors.onSurfaceVariant, paddingTop: 0 }]} testID={testID}>
+      Grounded in {evidenceIds.length} evidence source{evidenceIds.length === 1 ? '' : 's'} from the pack below.
+    </Text>
+  );
+}
+
+function RisksSection({ brief, colors }: { brief: SalesBrief; colors: ThemeColors }) {
+  if (!brief.risks || brief.risks.length === 0) return null;
+  return (
+    <BriefListSection title="Risks" testID="sales-brief-risks" colors={colors}>
+      {brief.risks.map((risk, i) => (
+        <View key={i} style={[styles.recItem, { backgroundColor: colors.surface }]} testID={`sales-brief-risk-${i}`}>
+          <Text style={{ color: colors.onSurface }}>{risk}</Text>
+        </View>
+      ))}
+    </BriefListSection>
+  );
+}
+
+function NextBestActionsSection({ brief, colors }: { brief: SalesBrief; colors: ThemeColors }) {
+  if (!brief.nextBestActions || brief.nextBestActions.length === 0) return null;
+  return (
+    <BriefListSection title="Next Best Actions" testID="sales-brief-next-best-actions" colors={colors}>
+      {brief.nextBestActions.map((action, i) => (
+        <NextBestActionItem key={i} action={action} index={i} colors={colors} />
+      ))}
+    </BriefListSection>
+  );
+}
+
 function CompletedSection({ brief, colors }: { brief: SalesBrief; colors: ThemeColors }) {
   return (
     <>
@@ -105,24 +146,25 @@ function CompletedSection({ brief, colors }: { brief: SalesBrief; colors: ThemeC
         </BriefCard>
       ) : null}
 
-      {brief.risks && brief.risks.length > 0 ? (
-        <BriefListSection title="Risks" testID="sales-brief-risks" colors={colors}>
-          {brief.risks.map((risk, i) => (
-            <View key={i} style={[styles.recItem, { backgroundColor: colors.surface }]} testID={`sales-brief-risk-${i}`}>
-              <Text style={{ color: colors.onSurface }}>{risk}</Text>
-            </View>
-          ))}
-        </BriefListSection>
-      ) : null}
-
-      {brief.nextBestActions && brief.nextBestActions.length > 0 ? (
-        <BriefListSection title="Next Best Actions" testID="sales-brief-next-best-actions" colors={colors}>
-          {brief.nextBestActions.map((action, i) => (
-            <NextBestActionItem key={i} action={action} index={i} colors={colors} />
-          ))}
-        </BriefListSection>
-      ) : null}
+      <RisksSection brief={brief} colors={colors} />
+      <NextBestActionsSection brief={brief} colors={colors} />
+      {/* UIX-22A: brief-scoped, shown once regardless of whether risks/actions
+          rendered content — the grounding applies to the whole completed brief. */}
+      <EvidenceGroundingNote evidenceIds={brief.evidenceIds} colors={colors} testID="sales-brief-evidence-note" />
     </>
+  );
+}
+
+function UsageFooter({ usage, colors }: { usage: SalesBriefUsage; colors: ThemeColors }) {
+  return (
+    <BriefCard title="Usage" colors={colors} testID="sales-brief-usage">
+      <View style={styles.usageGrid}>
+        <Text style={{ color: colors.onSurface }}>Input units: {usage.inputUnits}</Text>
+        <Text style={{ color: colors.onSurface }}>Output units: {usage.outputUnits}</Text>
+        <Text style={{ color: colors.onSurface }}>Estimated cost: €{usage.cost.toFixed(5)}</Text>
+        <Text style={{ color: colors.onSurface }}>Latency: {usage.latencyMs} ms</Text>
+      </View>
+    </BriefCard>
   );
 }
 
@@ -176,6 +218,8 @@ export function SalesBriefContent({ brief, colors }: { brief: SalesBrief; colors
         )}
 
         <EvidencePackCard brief={brief} colors={colors} />
+
+        {brief.usage ? <UsageFooter usage={brief.usage} colors={colors} /> : null}
       </ScrollView>
     </View>
   );
@@ -190,4 +234,5 @@ const styles = StyleSheet.create({
   warningBlock: { marginTop: 10, gap: 6 },
   confidenceBadgeRow: { marginTop: 8, flexDirection: 'row' },
   actionConfidence: { marginTop: 8, flexDirection: 'row' },
+  usageGrid: { gap: 6 },
 });

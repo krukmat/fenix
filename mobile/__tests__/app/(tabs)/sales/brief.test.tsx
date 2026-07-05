@@ -63,6 +63,9 @@ describe('Sales brief route', () => {
       retrieval_methods_used: ['crm'],
       built_at: '2026-04-08T10:00:00Z',
     },
+    evidenceIds: ['ev_1'],
+    runId: 'run_123',
+    usage: { inputUnits: 120, outputUnits: 45, cost: 0.0021, latencyMs: 850 },
   };
 
   const abstainedBrief: SalesBrief = {
@@ -113,6 +116,9 @@ describe('Sales brief route', () => {
     expect(screen.getByTestId('sales-brief-risks')).toBeTruthy();
     expect(screen.getByTestId('sales-brief-next-best-actions')).toBeTruthy();
     expect(screen.getByTestId('sales-brief-evidence-pack')).toBeTruthy();
+    // UIX-22A: evidence-grounding note (brief-scoped) and the inline usage footer.
+    expect(screen.getByTestId('sales-brief-evidence-note')).toBeTruthy();
+    expect(screen.getByTestId('sales-brief-usage')).toBeTruthy();
     expect(screen.getByTestId('sales-brief-evidence-query')).toBeTruthy();
     expect(screen.getByTestId('sales-brief-evidence-methods')).toBeTruthy();
     expect(screen.getByTestId('sales-brief-evidence-warnings')).toBeTruthy();
@@ -130,6 +136,19 @@ describe('Sales brief route', () => {
     expect(
       within(screen.getByTestId('sales-brief-next-best-action-0-confidence')).getByText('High confidence'),
     ).toBeTruthy();
+  });
+
+  it('shows the evidence-grounding note even when risks and next-best-actions are empty', () => {
+    mockUseSalesBrief.mockReturnValue({
+      data: { ...completedBrief, risks: [], nextBestActions: [] },
+      isLoading: false,
+      error: null,
+    });
+    const { default: Screen } = require('../../../../app/(tabs)/sales/[id]/brief');
+    render(React.createElement(Screen));
+    expect(screen.queryByTestId('sales-brief-risks')).toBeNull();
+    expect(screen.queryByTestId('sales-brief-next-best-actions')).toBeNull();
+    expect(screen.getByTestId('sales-brief-evidence-note')).toBeTruthy();
   });
 
   it('shows canonical abstained brief fields when loaded', () => {

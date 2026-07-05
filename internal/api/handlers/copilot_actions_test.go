@@ -140,6 +140,14 @@ func TestCopilotActionsHandler_SalesBrief_OK(t *testing.T) {
 		Risks:           []string{"Pricing objection"},
 		NextBestActions: []copilot.SuggestedAction{{Title: "Actualizar deal", Tool: "update_deal", Params: map[string]any{"deal_id": "d1"}}},
 		Confidence:      copilot.ConfidenceLevelHigh,
+		EvidenceIDs:     []string{"ev_1"},
+		RunID:           "run_test_1",
+		Usage: copilot.SalesBriefUsage{
+			InputUnits:  120,
+			OutputUnits: 45,
+			Cost:        0.0021,
+			LatencyMs:   850,
+		},
 		EvidencePack: &knowledge.EvidencePack{
 			SchemaVersion:        knowledge.EvidencePackSchemaVersion,
 			Query:                "entity_type:deal entity_id:d1 latest updates timeline next steps",
@@ -173,6 +181,14 @@ func TestCopilotActionsHandler_SalesBrief_OK(t *testing.T) {
 			Confidence   string         `json:"confidence"`
 			Risks        []string       `json:"risks"`
 			EvidencePack map[string]any `json:"evidencePack"`
+			EvidenceIDs  []string       `json:"evidenceIds"`
+			RunID        string         `json:"runId"`
+			Usage        struct {
+				InputUnits  int64   `json:"inputUnits"`
+				OutputUnits int64   `json:"outputUnits"`
+				Cost        float64 `json:"cost"`
+				LatencyMs   int64   `json:"latencyMs"`
+			} `json:"usage"`
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
@@ -189,6 +205,16 @@ func TestCopilotActionsHandler_SalesBrief_OK(t *testing.T) {
 	}
 	if resp.Data.EvidencePack["schema_version"] != knowledge.EvidencePackSchemaVersion {
 		t.Fatalf("unexpected evidence pack: %#v", resp.Data.EvidencePack)
+	}
+	// UIX-22A: evidenceIds/runId must round-trip through the transport DTO.
+	if len(resp.Data.EvidenceIDs) != 1 || resp.Data.EvidenceIDs[0] != "ev_1" {
+		t.Fatalf("expected evidenceIds [ev_1], got %+v", resp.Data.EvidenceIDs)
+	}
+	if resp.Data.RunID != "run_test_1" {
+		t.Fatalf("expected runId run_test_1, got %q", resp.Data.RunID)
+	}
+	if resp.Data.Usage.InputUnits != 120 || resp.Data.Usage.OutputUnits != 45 || resp.Data.Usage.LatencyMs != 850 {
+		t.Fatalf("expected usage to round-trip through the transport DTO, got %+v", resp.Data.Usage)
 	}
 }
 

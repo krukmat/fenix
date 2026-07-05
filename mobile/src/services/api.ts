@@ -45,6 +45,7 @@ export type {
   SalesBriefOutcome,
   SalesBriefAction,
   SalesBrief,
+  SalesBriefUsage,
   UsageEvent,
   AuditEvent,
   AuditFilters,

@@ -185,6 +185,23 @@ export interface SalesBrief {
   abstentionReason?: string;
   confidence: 'high' | 'medium' | 'low';
   evidencePack: EvidencePack;
+  // UIX-22A: brief-scoped evidence linkage (grounds summary/risks/nextBestActions
+  // together, not attributed per individual item). runId is a correlation-only
+  // identifier (audit log + response) — NOT a usage_event foreign key, so it
+  // cannot be looked up via GET /api/v1/usage?run_id=. Usage is therefore
+  // returned inline instead of via a queryable run reference. Both optional:
+  // absent on older backends or if the brief could not assert them truthfully.
+  evidenceIds?: string[];
+  runId?: string;
+  usage?: SalesBriefUsage;
+}
+
+export interface SalesBriefUsage {
+  modelName?: string;
+  inputUnits: number;
+  outputUnits: number;
+  cost: number;
+  latencyMs: number;
 }
 
 // W1-T1: Usage event — single metered interaction record
