@@ -74,17 +74,9 @@ jest.mock('../../../../src/components/signals/SignalCountBadge', () => {
   };
 });
 
-jest.mock('../../../../src/components/copilot', () => {
-  const React = require('react');
-  const { View } = require('react-native');
-  return {
-    CopilotPanel: ({ initialContext }: { initialContext?: { entityType?: string; entityId?: string } }) =>
-      React.createElement(View, {
-        testID: 'sales-account-detail-copilot',
-        accessibilityLabel: `${initialContext?.entityType ?? ''}:${initialContext?.entityId ?? ''}`,
-      }),
-  };
-});
+jest.mock('../../../../src/components/copilot', () =>
+  require('./testCopilotPanelMock').mockCopilotPanelModule('sales-account-detail-copilot'),
+);
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
