@@ -15,22 +15,36 @@ import type { ApprovalDecisionFeedback } from './ApprovalCard';
 
 export { getPolicyExplanation } from './ApprovalPolicyExplanation';
 
+function resolveCountdownLabel(
+  visibleStatus: ApprovalStatus | null,
+  hasUnresolvedConflict: boolean,
+  isExpired: boolean,
+  countdown: string,
+): string {
+  if (hasUnresolvedConflict) return 'Closed';
+  if (visibleStatus !== null && visibleStatus !== 'pending') {
+    return `${visibleStatus.charAt(0).toUpperCase()}${visibleStatus.slice(1)}`;
+  }
+  return isExpired ? 'Expired' : `Expires in ${countdown}`;
+}
+
 export function resolveApprovalDisplayState(
   approvalStatus: ApprovalStatus,
   feedbackStatus: ApprovalStatus | undefined,
+  hasUnresolvedConflict: boolean,
   isExpired: boolean,
   countdown: string,
   errorColor: string,
   primaryColor: string,
-): { visibleStatus: ApprovalStatus; statusColor: string; countdownLabel: string } {
-  const visibleStatus = feedbackStatus ?? (isExpired ? 'expired' : approvalStatus);
-  const statusColor = visibleStatus === 'rejected' || visibleStatus === 'expired' ? errorColor : primaryColor;
-  const countdownLabel =
-    visibleStatus !== 'pending'
-      ? `${visibleStatus.charAt(0).toUpperCase()}${visibleStatus.slice(1)}`
-      : isExpired
-        ? 'Expired'
-        : `Expires in ${countdown}`;
+): { visibleStatus: ApprovalStatus | null; statusColor: string; countdownLabel: string } {
+  // `hasUnresolvedConflict` covers feedback (e.g. "already decided") that has no known
+  // terminal ApprovalStatus to report — we must not guess one (no fabricated state).
+  const visibleStatus = hasUnresolvedConflict ? null : feedbackStatus ?? (isExpired ? 'expired' : approvalStatus);
+  const statusColor =
+    visibleStatus === 'rejected' || visibleStatus === 'expired' || hasUnresolvedConflict
+      ? errorColor
+      : primaryColor;
+  const countdownLabel = resolveCountdownLabel(visibleStatus, hasUnresolvedConflict, isExpired, countdown);
   return { visibleStatus, statusColor, countdownLabel };
 }
 
@@ -53,7 +67,7 @@ export function ApprovalCardPanel({
   theme: MD3Theme;
   testIDPrefix: string;
   disabled: boolean;
-  visibleStatus: ApprovalStatus;
+  visibleStatus: ApprovalStatus | null;
   statusColor: string;
   countdownLabel: string;
   isTerminal: boolean;
@@ -88,7 +102,9 @@ export function ApprovalCardPanel({
           </Text>
         </View>
         <ApprovalMetadata approval={approval} testIDPrefix={testIDPrefix} theme={theme} />
-        <ApprovalPath status={visibleStatus} testIDPrefix={`${testIDPrefix}-path`} />
+        {visibleStatus !== null ? (
+          <ApprovalPath status={visibleStatus} testIDPrefix={`${testIDPrefix}-path`} />
+        ) : null}
         {policyExplanation ? (
           <PolicyExplanationBlock explanation={policyExplanation} testIDPrefix={testIDPrefix} />
         ) : null}

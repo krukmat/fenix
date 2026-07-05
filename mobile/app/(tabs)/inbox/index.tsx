@@ -1,5 +1,5 @@
 // W2-T1 (mobile_wedge_harmonization_plan): Inbox tab — unified approvals, handoffs, signals
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApproveApproval, useInbox, useRejectApproval } from '../../../src/hooks/useWedge';
 import { InboxBody, InboxEmpty, InboxError, InboxLoading } from '../../../src/components/inbox/InboxFeed';
 import type { InboxFilter } from '../../../src/components/inbox/InboxFeed';
@@ -85,6 +85,17 @@ function useApprovalActions(
   return { actionError, approvalFeedbackById, handleApprove, handleReject };
 }
 
+function useExpiryTick(): number {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick((current) => current + 1), 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return tick;
+}
+
 function useInboxScreenModel() {
   const inbox = useInbox();
   const approveApproval = useApproveApproval();
@@ -96,6 +107,10 @@ function useInboxScreenModel() {
     rejectApproval,
     (id) => currentApprovals.find((approval) => approval.id === id),
   );
+  // Forces periodic re-grouping so a pending approval that crosses its expiry while this
+  // screen stays open moves out of "Awaiting your approval" without requiring a refetch or
+  // filter change — mirrors ApprovalCard's own 60s countdown refresh.
+  useExpiryTick();
 
   const model = buildInboxModel(inbox.data, inbox.isLoading, inbox.error, filter, approvalFeedbackById);
 
@@ -105,10 +120,11 @@ function useInboxScreenModel() {
     refetch: inbox.refetch,
     filter,
     setFilter,
-    visibleItems: model.visibleItems,
+    visibleGroups: model.visibleGroups,
     totalItems: model.totalItems,
+    visibleItemCount: model.visibleItemCount,
     actionError,
-    approvalFeedbackById,
+    approvalFeedbackById: model.approvalFeedbackById,
     handleApprove,
     handleReject,
     approvalsPending: approveApproval.isPending || rejectApproval.isPending,
@@ -132,8 +148,9 @@ export default function InboxScreen() {
 
   return (
     <InboxBody
-      items={model.visibleItems}
+      groups={model.visibleGroups}
       totalItems={model.totalItems}
+      visibleItemCount={model.visibleItemCount}
       filter={model.filter}
       onFilterChange={model.setFilter}
       actionError={model.actionError}

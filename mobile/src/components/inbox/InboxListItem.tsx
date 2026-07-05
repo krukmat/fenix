@@ -2,9 +2,11 @@ import React from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ApprovalCard, type ApprovalDecisionFeedback } from '../approvals/ApprovalCard';
+import { APPROVAL_STEP_COLORS, normalizeApprovalStatus } from '../approvals/ApprovalPath';
 import { SignalCard } from '../signals/SignalCard';
 import { resolveWedgeHandoffPackageDestination, wedgeHref, wedgeHrefObject } from '../../utils/navigation';
 import type { AgentRun, ApprovalRequest, HandoffPackage, Signal } from '../../services/api';
+import { getAgentStatusColor, getConfidenceColor } from '../../theme/semantic';
 import { InboxHandoffCard, InboxRejectedCard } from './InboxStateBlocks';
 import { styles } from './InboxStyles';
 
@@ -13,6 +15,21 @@ export type InboxRenderableItem =
   | { type: 'handoff'; id: string; runId: string; handoff: HandoffPackage }
   | { type: 'signal'; id: string; signal: Signal }
   | { type: 'rejected'; id: string; run: AgentRun };
+
+function getInboxItemAccentColor(
+  item: InboxRenderableItem,
+  approvalDecisionFeedback: ApprovalDecisionFeedback | undefined,
+): string {
+  if (item.type === 'approval') {
+    const hasUnresolvedConflict = approvalDecisionFeedback?.kind === 'conflict' && !approvalDecisionFeedback.visibleStatus;
+    if (hasUnresolvedConflict) return getAgentStatusColor('denied_by_policy');
+    const status = approvalDecisionFeedback?.visibleStatus ?? item.approval.status;
+    return APPROVAL_STEP_COLORS[normalizeApprovalStatus(status)];
+  }
+  if (item.type === 'signal') return getConfidenceColor(item.signal.confidence);
+  if (item.type === 'rejected') return getAgentStatusColor(item.run.status);
+  return getAgentStatusColor('handed_off');
+}
 
 export function InboxListItem({
   item,
@@ -33,7 +50,11 @@ export function InboxListItem({
 
   return (
     <View
-      style={styles.item}
+      style={[
+        styles.item,
+        styles.itemAccent,
+        { borderLeftColor: getInboxItemAccentColor(item, approvalDecisionFeedback) },
+      ]}
       testID={`inbox-item-${index}`}
       accessibilityLabel={`${item.type}:${item.id}`}
     >

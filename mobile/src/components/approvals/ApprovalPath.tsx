@@ -18,7 +18,7 @@ const STEP_LABELS: Record<ApprovalStep, string> = {
   cancelled: 'Cancelled',
 };
 
-const STEP_COLORS: Record<ApprovalStep, string> = {
+export const APPROVAL_STEP_COLORS: Record<ApprovalStep, string> = {
   pending: semanticColors.info,
   approved: semanticColors.success,
   rejected: semanticColors.warning,
@@ -26,7 +26,7 @@ const STEP_COLORS: Record<ApprovalStep, string> = {
   cancelled: semanticColors.confidenceLow,
 };
 
-function normalizeStatus(status: ApprovalPathStatus): ApprovalStep {
+export function normalizeApprovalStatus(status: ApprovalPathStatus): ApprovalStep {
   return status === 'denied' ? 'rejected' : status;
 }
 
@@ -37,13 +37,13 @@ export interface ApprovalPathProps {
 
 export function ApprovalPath({ status, testIDPrefix = 'approval-path' }: ApprovalPathProps) {
   const theme = useTheme();
-  const activeStatus = normalizeStatus(status);
+  const activeStatus = normalizeApprovalStatus(status);
 
   return (
     <View style={styles.container} testID={testIDPrefix}>
       {APPROVAL_STEPS.map((step, index) => {
         const isActive = step === activeStatus;
-        const stepColor = STEP_COLORS[step];
+        const stepColor = APPROVAL_STEP_COLORS[step];
         return (
           <React.Fragment key={step}>
             <View style={styles.stepBlock}>

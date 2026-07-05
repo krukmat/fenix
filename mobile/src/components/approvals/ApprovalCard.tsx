@@ -51,9 +51,11 @@ export function ApprovalCard({
   const [reason, setReason] = useState('');
   const isExpired = countdown === 'Expired';
   const policyExplanation = getPolicyExplanation(approval.payload);
+  const hasUnresolvedConflict = decisionFeedback?.kind === 'conflict' && !decisionFeedback.visibleStatus;
   const { visibleStatus, statusColor, countdownLabel } = resolveApprovalDisplayState(
     approval.status,
     decisionFeedback?.visibleStatus,
+    hasUnresolvedConflict,
     isExpired,
     countdown,
     theme.colors.error,

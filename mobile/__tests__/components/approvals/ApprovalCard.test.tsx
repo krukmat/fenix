@@ -197,4 +197,33 @@ describe('ApprovalCard', () => {
     expect(getByTestId('approval-card-feedback-title').props.children).toBe('Approval expired');
     expect(queryByTestId('approval-card-approve')).toBeNull();
   });
+
+  it('hides approve/reject actions for an already-decided conflict even though the raw status is still pending', () => {
+    const { getByTestId, queryByTestId } = renderCard({
+      decisionFeedback: {
+        kind: 'conflict',
+        title: 'Approval already decided',
+        body: 'Another operator or process already recorded a final decision for this request. Refresh context from the audit trail before acting again.',
+      },
+    });
+
+    expect(getByTestId('approval-card-feedback-title').props.children).toBe('Approval already decided');
+    expect(queryByTestId('approval-card-approve')).toBeNull();
+    expect(queryByTestId('approval-card-reject')).toBeNull();
+  });
+
+  it('does not show a pending countdown or a Pending FSM step for an already-decided conflict', () => {
+    const { getByTestId, queryByTestId } = renderCard({
+      decisionFeedback: {
+        kind: 'conflict',
+        title: 'Approval already decided',
+        body: 'Another operator or process already recorded a final decision for this request. Refresh context from the audit trail before acting again.',
+      },
+    });
+
+    // No fabricated terminal status (approved/rejected/etc.) — neutral "Closed" cue instead,
+    // and the FSM path is omitted entirely rather than showing a misleading active step.
+    expect(getByTestId('approval-card-countdown').props.children).toBe('Closed');
+    expect(queryByTestId('approval-card-path')).toBeNull();
+  });
 });
