@@ -215,11 +215,13 @@ For final **RRI 0–25**, the active agent executes directly. No full approval
 presentation is required. The agent must still include the RRI score in the task
 summary and verify against acceptance criteria before marking the task complete.
 
-Before implementing directly, check `docs/policies/LOCAL_MODEL_POLICY.md` —
-tasks in this band are eligible for optional delegation to a local Gemma model
-via `scripts/delegate-low-rri.py`. Delegation is never mandatory; it falls back
-to direct execution when Ollama is unreachable, the model is absent, or the
-task's paths fall outside the delegation allowlist.
+Before implementing directly, the agent must **attempt delegation first** per
+`docs/policies/LOCAL_MODEL_POLICY.md`: tasks in this band are routed to the
+local Gemma model via `scripts/delegate-low-rri.py` by default. Direct
+execution by Claude is the fallback, permitted only when the delegation
+attempt is blocked — Ollama unreachable, the model absent, or the task's paths
+fall outside the delegation allowlist — and that fallback reason must be
+recorded in the task closure report.
 
 ## Decomposition triggers
 

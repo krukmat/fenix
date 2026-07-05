@@ -22,14 +22,33 @@ and task closure.
 ## Eligible delegation bands
 
 Local-model delegation is only permitted for tasks in the **Low** RRI band (0–25).
+For that band, delegation is the **default, mandatory-to-attempt** path — the
+orchestrating agent must invoke `delegate-low-rri.py` before implementing
+directly.
 
 | RRI band | Label | Local delegation |
 |---|---|---|
-| 0–25 | Low | Permitted via `delegate-low-rri.py` |
+| 0–25 | Low | Mandatory to attempt via `delegate-low-rri.py`; falls back to Claude only on a blocked result |
 | 26+ | Moderate and above | Not permitted; use Claude (see `RRI_POLICY.md`) |
 
 Tasks in band 26+ must follow the standard HITL approval gate with Claude as the
 implementation model. Local delegation is never a substitute for the HITL gate.
+
+### Mandatory-attempt rule
+
+For every Low-band task, the orchestrating agent must call
+`scripts/delegate-low-rri.py` before writing any code directly. Direct
+execution by Claude is permitted only as a fallback, and only when one of the
+following blocking conditions is true:
+
+- Ollama is unreachable or the model is not listed by `GET /api/tags`.
+- The task's affected paths fall outside the path allowlist below.
+- The script returns `status: blocked` for any other documented reason
+  (packet malformed, budget gate failure without a valid `D14-OVERRIDE`, etc.).
+
+The agent must record which of these applied in the task closure report. Skipping
+the delegation attempt because it seems unnecessary, slower, or a worse fit for
+the task shape is not a valid reason to bypass it.
 
 ## Model selection
 

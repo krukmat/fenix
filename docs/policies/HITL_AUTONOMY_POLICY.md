@@ -36,13 +36,15 @@ The only exception to the approval gate is when the user explicitly says
 ## Low-band handling (RRI 0–25)
 
 When the computed RRI falls in the **0–25 Low band**, the agent executes directly
-without presenting a full approval packet. Local-model delegation to Gemma via
-Ollama is configured and permitted for this band — see
-`docs/policies/LOCAL_MODEL_POLICY.md` for eligible task shapes, model selection,
-budgets, and the audit contract. Delegation is optional, never mandatory: the
-orchestrating agent may still implement directly when delegation is not a good
-fit (e.g. no Ollama connectivity, path outside the allowlist, or task shape not
-suited to a structured packet).
+without presenting a full approval packet, but the orchestrating agent must
+**first attempt local-model delegation** to Gemma via Ollama through
+`scripts/delegate-low-rri.py` — see `docs/policies/LOCAL_MODEL_POLICY.md` for
+eligible task shapes, model selection, budgets, and the audit contract.
+Delegation is the default path for this band, not a suggestion: Claude only
+implements directly when the delegation attempt is genuinely blocked (Ollama
+unreachable, model absent, task paths outside the allowlist, or the script
+returns a `blocked` result), and that fallback must be recorded in the task
+closure report.
 
 The agent must still:
 

@@ -132,12 +132,13 @@ tables into agent-specific templates.
 low-band handling, destructive action approval, commit/push approval, and blocked
 verification reporting.
 
-For **RRI 0–25**, also check `docs/policies/LOCAL_MODEL_POLICY.md` before
-implementing directly: it defines when a task may be delegated to the local
-Gemma model via `scripts/delegate-low-rri.py` instead of the primary agent
-implementing it itself. Delegation is optional and subordinate to this guide and
-to `HITL_AUTONOMY_POLICY.md` — a blocked or unsuitable delegation simply falls
-back to standard direct execution.
+For **RRI 0–25**, `docs/policies/LOCAL_MODEL_POLICY.md` requires attempting
+delegation to the local Gemma model via `scripts/delegate-low-rri.py` before
+the primary agent implements the task itself. This attempt is mandatory, not
+optional, and is subordinate to this guide and to `HITL_AUTONOMY_POLICY.md` —
+only a blocked or ineligible delegation (per that policy's blocking
+conditions) falls back to standard direct execution, and the fallback reason
+must be recorded in the closure report.
 
 ## Verification and push discipline
 
@@ -234,6 +235,22 @@ executing the task. The reviewer is the independent peer that checks the work.
   verdict.
 - Peer review is a workflow reporting contract. It does not replace the RRI
   autonomy gate or any human approval required by `HITL_AUTONOMY_POLICY.md`.
+
+**Diff scope (commit before reviewing).** `post-code-review` builds its packet
+from `git diff --no-color <base>` — a two-dot diff against the full working
+tree (committed and uncommitted). If unrelated work from earlier tasks in the
+same session is still sitting uncommitted, `--base HEAD` (or any ancestor of
+it) sweeps that unrelated work into the reviewer packet too, not just the
+current task's change. Before running `post-code-review`, commit the current
+task's files as their own isolated commit, then pass `--base <parent-of-that-commit>`
+so the diff the reviewer sees is scoped to that task only. Confirm the scope
+with `git diff --stat <base>` before invoking the gate — the file list and
+line count should match the task's declared `files_affected`, nothing more.
+An oversized or unrelated diff is a frequent cause of a fallback reviewer
+returning an unparseable verdict (`invalid_verdict`), which otherwise looks
+like a reviewer-infrastructure failure but is actually a self-inflicted input
+problem. This applies to `task-readiness` as well if it is invoked with a
+`--task-card` diff-bearing preview in a dirty tree.
 
 **Invocation.** The gate is `scripts/peer-workflow-review.py`. Run the mocked
 test suite via `make qa-peer-workflow-review`. Live review is invoked manually at
