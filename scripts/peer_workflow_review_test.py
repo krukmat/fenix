@@ -242,6 +242,48 @@ class PromptBuildingTest(unittest.TestCase):
         )
 
 
+class LocalPromptCompactionTest(unittest.TestCase):
+    def test_compaction_preserves_acceptance_criteria_under_budget(self):
+        task = """---
+criticality: standard
+criticality_basis: workflow only
+---
+
+# Task Example
+
+## Summary
+Short summary.
+
+## Acceptance Criteria
+1. Keep the acceptance criteria.
+2. Keep the critical task contract visible.
+
+## Narrative Log
+%s
+""" % ("noise " * 2000)
+        plan = """# Plan
+
+## Purpose
+Restore reliable local review.
+
+## Verification Plan
+Run the targeted tests.
+
+## Status Updates
+%s
+""" % ("history " * 2000)
+        with patch.object(_mod, "LOCAL_REVIEW_MAX_PROMPT_CHARS", 2200):
+            compacted = _mod.compact_packet_for_local_review(
+                "task-readiness",
+                {"task": task, "plan": plan, "task_card": "Task: Example\nSummary: OK"},
+            )
+            prompt = _mod.build_prompt("task-readiness", compacted)
+        self.assertLessEqual(len(prompt), 2200)
+        self.assertIn("## Acceptance Criteria", compacted["task"])
+        self.assertIn("criticality: standard", compacted["task"])
+        self.assertIn("## Verification Plan", compacted["plan"])
+        self.assertIn("truncated for local review", prompt)
+
 class InvokeReviewerTest(unittest.TestCase):
     def test_invoker_resolves_executable_before_running(self):
         with patch.object(_mod, "resolve_reviewer_executable", return_value="/x/codex"), \
@@ -597,6 +639,45 @@ class FallbackTimeoutTest(unittest.TestCase):
         self.assertEqual(cap["idle_timeout"], 30)
         self.assertEqual(cap["max_wall"], 60)
 
+    def test_local_fallback_payload_uses_compacted_prompt(self):
+        captured = {}
+
+        def fake_build_chat_payload(**kwargs):
+            captured["packet"] = kwargs["packet"]
+            return {}
+
+        task = """# Task
+
+## Acceptance Criteria
+- preserve this requirement
+
+## Narrative
+%s
+""" % ("noise " * 2500)
+        plan = """# Plan
+
+## Purpose
+Restore local review.
+
+## Status Updates
+%s
+""" % ("history " * 2500)
+        gemma = _mod.gemma_local
+        with patch.object(_mod, "LOCAL_REVIEW_MAX_PROMPT_CHARS", 2600), \
+             patch.object(gemma, "ensure_model_available", return_value=None), \
+             patch.object(gemma, "build_chat_payload", side_effect=fake_build_chat_payload), \
+             patch.object(gemma, "stream_chat", return_value=object()), \
+             patch.object(gemma, "stream_result_content", return_value=_verdict_json("pass")):
+            _mod.invoke_local_fallback_reviewer(
+                "task-readiness",
+                {"task": task, "plan": plan, "task_card": "Task: Demo\nSummary: compact"},
+                timeout=5,
+            )
+        self.assertLessEqual(len(captured["packet"]), 2600)
+        self.assertIn("## Acceptance Criteria", captured["packet"])
+        self.assertIn("Task: Demo", captured["packet"])
+        self.assertIn("truncated for local review", captured["packet"])
+
 
 class AdvisoryQwenTest(unittest.TestCase):
     def test_advisory_qwen_uses_keep_alive_zero(self):
@@ -637,6 +718,45 @@ class AdvisoryQwenTest(unittest.TestCase):
         self.assertEqual(attempt["verdict"]["status"], "blocked")
         self.assertEqual(attempt["verdict"]["reason"], "advisory_blocked")
         self.assertEqual(attempt["verdict"]["blocked_reason"], "reviewer_unavailable")
+
+    def test_advisory_qwen_payload_keeps_diff_and_verification_under_budget(self):
+        captured = {}
+
+        def fake_build_chat_payload(**kwargs):
+            captured["packet"] = kwargs["packet"]
+            return {}
+
+        diff = "diff --git a/x b/x\n" + ("+line\n" * 1200)
+        verification_log = "verify\n" + ("step ok\n" * 600)
+        task = """# Task
+
+## Acceptance Criteria
+- keep diff and verification visible
+
+## Narrative
+%s
+""" % ("noise " * 2000)
+        gemma = _mod.gemma_local
+        with patch.object(_mod, "LOCAL_REVIEW_MAX_PROMPT_CHARS", 4200), \
+             patch.object(gemma, "ensure_model_available", return_value=None), \
+             patch.object(gemma, "build_chat_payload", side_effect=fake_build_chat_payload), \
+             patch.object(gemma, "stream_chat", return_value=object()), \
+             patch.object(gemma, "stream_result_content", return_value=_verdict_json("pass")):
+            attempt = _mod.invoke_advisory_qwen_reviewer(
+                "post-code-review",
+                {
+                    "task": task,
+                    "plan": "# Plan\n\n## Purpose\nKeep reviewable evidence.\n",
+                    "verification_log": verification_log,
+                    "diff": diff,
+                },
+                timeout=5,
+            )
+        self.assertEqual(attempt["verdict"]["status"], "pass")
+        self.assertLessEqual(len(captured["packet"]), 4200)
+        self.assertIn("=== DIFF ===", captured["packet"])
+        self.assertIn("=== VERIFICATION_LOG ===", captured["packet"])
+        self.assertIn("truncated for local review", captured["packet"])
 
 
 if __name__ == "__main__":

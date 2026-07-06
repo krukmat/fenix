@@ -42,7 +42,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gemma_local
@@ -367,6 +367,240 @@ def build_prompt(mode, packet):
     return "\n".join(parts)
 
 
+LOCAL_REVIEW_MAX_SECTION_CHARS = int(
+    os.environ.get("FENIX_REVIEW_LOCAL_MAX_SECTION_CHARS", "4000")
+)
+LOCAL_REVIEW_MAX_PROMPT_CHARS = int(
+    os.environ.get("FENIX_REVIEW_LOCAL_MAX_PROMPT_CHARS", "12000")
+)
+LOCAL_REVIEW_SECTION_LIMITS = {
+    "task": LOCAL_REVIEW_MAX_SECTION_CHARS,
+    "plan": int(os.environ.get("FENIX_REVIEW_LOCAL_PLAN_MAX_CHARS", "3200")),
+    "task_card": int(
+        os.environ.get("FENIX_REVIEW_LOCAL_TASK_CARD_MAX_CHARS", "2200")
+    ),
+    "verification_log": int(
+        os.environ.get("FENIX_REVIEW_LOCAL_VERIFICATION_MAX_CHARS", "1800")
+    ),
+    "diff": int(os.environ.get("FENIX_REVIEW_LOCAL_DIFF_MAX_CHARS", "4800")),
+}
+LOCAL_REVIEW_SECTION_FLOORS = {
+    "task": 900,
+    "plan": 700,
+    "task_card": 600,
+    "verification_log": 600,
+    "diff": 900,
+}
+LOCAL_REVIEW_SECTION_ORDER = ("task", "plan", "task_card", "verification_log", "diff")
+LOCAL_REVIEW_TRIM_ORDER = {
+    "task-readiness": ("plan", "task_card", "task"),
+    "post-code-review": ("plan", "task", "verification_log", "diff"),
+}
+LOCAL_REVIEW_TASK_SECTION_KEYWORDS = (
+    "task card",
+    "summary",
+    "acceptance criteria",
+    "scope",
+    "risks",
+    "high-level pseudocode",
+    "rri",
+)
+LOCAL_REVIEW_PLAN_SECTION_KEYWORDS = (
+    "purpose",
+    "scope",
+    "problem statement",
+    "current analysis",
+    "proposed direction",
+    "recommended correction",
+    "implementation plan",
+    "verification plan",
+    "acceptance signal",
+)
+
+
+def _truncate_middle(text, limit, label):
+    # type: (str, int, str) -> str
+    """Keep both ends of a long section with a local-review truncation marker."""
+    if len(text) <= limit:
+        return text
+    marker = (
+        "\n\n[... %s truncated for local review: %d of %d chars shown ...]\n\n"
+        % (label, limit, len(text))
+    )
+    if limit <= len(marker) + 40:
+        head_limit = max(0, limit - len(marker))
+        return text[:head_limit] + marker
+    head = max(20, (limit - len(marker)) // 2)
+    tail = max(20, limit - len(marker) - head)
+    return text[:head] + marker + text[-tail:]
+
+
+def _split_frontmatter(text):
+    # type: (str) -> Tuple[str, str]
+    if not text.startswith("---\n"):
+        return "", text
+    lines = text.splitlines(True)
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            return "".join(lines[: idx + 1]).strip(), "".join(lines[idx + 1 :]).lstrip()
+    return "", text
+
+
+def _parse_markdown_sections(text):
+    # type: (str) -> Tuple[str, List[Tuple[str, str]]]
+    lines = text.splitlines()
+    preamble = []  # type: List[str]
+    sections = []  # type: List[Tuple[str, str]]
+    current_heading = None  # type: Optional[str]
+    current_lines = []  # type: List[str]
+    for line in lines:
+        if line.startswith("#"):
+            if current_heading is None:
+                if preamble:
+                    preamble_text = "\n".join(preamble).strip()
+                    preamble = [preamble_text] if preamble_text else []
+            else:
+                sections.append((current_heading, "\n".join(current_lines).strip()))
+            current_heading = line.strip()
+            current_lines = []
+            continue
+        if current_heading is None:
+            preamble.append(line)
+        else:
+            current_lines.append(line)
+    if current_heading is not None:
+        sections.append((current_heading, "\n".join(current_lines).strip()))
+    return "\n".join([line for line in preamble if line]).strip(), sections
+
+
+def _heading_priority(heading, keywords):
+    # type: (str, Tuple[str, ...]) -> int
+    low = heading.lower()
+    for idx, keyword in enumerate(keywords):
+        if keyword in low:
+            return idx
+    return len(keywords) + 100
+
+
+def _fit_chunks(chunks, limit, label):
+    # type: (List[str], int, str) -> str
+    if limit <= 0:
+        return ""
+    rendered = []  # type: List[str]
+    used = 0
+    separator = 0
+    for chunk in chunks:
+        if not chunk:
+            continue
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        extra = separator + len(chunk)
+        if used + extra <= limit:
+            rendered.append(chunk)
+            used += extra
+            separator = 2
+            continue
+        remaining = limit - used - separator
+        if remaining > 0:
+            rendered.append(_truncate_middle(chunk, remaining, label))
+        break
+    return "\n\n".join(rendered).strip()
+
+
+def _compact_markdown_document(text, limit, keywords, label):
+    # type: (str, int, Tuple[str, ...], str) -> str
+    if len(text) <= limit:
+        return text
+    frontmatter, body = _split_frontmatter(text)
+    preamble, sections = _parse_markdown_sections(body)
+    prioritized = sorted(
+        enumerate(sections),
+        key=lambda item: (_heading_priority(item[1][0], keywords), item[0]),
+    )
+    chunks = []  # type: List[str]
+    if frontmatter:
+        chunks.append(frontmatter)
+    if preamble:
+        chunks.append(preamble)
+    for _, (heading, content) in prioritized:
+        block = heading if not content else heading + "\n" + content
+        chunks.append(block)
+    compacted = _fit_chunks(chunks, limit, label)
+    if compacted:
+        return compacted
+    return _truncate_middle(text, limit, label)
+
+
+def _compact_local_section(section, text):
+    # type: (str, str) -> str
+    limit = LOCAL_REVIEW_SECTION_LIMITS.get(section, LOCAL_REVIEW_MAX_SECTION_CHARS)
+    if section == "task":
+        return _compact_markdown_document(
+            text, limit, LOCAL_REVIEW_TASK_SECTION_KEYWORDS, "task"
+        )
+    if section == "plan":
+        return _compact_markdown_document(
+            text, limit, LOCAL_REVIEW_PLAN_SECTION_KEYWORDS, "plan"
+        )
+    return _truncate_middle(text, limit, section)
+
+
+def _shrink_local_section(packet, section, limit):
+    # type: (dict, str, int) -> None
+    if not packet.get(section):
+        return
+    packet[section] = _truncate_middle(str(packet[section]), limit, section)
+
+
+def compact_packet_for_local_review(mode, packet):
+    # type: (str, dict) -> dict
+    """Compact the local-review packet to preserve high-signal context.
+
+    The primary Claude/Codex reviewers still receive the full packet. This
+    compaction is applied only to the local fallback/advisory reviewers, where
+    prompt budget and narrative dominance are the main failure modes.
+    """
+    compacted = dict(packet)
+    for section in LOCAL_REVIEW_SECTION_ORDER:
+        if compacted.get(section):
+            compacted[section] = _compact_local_section(section, str(compacted[section]))
+
+    trim_order = LOCAL_REVIEW_TRIM_ORDER.get(
+        mode, LOCAL_REVIEW_TRIM_ORDER["post-code-review"]
+    )
+    for _ in range(12):
+        prompt = build_prompt(mode, compacted)
+        overflow = len(prompt) - LOCAL_REVIEW_MAX_PROMPT_CHARS
+        if overflow <= 0:
+            break
+        reduced = False
+        for section in trim_order:
+            text = str(compacted.get(section) or "")
+            floor = LOCAL_REVIEW_SECTION_FLOORS.get(section, 600)
+            if len(text) <= floor:
+                continue
+            target = max(floor, len(text) - overflow)
+            new_text = _truncate_middle(text, target, section)
+            if new_text != text:
+                compacted[section] = new_text
+                reduced = True
+                break
+        if not reduced:
+            break
+    prompt = build_prompt(mode, compacted)
+    if len(prompt) > LOCAL_REVIEW_MAX_PROMPT_CHARS:
+        for section in trim_order:
+            text = str(compacted.get(section) or "")
+            if not text:
+                continue
+            compacted[section] = _truncate_middle(text, max(240, len(text) // 2), section)
+            prompt = build_prompt(mode, compacted)
+            if len(prompt) <= LOCAL_REVIEW_MAX_PROMPT_CHARS:
+                break
+    return compacted
+
+
 def build_local_fallback_system_prompt():
     # type: () -> str
     return (
@@ -554,7 +788,7 @@ def invoke_local_fallback_reviewer(mode, packet, timeout):
         payload = gemma_local.build_chat_payload(
             model=model,
             system_prompt=build_local_fallback_system_prompt(),
-            packet=build_prompt(mode, packet),
+            packet=build_prompt(mode, compact_packet_for_local_review(mode, packet)),
             num_ctx=num_ctx,
             num_predict=num_predict,
             temperature=temperature,
@@ -642,7 +876,7 @@ def invoke_advisory_qwen_reviewer(mode, packet, timeout):
             payload = gemma_local.build_chat_payload(
                 model=model,
                 system_prompt=build_advisory_local_system_prompt(),
-                packet=build_prompt(mode, packet),
+                packet=build_prompt(mode, compact_packet_for_local_review(mode, packet)),
                 num_ctx=num_ctx,
                 num_predict=num_predict,
                 temperature=temperature,
