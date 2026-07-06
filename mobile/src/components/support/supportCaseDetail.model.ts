@@ -1,16 +1,5 @@
 import type { SupportCaseDetailData } from './supportCaseDetail.types';
-
-type RecordLike = Record<string, unknown>;
-
-function readString(record: RecordLike | null | undefined, ...keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = record?.[key];
-    if (typeof value === 'string' && value.length > 0) {
-      return value;
-    }
-  }
-  return undefined;
-}
+import { readString, type RecordLike } from './supportCaseDetail.shared';
 
 function parseCaseCore(source: RecordLike, handoff: RecordLike | undefined): Omit<SupportCaseDetailData, 'accountName' | 'contactName' | 'activeSignalCount'> {
   return {
