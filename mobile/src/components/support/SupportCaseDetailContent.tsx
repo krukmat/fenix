@@ -7,12 +7,9 @@ import { brandColors } from '../../theme/colors';
 import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import type { ThemeColors } from '../../theme/types';
-import type { SupportCaseDetailData } from './supportCaseDetail.model';
-import {
-  getPriorityColor,
-  supportCaseDetailStyles,
-  SupportCaseSummaryTab,
-} from './SupportCaseDetailSections';
+import type { SupportCaseDetailData } from './supportCaseDetail.types';
+import { SupportCaseSummaryTab } from './SupportCaseDetailSections';
+import { getPriorityColor, supportCaseDetailStyles } from './SupportCaseDetailMeta';
 
 type SupportTab = 'summary' | 'timeline';
 

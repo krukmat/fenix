@@ -12,10 +12,10 @@ import { CenteredLoadingState, CenteredMessageState } from '../../../src/compone
 import { wedgeHref } from '../../../src/utils/navigation';
 import type { ThemeColors } from '../../../src/theme/types';
 import {
-  buildCaseTimeline,
   formatSignalSummary,
   parseCasePayload,
 } from '../../../src/components/support/supportCaseDetail.model';
+import { buildCaseTimeline } from '../../../src/components/support/supportCaseDetail.timeline';
 
 function useColors(): ThemeColors {
   const theme = useTheme();

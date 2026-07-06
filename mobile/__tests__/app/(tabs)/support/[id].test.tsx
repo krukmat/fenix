@@ -2,6 +2,13 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import {
+  mockUseCase,
+  mockUseCaseActivities,
+  mockUseCaseNotes,
+  mockUseEntityTimeline,
+  mockSupportDetailUseCRMModule,
+} from './testSupportDetailHookMocks';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
@@ -11,16 +18,7 @@ jest.mock('expo-router', () => ({
   Stack: { Screen: jest.fn(() => null) },
 }));
 
-const mockUseCase = jest.fn();
-const mockUseEntityTimeline = jest.fn();
-const mockUseCaseActivities = jest.fn();
-const mockUseCaseNotes = jest.fn();
-jest.mock('../../../../src/hooks/useCRM', () => ({
-  useCase: (...args: unknown[]) => mockUseCase(...args),
-  useEntityTimeline: (...args: unknown[]) => mockUseEntityTimeline(...args),
-  useCaseActivities: (...args: unknown[]) => mockUseCaseActivities(...args),
-  useCaseNotes: (...args: unknown[]) => mockUseCaseNotes(...args),
-}));
+jest.mock('../../../../src/hooks/useCRM', () => mockSupportDetailUseCRMModule());
 
 const mockTriggerAgentMutate = jest.fn();
 jest.mock('../../../../src/hooks/useWedge', () => ({

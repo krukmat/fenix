@@ -3,6 +3,16 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
+import {
+  mockUseCase,
+  mockSupportDetailUseCRMModule,
+  seedEmptySupportDetailQueries,
+} from './testSupportDetailHookMocks';
+import {
+  mockInlineSupportCopilotModule,
+  mockSupportDetailCRMModule,
+  mockSupportDetailPaperModule,
+} from './testSupportDetailComponentMocks';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -14,16 +24,7 @@ jest.mock('expo-router', () => ({
   Stack: { Screen: jest.fn(() => null) },
 }));
 
-const mockUseCase = jest.fn();
-const mockUseEntityTimeline = jest.fn();
-const mockUseCaseActivities = jest.fn();
-const mockUseCaseNotes = jest.fn();
-jest.mock('../../../../src/hooks/useCRM', () => ({
-  useCase: (...args: unknown[]) => mockUseCase(...args),
-  useEntityTimeline: (...args: unknown[]) => mockUseEntityTimeline(...args),
-  useCaseActivities: (...args: unknown[]) => mockUseCaseActivities(...args),
-  useCaseNotes: (...args: unknown[]) => mockUseCaseNotes(...args),
-}));
+jest.mock('../../../../src/hooks/useCRM', () => mockSupportDetailUseCRMModule());
 
 const mockUseTriggerSupportAgent = jest.fn();
 const mockUseTriggerKBAgent = jest.fn();
@@ -34,24 +35,9 @@ jest.mock('../../../../src/hooks/useWedge', () => ({
   useAgentRuns: (...args: unknown[]) => mockUseAgentRuns(...args),
 }));
 
-jest.mock('../../../../src/components/crm', () => {
-  const React = require('react');
-  const { View, Text } = require('react-native');
-  return {
-    CRMDetailHeader: ({ testIDPrefix }: { testIDPrefix: string }) =>
-      React.createElement(View, { testID: `${testIDPrefix}-header` }),
-    EntityTimeline: ({ testIDPrefix }: { testIDPrefix: string }) =>
-      React.createElement(View, { testID: `${testIDPrefix}-list` }),
-  };
-});
+jest.mock('../../../../src/components/crm', () => mockSupportDetailCRMModule());
 
-jest.mock('../../../../src/components/copilot', () => {
-  const React = require('react');
-  const { View } = require('react-native');
-  return {
-    CopilotPanel: () => React.createElement(View, { testID: 'support-inline-copilot' }),
-  };
-});
+jest.mock('../../../../src/components/copilot', () => mockInlineSupportCopilotModule());
 
 jest.mock('../../../../src/components/agents/AgentActivitySection', () => {
   const React = require('react');
@@ -77,19 +63,7 @@ jest.mock('../../../../src/components/signals/SignalCountBadge', () => {
   return { SignalCountBadge: ({ testID }: { testID: string }) => React.createElement(View, { testID }) };
 });
 
-jest.mock('react-native-paper', () => {
-  const React = require('react');
-  const { TouchableOpacity, Text, View } = require('react-native');
-  return {
-    useTheme: () => ({ colors: { primary: '#E53935', surface: '#f5f5f5', onSurface: '#000', onSurfaceVariant: '#666', background: '#fff', error: '#B00020', surfaceVariant: '#ddd', outline: '#999', outlineVariant: '#ccc' } }),
-    Button: ({ testID, onPress, children, disabled }: { testID: string; onPress: () => void; children: React.ReactNode; disabled?: boolean }) =>
-      React.createElement(TouchableOpacity, { testID, onPress, accessibilityState: { disabled: !!disabled } },
-        React.createElement(Text, null, children)
-      ),
-    ActivityIndicator: ({ testID }: { testID?: string }) => React.createElement(View, { testID }),
-    Text: ({ children }: { children: React.ReactNode }) => React.createElement(Text, null, children),
-  };
-});
+jest.mock('react-native-paper', () => mockSupportDetailPaperModule());
 
 // ─── Fixture ──────────────────────────────────────────────────────────────────
 
@@ -116,9 +90,7 @@ describe('Support agent trigger flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseCase.mockReturnValue({ data: casePayload, isLoading: false, error: null });
-    mockUseEntityTimeline.mockReturnValue({ data: { data: [] }, isLoading: false });
-    mockUseCaseActivities.mockReturnValue({ data: { data: [] }, isLoading: false });
-    mockUseCaseNotes.mockReturnValue({ data: { data: [] }, isLoading: false });
+    seedEmptySupportDetailQueries();
     mockUseTriggerSupportAgent.mockReturnValue({ mutate: jest.fn(), isPending: false });
     mockUseTriggerKBAgent.mockReturnValue({ mutate: jest.fn(), isPending: false });
     mockUseAgentRuns.mockReturnValue({ data: null });
