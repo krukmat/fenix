@@ -11,8 +11,14 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockUseCase = jest.fn();
+const mockUseEntityTimeline = jest.fn();
+const mockUseCaseActivities = jest.fn();
+const mockUseCaseNotes = jest.fn();
 jest.mock('../../../../src/hooks/useCRM', () => ({
   useCase: (...args: unknown[]) => mockUseCase(...args),
+  useEntityTimeline: (...args: unknown[]) => mockUseEntityTimeline(...args),
+  useCaseActivities: (...args: unknown[]) => mockUseCaseActivities(...args),
+  useCaseNotes: (...args: unknown[]) => mockUseCaseNotes(...args),
 }));
 
 const mockUseTriggerKBAgent = jest.fn();
@@ -28,6 +34,16 @@ jest.mock('../../../../src/components/crm', () => {
   return {
     CRMDetailHeader: ({ testIDPrefix }: { testIDPrefix: string }) =>
       React.createElement(View, { testID: `${testIDPrefix}-header` }),
+    EntityTimeline: ({ testIDPrefix }: { testIDPrefix: string }) =>
+      React.createElement(View, { testID: `${testIDPrefix}-list` }),
+  };
+});
+
+jest.mock('../../../../src/components/copilot', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    CopilotPanel: () => React.createElement(View, { testID: 'support-inline-copilot' }),
   };
 });
 
@@ -69,6 +85,9 @@ jest.mock('react-native-paper', () => {
         onSurfaceVariant: '#666',
         background: '#fff',
         error: '#B00020',
+        surfaceVariant: '#ddd',
+        outline: '#999',
+        outlineVariant: '#ccc',
       },
     }),
     Button: ({
@@ -87,6 +106,7 @@ jest.mock('react-native-paper', () => {
         { testID, onPress, accessibilityState: { disabled: !!disabled } },
         React.createElement(Text, null, children),
       ),
+    Text: ({ children }: { children: React.ReactNode }) => React.createElement(Text, null, children),
   };
 });
 
@@ -105,6 +125,9 @@ describe('Support KB trigger', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseCase.mockReturnValue({ data: makeCasePayload('resolved'), isLoading: false, error: null });
+    mockUseEntityTimeline.mockReturnValue({ data: { data: [] }, isLoading: false });
+    mockUseCaseActivities.mockReturnValue({ data: { data: [] }, isLoading: false });
+    mockUseCaseNotes.mockReturnValue({ data: { data: [] }, isLoading: false });
     mockUseTriggerKBAgent.mockReturnValue({ mutate: jest.fn(), isPending: false });
   });
 

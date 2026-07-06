@@ -19,6 +19,8 @@ import {
   usePipelines,
   usePipelineStages,
   useActivities,
+  useCaseActivities,
+  useCaseNotes,
   useEntityTimeline,
   useCreateAccount,
   useUpdateAccount,
@@ -69,6 +71,7 @@ jest.mock('../../src/services/api', () => ({
     getPipelines: jest.fn(),
     getPipelineStages: jest.fn(),
     getActivities: jest.fn(),
+    getNotes: jest.fn(),
     getTimelineByEntity: jest.fn(),
     createAccount: jest.fn(),
     updateAccount: jest.fn(),
@@ -111,6 +114,8 @@ describe('useCRM hooks', () => {
       expect(queryKeys.pipelines('ws')).toEqual(['pipelines', 'ws']);
       expect(queryKeys.pipelineStages('ws', 'pipe-1')).toEqual(['pipeline-stages', 'ws', 'pipe-1']);
       expect(queryKeys.activities('ws')).toEqual(['activities', 'ws']);
+      expect(queryKeys.caseActivities('ws', 'case-1')).toEqual(['activities', 'ws', 'case', 'case-1']);
+      expect(queryKeys.caseNotes('ws', 'case-1')).toEqual(['notes', 'ws', 'case', 'case-1']);
       expect(queryKeys.entityTimeline('ws', 'case', 'case-1')).toEqual(['timeline', 'ws', 'case', 'case-1']);
       expect(queryKeys.agentRuns('ws')).toEqual(['agent-runs', 'ws']);
       expect(queryKeys.agentRun('ws', 'id-5')).toEqual(['agent-run', 'ws', 'id-5']);
@@ -222,6 +227,8 @@ describe('useCRM hooks', () => {
     usePipelines();
     usePipelineStages('pipe-1');
     useActivities();
+    useCaseActivities('case-1');
+    useCaseNotes('case-1');
     useEntityTimeline('case', 'case-1');
 
     expect(mockUseInfiniteQuery).toHaveBeenNthCalledWith(
@@ -238,6 +245,14 @@ describe('useCRM hooks', () => {
     );
     expect(mockUseQuery).toHaveBeenNthCalledWith(
       2,
+      expect.objectContaining({ queryKey: ['activities', 'ws-1', 'case', 'case-1'], enabled: true })
+    );
+    expect(mockUseQuery).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ queryKey: ['notes', 'ws-1', 'case', 'case-1'], enabled: true })
+    );
+    expect(mockUseQuery).toHaveBeenNthCalledWith(
+      4,
       expect.objectContaining({ queryKey: ['timeline', 'ws-1', 'case', 'case-1'], enabled: true })
     );
   });

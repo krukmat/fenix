@@ -5,61 +5,25 @@ import { useTheme } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import {
   SupportCaseDetailContent,
-  type SupportCaseDetailData,
 } from '../../../src/components/support/SupportCaseDetailContent';
-import { useCase } from '../../../src/hooks/useCRM';
+import { useCase, useCaseActivities, useCaseNotes, useEntityTimeline } from '../../../src/hooks/useCRM';
 import { useTriggerSupportAgent, useTriggerKBAgent } from '../../../src/hooks/useWedge';
 import { CenteredLoadingState, CenteredMessageState } from '../../../src/components/ui/ScreenState';
 import { wedgeHref } from '../../../src/utils/navigation';
 import type { ThemeColors } from '../../../src/theme/types';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+import {
+  buildCaseTimeline,
+  formatSignalSummary,
+  parseCasePayload,
+} from '../../../src/components/support/supportCaseDetail.model';
 
 function useColors(): ThemeColors {
   const theme = useTheme();
   return theme.colors as ThemeColors;
 }
 
-function s(o: Record<string, unknown> | null | undefined, key: string): string | undefined {
-  return o?.[key] as string | undefined;
-}
-
-type R = Record<string, unknown>;
-
-function parseCaseCore(c: R, handoff: R | undefined): Omit<SupportCaseDetailData, 'accountName' | 'activeSignalCount'> {
-  return {
-    id: String(c.id ?? ''),
-    subject: s(c, 'subject'),
-    status: s(c, 'status') ?? 'open',
-    priority: (s(c, 'priority') as SupportCaseDetailData['priority'] | undefined) ?? 'medium',
-    description: s(c, 'description'),
-    accountId: s(c, 'accountId') ?? s(c, 'account_id'),
-    slaDeadline: s(c, 'slaDeadline') ?? s(c, 'sla_deadline'),
-    handoffStatus: s(handoff, 'status') ?? s(c, 'handoffStatus'),
-    assignee: s(c, 'assignee'),
-  };
-}
-
-function parseCasePayload(data: unknown): SupportCaseDetailData | undefined {
-  const payload = (data ?? null) as R | null;
-  const c = (payload?.case as R | undefined) ?? payload ?? undefined;
-  if (!c) return undefined;
-  const acct = payload?.account as R | undefined;
-  const handoff = payload?.handoff as R | undefined;
-  const signalCount = payload?.active_signal_count;
-  return {
-    ...parseCaseCore(c, handoff),
-    accountName: s(acct, 'name'),
-    activeSignalCount: typeof signalCount === 'number' ? signalCount : 0,
-  };
-}
-
-function formatSignalSummary(activeSignalCount?: number): string | null {
-  if (!activeSignalCount || activeSignalCount <= 0) {
-    return null;
-  }
-
-  return activeSignalCount === 1 ? '1 active signal' : `${activeSignalCount} active signals`;
+function normalizeParamId(id: string | string[] | undefined): string | undefined {
+  return Array.isArray(id) ? id[0] : id;
 }
 
 function supportDetailHeaderOptions(colors: ThemeColors) {
@@ -92,18 +56,17 @@ function SupportCaseError({ colors, message }: { colors: ThemeColors; message: s
   />;
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
-
-export default function SupportCaseDetailScreen() {
-  const colors = useColors();
-  const router = useRouter();
-  const params = useLocalSearchParams<{ id: string | string[] }>();
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
-  const { data, isLoading, error } = useCase(id);
-  const caseData = parseCasePayload(data);
+function useSupportCaseDetailModel(id: string | undefined, router: ReturnType<typeof useRouter>) {
+  const caseQuery = useCase(id ?? '');
+  const timelineQuery = useEntityTimeline('case', id ?? '');
+  const activitiesQuery = useCaseActivities(id ?? '');
+  const notesQuery = useCaseNotes(id ?? '');
+  const caseData = parseCasePayload(caseQuery.data);
   const triggerAgent = useTriggerSupportAgent();
   const triggerKB = useTriggerKBAgent();
   const signalSummary = caseData ? formatSignalSummary(caseData.activeSignalCount) : null;
+  const timelineEvents = buildCaseTimeline(timelineQuery.data, activitiesQuery.data, notesQuery.data);
+  const timelineLoading = timelineQuery.isLoading || activitiesQuery.isLoading || notesQuery.isLoading;
 
   const handleKBTrigger = () => {
     if (!caseData) return;
@@ -114,8 +77,40 @@ export default function SupportCaseDetailScreen() {
     });
   };
 
-  if (isLoading) return <SupportCaseLoading colors={colors} />;
-  if (error || !caseData) return <SupportCaseError colors={colors} message={error?.message || 'Case not found'} />;
+  return {
+    caseQuery,
+    caseData,
+    triggerAgent,
+    triggerKB,
+    signalSummary,
+    timelineEvents,
+    timelineLoading,
+    handleKBTrigger,
+  };
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
+export default function SupportCaseDetailScreen() {
+  const colors = useColors();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ id: string | string[] }>();
+  const id = normalizeParamId(params.id);
+  const {
+    caseQuery,
+    caseData,
+    triggerAgent,
+    triggerKB,
+    signalSummary,
+    timelineEvents,
+    timelineLoading,
+    handleKBTrigger,
+  } = useSupportCaseDetailModel(id, router);
+
+  if (caseQuery.isLoading) return <SupportCaseLoading colors={colors} />;
+  if (caseQuery.error || !caseData) {
+    return <SupportCaseError colors={colors} message={caseQuery.error?.message || 'Case not found'} />;
+  }
 
   return (
     <>
@@ -128,6 +123,8 @@ export default function SupportCaseDetailScreen() {
         triggerAgent={triggerAgent}
         triggerKBIsPending={triggerKB.isPending}
         onTriggerKB={handleKBTrigger}
+        timelineEvents={timelineEvents}
+        timelineLoading={timelineLoading}
       />
     </>
   );

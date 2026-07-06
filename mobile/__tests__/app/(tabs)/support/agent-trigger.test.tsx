@@ -15,8 +15,14 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockUseCase = jest.fn();
+const mockUseEntityTimeline = jest.fn();
+const mockUseCaseActivities = jest.fn();
+const mockUseCaseNotes = jest.fn();
 jest.mock('../../../../src/hooks/useCRM', () => ({
   useCase: (...args: unknown[]) => mockUseCase(...args),
+  useEntityTimeline: (...args: unknown[]) => mockUseEntityTimeline(...args),
+  useCaseActivities: (...args: unknown[]) => mockUseCaseActivities(...args),
+  useCaseNotes: (...args: unknown[]) => mockUseCaseNotes(...args),
 }));
 
 const mockUseTriggerSupportAgent = jest.fn();
@@ -34,6 +40,16 @@ jest.mock('../../../../src/components/crm', () => {
   return {
     CRMDetailHeader: ({ testIDPrefix }: { testIDPrefix: string }) =>
       React.createElement(View, { testID: `${testIDPrefix}-header` }),
+    EntityTimeline: ({ testIDPrefix }: { testIDPrefix: string }) =>
+      React.createElement(View, { testID: `${testIDPrefix}-list` }),
+  };
+});
+
+jest.mock('../../../../src/components/copilot', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    CopilotPanel: () => React.createElement(View, { testID: 'support-inline-copilot' }),
   };
 });
 
@@ -65,12 +81,13 @@ jest.mock('react-native-paper', () => {
   const React = require('react');
   const { TouchableOpacity, Text, View } = require('react-native');
   return {
-    useTheme: () => ({ colors: { primary: '#E53935', surface: '#f5f5f5', onSurface: '#000', onSurfaceVariant: '#666', background: '#fff', error: '#B00020' } }),
+    useTheme: () => ({ colors: { primary: '#E53935', surface: '#f5f5f5', onSurface: '#000', onSurfaceVariant: '#666', background: '#fff', error: '#B00020', surfaceVariant: '#ddd', outline: '#999', outlineVariant: '#ccc' } }),
     Button: ({ testID, onPress, children, disabled }: { testID: string; onPress: () => void; children: React.ReactNode; disabled?: boolean }) =>
       React.createElement(TouchableOpacity, { testID, onPress, accessibilityState: { disabled: !!disabled } },
         React.createElement(Text, null, children)
       ),
     ActivityIndicator: ({ testID }: { testID?: string }) => React.createElement(View, { testID }),
+    Text: ({ children }: { children: React.ReactNode }) => React.createElement(Text, null, children),
   };
 });
 
@@ -99,6 +116,9 @@ describe('Support agent trigger flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseCase.mockReturnValue({ data: casePayload, isLoading: false, error: null });
+    mockUseEntityTimeline.mockReturnValue({ data: { data: [] }, isLoading: false });
+    mockUseCaseActivities.mockReturnValue({ data: { data: [] }, isLoading: false });
+    mockUseCaseNotes.mockReturnValue({ data: { data: [] }, isLoading: false });
     mockUseTriggerSupportAgent.mockReturnValue({ mutate: jest.fn(), isPending: false });
     mockUseTriggerKBAgent.mockReturnValue({ mutate: jest.fn(), isPending: false });
     mockUseAgentRuns.mockReturnValue({ data: null });

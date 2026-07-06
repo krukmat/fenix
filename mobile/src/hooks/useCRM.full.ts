@@ -69,6 +69,19 @@ export function useActivities() {
     crmApi.getActivities(ws, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }));
 }
 
+export function useCaseActivities(caseId: string) {
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.caseActivities(workspaceId ?? '', caseId),
+    queryFn: () => crmApi.getActivities(workspaceId ?? '', { limit: PAGE_SIZE, offset: 0 }, { caseId }),
+    staleTime: LIST_STALE_TIME,
+    gcTime: 5 * 60_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    enabled: !!workspaceId && !!caseId,
+  });
+}
+
 export function useActivity(id: string) {
   const workspaceId = useWorkspaceId();
   return useDetailQuery(queryKeys.activity(workspaceId ?? '', id), !!workspaceId && !!id, () => crmApi.getActivity(id));
@@ -77,6 +90,19 @@ export function useActivity(id: string) {
 export function useNotes() {
   return useWorkspaceList(queryKeys.notes, (ws, page) =>
     crmApi.getNotes(ws, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }));
+}
+
+export function useCaseNotes(caseId: string) {
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.caseNotes(workspaceId ?? '', caseId),
+    queryFn: () => crmApi.getNotes(workspaceId ?? '', { limit: PAGE_SIZE, offset: 0 }, { entityType: 'case', entityId: caseId }),
+    staleTime: LIST_STALE_TIME,
+    gcTime: 5 * 60_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    enabled: !!workspaceId && !!caseId,
+  });
 }
 
 export function useNote(id: string) {

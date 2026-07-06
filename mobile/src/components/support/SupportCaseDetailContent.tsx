@@ -1,170 +1,83 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Button } from 'react-native-paper';
 import { useRouter } from 'expo-router';
-import { AgentActivitySection } from '../agents/AgentActivitySection';
-import { CRMDetailHeader } from '../crm';
-import { EntitySignalsSection } from '../signals/EntitySignalsSection';
-import { useAgentRuns } from '../../hooks/useWedge';
-import { wedgeHref, wedgeHrefObject } from '../../utils/navigation';
-import { brandColors, semanticColors } from '../../theme/colors';
+import { CopilotPanel } from '../copilot';
+import { CRMDetailHeader, EntityTimeline, type TimelineEvent } from '../crm';
+import { brandColors } from '../../theme/colors';
 import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
-import type { AgentRun } from '../../services/api';
 import type { ThemeColors } from '../../theme/types';
+import type { SupportCaseDetailData } from './supportCaseDetail.model';
+import {
+  getPriorityColor,
+  supportCaseDetailStyles,
+  SupportCaseSummaryTab,
+} from './SupportCaseDetailSections';
 
-export interface SupportCaseDetailData {
-  id: string;
-  subject?: string;
-  status: string;
-  priority: 'low' | 'medium' | 'high';
-  description?: string;
-  accountId?: string;
-  accountName?: string;
-  slaDeadline?: string;
-  handoffStatus?: string;
-  assignee?: string;
-  activeSignalCount?: number;
-}
-
-function getPriorityColor(priority: string): string {
-  if (priority === 'high') return brandColors.error;
-  if (priority === 'medium') return semanticColors.warning;
-  return semanticColors.success;
-}
+type SupportTab = 'summary' | 'timeline';
 
 function getMetadata(c: SupportCaseDetailData) {
   return [
-    { label: 'Status', value: c.status },
     { label: 'Priority', value: c.priority },
-    { label: 'Assignee', value: c.assignee || 'Unassigned' },
+    { label: 'Owner', value: c.assignee || 'Unassigned' },
     { label: 'SLA Deadline', value: c.slaDeadline || 'Not set' },
   ];
 }
 
-function SlaSection({ slaDeadline, colors }: { slaDeadline?: string; colors: ThemeColors }) {
-  if (!slaDeadline) return null;
-  return (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>SLA Deadline</Text>
-      <View style={[styles.card, { backgroundColor: colors.surface }]} testID="support-case-sla-deadline">
-        <Text style={{ color: colors.onSurface }}>{slaDeadline}</Text>
-      </View>
-    </View>
-  );
-}
-
-function HandoffSection({ handoffStatus, colors }: { handoffStatus?: string; colors: ThemeColors }) {
-  if (!handoffStatus) return null;
-  return (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Handoff Status</Text>
-      <View style={[styles.card, { backgroundColor: colors.surface }]} testID="support-case-handoff-status">
-        <Text style={{ color: colors.onSurface }}>{handoffStatus}</Text>
-      </View>
-    </View>
-  );
-}
-
-function AccountSection({
-  accountId,
-  accountName,
-  router,
+function TabButton({
+  label,
+  active,
+  onPress,
+  testID,
   colors,
 }: {
-  accountId?: string;
-  accountName?: string;
-  router: ReturnType<typeof useRouter>;
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  testID: string;
   colors: ThemeColors;
 }) {
-  if (!accountId) return null;
   return (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Account</Text>
-      <TouchableOpacity
-        style={[styles.card, { backgroundColor: colors.surface }]}
-        onPress={() => router.push(wedgeHref(`/sales/${accountId}`))}
-      >
-        <Text style={{ color: colors.onSurface, fontWeight: '500' }}>{accountName || 'View Account'}</Text>
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      onPress={onPress}
+      testID={testID}
+      style={[
+        styles.tabButton,
+        {
+          backgroundColor: active ? colors.primary : colors.surface,
+          borderColor: active ? colors.primary : colors.outline,
+        },
+      ]}
+    >
+      <Text style={[styles.tabButtonText, { color: active ? brandColors.onError : colors.onSurface }]}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
-function ActiveRunBadge({ caseId, colors }: { caseId: string; colors: ThemeColors }) {
-  const { data } = useAgentRuns({ status: 'awaiting_approval' });
-  const runs = data?.data ?? [];
-  const active = runs.find((run: AgentRun) => run.entity_type === 'case' && run.entity_id === caseId) ?? runs[0];
-  if (!active) return null;
-  return (
-    <View style={[styles.card, { backgroundColor: colors.surface }]} testID="support-active-run-status">
-      <Text style={{ color: colors.onSurface }}>Agent run: {active.status}</Text>
-    </View>
-  );
-}
-
-function TriggerSection({
-  caseData,
+function TimelineSection({
   colors,
-  triggerAgent,
-  triggerKBIsPending,
-  onTriggerKB,
-}: {
-  caseData: SupportCaseDetailData;
-  colors: ThemeColors;
-  triggerAgent: { mutate: (context: { caseId: string; customerQuery: string }) => void; isPending: boolean };
-  triggerKBIsPending: boolean;
-  onTriggerKB: () => void;
-}) {
-  return (
-    <>
-      <View style={styles.section}>
-        <Button
-          mode="contained"
-          testID="support-trigger-agent-button"
-          disabled={triggerAgent.isPending}
-          onPress={() => triggerAgent.mutate({ caseId: caseData.id, customerQuery: caseData.subject ?? '' })}
-        >
-          {triggerAgent.isPending ? 'Running…' : 'Run Support Agent'}
-        </Button>
-        <ActiveRunBadge caseId={caseData.id} colors={colors} />
-      </View>
-
-      {caseData.status === 'resolved' ? (
-        <View style={styles.section}>
-          <Button
-            mode="outlined"
-            testID="kb-trigger-button"
-            disabled={triggerKBIsPending}
-            onPress={onTriggerKB}
-          >
-            {triggerKBIsPending ? 'Running...' : 'Generate KB Article'}
-          </Button>
-        </View>
-      ) : null}
-    </>
-  );
-}
-
-function SignalsHeader({
-  colors,
-  signalSummary,
+  timelineEvents,
+  timelineLoading,
 }: {
   colors: ThemeColors;
-  signalSummary: string | null;
+  timelineEvents: TimelineEvent[];
+  timelineLoading: boolean;
 }) {
   return (
     <View style={styles.section}>
-      <View style={styles.sectionHeaderRow}>
-        <Text style={[styles.sectionTitle, styles.sectionTitleNoMargin, { color: colors.onSurface }]}>Signals</Text>
-        {signalSummary ? (
-          <View
-            style={[styles.signalSummaryChip, { backgroundColor: colors.surface }]}
-            testID="support-case-signal-summary"
-          >
-            <Text style={[styles.signalSummaryText, { color: colors.error }]}>{signalSummary}</Text>
-          </View>
-        ) : null}
+      <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Timeline</Text>
+      <View style={[styles.card, { backgroundColor: colors.background }]} testID="support-case-timeline-panel">
+        {timelineLoading ? (
+          <Text style={{ color: colors.onSurfaceVariant }} testID="support-case-timeline-loading">
+            Loading timeline...
+          </Text>
+        ) : (
+          <EntityTimeline
+            events={timelineEvents}
+            testIDPrefix="support-case-timeline"
+            emptyMessage="No case timeline available yet"
+          />
+        )}
       </View>
     </View>
   );
@@ -178,6 +91,8 @@ export function SupportCaseDetailContent({
   triggerAgent,
   triggerKBIsPending,
   onTriggerKB,
+  timelineEvents,
+  timelineLoading,
 }: {
   caseData: SupportCaseDetailData;
   colors: ThemeColors;
@@ -186,7 +101,11 @@ export function SupportCaseDetailContent({
   triggerAgent: { mutate: (context: { caseId: string; customerQuery: string }) => void; isPending: boolean };
   triggerKBIsPending: boolean;
   onTriggerKB: () => void;
+  timelineEvents: TimelineEvent[];
+  timelineLoading: boolean;
 }) {
+  const [activeTab, setActiveTab] = useState<SupportTab>('summary');
+
   return (
     <View testID="support-case-detail-screen" style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView style={styles.container}>
@@ -201,34 +120,45 @@ export function SupportCaseDetailContent({
           testIDPrefix="support-case-detail"
         />
 
-        <SlaSection slaDeadline={caseData.slaDeadline} colors={colors} />
-        <HandoffSection handoffStatus={caseData.handoffStatus} colors={colors} />
-        <AccountSection accountId={caseData.accountId} accountName={caseData.accountName} router={router} colors={colors} />
-        <SignalsHeader colors={colors} signalSummary={signalSummary} />
+        <View style={styles.tabRow}>
+          <TabButton
+            label="Summary"
+            active={activeTab === 'summary'}
+            onPress={() => setActiveTab('summary')}
+            testID="support-case-tab-summary"
+            colors={colors}
+          />
+          <TabButton
+            label="Timeline"
+            active={activeTab === 'timeline'}
+            onPress={() => setActiveTab('timeline')}
+            testID="support-case-tab-timeline"
+            colors={colors}
+          />
+        </View>
 
-        <TriggerSection
-          caseData={caseData}
-          colors={colors}
-          triggerAgent={triggerAgent}
-          triggerKBIsPending={triggerKBIsPending}
-          onTriggerKB={onTriggerKB}
-        />
-
-        <AgentActivitySection entityType="case" entityId={caseData.id} testIDPrefix="support-case-agent-activity" />
-        <EntitySignalsSection entityType="case" entityId={caseData.id} testIDPrefix="support-case-signals" />
+        {activeTab === 'summary' ? (
+          <SupportCaseSummaryTab
+            caseData={caseData}
+            colors={colors}
+            router={router}
+            signalSummary={signalSummary}
+            triggerAgent={triggerAgent}
+            triggerKBIsPending={triggerKBIsPending}
+            onTriggerKB={onTriggerKB}
+          />
+        ) : (
+          <TimelineSection colors={colors} timelineEvents={timelineEvents} timelineLoading={timelineLoading} />
+        )}
 
         <View style={styles.section}>
-          <Button
-            mode="outlined"
-            testID="support-copilot-button"
-            onPress={() =>
-              router.push(
-                wedgeHrefObject(`/support/${caseData.id}/copilot`, { entity_type: 'case', entity_id: caseData.id })
-              )
-            }
-          >
-            Open Copilot
-          </Button>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Copilot</Text>
+          <View style={styles.copilotContainer} testID="support-case-detail-copilot-panel">
+            <CopilotPanel
+              initialContext={{ entityType: 'case', entityId: caseData.id }}
+              onSupportTrigger={(customerQuery) => triggerAgent.mutate({ caseId: caseData.id, customerQuery })}
+            />
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -236,21 +166,26 @@ export function SupportCaseDetailContent({
 }
 
 const styles = StyleSheet.create({
+  ...supportCaseDetailStyles,
   container: { flex: 1 },
   priorityBanner: { padding: spacing.sm, alignItems: 'center' },
   priorityText: { color: brandColors.onError, fontWeight: '600', fontSize: 14 },
-  section: { padding: spacing.base },
-  sectionTitle: { ...typography.headingMD, marginBottom: spacing.md },
-  sectionTitleNoMargin: { marginBottom: 0 },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
-  signalSummaryChip: {
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+  tabRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.sm,
   },
-  signalSummaryText: {
-    fontSize: 12,
+  tabButton: {
+    flex: 1,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  tabButtonText: {
+    ...typography.labelMD,
     fontWeight: '700',
   },
-  card: { padding: spacing.base, borderRadius: radius.md },
+  copilotContainer: { height: 480, borderRadius: radius.md, overflow: 'hidden' },
 });

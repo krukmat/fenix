@@ -2,6 +2,7 @@ import { apiClient } from './api.client';
 
 type PageParams = { page?: number; limit?: number };
 type OffsetParams = { limit?: number; offset?: number };
+type EntityFilters = { entityType?: string; entityId?: string; caseId?: string };
 type CRMMetadata = string | Record<string, unknown>;
 type EntityRef = { entityType: string; entityId: string };
 
@@ -88,6 +89,18 @@ function offsetParams(workspaceId: string, pagination?: OffsetParams) {
   return { workspace_id: workspaceId, limit: pagination?.limit ?? 50, offset: pagination?.offset ?? 0 };
 }
 
+function mergeParams(
+  base: Record<string, string | number | undefined>,
+  filters?: EntityFilters,
+) {
+  return {
+    ...base,
+    entity_type: filters?.entityType,
+    entity_id: filters?.entityId,
+    case_id: filters?.caseId,
+  };
+}
+
 async function getData(path: string, params?: Record<string, string | number | undefined>) {
   const response = await apiClient.get(path, params ? { params } : undefined);
   return response.data;
@@ -156,15 +169,15 @@ export const crmEndpointApi = {
     putData(`/bff/api/v1/pipelines/stages/${stageId}`, data),
   deletePipelineStage: (stageId: string) => deleteData(`/bff/api/v1/pipelines/stages/${stageId}`),
 
-  getActivities: (workspaceId: string, pagination?: OffsetParams) =>
-    getData('/bff/api/v1/activities', offsetParams(workspaceId, pagination)),
+  getActivities: (workspaceId: string, pagination?: OffsetParams, filters?: EntityFilters) =>
+    getData('/bff/api/v1/activities', mergeParams(offsetParams(workspaceId, pagination), filters)),
   getActivity: (id: string) => getData(`/bff/api/v1/activities/${id}`),
   createActivity: (data: ActivityBody) => postData('/bff/api/v1/activities', activityPayload(data)),
   updateActivity: (id: string, data: Partial<ActivityBody>) => putData(`/bff/api/v1/activities/${id}`, activityPayload(data)),
   deleteActivity: (id: string) => deleteData(`/bff/api/v1/activities/${id}`),
 
-  getNotes: (workspaceId: string, pagination?: OffsetParams) =>
-    getData('/bff/api/v1/notes', offsetParams(workspaceId, pagination)),
+  getNotes: (workspaceId: string, pagination?: OffsetParams, filters?: EntityFilters) =>
+    getData('/bff/api/v1/notes', mergeParams(offsetParams(workspaceId, pagination), filters)),
   getNote: (id: string) => getData(`/bff/api/v1/notes/${id}`),
   createNote: (data: NoteBody) => postData('/bff/api/v1/notes', data),
   updateNote: (id: string, data: Partial<NoteBody>) => putData(`/bff/api/v1/notes/${id}`, data),
