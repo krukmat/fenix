@@ -74,7 +74,18 @@ fi
 
 if echo "${CHANGED_FILES:-}" | grep -qE '(go\.mod|go\.sum)'; then
   echo "==> Gate: govulncheck (dependency changes detected)"
-  govulncheck ./...
+  # Resolve explicitly: it's a `go install`ed tool under $(go env GOPATH)/bin,
+  # which is not always on PATH when this script runs from the pre-push hook.
+  GOVULNCHECK_BIN="$(command -v govulncheck || true)"
+  if [ -z "$GOVULNCHECK_BIN" ]; then
+    GOVULNCHECK_BIN="$(go env GOPATH)/bin/govulncheck"
+  fi
+  if [ ! -x "$GOVULNCHECK_BIN" ]; then
+    echo "FAILED: govulncheck tool not found. Install it with:"
+    echo "  go install golang.org/x/vuln/cmd/govulncheck@latest"
+    exit 1
+  fi
+  "$GOVULNCHECK_BIN" ./...
 else
   echo "==> Gate: govulncheck — SKIPPED (no go.mod/go.sum changes)"
 fi
