@@ -72,8 +72,15 @@ tags:
           timeout: 20000
       - takeScreenshot:
           path: "07_inbox_request_detail"
-      - tapOn:
-          id: "tab-inbox"
+      # UIX support case detail redesign (2026-07-06) added FlatLists
+      # (AgentActivitySection/EntitySignalsSection) inside the ScrollView,
+      # which triggers a dev-only "VirtualizedLists should never be nested"
+      # LogBox banner right above the tab bar. That banner reproducibly
+      # swallows the tap on tab-inbox here, leaving the app stuck on the
+      # Support tab. Navigate back via deep link instead of a physical tap
+      # to route around the overlay. See docs follow-up: nested-list warning
+      # should still be fixed at the source in SupportCaseSummaryTab.
+      - openLink: "fenixcrm:///inbox"
       - extendedWaitUntil:
           visible:
             id: "inbox-screen"
@@ -94,6 +101,14 @@ tags:
     visible:
       id: "support-case-detail-screen"
     timeout: 20000
+# UIX support case detail redesign (2026-07-06) added several sections above
+# the KB trigger (Highlights, Status Path, SLA, Handoff, Signals header), so
+# it now sits below the fold — scroll to it before asserting.
+- scrollUntilVisible:
+    element:
+      id: "kb-trigger-button"
+    direction: DOWN
+    timeout: 15000
 - assertVisible:
     id: "kb-trigger-button"
 - takeScreenshot:
