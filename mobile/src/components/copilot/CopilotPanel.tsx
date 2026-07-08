@@ -122,6 +122,11 @@ interface CopilotPanelProps {
   initialContext?: CopilotInitialContext;
   // F9.A5: optional callback fires with the submitted query so callers can trigger a support run
   onSupportTrigger?: (customerQuery: string) => void;
+  // UIX-31A: set false when embedding inside a fixed-height container that itself
+  // sits inside an outer ScrollView (e.g. SupportCaseDetailContent, SalesDealDetailContent) —
+  // avoids RN's "VirtualizedLists should never be nested inside plain ScrollViews" warning.
+  // Standalone copilot screens keep the default (true) so the panel owns its own scroll.
+  scrollEnabled?: boolean;
 }
 
 function ContextBanner({ context }: { context: CopilotInitialContext }) {
@@ -191,7 +196,7 @@ function useCopilotPanelModel(initialContext?: CopilotInitialContext, onSupportT
   };
 }
 
-export function CopilotPanel({ initialContext, onSupportTrigger }: CopilotPanelProps = {}) {
+export function CopilotPanel({ initialContext, onSupportTrigger, scrollEnabled = true }: CopilotPanelProps = {}) {
   const {
     inputText,
     setInputText,
@@ -213,6 +218,7 @@ export function CopilotPanel({ initialContext, onSupportTrigger }: CopilotPanelP
         renderItem={({ item }) => <MessageBubble item={item} />}
         ListFooterComponent={<Footer lastAssistant={lastAssistant} />}
         contentContainerStyle={styles.listContent}
+        scrollEnabled={scrollEnabled}
         testID="copilot-messages"
       />
 

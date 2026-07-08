@@ -193,7 +193,7 @@ export function SalesDealDetailContent({
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Copilot</Text>
         <View style={styles.copilotContainer} testID="sales-deal-detail-copilot-panel">
-          <CopilotPanel initialContext={{ entityType: 'deal', entityId: dealData.id }} />
+          <CopilotPanel initialContext={{ entityType: 'deal', entityId: dealData.id }} scrollEnabled={false} />
         </View>
       </View>
     </ScrollView>

@@ -154,6 +154,7 @@ export function SupportCaseDetailContent({
             <CopilotPanel
               initialContext={{ entityType: 'case', entityId: caseData.id }}
               onSupportTrigger={(customerQuery) => triggerAgent.mutate({ caseId: caseData.id, customerQuery })}
+              scrollEnabled={false}
             />
           </View>
         </View>
