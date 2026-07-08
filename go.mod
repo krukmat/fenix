@@ -2,7 +2,7 @@ module github.com/matiasleandrokruk/fenix
 
 go 1.25.0
 
-toolchain go1.25.10
+toolchain go1.25.12
 
 require (
 	github.com/a2aproject/a2a-go v0.3.9
