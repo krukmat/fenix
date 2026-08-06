@@ -3,7 +3,7 @@ doc_type: adr
 title: "ADR-035: Peer review and code review gates are unconditionally blocking, no waiver or BLOCKED-terminal exception"
 status: Accepted
 supersedes: ""
-superseded_by: ""
+superseded_by: "ADR-037 (partial amendment — decision items #2 and #3 only; items #1, #4, #5 remain in force)"
 ---
 
 # ADR-035: Peer review and code review gates are unconditionally blocking, no waiver or BLOCKED-terminal exception
@@ -71,6 +71,7 @@ This ADR does not change `docs/plans/portable_agent_workflow_port_plan.md` §4's
 
 ## Related
 
+- `docs/decisions/ADR-037-human-waiver-override-contract.md` (2026-08-03 — amends decision items #2 and #3 of this ADR: a human waiver may now override a non-pass verdict, provided the gate still ran and the waiver is an explicit, in-turn, verbatim-recorded `WAIVER: <reason>`. Items #1, #4, #5 below are unchanged.)
 - `docs/playbooks/AGENT_WORKFLOW_GUIDE.md` (workflow steps 6, 10; `## Peer review` section)
 - `CLAUDE.md`, `AGENTS.md` (Reporting sections)
 - `docs/policies/HITL_AUTONOMY_POLICY.md` (peer review and HITL are independent gates; this ADR does not change that independence)

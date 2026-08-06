@@ -38,6 +38,8 @@ All Architecture Decision Records for this repository. Each row links to the ADR
 | [ADR-032](ADR-032-workspace-bootstrap-defaults.md) | Workspace bootstrap defaults: a freshly registered workspace has no usable role or pipeline | proposed |
 | [ADR-034](ADR-034-mobile-primary-ux-surface.md) | Mobile is the primary UX surface for the Verifiable Trust wedge | accepted |
 | [ADR-035](ADR-035-peer-review-gate-unconditional-block.md) | Peer review and code review gates are unconditionally blocking, no waiver or BLOCKED-terminal exception | accepted |
+| [ADR-036](ADR-036-local-dev-engine-outsourcing-priority.md) | Prioritize LocalDevEngine outsourcing as the target backend for low-RRI dev-tooling delegation, with an explicit decommission path | accepted |
+| [ADR-037](ADR-037-human-waiver-override-contract.md) | Human waiver overrides a non-pass gate verdict, with mandatory audit trail (amends ADR-035 items #2, #3) | accepted |
 | [ADR-100](ADR-100-agentic-blackboard-architecture.md) | Agentic Blackboard Architecture | accepted |
 | [ADR-101](ADR-101-relationship-memory-engine.md) | Relationship Memory Engine | accepted |
 | [ADR-102](ADR-102-deterministic-agent-evaluation.md) | Deterministic Agent Evaluation Framework | accepted |
