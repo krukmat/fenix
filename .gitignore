@@ -75,6 +75,7 @@ docs/plans/*
 !docs/plans/local_peer_review_prompt_compaction_plan.md
 !docs/plans/adr-032-workspace-bootstrap-remediation-plan.md
 !docs/plans/ui_ux_governed_console_strategy_plan.md
+!docs/plans/digitalocean_online_poc_readiness_plan.md
 
 # Obsidian — vault config es local, no se commitea
 docs/.obsidian/
@@ -100,4 +101,5 @@ mobile/app/(tabs)/home/.index.tsx.swp
 logs/verification/
 logs/
 docs/audits/*
+!docs/audits/digitalocean_online_poc_readiness_audit.md
 tmp/*

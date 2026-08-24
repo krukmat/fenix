@@ -1,6 +1,6 @@
 ---
 title: FenixCRM — Project Status Dashboard
-last_updated: 2026-07-05
+last_updated: 2026-08-24
 tags: [dashboard]
 ---
 
@@ -92,6 +92,8 @@ SORT date DESC
 ## Referencias rápidas
 
 - [[plans/fenixcrm_strategic_repositioning_implementation_plan|Strategic Repositioning Implementation Plan]]
+- [[plans/digitalocean_online_poc_readiness_plan|DigitalOcean Online POC Readiness and Delivery Plan]]
+- [[audits/digitalocean_online_poc_readiness_audit|DigitalOcean Online POC Readiness Audit]]
 - [[mobile_wedge_harmonization_audit|Mobile Wedge Harmonization Audit]]
 - [[plans/mobile_wedge_harmonization_followup_plan|Mobile Wedge Harmonization Follow-up Plan]]
 - [[plans/ui_ux_governed_console_strategy_plan|Mobile UI/UX Strategy: The Verifiable-Trust Operator App]]

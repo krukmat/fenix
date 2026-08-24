@@ -1,7 +1,9 @@
 ---
+doc_type: plan
 title: "FenixCRM - Plan de despliegue en DigitalOcean"
 version: "2.1"
 date: "2026-03-27"
+reviewed: "2026-08-24"
 timezone: "Europe/Madrid"
 language: "es-ES"
 status: "proposed"
@@ -9,9 +11,17 @@ audience: ["engineering", "platform", "security", "product"]
 tags: ["deployment", "digitalocean", "gradient", "open-models", "costs", "poc"]
 canonical_id: "fenix-deploy-do-v2.1"
 source_of_truth: ["docs/requirements.md", "repo state verified on 2026-03-27"]
+superseded_by: "[[plans/digitalocean_online_poc_readiness_plan]]"
 ---
 
 # FenixCRM - Plan de despliegue en DigitalOcean
+
+> **Estado de este documento**: referencia histórica revisada el 2026-08-24.
+> La planificación y los gates vigentes para septiembre/octubre de 2026 están
+> en [[plans/digitalocean_online_poc_readiness_plan]] y
+> [[audits/digitalocean_online_poc_readiness_audit]]. Los precios, catálogo de
+> modelos, checkboxes de preparación y la afirmación de que el compose actual
+> monta un Volume de DigitalOcean no son fuente de verdad actual.
 
 > **Proposito**: definir un plan realista y low-cost para desplegar FenixCRM en DigitalOcean durante los proximos meses, cubriendo backend, BFF, SQLite y AI con modelos abiertos, sin depender de modelos comerciales.
 
