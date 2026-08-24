@@ -80,7 +80,8 @@ func TestReadyzHandler_ChatDown(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler(w, req)
 
-	// Chat is an optional provider — system stays operable, so 200 with degraded status.
+	// The endpoint remains an operational signal: Compose enforces strict container
+	// health by accepting only its separate "status":"ready" response.
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d; want %d", w.Code, http.StatusOK)
 	}
@@ -102,7 +103,8 @@ func TestReadyzHandler_EmbedDown(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler(w, req)
 
-	// Embed is an optional provider — system stays operable, so 200 with degraded status.
+	// The endpoint remains an operational signal: Compose enforces strict container
+	// health by accepting only its separate "status":"ready" response.
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d; want %d", w.Code, http.StatusOK)
 	}

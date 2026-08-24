@@ -38,10 +38,9 @@ app.use(cors({
 }));
 
 // BAL-01: session middleware — HttpOnly cookie, SameSite=Lax, Secure in production
-const SESSION_SECRET = process.env['SESSION_SECRET'] ?? 'fenix-admin-dev-secret-change-in-prod';
 app.use(session({
   name: 'fenix.admin.sid',
-  secret: SESSION_SECRET,
+  secret: config.sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {

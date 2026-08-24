@@ -544,6 +544,40 @@ OLLAMA_MODEL=nomic-embed-text
 
 ## 8 -- Plan de implantacion
 
+### Contrato de despliegue POC (septiembre de 2026)
+
+El contrato que se debe usar para el POC es `docker-compose.prod.yml`. No crea
+ningun recurso de DigitalOcean: presupone que un operador ya monto el Volume y
+entrego las variables fuera de Git. Preparar un fichero no versionado, por
+ejemplo `/srv/fenix/config/production.env`, a partir de `.env.example`.
+
+Requisitos minimos del host:
+
+```bash
+sudo install -d -m 0750 /srv/fenix/data /srv/fenix/ollama
+sudo chown -R 1000:1000 /srv/fenix/data /srv/fenix/ollama
+```
+
+El operador debe establecer `FENIX_DATA_DIR` y `FENIX_OLLAMA_DIR` en rutas del
+Volume ya montado. El compose los monta respectivamente en `/data` y
+`/root/.ollama`; nunca usa un volumen Docker anonimo o nombrado para SQLite.
+
+Arranque de staging (sin secretos en la linea de comandos):
+
+```bash
+docker compose --env-file /srv/fenix/config/production.env -f docker-compose.prod.yml up -d
+docker compose --env-file /srv/fenix/config/production.env -f docker-compose.prod.yml exec ollama ollama pull "$OLLAMA_MODEL"
+docker compose --env-file /srv/fenix/config/production.env -f docker-compose.prod.yml ps
+curl --fail --show-error https://"$DOMAIN"/readyz
+```
+
+`ollama` se inicia en el grafo normal porque es el proveedor de embeddings. El
+backend no queda saludable hasta que `/readyz` devuelve exactamente
+`"status":"ready"`; por tanto Caddy y BFF permanecen bloqueados mientras
+SQLite, el chat externo o los embeddings locales no esten listos. Caddy es el
+unico ingress de aplicacion publicado y devuelve `404` para `/metrics` y
+`/bff/metrics` hasta que exista una politica de monitorizacion aprobada.
+
 ### Fase 0 -- Preparacion del repo
 
 Antes de desplegar, el repo debe cumplir todos los puntos siguientes. Cada punto tiene un criterio de aceptacion verificable.
@@ -577,6 +611,11 @@ Comportamiento real del endpoint:
 - Si chat o embed fallan → devuelve `200` con `"status": "degraded"` y el campo correspondiente en `"error"`. La API sigue operativa pero sin capacidad de IA.
 - Si todo pasa → devuelve `200` con `"status": "ready"`.
 
+El healthcheck de produccion es mas estricto que este endpoint operacional:
+solo acepta el JSON con `"status":"ready"`. Asi se conserva el diagnostico
+degradado para operadores sin permitir que Compose declare sano al backend con
+una dependencia de IA caida.
+
 Esto es comportamiento correcto: un fallo de provider LLM no debe impedir que el CRM base funcione.
 
 Criterio de aceptacion: `curl /readyz` devuelve `200` con todos los campos en `"ok"` cuando backend + Ollama + Gradient estan accesibles. Devuelve `503` solo si la DB no responde.
@@ -609,14 +648,25 @@ Sin esto los errores en produccion son dificiles de diagnosticar.
 El fichero `.env.example` en la raiz debe reflejar la nueva separacion de providers antes de desplegar:
 
 ```env
+FENIX_DATA_DIR=/srv/fenix/data
+FENIX_OLLAMA_DIR=/srv/fenix/ollama
+DOMAIN=app.example.com
+JWT_SECRET=<secret-unico-de-al-menos-32-caracteres>
+SESSION_SECRET=<secret-unico-de-sesion>
+BFF_ORIGIN=https://app.example.com
+CORS_ALLOWED_ORIGINS=https://app.example.com
+BFF_CORS_ALLOWED_ORIGINS=https://app.example.com
 CHAT_PROVIDER=openai-compat
 EMBED_PROVIDER=ollama
 OPENAI_COMPAT_BASE_URL=https://inference.do-ai.run
-OPENAI_COMPAT_API_KEY=
-OPENAI_COMPAT_MODEL=llama3-8b-instruct
-OLLAMA_BASE_URL=http://127.0.0.1:11434
+OPENAI_COMPAT_API_KEY=<secret-entregado-fuera-de-git>
+OPENAI_COMPAT_MODEL=<modelo-validado-en-staging>
 OLLAMA_MODEL=nomic-embed-text
 ```
+
+`docker compose ... config` falla de forma intencionada si falta cualquier
+secreto, origen CORS, ruta de datos, o parametro del chat externo. No se debe
+rellenar `.env.example` ni registrar este fichero con secretos reales.
 
 ### Fase 1 -- Provisioning
 
@@ -649,6 +699,7 @@ Layout recomendado:
   data/
     fenixcrm.db
     attachments/
+  ollama/
   backups/
 ```
 
@@ -656,22 +707,18 @@ Layout recomendado:
 
 ```env
 NODE_ENV=production
-ENVIRONMENT=production
-BFF_PORT=3000
-BACKEND_URL=http://backend:8080
-DATABASE_URL=/srv/fenix/data/fenixcrm.db
-JWT_SECRET=...
+FENIX_DATA_DIR=/srv/fenix/data
+FENIX_OLLAMA_DIR=/srv/fenix/ollama
+DOMAIN=app.tudominio.com
+JWT_SECRET=<secret-unico>
+SESSION_SECRET=<secret-unico>
 BFF_ORIGIN=https://app.tudominio.com
-
-CHAT_PROVIDER=openai-compat
-EMBED_PROVIDER=ollama
-
-OPENAI_COMPAT_BASE_URL=https://inference.do-ai.run
-OPENAI_COMPAT_API_KEY=...
-OPENAI_COMPAT_MODEL=llama3-8b-instruct
-
-OLLAMA_BASE_URL=http://127.0.0.1:11434
+CORS_ALLOWED_ORIGINS=https://app.tudominio.com
+BFF_CORS_ALLOWED_ORIGINS=https://app.tudominio.com
 OLLAMA_MODEL=nomic-embed-text
+OPENAI_COMPAT_BASE_URL=https://inference.do-ai.run
+OPENAI_COMPAT_API_KEY=<secret-fuera-de-git>
+OPENAI_COMPAT_MODEL=<modelo-validado-en-staging>
 ```
 
 ### Fase 4 -- Validacion funcional
@@ -689,6 +736,7 @@ Estos checks no requieren datos ni LLM. Verifican que la topologia esta bien:
 | BFF vivo | `curl https://tudominio.com/bff/health` | `200 OK` |
 | TLS activo | `curl -I https://tudominio.com` | certificado valido, sin warnings |
 | Backend no expuesto | `curl http://IP_DROPLET:8080/health` | timeout o connection refused |
+| Metricas no publicas | `curl -o /dev/null -w '%{http_code}' https://tudominio.com/metrics` | `404` |
 
 Si `/readyz` devuelve `503`, revisar el detalle del cuerpo antes de continuar.
 

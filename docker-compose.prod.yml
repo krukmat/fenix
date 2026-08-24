@@ -24,23 +24,31 @@ services:
     expose:
       - "8080"
     environment:
-      - JWT_SECRET=${JWT_SECRET}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set in the production environment}
       - DATABASE_URL=/data/fenixcrm.db
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
-      - OLLAMA_CHAT_MODEL=${OLLAMA_CHAT_MODEL:-llama3.2:3b-instruct-q4_K_M}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-nomic-embed-text}
-      - CHAT_PROVIDER=${CHAT_PROVIDER:-ollama}
-      - EMBED_PROVIDER=${EMBED_PROVIDER:-ollama}
-      - OPENAI_COMPAT_BASE_URL=${OPENAI_COMPAT_BASE_URL:-}
-      - OPENAI_COMPAT_API_KEY=${OPENAI_COMPAT_API_KEY:-}
-      - OPENAI_COMPAT_MODEL=${OPENAI_COMPAT_MODEL:-}
+      - BFF_ORIGIN=${BFF_ORIGIN:?BFF_ORIGIN must be set to the public BFF origin}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS must list approved browser origins}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:?OLLAMA_MODEL must name the embedding model}
+      - CHAT_PROVIDER=openai-compat
+      - EMBED_PROVIDER=ollama
+      - OPENAI_COMPAT_BASE_URL=${OPENAI_COMPAT_BASE_URL:?OPENAI_COMPAT_BASE_URL must be set}
+      - OPENAI_COMPAT_API_KEY=${OPENAI_COMPAT_API_KEY:?OPENAI_COMPAT_API_KEY must be set}
+      - OPENAI_COMPAT_MODEL=${OPENAI_COMPAT_MODEL:?OPENAI_COMPAT_MODEL must be set}
     volumes:
-      - db_data:/data
+      - ${FENIX_DATA_DIR:?FENIX_DATA_DIR must point to the mounted DigitalOcean Volume}:/data
+    depends_on:
+      ollama:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/readyz"]
+      test:
+        - CMD-SHELL
+        - >-
+          curl --fail --silent --show-error http://localhost:8080/readyz | grep -q '"status":"ready"'
       interval: 15s
       timeout: 5s
       retries: 3
+      start_period: 30s
     restart: unless-stopped
 
   bff:
@@ -52,6 +60,8 @@ services:
     environment:
       - BACKEND_URL=http://backend:8080
       - NODE_ENV=production
+      - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET must be set in the production environment}
+      - BFF_CORS_ALLOWED_ORIGINS=${BFF_CORS_ALLOWED_ORIGINS:?BFF_CORS_ALLOWED_ORIGINS must list approved browser origins}
     depends_on:
       backend:
         condition: service_healthy
@@ -64,16 +74,12 @@ services:
 
   ollama:
     image: ollama/ollama:latest
-    profiles:
-      - with-ollama
     expose:
       - "11434"
     volumes:
-      - ollama_data:/root/.ollama
+      - ${FENIX_OLLAMA_DIR:?FENIX_OLLAMA_DIR must point to persistent model storage}:/root/.ollama
     restart: unless-stopped
 
 volumes:
   caddy_data:
   caddy_config:
-  db_data:
-  ollama_data:

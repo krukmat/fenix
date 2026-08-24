@@ -14,12 +14,17 @@ export const config = {
   backendUrl: process.env['BACKEND_URL'] ?? 'http://localhost:8080',
   nodeEnv: process.env['NODE_ENV'] ?? 'development',
   isProduction: process.env['NODE_ENV'] === 'production',
+  sessionSecret: process.env['SESSION_SECRET'] ?? 'fenix-admin-dev-secret-change-in-prod',
   corsAllowedOrigins: parseAllowedOrigins(process.env['BFF_CORS_ALLOWED_ORIGINS']),
 } as const;
 
-// Validate at startup (only BACKEND_URL is truly required)
+// Validate at startup. Production must never silently use local defaults.
 export function validateConfig(): void {
   requireEnv('BACKEND_URL');
+  if (config.isProduction) {
+    requireEnv('SESSION_SECRET');
+    requireEnv('BFF_CORS_ALLOWED_ORIGINS');
+  }
 }
 
 function parseAllowedOrigins(value: string | undefined): string[] {

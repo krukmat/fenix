@@ -134,7 +134,9 @@ a launch gate.
 
 1. **Deployment contract hardening.** Update the production compose/Caddy/env
    contract for mounted persistence, normal embedding startup, strict
-   readiness, required production secrets/CORS, and private metrics.
+   readiness, required production secrets/CORS, and private metrics. This is
+   tracked by `DO-POC-DEPLOY-CONTRACT-001`; a local render and focused test
+   pass are required before the P0 findings can be marked closed.
 2. **Staging and recovery proof.** Create the DO environment only after owner
    approval; prove mount, restart persistence, snapshots/backups and a restore
    drill.
