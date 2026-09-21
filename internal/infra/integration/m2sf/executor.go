@@ -15,6 +15,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/flowinterop"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	"github.com/matiasleandrokruk/fenix/internal/infra/integration/telemetry"
 )
 
 const maxResponseBytes = 4 << 20
@@ -94,7 +95,16 @@ func (e *Executor) newHTTPRequest(
 	return httpRequest, nil
 }
 
-func (e *Executor) executeHTTPRequest(request *http.Request) ([]byte, error) {
+func (e *Executor) executeHTTPRequest(request *http.Request) (responseRaw []byte, err error) {
+	started := time.Now()
+	defer func() {
+		outcome := "success"
+		if err != nil {
+			outcome = "error"
+		}
+		telemetry.Default.ObserveProvider("m2sf", string(e.operation), outcome, time.Since(started))
+	}()
+
 	response, err := e.client.Do(request)
 	if err != nil {
 		return nil, tool.NewRetryableCapabilityError(
@@ -103,7 +113,7 @@ func (e *Executor) executeHTTPRequest(request *http.Request) ([]byte, error) {
 	}
 	defer response.Body.Close()
 
-	responseRaw, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
+	responseRaw, err = io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
 	if err != nil {
 		return nil, tool.NewRetryableCapabilityError(
 			fmt.Errorf("read Mermaid2SF response: %w", err),
