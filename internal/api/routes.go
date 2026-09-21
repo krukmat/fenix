@@ -77,14 +77,12 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 
 	r := chi.NewRouter()
 	auditService := domainaudit.NewAuditService(db)
-	chatProvider, err := llm.NewChatProvider(cfg)
+	providers, err := newRouterProviders(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("api: create chat provider: %w", err)
+		return nil, err
 	}
-	embedProvider, err := llm.NewEmbedProvider(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("api: create embed provider: %w", err)
-	}
+	chatProvider := providers.chat
+	embedProvider := providers.embed
 
 	// Global middleware (runs on all routes)
 	r.Use(middleware.RequestID)
@@ -122,18 +120,12 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		r.With(loginLimiter).Post("/login", authHandler.Login)          // POST /auth/login
 	})
 
-	crossPlatformSettings, err := loadCrossPlatformRuntimeSettings()
+	crossPlatform, err := loadCrossPlatformBootstrap()
 	if err != nil {
 		return nil, err
 	}
-	governancePlanner, err := newCrossPlatformGovernancePlanner(
-		crossPlatformPolicySelector{
-			optionalM2SFEvidence: crossPlatformSettings.M2SFOptionalEvidence,
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
+	crossPlatformSettings := crossPlatform.settings
+	governancePlanner := crossPlatform.planner
 
 	// ===== PROTECTED ROUTES (JWT required via AuthMiddleware) =====
 
@@ -528,6 +520,44 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		return nil, fmt.Errorf("api: configure cross-platform runtime: %w", crossPlatformRuntimeErr)
 	}
 	return r, nil
+}
+
+type routerProviders struct {
+	chat  llm.LLMProvider
+	embed llm.LLMProvider
+}
+
+func newRouterProviders(cfg config.Config) (routerProviders, error) {
+	chat, err := llm.NewChatProvider(cfg)
+	if err != nil {
+		return routerProviders{}, fmt.Errorf("api: create chat provider: %w", err)
+	}
+	embed, err := llm.NewEmbedProvider(cfg)
+	if err != nil {
+		return routerProviders{}, fmt.Errorf("api: create embed provider: %w", err)
+	}
+	return routerProviders{chat: chat, embed: embed}, nil
+}
+
+type crossPlatformBootstrap struct {
+	settings crossPlatformRuntimeSettings
+	planner  *governance.RuntimePlanner
+}
+
+func loadCrossPlatformBootstrap() (crossPlatformBootstrap, error) {
+	settings, err := loadCrossPlatformRuntimeSettings()
+	if err != nil {
+		return crossPlatformBootstrap{}, err
+	}
+	planner, err := newCrossPlatformGovernancePlanner(
+		crossPlatformPolicySelector{
+			optionalM2SFEvidence: settings.M2SFOptionalEvidence,
+		},
+	)
+	if err != nil {
+		return crossPlatformBootstrap{}, err
+	}
+	return crossPlatformBootstrap{settings: settings, planner: planner}, nil
 }
 
 func normalizeRouterRuntime(runtime RouterRuntime) RouterRuntime {
