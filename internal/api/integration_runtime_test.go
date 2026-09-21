@@ -115,3 +115,20 @@ func TestCrossPlatformPolicySelectorPlansOnlyOptionalEvidence(t *testing.T) {
 	}
 }
 
+
+
+func TestConfigureCrossPlatformRuntimeRequiresDurableRuntimeForVEL(t *testing.T) {
+	clearIntegrationEnv(t)
+	t.Setenv(envVELURL, "http://127.0.0.1:4100")
+	t.Setenv(envVELToken, "test-token")
+
+	registry := tool.NewToolRegistry(nil)
+	settings, err := loadCrossPlatformRuntimeSettings()
+	if err != nil {
+		t.Fatalf("loadCrossPlatformRuntimeSettings: %v", err)
+	}
+	err = configureCrossPlatformRuntime(registry, settings)
+	if !errors.Is(err, errIntegrationConfig) {
+		t.Fatalf("expected durable runtime configuration error, got %v", err)
+	}
+}
