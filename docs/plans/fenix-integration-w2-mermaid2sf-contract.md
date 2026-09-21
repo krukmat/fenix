@@ -1,6 +1,6 @@
 # W2 Mermaid2SF Integration Contract v1
 
-> Status: W2-T1 / W2-T2 / W2-T3 implemented  
+> Status: W2-T1 through W2-T6 implemented — contract wave complete  
 > Contract owner: Fenix for governed invocation; Mermaid2SF for Salesforce Flow semantics and fidelity truth.  
 > Transport: intentionally undefined.
 
@@ -26,12 +26,12 @@ Only operations backed by current production semantic paths are contracted now:
 | `salesforce.flow.import@1` | Salesforce Flow XML | FlowIR v2 + Mermaid | TRANSFORM |
 | `salesforce.flow.export@1` | Mermaid or FlowIR v2 | Salesforce Flow XML + FlowIR v2 | TRANSFORM |
 | `salesforce.flow.validate@1` | Mermaid or FlowIR v2 | semantic verdict | VERIFY |
+| `salesforce.flow.compare@1` | two Mermaid / Salesforce XML / FlowIR v2 artifacts | semantic diff | VERIFY |
 
-Explicitly deferred:
+Explicitly not exposed:
 
-- `flow.compare`: Mermaid2SF already has a semantic diff primitive, but W2-T4 owns the integration contract.
-- `flow.roundtrip`: currently a correctness/evidence workflow, not a runtime capability.
-- `flow.inspect`: no stable structured provider surface exists yet.
+- `flow.roundtrip`: remains a correctness/evidence workflow, not a runtime capability.
+- `flow.inspect`: no independent stable structured provider surface exists; inspection is covered by import/validate results.
 
 No CLI, HTTP, MCP, sidecar, or library transport is selected by this catalog.
 
@@ -43,7 +43,11 @@ Fenix owns only the boundary contract. It does not copy or reinterpret FlowIR.
 Request
 ├── contract_version = "1"
 ├── operation
-└── input
+├── input
+│   ├── format
+│   ├── name?
+│   └── content
+└── compare_to?        # required only for compare
     ├── format
     ├── name?
     └── content
@@ -68,10 +72,10 @@ Result
 ├── artifacts[]
 ├── fidelity
 ├── semantic_metadata
+├── diff?
+├── diagnostics[]
 └── provider_reference?
 ```
-
-Typed diagnostic normalization remains W2-T5.
 
 ## W2-T3 — fidelity contract
 
@@ -117,6 +121,70 @@ Verification scopes are separate from fidelity:
 
 The authenticated Salesforce dry-runs documented by Mermaid2SF prove canonical fixtures/subsets, not universal target-org acceptance for every runtime artifact.
 
+## W2-T4 — semantic diff
+
+`salesforce.flow.compare@1` is a VERIFY capability backed by Mermaid2SF's existing semantic snapshot/diff primitive.
+
+The contract compares normalized semantics, never byte-level XML or Mermaid formatting:
+
+```text
+SemanticDiff
+├── equal
+└── changes[]
+    ├── path
+    ├── kind: added | removed | changed
+    ├── before?
+    └── after?
+```
+
+`before` and `after` are opaque JSON values at the boundary. Fenix owns the diff envelope, not Mermaid2SF's internal FlowIR or snapshot representation.
+
+A result cannot claim `equal=true` while also reporting changes, and an unequal result must identify at least one semantic change.
+
+## W2-T5 — diagnostics
+
+Provider errors and warnings are normalized as:
+
+```text
+Diagnostic
+├── code
+├── severity: info | warning | error
+├── stage
+│   ├── parse
+│   ├── normalize
+│   ├── validate
+│   ├── generate
+│   ├── compare
+│   ├── fidelity
+│   └── provider
+├── message
+├── element_id?
+├── feature?
+└── recoverable
+```
+
+Stable Mermaid2SF codes such as `M2SF-SF-008` are preserved rather than translated into Fenix-specific error strings.
+
+Transport failures remain W1 execution failures; semantic diagnostics remain W2 result data.
+
+## W2-T6 — agent-safe surface
+
+All four W2 operations are safe for agent invocation because the surface contains only `VERIFY` and `TRANSFORM` capabilities. No Salesforce deployment or target-system mutation is exposed.
+
+Invocation safety and result trust are deliberately separate:
+
+```text
+result succeeded + guaranteed fidelity → USE
+partial fidelity                       → REVIEW_ONLY
+unsupported fidelity/status            → ABSTAIN
+rejected semantic operation            → ABSTAIN
+anything ambiguous                      → REVIEW_ONLY
+```
+
+This prevents an agent from silently carrying a partial import into an export and presenting it as lossless.
+
+The W2 contract therefore permits agents to inspect, validate, compare, and transform supported Flow artifacts while preserving the requirement to abstain or escalate at unsupported semantic boundaries.
+
 ## Ownership
 
 ```text
@@ -138,10 +206,10 @@ Salesforce
  └── actual org acceptance
 ```
 
-## Next
+## W2 closure
 
-W2-T4 defines semantic comparison as an integration capability without leaking FlowIR internals into Fenix.
+W2 contract work is complete.
 
-W2-T5 then normalizes diagnostics.
+The next Mermaid2SF integration phase may choose and implement the runtime adapter/transport. That decision must preserve this contract and must not change FlowIR ownership.
 
-W2-T6 defines which operations are safe for agent invocation.
+W3 (VEL) remains independent and can proceed before transport selection.
