@@ -147,7 +147,7 @@ func (r *ToolRegistry) enforceCapabilityBoundary(ctx context.Context, toolName s
 }
 
 func validateCapabilityExecutionContext(ctx context.Context) error {
-	if contextString(ctx, ctxkeys.TraceID) == "" || contextString(ctx, ctxkeys.ExecutionID) == "" {
+	if contextValue(ctx, ctxkeys.TraceID) == "" || contextValue(ctx, ctxkeys.ExecutionID) == "" {
 		return ErrCapabilityContextMissing
 	}
 	return nil
@@ -231,10 +231,10 @@ func (r *ToolRegistry) buildToolAuditMetadata(ctx context.Context, toolName stri
 		"tool_name":  toolName,
 		"param_keys": extractParamKeys(params),
 	}
-	if executionID := contextString(ctx, ctxkeys.ExecutionID); executionID != "" {
+	if executionID := contextValue(ctx, ctxkeys.ExecutionID); executionID != "" {
 		meta["execution_id"] = executionID
 	}
-	if runID := contextString(ctx, ctxkeys.RunID); runID != "" {
+	if runID := contextValue(ctx, ctxkeys.RunID); runID != "" {
 		meta["run_id"] = runID
 	}
 	if descriptor, ok := r.capability(toolName); ok {
@@ -247,11 +247,6 @@ func (r *ToolRegistry) buildToolAuditMetadata(ctx context.Context, toolName stri
 		meta["error_code"] = errorCode
 	}
 	return meta
-}
-
-func contextString(ctx context.Context, key ctxkeys.Key) string {
-	value, _ := ctx.Value(key).(string)
-	return strings.TrimSpace(value)
 }
 
 func (r *ToolRegistry) recordToolUsage(ctx context.Context, workspaceID, toolName string, startedAt time.Time) {
