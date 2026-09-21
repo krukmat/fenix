@@ -73,12 +73,12 @@ type ToolRegistry struct {
 	executors             map[string]ToolExecutor
 	capabilities          map[string]CapabilityDescriptor
 	capabilityDefinitions map[string]CapabilityToolDefinition
-	authz        ToolAuthorizer
-	audit        AuditLogger
-	usage        UsageRecorder
-	governor     CapabilityGovernor
-	planner      CapabilityGovernancePlanner
-	evidence     CapabilityEvidenceRecorder
+	authz                  ToolAuthorizer
+	audit                  AuditLogger
+	usage                  UsageRecorder
+	governor               CapabilityGovernor
+	planner                CapabilityGovernancePlanner
+	evidence               CapabilityEvidenceRecorder
 }
 
 func NewToolRegistry(db *sql.DB) *ToolRegistry {
@@ -99,9 +99,9 @@ func NewToolRegistryWithRuntimeAndUsage(db *sql.DB, authz ToolAuthorizer, audit 
 		executors:             make(map[string]ToolExecutor),
 		capabilities:          make(map[string]CapabilityDescriptor),
 		capabilityDefinitions: make(map[string]CapabilityToolDefinition),
-		authz:        authz,
-		audit:        audit,
-		usage:        usage,
+		authz:                  authz,
+		audit:                  audit,
+		usage:                  usage,
 	}
 }
 
