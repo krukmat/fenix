@@ -80,17 +80,9 @@ func defaultRuntimeDecision(
 	descriptor CapabilityDescriptor,
 	facts CapabilityGovernanceFacts,
 ) CapabilityRuntimeDecision {
-	allowed := (!facts.GovernorRequired || facts.GovernorPassed) &&
-		(!facts.ApprovalRequired || facts.ApprovalGranted)
-	denialReason := ""
-	if facts.GovernorRequired && !facts.GovernorPassed {
-		denialReason = "governance_unavailable"
-	} else if facts.ApprovalRequired && !facts.ApprovalGranted {
-		denialReason = "approval_denied"
-	}
 	return CapabilityRuntimeDecision{
-		Allowed:             allowed,
-		DenialReason:        denialReason,
+		Allowed:             runtimeGovernanceAllows(facts),
+		DenialReason:        runtimeGovernanceDenialReason(facts),
 		ApprovalRequired:    facts.ApprovalRequired,
 		EvidenceRequirement: RuntimeEvidenceNone,
 		EvidencePlanned:     false,
@@ -98,24 +90,47 @@ func defaultRuntimeDecision(
 	}
 }
 
+func runtimeGovernanceAllows(facts CapabilityGovernanceFacts) bool {
+	if facts.GovernorRequired && !facts.GovernorPassed {
+		return false
+	}
+	return !facts.ApprovalRequired || facts.ApprovalGranted
+}
+
+func runtimeGovernanceDenialReason(facts CapabilityGovernanceFacts) string {
+	if facts.GovernorRequired && !facts.GovernorPassed {
+		return "governance_unavailable"
+	}
+	if facts.ApprovalRequired && !facts.ApprovalGranted {
+		return "approval_denied"
+	}
+	return ""
+}
+
 func validateRuntimeDecision(
 	decision CapabilityRuntimeDecision,
 	facts CapabilityGovernanceFacts,
 ) error {
-	if strings.TrimSpace(decision.PolicyReference) == "" ||
-		!validRuntimeEvidenceRequirement(decision.EvidenceRequirement) {
+	if !hasValidRuntimeDecisionContract(decision) {
 		return ErrCapabilityGovernanceRequired
 	}
-	if decision.Allowed && facts.GovernorRequired && !facts.GovernorPassed {
+	if decision.Allowed && !runtimeGovernanceAllows(facts) {
 		return ErrCapabilityGovernanceRequired
 	}
-	if decision.Allowed && facts.ApprovalRequired && !facts.ApprovalGranted {
-		return ErrCapabilityGovernanceRequired
-	}
-	if decision.EvidencePlanned && decision.EvidenceRequirement == RuntimeEvidenceNone {
+	if hasInvalidRuntimeEvidencePlan(decision) {
 		return ErrCapabilityGovernanceRequired
 	}
 	return nil
+}
+
+func hasValidRuntimeDecisionContract(decision CapabilityRuntimeDecision) bool {
+	return strings.TrimSpace(decision.PolicyReference) != "" &&
+		validRuntimeEvidenceRequirement(decision.EvidenceRequirement)
+}
+
+func hasInvalidRuntimeEvidencePlan(decision CapabilityRuntimeDecision) bool {
+	return decision.EvidencePlanned &&
+		decision.EvidenceRequirement == RuntimeEvidenceNone
 }
 
 func validRuntimeEvidenceRequirement(requirement RuntimeEvidenceRequirement) bool {
