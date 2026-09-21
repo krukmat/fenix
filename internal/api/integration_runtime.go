@@ -147,21 +147,46 @@ func loadCrossPlatformRuntimeSettings() (crossPlatformRuntimeSettings, error) {
 func providerSettingsFromEnv(urlKey, tokenKey string) (providerRuntimeSettings, error) {
 	baseURL := strings.TrimSpace(os.Getenv(urlKey))
 	token := strings.TrimSpace(os.Getenv(tokenKey))
-	if baseURL == "" && token == "" {
+	if providerConfigEmpty(baseURL, token) {
 		return providerRuntimeSettings{}, nil
 	}
-	if baseURL == "" || token == "" {
-		return providerRuntimeSettings{}, errors.New("URL and token must be configured together")
+	if err := validateProviderConfigPresence(baseURL, token); err != nil {
+		return providerRuntimeSettings{}, err
 	}
-	parsed, err := url.Parse(baseURL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return providerRuntimeSettings{}, errors.New("URL must use http or https")
+	if err := validateProviderURL(baseURL); err != nil {
+		return providerRuntimeSettings{}, err
 	}
 	return providerRuntimeSettings{
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		Token:   token,
 		Enabled: true,
 	}, nil
+}
+
+func providerConfigEmpty(baseURL, token string) bool {
+	return baseURL == "" && token == ""
+}
+
+func validateProviderConfigPresence(baseURL, token string) error {
+	if baseURL == "" || token == "" {
+		return errors.New("URL and token must be configured together")
+	}
+	return nil
+}
+
+func validateProviderURL(baseURL string) error {
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return errors.New("URL must use http or https")
+	}
+	if parsed.Host == "" || !validProviderScheme(parsed.Scheme) {
+		return errors.New("URL must use http or https")
+	}
+	return nil
+}
+
+func validProviderScheme(scheme string) bool {
+	return scheme == "http" || scheme == "https"
 }
 
 func integrationTimeout() (time.Duration, error) {
