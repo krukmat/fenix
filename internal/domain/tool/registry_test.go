@@ -17,7 +17,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 )
 
-const testCapabilityTraceID = testCapabilityTraceID
+const testCapabilityTraceID = "trace-1"
 
 type noopExecutor struct{}
 
