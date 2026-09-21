@@ -2,7 +2,7 @@
 doc_type: task
 id: W5-C
 title: Durable evidence lifecycle and integration observability
-status: in_progress
+status: validation
 phase: integration
 week: W5
 tags: [fenix, w5, vel, outbox, reconciliation, checkpoint, observability]
@@ -127,3 +127,16 @@ metrics:
 - workspace-v1 partition is unit tested;
 - provider/lifecycle metrics are exported;
 - W5-C tests and final W5 validation pass.
+
+
+## Implementation Status — 2026-09-21
+
+G07-G10 implementation is present on `main` and is entering the repository validation gates.
+
+- G07: SQLite-backed durable evidence outbox + restart reconciliation worker.
+- G08: VEL checkpoint/bundle/verify lifecycle integrated without persisting full bundles.
+- G09: `workspace-v1` stream partition policy frozen in the evidence domain.
+- G10: M2SF/VEL provider and evidence lifecycle telemetry exported through `/metrics`.
+- Cross-repo: VEL hierarchical stream routes accept `workspace/<id>`; VEL CI passed on commit `6920532`.
+
+Validation is not complete until the Fenix CI gate is green.
