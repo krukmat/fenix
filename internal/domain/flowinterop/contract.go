@@ -9,7 +9,8 @@ var (
 	ErrContractVersion = errors.New("unsupported flow interoperability contract version")
 	ErrOperation       = errors.New("unsupported flow interoperability operation")
 	ErrArtifact        = errors.New("invalid flow artifact")
-	ErrArtifactFormat  = errors.New("artifact format is not supported for operation")
+	ErrArtifactFormat     = errors.New("artifact format is not supported for operation")
+	ErrComparisonArtifact = errors.New("comparison artifact is required for operation")
 )
 
 // Artifact carries one representation across the Fenix/Mermaid2SF semantic boundary.
@@ -25,6 +26,7 @@ type Request struct {
 	ContractVersion string    `json:"contract_version"`
 	Operation       Operation `json:"operation"`
 	Input           Artifact  `json:"input"`
+	CompareTo       *Artifact `json:"compare_to,omitempty"`
 }
 
 // ResultStatus describes the semantic outcome independently of transport status codes.
@@ -52,6 +54,8 @@ type Result struct {
 	Artifacts         []Artifact       `json:"artifacts,omitempty"`
 	Fidelity          FidelityReport   `json:"fidelity"`
 	SemanticMetadata  SemanticMetadata `json:"semantic_metadata,omitempty"`
+	Diff              *SemanticDiff    `json:"diff,omitempty"`
+	Diagnostics       []Diagnostic     `json:"diagnostics,omitempty"`
 	ProviderReference string           `json:"provider_reference,omitempty"`
 }
 
@@ -68,6 +72,22 @@ func (r Request) Validate() error {
 		return ErrArtifact
 	}
 	if !containsFormat(spec.InputFormats, r.Input.Format) {
+		return ErrArtifactFormat
+	}
+	return r.validateComparison(spec)
+}
+
+func (r Request) validateComparison(spec CapabilitySpec) error {
+	if r.Operation != OperationCompare {
+		if r.CompareTo != nil {
+			return ErrComparisonArtifact
+		}
+		return nil
+	}
+	if r.CompareTo == nil || strings.TrimSpace(r.CompareTo.Content) == "" {
+		return ErrComparisonArtifact
+	}
+	if !containsFormat(spec.InputFormats, r.CompareTo.Format) {
 		return ErrArtifactFormat
 	}
 	return nil
