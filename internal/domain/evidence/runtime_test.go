@@ -146,6 +146,7 @@ func TestRuntimeRecorder_ExposesVerificationFailureWithoutRetry(t *testing.T) {
 		t.Fatalf("record=%d lookup=%d", sink.recordCalls, sink.lookupCalls)
 	}
 }
+
 func TestRuntimeContextHash_MatchesVELContractVector(t *testing.T) {
 	request := tool.CapabilityEvidenceRequest{
 		WorkspaceID: "ws-1",
