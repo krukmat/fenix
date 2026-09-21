@@ -76,6 +76,8 @@ type ToolRegistry struct {
 	audit        AuditLogger
 	usage        UsageRecorder
 	governor     CapabilityGovernor
+	planner      CapabilityGovernancePlanner
+	evidence     CapabilityEvidenceRecorder
 }
 
 func NewToolRegistry(db *sql.DB) *ToolRegistry {
@@ -101,9 +103,19 @@ func NewToolRegistryWithRuntimeAndUsage(db *sql.DB, authz ToolAuthorizer, audit 
 	}
 }
 
-// SetCapabilityGovernor configures the additional governance gate for risky external capabilities.
+// SetCapabilityGovernor configures the existing approval-backed gate for risky external capabilities.
 func (r *ToolRegistry) SetCapabilityGovernor(governor CapabilityGovernor) {
 	r.governor = governor
+}
+
+// SetCapabilityGovernancePlanner configures the W4 cross-platform governance resolver.
+func (r *ToolRegistry) SetCapabilityGovernancePlanner(planner CapabilityGovernancePlanner) {
+	r.planner = planner
+}
+
+// SetCapabilityEvidenceRecorder configures the W4 evidence lifecycle port.
+func (r *ToolRegistry) SetCapabilityEvidenceRecorder(recorder CapabilityEvidenceRecorder) {
+	r.evidence = recorder
 }
 
 func (r *ToolRegistry) Register(name string, executor ToolExecutor) error {
