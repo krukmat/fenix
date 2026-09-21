@@ -123,7 +123,9 @@ func (a *ProspectingAgent) Run(ctx context.Context, config ProspectingAgentConfi
 	})
 	if err != nil {
 		return nil, fmt.Errorf("trigger prospecting run: %w", err)
-	}
+	}	ctx = agent.WithRunExecutionContext(ctx, run)
+
+
 
 	result, err := a.executeProspectingFlow(ctx, normalized)
 	if err != nil {
