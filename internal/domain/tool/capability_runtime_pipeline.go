@@ -80,10 +80,12 @@ func (r *ToolRegistry) collectGovernanceFacts(
 	}
 	if r.governor == nil {
 		facts.GovernanceError = "governor_unavailable"
+		facts.GovernanceCause = ErrCapabilityGovernanceRequired
 		return facts
 	}
 	if err := r.governor.CheckCapabilityExecution(ctx, descriptor); err != nil {
 		facts.GovernanceError = "governor_denied"
+		facts.GovernanceCause = err
 		return facts
 	}
 	facts.GovernorPassed = true
@@ -107,9 +109,13 @@ func (r *ToolRegistry) handleGovernanceDenial(
 	if evidenceErr != nil {
 		extra[auditEvidenceErrorCodeKey] = string(resolveEvidenceErrorCode(evidenceErr))
 	}
+	denialCause := decision.DenialCause
+	if denialCause == nil {
+		denialCause = ErrCapabilityGovernanceDenied
+	}
 	return nil, r.handleExecutionError(
 		ctx, workspaceID, descriptor.Name, params,
-		ToolErrorGovernanceDenied, ErrCapabilityGovernanceDenied, startedAt, extra,
+		ToolErrorGovernanceDenied, denialCause, startedAt, extra,
 	)
 }
 
