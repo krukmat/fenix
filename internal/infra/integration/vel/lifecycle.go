@@ -118,16 +118,22 @@ func (s *Sink) executeLifecycleRequest(
 		telemetry.Default.ObserveProvider("vel", operation, "error", time.Since(started))
 		return nil, fmt.Errorf("call VEL %s: %w", operation, err)
 	}
-	defer response.Body.Close()
 
-	raw, readErr := readResponse(response)
+	raw, err := readLifecycleResponse(operation, response)
 	outcome := "success"
-	if readErr != nil || response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+	if err != nil {
 		outcome = "error"
 	}
 	telemetry.Default.ObserveProvider("vel", operation, outcome, time.Since(started))
-	if readErr != nil {
-		return nil, readErr
+	return raw, err
+}
+
+func readLifecycleResponse(operation string, response *http.Response) ([]byte, error) {
+	defer response.Body.Close()
+
+	raw, err := readResponse(response)
+	if err != nil {
+		return nil, err
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("VEL %s status %d: %s", operation, response.StatusCode, bodySummary(raw))
