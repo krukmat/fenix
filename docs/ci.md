@@ -5,6 +5,32 @@
 
 ---
 
+---
+
+## Politica de ejecucion por waves
+
+Para evitar colas largas y consumo repetido de GitHub Actions durante desarrollo incremental,
+este repositorio usa CI por **checkpoint de wave**:
+
+- mientras una wave esta activa, el workflow remoto queda en `workflow_dispatch` solamente;
+- los commits intermedios no disparan CI por `push`, `pull_request` ni `schedule`;
+- se puede ejecutar CI manualmente si hace falta validar un checkpoint concreto;
+- al terminar una wave, se reactiva temporalmente el CI automatico y se exige una validacion completa;
+- una vez validado el cierre, la siguiente wave vuelve a modo manual durante su implementacion.
+
+Estado actual:
+
+```text
+W5 active
+  -> automatic CI OFF
+  -> workflow_dispatch ON
+  -> full automatic CI restored at W5 closure
+```
+
+Esta politica aplica en adelante a las waves de integracion del repositorio salvo que se
+documente explicitamente una excepcion.
+
+
 ## Conclusion
 
 `make ci` esta diseñado para un entorno POSIX. En este Windows nativo no puede ejecutarse
