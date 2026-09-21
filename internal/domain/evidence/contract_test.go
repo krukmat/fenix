@@ -2,7 +2,6 @@ package evidence
 
 import (
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -72,18 +71,9 @@ func TestEnvelope_RequiresExecutionCorrelation(t *testing.T) {
 }
 
 func TestProofReference_RequiresExecutionCorrelationAndEventEvidence(t *testing.T) {
-	ref := ProofReference{
-		SchemaVersion:      SchemaVersion,
-		Provider:           "verifiable-event-ledger",
-		ExecutionID:        testExecutionID,
-		StreamID:           testStreamID,
-		EventID:            "event-1",
-		EventHash:          testDigest,
-		KeyID:              "key-1",
-		SignatureRef:       "event:event-1#signature",
-		Sequence:           1,
-		VerificationStatus: VerificationRecorded,
-	}
+	ref := validProofReference()
+	ref.Checkpoint = nil
+	ref.VerificationStatus = VerificationRecorded
 	if err := ref.Validate(); err != nil {
 		t.Fatalf(testValidateError, err)
 	}
@@ -95,24 +85,7 @@ func TestProofReference_RequiresExecutionCorrelationAndEventEvidence(t *testing.
 }
 
 func TestProofReference_ValidatesCheckpointShape(t *testing.T) {
-	ref := ProofReference{
-		SchemaVersion: SchemaVersion,
-		Provider:      "verifiable-event-ledger",
-		ExecutionID:   testExecutionID,
-		StreamID:      testStreamID,
-		EventID:       "event-1",
-		EventHash:     testDigest,
-		KeyID:         "key-1",
-		SignatureRef:  "event:event-1#signature",
-		Sequence:      1,
-		Checkpoint: &CheckpointReference{
-			CheckpointID:   "checkpoint-1",
-			CheckpointHash: testDigest,
-			MerkleRoot:     strings.Repeat("b", 64),
-			TreeSize:       1,
-		},
-		VerificationStatus: VerificationVerified,
-	}
+	ref := validProofReference()
 	if err := ref.Validate(); err != nil {
 		t.Fatalf(testValidateError, err)
 	}
