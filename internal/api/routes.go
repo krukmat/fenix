@@ -120,6 +120,11 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		r.With(loginLimiter).Post("/login", authHandler.Login)          // POST /auth/login
 	})
 
+	governancePlanner, err := newCrossPlatformGovernancePlanner()
+	if err != nil {
+		return nil, err
+	}
+
 	// ===== PROTECTED ROUTES (JWT required via AuthMiddleware) =====
 
 	// All /api/v1/* routes require a valid Bearer JWT token (Task 1.6.13)
@@ -141,9 +146,7 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		toolRegistry := tooldomain.NewToolRegistryWithRuntimeAndUsage(db, policyEngine, auditService, usageService)
 		approvalService := policy.NewApprovalServiceWithBus(db, auditService, sharedBus)
 		toolRegistry.SetCapabilityGovernor(policy.NewCapabilityApprovalGovernor(approvalService))
-		if err := configureCrossPlatformGovernance(toolRegistry); err != nil {
-			return nil, err
-		}
+		toolRegistry.SetCapabilityGovernancePlanner(governancePlanner)
 		runnerRegistry := agent.NewRunnerRegistry()
 		agentOrchestrator := agent.NewOrchestratorWithRegistry(db, runnerRegistry)
 		dslRunner := agent.NewDSLRunner(db)
@@ -525,7 +528,7 @@ func normalizeRouterRuntime(runtime RouterRuntime) RouterRuntime {
 }
 
 
-func configureCrossPlatformGovernance(registry *tooldomain.ToolRegistry) error {
+func newCrossPlatformGovernancePlanner() (*governance.RuntimePlanner, error) {
 	planner := governance.NewRuntimePlanner(nil)
 	for _, operation := range []flowinterop.Operation{
 		flowinterop.OperationImport,
@@ -535,12 +538,11 @@ func configureCrossPlatformGovernance(registry *tooldomain.ToolRegistry) error {
 	} {
 		profile, ok := flowinterop.GovernanceProfile(operation)
 		if !ok {
-			return fmt.Errorf("api: missing governance profile for %s", operation)
+			return nil, fmt.Errorf("api: missing governance profile for %s", operation)
 		}
 		if err := planner.RegisterProfile(profile); err != nil {
-			return fmt.Errorf("api: register governance profile %s: %w", operation, err)
+			return nil, fmt.Errorf("api: register governance profile %s: %w", operation, err)
 		}
 	}
-	registry.SetCapabilityGovernancePlanner(planner)
-	return nil
+	return planner, nil
 }
