@@ -2,7 +2,8 @@
 
 > Date: 2026-09-21  
 > Status: active prerequisite baseline  
-> Branch policy: work directly on `main` unless explicitly requested otherwise.
+> Branch policy: work directly on `main` unless explicitly requested otherwise.  
+> CI policy: while an integration wave is active, automatic GitHub Actions CI stays disabled; use manual `workflow_dispatch` only for explicit checkpoints. Re-enable automatic CI at wave closure for the final validation run. W5 is currently in manual-CI mode.
 
 ## Wave status
 
