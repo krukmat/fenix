@@ -93,23 +93,35 @@ func baseDecision(input Input) Decision {
 }
 
 func validateInput(input Input) error {
-	if strings.TrimSpace(input.Profile.Capability.Name) == "" ||
-		strings.TrimSpace(input.Profile.Capability.Version) == "" ||
-		strings.TrimSpace(input.Profile.Capability.Operation) == "" ||
-		strings.TrimSpace(input.PolicyReference) == "" ||
-		!validEvidenceRequirement(input.Profile.EvidenceRequirement) ||
-		!validApprovalState(input.ApprovalState) ||
-		!validSideEffectClass(input.Profile.Capability.SideEffectClass) {
-		return ErrDecisionInputInvalid
-	}
-	if input.Profile.EvidenceRequirement == EvidenceNone && input.OptionalEvidence {
-		return ErrDecisionInputInvalid
-	}
-	if input.Profile.EvidenceRequirement != EvidenceNone &&
-		strings.TrimSpace(input.Profile.EvidenceReason) == "" {
+	if !hasValidCapabilityIdentity(input.Profile.Capability) ||
+		!hasValidDecisionContext(input) ||
+		!hasValidEvidenceProfile(input) {
 		return ErrDecisionInputInvalid
 	}
 	return nil
+}
+
+func hasValidCapabilityIdentity(descriptor tool.CapabilityDescriptor) bool {
+	return strings.TrimSpace(descriptor.Name) != "" &&
+		strings.TrimSpace(descriptor.Version) != "" &&
+		strings.TrimSpace(descriptor.Operation) != "" &&
+		validSideEffectClass(descriptor.SideEffectClass)
+}
+
+func hasValidDecisionContext(input Input) bool {
+	return strings.TrimSpace(input.PolicyReference) != "" &&
+		validApprovalState(input.ApprovalState)
+}
+
+func hasValidEvidenceProfile(input Input) bool {
+	requirement := input.Profile.EvidenceRequirement
+	if !validEvidenceRequirement(requirement) {
+		return false
+	}
+	if requirement == EvidenceNone {
+		return !input.OptionalEvidence
+	}
+	return strings.TrimSpace(input.Profile.EvidenceReason) != ""
 }
 
 func evidencePlanned(requirement EvidenceRequirement, optionalRequested bool) bool {
