@@ -58,8 +58,8 @@ func (r *ToolRegistry) resolveRuntimeGovernance(
 			return CapabilityRuntimeDecision{}, err
 		}
 	}
-	if err := validateRuntimeDecision(decision, facts); err != nil {
-		return CapabilityRuntimeDecision{}, err
+	if validationErr := validateRuntimeDecision(decision, facts); validationErr != nil {
+		return CapabilityRuntimeDecision{}, validationErr
 	}
 	return decision, nil
 }
