@@ -1,6 +1,7 @@
 package evidence
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -189,22 +190,32 @@ func runtimeOutcome(request tool.CapabilityEvidenceRequest) ExecutionOutcome {
 	return ExecutionOutcome{Status: status, ErrorCode: request.ErrorCode}
 }
 
+const velAuthorizationContextDomain = "VEL:authorization-context:v1\x00"
+
 func runtimeContextHash(request tool.CapabilityEvidenceRequest) string {
-	contextMaterial := struct {
-		WorkspaceID     string `json:"workspace_id"`
-		TraceID         string `json:"trace_id"`
-		ExecutionID     string `json:"execution_id"`
-		ApprovalID      string `json:"approval_id,omitempty"`
-		PolicyReference string `json:"policy_reference"`
-	}{
-		WorkspaceID:     strings.TrimSpace(request.WorkspaceID),
-		TraceID:         strings.TrimSpace(request.TraceID),
-		ExecutionID:     strings.TrimSpace(request.ExecutionID),
-		ApprovalID:      strings.TrimSpace(request.ApprovalID),
-		PolicyReference: strings.TrimSpace(request.Governance.PolicyReference),
+	contextMaterial := map[string]string{
+		"workspace_id":     strings.TrimSpace(request.WorkspaceID),
+		"trace_id":         strings.TrimSpace(request.TraceID),
+		"execution_id":     strings.TrimSpace(request.ExecutionID),
+		"policy_reference": strings.TrimSpace(request.Governance.PolicyReference),
 	}
-	raw, _ := json.Marshal(contextMaterial)
-	return sha256Hex(raw)
+	if approvalID := strings.TrimSpace(request.ApprovalID); approvalID != "" {
+		contextMaterial["approval_id"] = approvalID
+	}
+	raw := canonicalStringMapJSON(contextMaterial)
+	return sha256Hex(append([]byte(velAuthorizationContextDomain), raw...))
+}
+
+// canonicalStringMapJSON matches RFC 8785 for the flat string-only authorization
+// context shared with VEL: lexicographic object keys and unescaped UTF-8/HTML.
+func canonicalStringMapJSON(values map[string]string) []byte {
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(values); err != nil {
+		return nil
+	}
+	return bytes.TrimSuffix(buffer.Bytes(), []byte("\n"))
 }
 
 func digestBytes(raw []byte) *DigestRef {
