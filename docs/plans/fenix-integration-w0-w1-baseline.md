@@ -13,20 +13,20 @@
 | W0-T3 Non-goals | CLOSED |
 | W0-T4 Cross-platform invariants | CLOSED |
 | W0-T5 Ownership matrix | CLOSED |
-| W1-T1 IntegrationExecutionContext v1 | DESIGN CLOSED |
-| W1-T2 Correlation contract | DESIGN CLOSED |
-| W1-T3 Capability boundary | IMPLEMENTATION TARGET |
-| W1-T4 Governance path | IMPLEMENTATION TARGET |
-| W1-T5 Audit / trace propagation | IMPLEMENTATION TARGET |
+| W1-T1 IntegrationExecutionContext v1 | CLOSED |
+| W1-T2 Correlation contract | CLOSED |
+| W1-T3 Capability boundary | CLOSED |
+| W1-T4 Governance path | CLOSED |
+| W1-T5 Audit / trace propagation | CLOSED |
 | W1-T6 Failure / retry / idempotency | CLOSED |
 | W2-T1 Mermaid2SF capability catalog | CLOSED |
 | W2-T2 Mermaid2SF request/result contract | CLOSED |
 | W2-T3 Mermaid2SF fidelity contract | CLOSED |
-| W2-T4 Semantic diff contract | OPEN |
-| W2-T5 Diagnostics contract | OPEN |
-| W2-T6 Agent-safe surface | OPEN |
+| W2-T4 Semantic diff contract | CLOSED |
+| W2-T5 Diagnostics contract | CLOSED |
+| W2-T6 Agent-safe surface | CLOSED |
 
-W1 is closed. W2-T1 through W2-T3 are implemented as transport-neutral contracts; W2-T4 through W2-T6 remain open. W3 remains independent and may proceed without changing W2 transport decisions.
+W1 and the W2 Mermaid2SF semantic contract are closed. W2 remains transport-neutral: no CLI, HTTP, MCP, sidecar, or library adapter has been selected. W3 remains independent and may proceed without changing W2 contract decisions.
 
 ## W0 — ownership and scope
 
@@ -199,13 +199,16 @@ Implemented Fenix-facing capabilities:
 salesforce.flow.import@1
 salesforce.flow.export@1
 salesforce.flow.validate@1
+salesforce.flow.compare@1
 ```
 
 The request/result contract is transport-neutral and FlowIR v2 remains opaque to Fenix. Fidelity is artifact-scoped: family support is only a ceiling and cannot automatically become a runtime `guaranteed` verdict.
 
+W2 also defines structured semantic diff, typed diagnostics, and an agent-safe consumption policy: guaranteed results may be used automatically, partial results require review, and unsupported/rejected results require abstention.
+
 See `docs/plans/fenix-integration-w2-mermaid2sf-contract.md`.
 
-Remaining W2 work: semantic diff (T4), typed diagnostics (T5), and agent-safe invocation surface (T6).
+W2 contract status: CLOSED. Runtime adapter/transport selection remains a later integration concern.
 
 ## VEL prerequisite
 
