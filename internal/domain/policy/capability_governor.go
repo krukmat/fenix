@@ -75,16 +75,20 @@ func validateCapabilityApproval(
 	if req.Status != ApprovalStatusApproved {
 		return ErrCapabilityApprovalPending
 	}
-	if req.WorkspaceID != workspaceID {
-		return ErrCapabilityApprovalMismatch
-	}
-	if req.Action != tool.CapabilityApprovalAction(descriptor) {
-		return ErrCapabilityApprovalMismatch
-	}
-	if !matchesApprovalResource(req, executionID) {
+	if !matchesCapabilityApproval(req, descriptor, workspaceID, executionID) {
 		return ErrCapabilityApprovalMismatch
 	}
 	return nil
+}
+
+func matchesCapabilityApproval(
+	req *ApprovalRequest,
+	descriptor tool.CapabilityDescriptor,
+	workspaceID, executionID string,
+) bool {
+	return req.WorkspaceID == workspaceID &&
+		req.Action == tool.CapabilityApprovalAction(descriptor) &&
+		matchesApprovalResource(req, executionID)
 }
 
 func matchesApprovalResource(req *ApprovalRequest, executionID string) bool {
