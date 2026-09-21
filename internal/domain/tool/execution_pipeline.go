@@ -354,26 +354,8 @@ func (r *ToolRegistry) buildToolAuditMetadata(ctx context.Context, toolName stri
 		"tool_name":  toolName,
 		"param_keys": extractParamKeys(params),
 	}
-	if executionID := contextValue(ctx, ctxkeys.ExecutionID); executionID != "" {
-		meta["execution_id"] = executionID
-	}
-	if runID := contextValue(ctx, ctxkeys.RunID); runID != "" {
-		meta["run_id"] = runID
-	}
-	if approvalID := contextValue(ctx, ctxkeys.ApprovalID); approvalID != "" {
-		meta["approval_id"] = approvalID
-	}
-	if descriptor, ok := r.capability(toolName); ok {
-		meta["capability_name"] = descriptor.Name
-		meta["capability_version"] = descriptor.Version
-		meta["capability_operation"] = descriptor.Operation
-		meta["side_effect_class"] = string(descriptor.SideEffectClass)
-		meta["approval_required"] = descriptor.RequiresApproval()
-		meta["max_attempts"] = descriptor.maxAttempts()
-		if descriptor.IdempotencyMode != CapabilityIdempotencyNone {
-			meta["idempotency_mode"] = string(descriptor.IdempotencyMode)
-		}
-	}
+	addExecutionAuditMetadata(meta, ctx)
+	r.addCapabilityAuditMetadata(meta, toolName)
 	if errorCode != "" {
 		meta["error_code"] = errorCode
 	}
@@ -381,6 +363,34 @@ func (r *ToolRegistry) buildToolAuditMetadata(ctx context.Context, toolName stri
 		meta[key] = value
 	}
 	return meta
+}
+
+func addExecutionAuditMetadata(meta map[string]any, ctx context.Context) {
+	addContextMetadata(meta, "execution_id", ctx, ctxkeys.ExecutionID)
+	addContextMetadata(meta, "run_id", ctx, ctxkeys.RunID)
+	addContextMetadata(meta, "approval_id", ctx, ctxkeys.ApprovalID)
+}
+
+func addContextMetadata(meta map[string]any, field string, ctx context.Context, key ctxkeys.Key) {
+	if value := contextValue(ctx, key); value != "" {
+		meta[field] = value
+	}
+}
+
+func (r *ToolRegistry) addCapabilityAuditMetadata(meta map[string]any, toolName string) {
+	descriptor, ok := r.capability(toolName)
+	if !ok {
+		return
+	}
+	meta["capability_name"] = descriptor.Name
+	meta["capability_version"] = descriptor.Version
+	meta["capability_operation"] = descriptor.Operation
+	meta["side_effect_class"] = string(descriptor.SideEffectClass)
+	meta["approval_required"] = descriptor.RequiresApproval()
+	meta["max_attempts"] = descriptor.maxAttempts()
+	if descriptor.IdempotencyMode != CapabilityIdempotencyNone {
+		meta["idempotency_mode"] = string(descriptor.IdempotencyMode)
+	}
 }
 
 func (r *ToolRegistry) recordToolUsage(ctx context.Context, workspaceID, toolName string, startedAt time.Time) {
