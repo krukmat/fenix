@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	runtimeTestCapabilityName = runtimeTestCapabilityName
-	runtimeTestParams         = "{"value":"x"}"
-	runtimeExecuteErrFormat   = runtimeExecuteErrFormat
-	runtimeCallsErrFormat     = runtimeCallsErrFormat
+	runtimeTestCapabilityName = "runtime.capability"
+	runtimeTestParams         = `{"value":"x"}`
+	runtimeExecuteErrFormat   = "Execute returned error: %v"
+	runtimeCallsErrFormat     = "calls executor=%d recorder=%d"
 )
 
 type runtimePlannerStub struct {
