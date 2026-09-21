@@ -75,7 +75,11 @@ func (p *RuntimePlanner) PlanCapability(
 		decision.Allowed = false
 		decision.DenialReason = "governance_unavailable"
 	}
-	return runtimeDecision(decision), nil
+	runtime := runtimeDecision(decision)
+	if !runtime.Allowed {
+		runtime.DenialCause = facts.GovernanceCause
+	}
+	return runtime, nil
 }
 
 func (p *RuntimePlanner) profileFor(descriptor tool.CapabilityDescriptor) Profile {
