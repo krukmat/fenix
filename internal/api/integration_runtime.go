@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/matiasleandrokruk/fenix/internal/domain/evidence"
 	"github.com/matiasleandrokruk/fenix/internal/domain/flowinterop"
 	"github.com/matiasleandrokruk/fenix/internal/domain/governance"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	evidenceoutbox "github.com/matiasleandrokruk/fenix/internal/infra/integration/evidenceoutbox"
 	m2sfintegration "github.com/matiasleandrokruk/fenix/internal/infra/integration/m2sf"
 	velintegration "github.com/matiasleandrokruk/fenix/internal/infra/integration/vel"
 )
@@ -51,13 +52,22 @@ func configureCrossPlatformRuntime(
 	registry *tool.ToolRegistry,
 	settings crossPlatformRuntimeSettings,
 ) error {
+	return configureCrossPlatformRuntimeWithServices(registry, settings, nil, RouterRuntime{})
+}
+
+func configureCrossPlatformRuntimeWithServices(
+	registry *tool.ToolRegistry,
+	settings crossPlatformRuntimeSettings,
+	db *sql.DB,
+	runtime RouterRuntime,
+) error {
 	if settings.M2SF.Enabled {
 		if err := registerM2SFCapabilities(registry, settings); err != nil {
 			return err
 		}
 	}
 	if settings.VEL.Enabled {
-		if err := configureVELEvidence(registry, settings); err != nil {
+		if err := configureVELEvidence(registry, settings, db, runtime); err != nil {
 			return err
 		}
 	}
@@ -100,7 +110,12 @@ func registerM2SFCapabilities(
 func configureVELEvidence(
 	registry *tool.ToolRegistry,
 	settings crossPlatformRuntimeSettings,
+	db *sql.DB,
+	runtime RouterRuntime,
 ) error {
+	if db == nil || runtime.BackgroundContext == nil || runtime.StartBackground == nil {
+		return fmt.Errorf("%w: VEL durable evidence runtime is unavailable", errIntegrationConfig)
+	}
 	sink, err := velintegration.NewSink(
 		settings.VEL.BaseURL,
 		settings.VEL.Token,
@@ -109,7 +124,14 @@ func configureVELEvidence(
 	if err != nil {
 		return fmt.Errorf("api: create VEL sink: %w", err)
 	}
-	registry.SetCapabilityEvidenceRecorder(evidence.NewRuntimeRecorder(sink))
+	recorder, err := evidenceoutbox.NewRecorder(db, sink)
+	if err != nil {
+		return fmt.Errorf("api: create VEL durable recorder: %w", err)
+	}
+	registry.SetCapabilityEvidenceRecorder(recorder)
+	runtime.StartBackground(func() {
+		recorder.Start(runtime.BackgroundContext)
+	})
 	return nil
 }
 
