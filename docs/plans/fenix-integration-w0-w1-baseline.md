@@ -37,8 +37,16 @@
 | W4-T3 GovernanceDecision contract | CLOSED |
 | W4-T4 Cross-component invariants | CLOSED |
 | W4-B Runtime governance integration | CLOSED |
+| W5-A-T1 Runtime integration inventory | CLOSED |
+| W5-A-T2 Mermaid2SF execution gap analysis | CLOSED |
+| W5-A-T3 VEL execution gap analysis | CLOSED |
+| W5-A-T4 Operational topology gaps | CLOSED |
+| W5-A-T5 Observability / reconciliation gaps | CLOSED |
+| W5-A-T6 Readiness matrix | CLOSED |
 
-W1, W2, W3, and W4 are closed at contract/runtime-governance level. Fenix owns one GovernanceDecision per execution_id; provider execution and VEL evidence participation remain independently controlled, and evidence reconciliation never repeats the business capability.
+W1, W2, W3, and W4 are closed at contract/runtime-governance level. W5-A is also closed: the remaining work is now classified as concrete adapter/provider-surface/operational readiness gaps. Fenix owns one GovernanceDecision per execution_id; provider execution and VEL evidence participation remain independently controlled, and evidence reconciliation never repeats the business capability.
+
+W5-A canonical inventory: `docs/plans/fenix-integration-w5-readiness-gap-inventory.md`.
 
 ## W0 — ownership and scope
 
@@ -300,6 +308,31 @@ See `docs/plans/fenix-integration-w4-governance-contract.md`.
 W4-A contract status: CLOSED. W4-B runtime integration status: CLOSED.
 
 The ToolRegistry now resolves governance once per execution, gates provider invocation, triggers evidence only when planned, records a compact proof projection in audit, and surfaces evidence-indeterminate / verification-failed states without replaying the provider. Concrete M2SF and VEL transports remain deferred.
+
+## W5-A — readiness gap inventory
+
+W5-A verified that the remaining blockers are implementation and operational gaps rather than missing semantic/governance contracts:
+
+```text
+M2SF
+├── no concrete Fenix executor
+├── current HTTP facade only partially covers import/export
+├── validate/compare are not exposed through the current HTTP facade
+└── provider-native responses need Fenix contract normalization
+
+VEL
+├── no concrete Fenix RuntimeSink
+├── append_external exists in VEL domain but not current FastAPI surface
+├── idempotency lookup exists in VEL domain but not current FastAPI surface
+├── durable reconciliation/outbox is missing
+└── stream/checkpoint production policy remains open
+```
+
+Agentic Blackboard remains an internal collaboration surface. VEL receives minimized governed-execution evidence through Fenix; raw Blackboard reasoning is not persisted to VEL and agents do not bypass Fenix as an authority.
+
+See `docs/plans/fenix-integration-w5-readiness-gap-inventory.md`.
+
+W5-A status: CLOSED. W5-B is next.
 
 ## Dependency spine
 
