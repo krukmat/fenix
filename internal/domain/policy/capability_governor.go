@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
@@ -36,9 +37,9 @@ func (g *CapabilityApprovalGovernor) CheckCapabilityExecution(ctx context.Contex
 		return ErrCapabilityApprovalRequired
 	}
 
-	approvalID := contextValue(ctx, ctxkeys.ApprovalID)
-	workspaceID := contextValue(ctx, ctxkeys.WorkspaceID)
-	executionID := contextValue(ctx, ctxkeys.ExecutionID)
+	approvalID := capabilityContextValue(ctx, ctxkeys.ApprovalID)
+	workspaceID := capabilityContextValue(ctx, ctxkeys.WorkspaceID)
+	executionID := capabilityContextValue(ctx, ctxkeys.ExecutionID)
 	if approvalID == "" || workspaceID == "" || executionID == "" {
 		return ErrCapabilityApprovalRequired
 	}
@@ -65,7 +66,7 @@ func matchesApprovalResource(req *ApprovalRequest, executionID string) bool {
 		*req.ResourceID == executionID
 }
 
-func contextValue(ctx context.Context, key ctxkeys.Key) string {
+func capabilityContextValue(ctx context.Context, key ctxkeys.Key) string {
 	value, _ := ctx.Value(key).(string)
-	return value
+	return strings.TrimSpace(value)
 }
