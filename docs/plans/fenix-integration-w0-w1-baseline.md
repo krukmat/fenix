@@ -31,8 +31,13 @@
 | W3-T4 Idempotency / replay | CLOSED |
 | W3-T5 Failure / reconciliation semantics | CLOSED |
 | W3-T6 Agent / audit exposure | CLOSED |
+| W4-T1 Governance classification | CLOSED |
+| W4-T2 Evidence policy | CLOSED |
+| W4-T3 GovernanceDecision contract | CLOSED |
+| W4-T4 Cross-component invariants | CLOSED |
+| W4-B Runtime governance integration | OPEN |
 
-W1, W2, and the full W3 VEL contract are closed. Fenix owns the evidence envelope, replay/reconciliation policy, compact audit projection, and agent consumption rules; VEL owns cryptographic recording and verification and does not replay Fenix policy. W2 and W3 remain transport-neutral.
+W1, W2, and W3 are closed. W4-A is also closed at contract level: Fenix now owns a single cross-platform GovernanceDecision that resolves provider execution, approval, and VEL evidence participation independently. Runtime wiring of this decision remains W4-B.
 
 ## W0 — ownership and scope
 
@@ -248,6 +253,50 @@ See `docs/plans/fenix-integration-w3-vel-contract.md`.
 W3 contract status: CLOSED.
 
 Replay uses `execution_id` as the stable evidence idempotency key. Contradictory evidence under the same key is rejected. Evidence reconciliation never repeats the governed business action. Operational audit stores only a compact proof projection, and agents may only claim verification when the proof is actually verified.
+
+## Cross-platform governance — W4-A current state
+
+Fenix resolves one governance decision before provider invocation:
+
+```text
+CapabilityDescriptor
+      +
+Fenix policy result
+      +
+approval state
+      +
+evidence profile/context
+      ↓
+GovernanceDecision
+├── allowed
+├── approval_required
+├── evidence_requirement
+├── evidence_planned
+├── side_effect_class
+└── policy_reference
+```
+
+Evidence requirements are `NONE | OPTIONAL | REQUIRED`.
+
+Provider execution and VEL participation are independent:
+
+```text
+allowed=true           → provider may execute
+evidence_planned=true  → VEL evidence lifecycle participates
+```
+
+Current Mermaid2SF defaults:
+
+```text
+validate / compare → evidence NONE
+import / export    → evidence OPTIONAL
+```
+
+This means M2SF and VEL are not required to execute together.
+
+See `docs/plans/fenix-integration-w4-governance-contract.md`.
+
+W4-A contract status: CLOSED. W4-B runtime integration remains OPEN.
 
 ## Dependency spine
 
