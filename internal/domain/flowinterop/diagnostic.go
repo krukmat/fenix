@@ -40,10 +40,10 @@ type Diagnostic struct {
 
 // Validate checks diagnostic structure without interpreting provider semantics.
 func (d Diagnostic) Validate() error {
-	if d.Code == "" || d.Message == "" {
-		return ErrDiagnostic
-	}
-	if !isDiagnosticSeverity(d.Severity) || !isDiagnosticStage(d.Stage) {
+	if d.Code == "" ||
+		d.Message == "" ||
+		!isDiagnosticSeverity(d.Severity) ||
+		!isDiagnosticStage(d.Stage) {
 		return ErrDiagnostic
 	}
 	return nil
