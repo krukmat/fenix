@@ -39,8 +39,9 @@ const (
 	ToolErrorGovernanceDenied        ExecutionErrorCode = "governance_denied"
 	ToolErrorCapabilityFailed        ExecutionErrorCode = "capability_failed"
 	ToolErrorCapabilityIndeterminate ExecutionErrorCode = "capability_indeterminate"
-	ToolErrorEvidenceIndeterminate   ExecutionErrorCode = "evidence_indeterminate"
-	ToolErrorInternal                ExecutionErrorCode = "internal_error"
+	ToolErrorEvidenceIndeterminate      ExecutionErrorCode = "evidence_indeterminate"
+	ToolErrorEvidenceVerificationFailed ExecutionErrorCode = "evidence_verification_failed"
+	ToolErrorInternal                   ExecutionErrorCode = "internal_error"
 )
 
 type ExecutionError struct {
