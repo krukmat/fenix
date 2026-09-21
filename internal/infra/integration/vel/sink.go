@@ -46,48 +46,14 @@ func (s *Sink) RecordEvidence(
 	ctx context.Context,
 	envelope evidence.Envelope,
 ) (evidence.ProofReference, error) {
-	payload := externalEventFromEnvelope(envelope)
-	raw, err := json.Marshal(payload)
+	request, err := s.newAppendRequest(ctx, envelope)
 	if err != nil {
-		return evidence.ProofReference{}, fmt.Errorf("marshal VEL external event: %w", err)
+		return evidence.ProofReference{}, err
 	}
-
-	request, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		s.baseURL+"/v1/external/events",
-		bytes.NewReader(raw),
-	)
+	responseRaw, err := s.executeAppend(request)
 	if err != nil {
-		return evidence.ProofReference{}, fmt.Errorf("create VEL append request: %w", err)
+		return evidence.ProofReference{}, err
 	}
-	s.decorateRequest(ctx, request)
-
-	response, err := s.client.Do(request)
-	if err != nil {
-		return evidence.ProofReference{}, evidence.NewIndeterminateRecordError(
-			fmt.Errorf("append VEL evidence: %w", err),
-		)
-	}
-	defer response.Body.Close()
-
-	responseRaw, readErr := readResponse(response)
-	if readErr != nil {
-		return evidence.ProofReference{}, evidence.NewIndeterminateRecordError(readErr)
-	}
-	if response.StatusCode >= http.StatusInternalServerError {
-		return evidence.ProofReference{}, evidence.NewIndeterminateRecordError(
-			fmt.Errorf("VEL append status %d", response.StatusCode),
-		)
-	}
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return evidence.ProofReference{}, fmt.Errorf(
-			"VEL append status %d: %s",
-			response.StatusCode,
-			bodySummary(responseRaw),
-		)
-	}
-
 	event, err := decodeStoredEvent(responseRaw)
 	if err != nil {
 		return evidence.ProofReference{}, err
@@ -95,15 +61,93 @@ func (s *Sink) RecordEvidence(
 	return proofFromEvent(envelope.ExecutionID, event)
 }
 
+func (s *Sink) newAppendRequest(
+	ctx context.Context,
+	envelope evidence.Envelope,
+) (*http.Request, error) {
+	raw, err := json.Marshal(externalEventFromEnvelope(envelope))
+	if err != nil {
+		return nil, fmt.Errorf("marshal VEL external event: %w", err)
+	}
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		s.baseURL+"/v1/external/events",
+		bytes.NewReader(raw),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create VEL append request: %w", err)
+	}
+	s.decorateRequest(ctx, request)
+	return request, nil
+}
+
+func (s *Sink) executeAppend(request *http.Request) ([]byte, error) {
+	response, err := s.client.Do(request)
+	if err != nil {
+		return nil, evidence.NewIndeterminateRecordError(
+			fmt.Errorf("append VEL evidence: %w", err),
+		)
+	}
+	defer response.Body.Close()
+
+	responseRaw, err := readResponse(response)
+	if err != nil {
+		return nil, evidence.NewIndeterminateRecordError(err)
+	}
+	if err := validateAppendStatus(response.StatusCode, responseRaw); err != nil {
+		return nil, err
+	}
+	return responseRaw, nil
+}
+
+func validateAppendStatus(statusCode int, responseRaw []byte) error {
+	if statusCode >= http.StatusInternalServerError {
+		return evidence.NewIndeterminateRecordError(
+			fmt.Errorf("VEL append status %d", statusCode),
+		)
+	}
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf(
+			"VEL append status %d: %s",
+			statusCode,
+			bodySummary(responseRaw),
+		)
+	}
+	return nil
+}
+
 // LookupEvidence resolves an earlier append by the stable Fenix execution id.
 func (s *Sink) LookupEvidence(
 	ctx context.Context,
 	streamID, executionID string,
 ) (*evidence.ProofReference, error) {
+	request, err := s.newLookupRequest(ctx, streamID, executionID)
+	if err != nil {
+		return nil, err
+	}
+	responseRaw, found, err := s.executeLookup(request)
+	if err != nil || !found {
+		return nil, err
+	}
+	event, err := decodeStoredEvent(responseRaw)
+	if err != nil {
+		return nil, err
+	}
+	ref, err := proofFromEvent(executionID, event)
+	if err != nil {
+		return nil, err
+	}
+	return &ref, nil
+}
+
+func (s *Sink) newLookupRequest(
+	ctx context.Context,
+	streamID, executionID string,
+) (*http.Request, error) {
 	query := url.Values{}
 	query.Set("stream_id", streamID)
 	query.Set("idempotency_key", executionID)
-
 	request, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
@@ -114,40 +158,41 @@ func (s *Sink) LookupEvidence(
 		return nil, fmt.Errorf("create VEL lookup request: %w", err)
 	}
 	s.decorateRequest(ctx, request)
+	return request, nil
+}
 
+func (s *Sink) executeLookup(request *http.Request) ([]byte, bool, error) {
 	response, err := s.client.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("lookup VEL evidence: %w", err)
+		return nil, false, fmt.Errorf("lookup VEL evidence: %w", err)
 	}
 	defer response.Body.Close()
 
 	responseRaw, err := readResponse(response)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if response.StatusCode == http.StatusNotFound {
-		return nil, nil
+		return nil, false, nil
 	}
-	if response.StatusCode >= http.StatusInternalServerError {
-		return nil, fmt.Errorf("VEL lookup status %d", response.StatusCode)
+	if err := validateLookupStatus(response.StatusCode, responseRaw); err != nil {
+		return nil, false, err
 	}
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf(
+	return responseRaw, true, nil
+}
+
+func validateLookupStatus(statusCode int, responseRaw []byte) error {
+	if statusCode >= http.StatusInternalServerError {
+		return fmt.Errorf("VEL lookup status %d", statusCode)
+	}
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf(
 			"VEL lookup status %d: %s",
-			response.StatusCode,
+			statusCode,
 			bodySummary(responseRaw),
 		)
 	}
-
-	event, err := decodeStoredEvent(responseRaw)
-	if err != nil {
-		return nil, err
-	}
-	ref, err := proofFromEvent(executionID, event)
-	if err != nil {
-		return nil, err
-	}
-	return &ref, nil
+	return nil
 }
 
 type externalEvent struct {
