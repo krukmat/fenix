@@ -106,28 +106,25 @@ func (r *ToolRegistry) executeCapability(
 	for attempt := 1; attempt <= attempts; attempt++ {
 		out, err := executor.Execute(ctx, params)
 		if err == nil {
-			r.auditToolExecution(ctx, workspaceID, descriptor.Name, params, audit.OutcomeSuccess, "", map[string]any{
-				"capability_execution_status": string(CapabilityStatusSucceeded),
-				"attempt_count":              attempt,
-			})
-			r.recordToolUsage(ctx, workspaceID, descriptor.Name, startedAt)
+			r.auditCapabilitySuccess(ctx, workspaceID, descriptor, params, startedAt, attempt)
 			return out, nil
 		}
 
-		disposition := capabilityRetryDisposition(err)
-		if disposition == CapabilityRetryIndeterminate {
-			return nil, r.handleCapabilityError(ctx, workspaceID, descriptor, params, ToolErrorCapabilityIndeterminate, err, startedAt, attempt, CapabilityStatusIndeterminate)
-		}
-		if disposition == CapabilityRetryable && attempt < attempts && descriptor.canRetryAutomatically() {
+		decision := decideCapabilityFailure(descriptor, err, attempt, attempts)
+		if decision.retry {
 			continue
 		}
-		status := CapabilityStatusFailed
-		code := ToolErrorCapabilityFailed
-		if disposition == CapabilityRetryNone && !descriptor.canRetryAutomatically() {
-			status = CapabilityStatusIndeterminate
-			code = ToolErrorCapabilityIndeterminate
-		}
-		return nil, r.handleCapabilityError(ctx, workspaceID, descriptor, params, code, err, startedAt, attempt, status)
+		return nil, r.handleCapabilityError(
+			ctx,
+			workspaceID,
+			descriptor,
+			params,
+			decision.code,
+			err,
+			startedAt,
+			attempt,
+			decision.status,
+		)
 	}
 	return nil, r.handleCapabilityError(
 		ctx,
@@ -140,6 +137,60 @@ func (r *ToolRegistry) executeCapability(
 		attempts,
 		CapabilityStatusFailed,
 	)
+}
+
+type capabilityFailureDecision struct {
+	retry  bool
+	code   ExecutionErrorCode
+	status CapabilityExecutionStatus
+}
+
+func decideCapabilityFailure(
+	descriptor CapabilityDescriptor,
+	err error,
+	attempt, maxAttempts int,
+) capabilityFailureDecision {
+	switch capabilityRetryDisposition(err) {
+	case CapabilityRetryIndeterminate:
+		return capabilityFailureDecision{
+			code:   ToolErrorCapabilityIndeterminate,
+			status: CapabilityStatusIndeterminate,
+		}
+	case CapabilityRetryable:
+		if attempt < maxAttempts && descriptor.canRetryAutomatically() {
+			return capabilityFailureDecision{retry: true}
+		}
+		return capabilityFailureDecision{
+			code:   ToolErrorCapabilityFailed,
+			status: CapabilityStatusFailed,
+		}
+	default:
+		if !descriptor.canRetryAutomatically() {
+			return capabilityFailureDecision{
+				code:   ToolErrorCapabilityIndeterminate,
+				status: CapabilityStatusIndeterminate,
+			}
+		}
+		return capabilityFailureDecision{
+			code:   ToolErrorCapabilityFailed,
+			status: CapabilityStatusFailed,
+		}
+	}
+}
+
+func (r *ToolRegistry) auditCapabilitySuccess(
+	ctx context.Context,
+	workspaceID string,
+	descriptor CapabilityDescriptor,
+	params json.RawMessage,
+	startedAt time.Time,
+	attempt int,
+) {
+	r.auditToolExecution(ctx, workspaceID, descriptor.Name, params, audit.OutcomeSuccess, "", map[string]any{
+		"capability_execution_status": string(CapabilityStatusSucceeded),
+		"attempt_count":              attempt,
+	})
+	r.recordToolUsage(ctx, workspaceID, descriptor.Name, startedAt)
 }
 
 func (r *ToolRegistry) handleCapabilityError(
@@ -309,11 +360,19 @@ func (r *ToolRegistry) buildToolAuditMetadata(ctx context.Context, toolName stri
 	if runID := contextValue(ctx, ctxkeys.RunID); runID != "" {
 		meta["run_id"] = runID
 	}
+	if approvalID := contextValue(ctx, ctxkeys.ApprovalID); approvalID != "" {
+		meta["approval_id"] = approvalID
+	}
 	if descriptor, ok := r.capability(toolName); ok {
 		meta["capability_name"] = descriptor.Name
 		meta["capability_version"] = descriptor.Version
 		meta["capability_operation"] = descriptor.Operation
 		meta["side_effect_class"] = string(descriptor.SideEffectClass)
+		meta["approval_required"] = descriptor.RequiresApproval()
+		meta["max_attempts"] = descriptor.maxAttempts()
+		if descriptor.IdempotencyMode != CapabilityIdempotencyNone {
+			meta["idempotency_mode"] = string(descriptor.IdempotencyMode)
+		}
 	}
 	if errorCode != "" {
 		meta["error_code"] = errorCode
