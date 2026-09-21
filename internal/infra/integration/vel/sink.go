@@ -17,7 +17,11 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/evidence"
 )
 
-const maxResponseBytes = 4 << 20
+const (
+	maxResponseBytes    = 4 << 20
+	fieldStreamID       = "stream_id"
+	fieldIdempotencyKey = "idempotency_key"
+)
 
 var errInvalidConfig = errors.New("invalid VEL integration configuration")
 
@@ -95,8 +99,8 @@ func (s *Sink) executeAppend(request *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, evidence.NewIndeterminateRecordError(err)
 	}
-	if err := validateAppendStatus(response.StatusCode, responseRaw); err != nil {
-		return nil, err
+	if statusErr := validateAppendStatus(response.StatusCode, responseRaw); statusErr != nil {
+		return nil, statusErr
 	}
 	return responseRaw, nil
 }
@@ -146,8 +150,8 @@ func (s *Sink) newLookupRequest(
 	streamID, executionID string,
 ) (*http.Request, error) {
 	query := url.Values{}
-	query.Set("stream_id", streamID)
-	query.Set("idempotency_key", executionID)
+	query.Set(fieldStreamID, streamID)
+	query.Set(fieldIdempotencyKey, executionID)
 	request, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
@@ -175,8 +179,8 @@ func (s *Sink) executeLookup(request *http.Request) ([]byte, bool, error) {
 	if response.StatusCode == http.StatusNotFound {
 		return nil, false, nil
 	}
-	if err := validateLookupStatus(response.StatusCode, responseRaw); err != nil {
-		return nil, false, err
+	if statusErr := validateLookupStatus(response.StatusCode, responseRaw); statusErr != nil {
+		return nil, false, statusErr
 	}
 	return responseRaw, true, nil
 }
