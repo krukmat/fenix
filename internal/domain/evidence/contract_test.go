@@ -11,8 +11,8 @@ import (
 
 const testDigest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
-func validEnvelope() EvidenceEnvelope {
-	return EvidenceEnvelope{
+func validEnvelope() Envelope {
+	return Envelope{
 		SchemaVersion: SchemaVersion,
 		StreamID:      "workspace/ws-1",
 		WorkspaceID:   "ws-1",
@@ -43,14 +43,14 @@ func validEnvelope() EvidenceEnvelope {
 	}
 }
 
-func TestEvidenceEnvelope_ValidatesMinimalVerifiableContext(t *testing.T) {
+func TestEnvelope_ValidatesMinimalVerifiableContext(t *testing.T) {
 	envelope := validEnvelope()
 	if err := envelope.Validate(); err != nil {
 		t.Fatalf("Validate returned error: %v", err)
 	}
 }
 
-func TestEvidenceEnvelope_RejectsFullPayloadInsteadOfDigestContract(t *testing.T) {
+func TestEnvelope_RejectsFullPayloadInsteadOfDigestContract(t *testing.T) {
 	envelope := validEnvelope()
 	envelope.InputDigest.Value = "not-a-digest"
 	if err := envelope.Validate(); !errors.Is(err, ErrEnvelopeInvalid) {
@@ -58,7 +58,7 @@ func TestEvidenceEnvelope_RejectsFullPayloadInsteadOfDigestContract(t *testing.T
 	}
 }
 
-func TestEvidenceEnvelope_RequiresExecutionCorrelation(t *testing.T) {
+func TestEnvelope_RequiresExecutionCorrelation(t *testing.T) {
 	envelope := validEnvelope()
 	envelope.ExecutionID = ""
 	if err := envelope.Validate(); !errors.Is(err, ErrEnvelopeInvalid) {
