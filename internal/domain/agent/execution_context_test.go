@@ -17,7 +17,7 @@ func TestWithAgentRunExecutionContext_PropagatesRunAndTrace(t *testing.T) {
 		TraceID:           &traceID,
 	}
 
-	ctx := withAgentRunExecutionContext(context.Background(), run)
+	ctx := WithRunExecutionContext(context.Background(), run)
 
 	if got, _ := ctx.Value(ctxkeys.WorkspaceID).(string); got != "ws-1" {
 		t.Fatalf("workspace id = %q, want ws-1", got)
@@ -44,7 +44,7 @@ func TestWithAgentRunExecutionContext_PreservesExistingUser(t *testing.T) {
 	}
 
 	ctx := context.WithValue(context.Background(), ctxkeys.UserID, "request-user")
-	ctx = withAgentRunExecutionContext(ctx, run)
+	ctx = WithRunExecutionContext(ctx, run)
 
 	if got, _ := ctx.Value(ctxkeys.UserID).(string); got != "request-user" {
 		t.Fatalf("user id = %q, want request-user", got)
