@@ -12,8 +12,7 @@ describe('BFF production configuration', () => {
 
   function loadConfig(): typeof import('../src/config') {
     // resetModules above ensures each assertion reads its own environment.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require('../src/config') as typeof import('../src/config');
+    return jest.requireActual<typeof import('../src/config')>('../src/config');
   }
 
   it('rejects a production start without an explicit session secret', () => {
