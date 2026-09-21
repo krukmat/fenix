@@ -131,6 +131,7 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 
 	// All /api/v1/* routes require a valid Bearer JWT token (Task 1.6.13)
 	// AuthMiddleware validates the token and injects UserID + WorkspaceID into context.
+	var crossPlatformRuntimeErr error
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(apmiddleware.AuthMiddleware)
 		r.Use(apmiddleware.AuditMiddleware(auditService))
@@ -150,6 +151,7 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		toolRegistry.SetCapabilityGovernor(policy.NewCapabilityApprovalGovernor(approvalService))
 		toolRegistry.SetCapabilityGovernancePlanner(governancePlanner)
 		if err := configureCrossPlatformRuntime(toolRegistry); err != nil {
+			crossPlatformRuntimeErr = err
 			return
 		}
 		runnerRegistry := agent.NewRunnerRegistry()
@@ -514,6 +516,9 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		})
 	})
 
+	if crossPlatformRuntimeErr != nil {
+		return nil, fmt.Errorf("api: configure cross-platform runtime: %w", crossPlatformRuntimeErr)
+	}
 	return r, nil
 }
 
