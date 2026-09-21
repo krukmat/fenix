@@ -69,9 +69,10 @@ type UsageRecorder interface {
 
 //nolint:revive // registro principal usado transversalmente en app/api/tests
 type ToolRegistry struct {
-	db           *sql.DB
-	executors    map[string]ToolExecutor
-	capabilities map[string]CapabilityDescriptor
+	db                    *sql.DB
+	executors             map[string]ToolExecutor
+	capabilities          map[string]CapabilityDescriptor
+	capabilityDefinitions map[string]CapabilityToolDefinition
 	authz        ToolAuthorizer
 	audit        AuditLogger
 	usage        UsageRecorder
@@ -94,9 +95,10 @@ func NewToolRegistryWithRuntime(db *sql.DB, authz ToolAuthorizer, audit AuditLog
 
 func NewToolRegistryWithRuntimeAndUsage(db *sql.DB, authz ToolAuthorizer, audit AuditLogger, usage UsageRecorder) *ToolRegistry {
 	return &ToolRegistry{
-		db:           db,
-		executors:    make(map[string]ToolExecutor),
-		capabilities: make(map[string]CapabilityDescriptor),
+		db:                    db,
+		executors:             make(map[string]ToolExecutor),
+		capabilities:          make(map[string]CapabilityDescriptor),
+		capabilityDefinitions: make(map[string]CapabilityToolDefinition),
 		authz:        authz,
 		audit:        audit,
 		usage:        usage,
@@ -147,6 +149,29 @@ func (r *ToolRegistry) RegisterCapability(descriptor CapabilityDescriptor, execu
 		return err
 	}
 	r.capabilities[descriptor.Name] = descriptor
+	return nil
+}
+
+// CapabilityToolDefinition supplies the persisted validation/permission surface for a capability.
+type CapabilityToolDefinition struct {
+	Description         string
+	InputSchema         json.RawMessage
+	RequiredPermissions []string
+}
+
+// RegisterCapabilityWithDefinition registers a capability plus its persisted tool-definition contract.
+func (r *ToolRegistry) RegisterCapabilityWithDefinition(
+	descriptor CapabilityDescriptor,
+	executor ToolExecutor,
+	definition CapabilityToolDefinition,
+) error {
+	if err := validateToolSchema(definition.InputSchema); err != nil {
+		return err
+	}
+	if err := r.RegisterCapability(descriptor, executor); err != nil {
+		return err
+	}
+	r.capabilityDefinitions[descriptor.Name] = definition
 	return nil
 }
 
@@ -375,10 +400,46 @@ func (r *ToolRegistry) getDefinitionForExecution(ctx context.Context, workspaceI
 	if !errors.Is(err, ErrToolDefinitionNotFound) {
 		return nil, err
 	}
+	if capabilityDefinition, ok := r.capabilityDefinitions[toolName]; ok {
+		if ensureErr := r.ensureCapabilityToolDefinition(
+			ctx,
+			workspaceID,
+			toolName,
+			capabilityDefinition,
+		); ensureErr != nil {
+			return nil, ensureErr
+		}
+		return r.getToolDefinitionByName(ctx, workspaceID, toolName)
+	}
 	if ensureErr := r.EnsureBuiltInToolDefinitions(ctx, workspaceID); ensureErr != nil {
 		return nil, ensureErr
 	}
 	return r.getToolDefinitionByName(ctx, workspaceID, toolName)
+}
+
+func (r *ToolRegistry) ensureCapabilityToolDefinition(
+	ctx context.Context,
+	workspaceID, toolName string,
+	definition CapabilityToolDefinition,
+) error {
+	if _, err := r.getToolDefinitionByName(ctx, workspaceID, toolName); err == nil {
+		return nil
+	} else if !errors.Is(err, ErrToolDefinitionNotFound) {
+		return err
+	}
+
+	description := definition.Description
+	_, err := r.CreateToolDefinition(ctx, CreateToolDefinitionInput{
+		WorkspaceID:         workspaceID,
+		Name:                toolName,
+		Description:         &description,
+		InputSchema:         definition.InputSchema,
+		RequiredPermissions: definition.RequiredPermissions,
+	})
+	if err != nil && !isUniqueConstraintError(err) {
+		return err
+	}
+	return nil
 }
 
 func validateToolSchema(raw json.RawMessage) error {
