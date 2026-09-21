@@ -70,7 +70,7 @@ func MaxSupport(operation Operation, family FlowFamily) SupportCeiling {
 		return SupportCeiling{Level: FidelityUnsupported}
 	}
 	switch operation {
-	case OperationImport, OperationExport, OperationValidate:
+	case OperationImport, OperationExport, OperationValidate, OperationCompare:
 		return SupportCeiling{
 			Level: FidelityGuaranteed,
 			VerificationScopes: []VerificationScope{
