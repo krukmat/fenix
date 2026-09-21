@@ -33,27 +33,55 @@ func (g *CapabilityApprovalGovernor) CheckCapabilityExecution(ctx context.Contex
 	if !descriptor.RequiresApproval() {
 		return nil
 	}
-	if g == nil || g.approvals == nil {
-		return ErrCapabilityApprovalRequired
-	}
-
-	approvalID := capabilityContextValue(ctx, ctxkeys.ApprovalID)
-	workspaceID := capabilityContextValue(ctx, ctxkeys.WorkspaceID)
-	executionID := capabilityContextValue(ctx, ctxkeys.ExecutionID)
-	if approvalID == "" || workspaceID == "" || executionID == "" {
-		return ErrCapabilityApprovalRequired
+	approvalID, workspaceID, executionID, err := capabilityApprovalContext(ctx, g)
+	if err != nil {
+		return err
 	}
 
 	req, err := g.approvals.getApprovalByID(ctx, approvalID)
 	if err != nil {
 		return fmt.Errorf("load capability approval: %w", err)
 	}
+	return validateCapabilityApproval(req, descriptor, workspaceID, executionID)
+}
+
+func capabilityApprovalContext(
+	ctx context.Context,
+	governor *CapabilityApprovalGovernor,
+) (string, string, string, error) {
+	if governor == nil || governor.approvals == nil {
+		return "", "", "", ErrCapabilityApprovalRequired
+	}
+	approvalID := capabilityContextValue(ctx, ctxkeys.ApprovalID)
+	workspaceID := capabilityContextValue(ctx, ctxkeys.WorkspaceID)
+	executionID := capabilityContextValue(ctx, ctxkeys.ExecutionID)
+	if approvalID == "" {
+		return "", "", "", ErrCapabilityApprovalRequired
+	}
+	if workspaceID == "" {
+		return "", "", "", ErrCapabilityApprovalRequired
+	}
+	if executionID == "" {
+		return "", "", "", ErrCapabilityApprovalRequired
+	}
+	return approvalID, workspaceID, executionID, nil
+}
+
+func validateCapabilityApproval(
+	req *ApprovalRequest,
+	descriptor tool.CapabilityDescriptor,
+	workspaceID, executionID string,
+) error {
 	if req.Status != ApprovalStatusApproved {
 		return ErrCapabilityApprovalPending
 	}
-	if req.WorkspaceID != workspaceID ||
-		req.Action != tool.CapabilityApprovalAction(descriptor) ||
-		!matchesApprovalResource(req, executionID) {
+	if req.WorkspaceID != workspaceID {
+		return ErrCapabilityApprovalMismatch
+	}
+	if req.Action != tool.CapabilityApprovalAction(descriptor) {
+		return ErrCapabilityApprovalMismatch
+	}
+	if !matchesApprovalResource(req, executionID) {
 		return ErrCapabilityApprovalMismatch
 	}
 	return nil
