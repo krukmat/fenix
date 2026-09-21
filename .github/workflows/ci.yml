@@ -8,11 +8,14 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Repository wave policy:
+# - During an active implementation wave, automatic CI is disabled to avoid
+#   queueing expensive pipelines for intermediate commits.
+# - Run this workflow manually only when a checkpoint is explicitly required.
+# - Re-enable automatic CI at wave closure for the final validation run.
+# W5 is currently active, so only manual dispatch is enabled.
 on:
-  push:
-  pull_request:
-  schedule:
-    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 jobs:
   mobile-quality:
