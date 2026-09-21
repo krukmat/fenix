@@ -110,7 +110,9 @@ func (a *KBAgent) Run(ctx context.Context, config KBAgentConfig) (*agent.Run, er
 	})
 	if err != nil {
 		return nil, fmt.Errorf("trigger KB run: %w", err)
-	}
+	}	ctx = agent.WithRunExecutionContext(ctx, run)
+
+
 
 	toolCtx := context.WithValue(ctx, ctxkeys.WorkspaceID, normalized.WorkspaceID) // Task 4.5c — toolCtx workspace propagation.
 	result, err := a.executeKBFlow(toolCtx, toolCtx, normalized)                   // Task 4.5c — propagate enriched ctx to all downstream calls.
