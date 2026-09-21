@@ -39,6 +39,7 @@ const (
 	ToolErrorGovernanceDenied        ExecutionErrorCode = "governance_denied"
 	ToolErrorCapabilityFailed        ExecutionErrorCode = "capability_failed"
 	ToolErrorCapabilityIndeterminate ExecutionErrorCode = "capability_indeterminate"
+	ToolErrorEvidenceIndeterminate   ExecutionErrorCode = "evidence_indeterminate"
 	ToolErrorInternal                ExecutionErrorCode = "internal_error"
 )
 
