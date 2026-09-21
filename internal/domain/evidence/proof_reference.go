@@ -31,6 +31,7 @@ type ProofReference struct {
 	EventID            string               `json:"event_id"`
 	EventHash          string               `json:"event_hash"`
 	KeyID              string               `json:"key_id"`
+	SignatureRef       string               `json:"signature_ref"`
 	Sequence           int64                `json:"sequence"`
 	Checkpoint         *CheckpointReference `json:"checkpoint,omitempty"`
 	VerificationStatus VerificationStatus   `json:"verification_status"`
@@ -45,6 +46,7 @@ func (p ProofReference) Validate() error {
 		strings.TrimSpace(p.EventID) == "" ||
 		!isSHA256Hex(p.EventHash) ||
 		strings.TrimSpace(p.KeyID) == "" ||
+		strings.TrimSpace(p.SignatureRef) == "" ||
 		p.Sequence < 1 ||
 		!validVerificationStatus(p.VerificationStatus) {
 		return ErrProofReferenceInvalid
