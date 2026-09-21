@@ -111,13 +111,9 @@ func validateRuntimeDecision(
 	decision CapabilityRuntimeDecision,
 	facts CapabilityGovernanceFacts,
 ) error {
-	if !hasValidRuntimeDecisionContract(decision) {
-		return ErrCapabilityGovernanceRequired
-	}
-	if decision.Allowed && !runtimeGovernanceAllows(facts) {
-		return ErrCapabilityGovernanceRequired
-	}
-	if hasInvalidRuntimeEvidencePlan(decision) {
+	if !hasValidRuntimeDecisionContract(decision) ||
+		(decision.Allowed && !runtimeGovernanceAllows(facts)) ||
+		hasInvalidRuntimeEvidencePlan(decision) {
 		return ErrCapabilityGovernanceRequired
 	}
 	return nil
