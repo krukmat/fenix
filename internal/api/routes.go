@@ -545,7 +545,6 @@ func normalizeRouterRuntime(runtime RouterRuntime) RouterRuntime {
 	return runtime
 }
 
-
 func newCrossPlatformGovernancePlanner(
 	selector governance.RuntimePolicySelector,
 ) (*governance.RuntimePlanner, error) {
