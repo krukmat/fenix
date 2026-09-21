@@ -190,29 +190,19 @@ func contextValue(ctx context.Context, key ctxkeys.Key) string {
 }
 
 func (d CapabilityDescriptor) validate() error {
-	if !d.hasValidIdentity() {
-		return ErrToolDefinitionInvalid
-	}
-	if !isValidRetryPolicy(d.RetryPolicy) {
-		return ErrToolDefinitionInvalid
-	}
-	if !isValidIdempotencyMode(d.IdempotencyMode) {
+	if !d.hasValidIdentity() ||
+		!isValidRetryPolicy(d.RetryPolicy) ||
+		!isValidIdempotencyMode(d.IdempotencyMode) {
 		return ErrToolDefinitionInvalid
 	}
 	return nil
 }
 
 func (d CapabilityDescriptor) hasValidIdentity() bool {
-	if strings.TrimSpace(d.Name) == "" {
-		return false
-	}
-	if strings.TrimSpace(d.Version) == "" {
-		return false
-	}
-	if strings.TrimSpace(d.Operation) == "" {
-		return false
-	}
-	return isValidSideEffectClass(d.SideEffectClass)
+	return strings.TrimSpace(d.Name) != "" &&
+		strings.TrimSpace(d.Version) != "" &&
+		strings.TrimSpace(d.Operation) != "" &&
+		isValidSideEffectClass(d.SideEffectClass)
 }
 
 func isValidRetryPolicy(policy CapabilityRetryPolicy) bool {
