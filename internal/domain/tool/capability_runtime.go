@@ -22,12 +22,14 @@ type CapabilityGovernanceFacts struct {
 	ApprovalRequired bool
 	ApprovalGranted  bool
 	GovernanceError  string
+	GovernanceCause  error
 }
 
 // CapabilityRuntimeDecision is the tool-layer projection of the single W4 GovernanceDecision.
 type CapabilityRuntimeDecision struct {
 	Allowed             bool
 	DenialReason        string
+	DenialCause         error
 	ApprovalRequired    bool
 	EvidenceRequirement RuntimeEvidenceRequirement
 	EvidencePlanned     bool
@@ -83,6 +85,7 @@ func defaultRuntimeDecision(
 	return CapabilityRuntimeDecision{
 		Allowed:             runtimeGovernanceAllows(facts),
 		DenialReason:        runtimeGovernanceDenialReason(facts),
+		DenialCause:         facts.GovernanceCause,
 		ApprovalRequired:    facts.ApprovalRequired,
 		EvidenceRequirement: RuntimeEvidenceNone,
 		EvidencePlanned:     false,
