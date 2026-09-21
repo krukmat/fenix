@@ -98,10 +98,15 @@ func validateInput(input Input) error {
 		strings.TrimSpace(input.Profile.Capability.Operation) == "" ||
 		strings.TrimSpace(input.PolicyReference) == "" ||
 		!validEvidenceRequirement(input.Profile.EvidenceRequirement) ||
-		!validApprovalState(input.ApprovalState) {
+		!validApprovalState(input.ApprovalState) ||
+		!validSideEffectClass(input.Profile.Capability.SideEffectClass) {
 		return ErrDecisionInputInvalid
 	}
 	if input.Profile.EvidenceRequirement == EvidenceNone && input.OptionalEvidence {
+		return ErrDecisionInputInvalid
+	}
+	if input.Profile.EvidenceRequirement != EvidenceNone &&
+		strings.TrimSpace(input.Profile.EvidenceReason) == "" {
 		return ErrDecisionInputInvalid
 	}
 	return nil
@@ -137,4 +142,18 @@ func validApprovalState(state ApprovalState) bool {
 		state == ApprovalPending ||
 		state == ApprovalDenied ||
 		state == ApprovalMissing
+}
+
+
+func validSideEffectClass(class tool.SideEffectClass) bool {
+	switch class {
+	case tool.SideEffectRead,
+		tool.SideEffectTransform,
+		tool.SideEffectVerify,
+		tool.SideEffectMutate,
+		tool.SideEffectIrreversible:
+		return true
+	default:
+		return false
+	}
 }
