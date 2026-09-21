@@ -146,3 +146,18 @@ func TestRuntimeRecorder_ExposesVerificationFailureWithoutRetry(t *testing.T) {
 		t.Fatalf("record=%d lookup=%d", sink.recordCalls, sink.lookupCalls)
 	}
 }
+func TestRuntimeContextHash_MatchesVELContractVector(t *testing.T) {
+	request := tool.CapabilityEvidenceRequest{
+		WorkspaceID: "ws-1",
+		TraceID:     "trace-1",
+		ExecutionID: "exec-1",
+		Governance: tool.CapabilityRuntimeDecision{
+			PolicyReference: "fenix:w1-policy-gate",
+		},
+	}
+
+	const expected = "45f5c2054741a39cfff345c3a5054553d5c80dbb663445718d4ff498024ea85e"
+	if got := runtimeContextHash(request); got != expected {
+		t.Fatalf("runtimeContextHash = %q, want %q", got, expected)
+	}
+}
