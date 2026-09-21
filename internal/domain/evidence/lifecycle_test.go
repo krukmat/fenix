@@ -6,7 +6,7 @@ func validProofReference() ProofReference {
 	return ProofReference{
 		SchemaVersion: SchemaVersion,
 		Provider:      "verifiable-event-ledger",
-		ExecutionID:   "exec-1",
+		ExecutionID:   testExecutionID,
 		StreamID:      "workspace/ws-1",
 		EventID:       "event-1",
 		EventHash:     testDigest,
@@ -27,7 +27,7 @@ func TestIdempotencyKey_UsesStableExecutionIdentity(t *testing.T) {
 	envelope := validEnvelope()
 	first := IdempotencyKey(envelope)
 	second := IdempotencyKey(envelope)
-	if first != "exec-1" || second != first {
+	if first != testExecutionID || second != first {
 		t.Fatalf("unexpected idempotency key: first=%q second=%q", first, second)
 	}
 
