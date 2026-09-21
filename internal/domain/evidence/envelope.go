@@ -83,22 +83,27 @@ type EvidenceEnvelope struct {
 }
 
 func (e EvidenceEnvelope) Validate() error {
-	if e.SchemaVersion != SchemaVersion ||
-		!hasRequiredEnvelopeIdentity(e) ||
-		!validActor(e.Actor) ||
-		!validCapability(e.Capability) ||
-		!validAuthorization(e.Authorization) ||
-		!validOutcome(e.Outcome) ||
-		e.OccurredAt.IsZero() {
-		return ErrEnvelopeInvalid
-	}
-	if e.Approval != nil && !validApproval(*e.Approval) {
-		return ErrEnvelopeInvalid
-	}
-	if !validOptionalDigest(e.InputDigest) || !validOptionalDigest(e.OutputDigest) {
+	if !e.hasValidCore() || !e.hasValidOptionalEvidence() {
 		return ErrEnvelopeInvalid
 	}
 	return nil
+}
+
+func (e EvidenceEnvelope) hasValidCore() bool {
+	return e.SchemaVersion == SchemaVersion &&
+		hasRequiredEnvelopeIdentity(e) &&
+		validActor(e.Actor) &&
+		validCapability(e.Capability) &&
+		validAuthorization(e.Authorization) &&
+		validOutcome(e.Outcome) &&
+		!e.OccurredAt.IsZero()
+}
+
+func (e EvidenceEnvelope) hasValidOptionalEvidence() bool {
+	if e.Approval != nil && !validApproval(*e.Approval) {
+		return false
+	}
+	return validOptionalDigest(e.InputDigest) && validOptionalDigest(e.OutputDigest)
 }
 
 func hasRequiredEnvelopeIdentity(e EvidenceEnvelope) bool {
