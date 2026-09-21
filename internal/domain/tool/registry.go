@@ -69,11 +69,13 @@ type UsageRecorder interface {
 
 //nolint:revive // registro principal usado transversalmente en app/api/tests
 type ToolRegistry struct {
-	db        *sql.DB
-	executors map[string]ToolExecutor
-	authz     ToolAuthorizer
-	audit     AuditLogger
-	usage     UsageRecorder
+	db           *sql.DB
+	executors    map[string]ToolExecutor
+	capabilities map[string]CapabilityDescriptor
+	authz        ToolAuthorizer
+	audit        AuditLogger
+	usage        UsageRecorder
+	governor     CapabilityGovernor
 }
 
 func NewToolRegistry(db *sql.DB) *ToolRegistry {
@@ -89,7 +91,18 @@ func NewToolRegistryWithRuntime(db *sql.DB, authz ToolAuthorizer, audit AuditLog
 }
 
 func NewToolRegistryWithRuntimeAndUsage(db *sql.DB, authz ToolAuthorizer, audit AuditLogger, usage UsageRecorder) *ToolRegistry {
-	return &ToolRegistry{db: db, executors: make(map[string]ToolExecutor), authz: authz, audit: audit, usage: usage}
+	return &ToolRegistry{
+		db:           db,
+		executors:    make(map[string]ToolExecutor),
+		capabilities: make(map[string]CapabilityDescriptor),
+		authz:        authz,
+		audit:        audit,
+		usage:        usage,
+	}
+}
+
+func (r *ToolRegistry) SetCapabilityGovernor(governor CapabilityGovernor) {
+	r.governor = governor
 }
 
 func (r *ToolRegistry) Register(name string, executor ToolExecutor) error {
@@ -110,6 +123,22 @@ func (r *ToolRegistry) Get(name string) (ToolExecutor, error) {
 		return nil, ErrToolExecutorNotRegistered
 	}
 	return executor, nil
+}
+
+func (r *ToolRegistry) RegisterCapability(descriptor CapabilityDescriptor, executor ToolExecutor) error {
+	if err := descriptor.validate(); err != nil {
+		return err
+	}
+	if err := r.Register(descriptor.Name, executor); err != nil {
+		return err
+	}
+	r.capabilities[descriptor.Name] = descriptor
+	return nil
+}
+
+func (r *ToolRegistry) capability(toolName string) (CapabilityDescriptor, bool) {
+	descriptor, ok := r.capabilities[toolName]
+	return descriptor, ok
 }
 
 func (r *ToolRegistry) CreateToolDefinition(ctx context.Context, in CreateToolDefinitionInput) (*ToolDefinition, error) {
