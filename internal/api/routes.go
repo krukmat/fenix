@@ -140,6 +140,7 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		usageService := usagedomain.NewService(db)
 		toolRegistry := tooldomain.NewToolRegistryWithRuntimeAndUsage(db, policyEngine, auditService, usageService)
 		approvalService := policy.NewApprovalServiceWithBus(db, auditService, sharedBus)
+		toolRegistry.SetCapabilityGovernor(policy.NewCapabilityApprovalGovernor(approvalService))
 		runnerRegistry := agent.NewRunnerRegistry()
 		agentOrchestrator := agent.NewOrchestratorWithRegistry(db, runnerRegistry)
 		dslRunner := agent.NewDSLRunner(db)
