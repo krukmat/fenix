@@ -15,6 +15,7 @@ import (
 
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/evidence"
+	"github.com/matiasleandrokruk/fenix/internal/infra/integration/telemetry"
 )
 
 const (
@@ -49,7 +50,16 @@ func NewSink(baseURL, token string, client *http.Client) (*Sink, error) {
 func (s *Sink) RecordEvidence(
 	ctx context.Context,
 	envelope evidence.Envelope,
-) (evidence.ProofReference, error) {
+) (ref evidence.ProofReference, err error) {
+	started := time.Now()
+	defer func() {
+		outcome := "success"
+		if err != nil {
+			outcome = "error"
+		}
+		telemetry.Default.ObserveProvider("vel", "append_external", outcome, time.Since(started))
+	}()
+
 	request, err := s.newAppendRequest(ctx, envelope)
 	if err != nil {
 		return evidence.ProofReference{}, err
@@ -125,7 +135,16 @@ func validateAppendStatus(statusCode int, responseRaw []byte) error {
 func (s *Sink) LookupEvidence(
 	ctx context.Context,
 	streamID, executionID string,
-) (*evidence.ProofReference, error) {
+) (ref *evidence.ProofReference, err error) {
+	started := time.Now()
+	defer func() {
+		outcome := "success"
+		if err != nil {
+			outcome = "error"
+		}
+		telemetry.Default.ObserveProvider("vel", "lookup_external", outcome, time.Since(started))
+	}()
+
 	request, err := s.newLookupRequest(ctx, streamID, executionID)
 	if err != nil {
 		return nil, err
@@ -138,11 +157,11 @@ func (s *Sink) LookupEvidence(
 	if err != nil {
 		return nil, err
 	}
-	ref, err := proofFromEvent(executionID, event)
+	proof, err := proofFromEvent(executionID, event)
 	if err != nil {
 		return nil, err
 	}
-	return &ref, nil
+	return &proof, nil
 }
 
 func (s *Sink) newLookupRequest(
