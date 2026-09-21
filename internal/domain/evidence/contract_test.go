@@ -75,6 +75,7 @@ func TestProofReference_RequiresExecutionCorrelationAndEventEvidence(t *testing.
 		EventID:            "event-1",
 		EventHash:          testDigest,
 		KeyID:              "key-1",
+		SignatureRef:       "event:event-1#signature",
 		Sequence:           1,
 		VerificationStatus: VerificationRecorded,
 	}
@@ -97,6 +98,7 @@ func TestProofReference_ValidatesCheckpointShape(t *testing.T) {
 		EventID:       "event-1",
 		EventHash:     testDigest,
 		KeyID:         "key-1",
+		SignatureRef:  "event:event-1#signature",
 		Sequence:      1,
 		Checkpoint: &CheckpointReference{
 			CheckpointID:   "checkpoint-1",
