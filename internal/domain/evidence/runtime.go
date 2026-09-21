@@ -114,7 +114,7 @@ func indeterminateRuntimeResult() tool.CapabilityEvidenceResult {
 func BuildRuntimeEnvelope(request tool.CapabilityEvidenceRequest) (Envelope, error) {
 	envelope := Envelope{
 		SchemaVersion: SchemaVersion,
-		StreamID:      "workspace/" + strings.TrimSpace(request.WorkspaceID),
+		StreamID:      RuntimeStreamID(request.WorkspaceID),
 		WorkspaceID:   strings.TrimSpace(request.WorkspaceID),
 		TraceID:       strings.TrimSpace(request.TraceID),
 		ExecutionID:   strings.TrimSpace(request.ExecutionID),
