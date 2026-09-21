@@ -94,3 +94,33 @@ func TestResolve_NoneEvidenceRejectsOptionalSelection(t *testing.T) {
 		t.Fatalf("expected ErrDecisionInputInvalid, got %v", err)
 	}
 }
+
+
+func TestResolve_RejectsEvidenceRequirementWithoutReason(t *testing.T) {
+	p := profile(tool.SideEffectTransform, false, EvidenceOptional)
+	p.EvidenceReason = ""
+
+	_, err := Resolve(Input{
+		Profile:         p,
+		PolicyAllowed:   true,
+		PolicyReference: "policy:v1",
+		ApprovalState:   ApprovalNotRequired,
+	})
+	if !errors.Is(err, ErrDecisionInputInvalid) {
+		t.Fatalf("expected ErrDecisionInputInvalid, got %v", err)
+	}
+}
+
+func TestResolve_RejectsUnknownSideEffectClassification(t *testing.T) {
+	p := profile(tool.SideEffectClass("unknown"), false, EvidenceNone)
+
+	_, err := Resolve(Input{
+		Profile:         p,
+		PolicyAllowed:   true,
+		PolicyReference: "policy:v1",
+		ApprovalState:   ApprovalNotRequired,
+	})
+	if !errors.Is(err, ErrDecisionInputInvalid) {
+		t.Fatalf("expected ErrDecisionInputInvalid, got %v", err)
+	}
+}
