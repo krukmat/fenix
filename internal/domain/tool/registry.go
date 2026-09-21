@@ -101,6 +101,7 @@ func NewToolRegistryWithRuntimeAndUsage(db *sql.DB, authz ToolAuthorizer, audit 
 	}
 }
 
+// SetCapabilityGovernor configures the additional governance gate for risky external capabilities.
 func (r *ToolRegistry) SetCapabilityGovernor(governor CapabilityGovernor) {
 	r.governor = governor
 }
@@ -125,6 +126,7 @@ func (r *ToolRegistry) Get(name string) (ToolExecutor, error) {
 	return executor, nil
 }
 
+// RegisterCapability registers an externally-backed governed tool with its semantic capability descriptor.
 func (r *ToolRegistry) RegisterCapability(descriptor CapabilityDescriptor, executor ToolExecutor) error {
 	if err := descriptor.validate(); err != nil {
 		return err
