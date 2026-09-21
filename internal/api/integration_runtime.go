@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/evidence"
 	"github.com/matiasleandrokruk/fenix/internal/domain/flowinterop"
+	"github.com/matiasleandrokruk/fenix/internal/domain/governance"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	m2sfintegration "github.com/matiasleandrokruk/fenix/internal/infra/integration/m2sf"
 	velintegration "github.com/matiasleandrokruk/fenix/internal/infra/integration/vel"
@@ -23,8 +25,9 @@ const (
 	envM2SFToken         = "FENIX_M2SF_TOKEN"
 	envVELURL            = "FENIX_VEL_URL"
 	envVELToken          = "FENIX_VEL_TOKEN"
-	envIntegrationMS     = "FENIX_INTEGRATION_TIMEOUT_MS"
-	defaultIntegrationMS = 15000
+	envIntegrationMS       = "FENIX_INTEGRATION_TIMEOUT_MS"
+	envM2SFEvidenceEnabled = "FENIX_M2SF_EVIDENCE_ENABLED"
+	defaultIntegrationMS   = 15000
 )
 
 var errIntegrationConfig = errors.New("invalid cross-platform integration configuration")
@@ -36,18 +39,18 @@ type providerRuntimeSettings struct {
 }
 
 type crossPlatformRuntimeSettings struct {
-	M2SF    providerRuntimeSettings
-	VEL     providerRuntimeSettings
-	Timeout time.Duration
+	M2SF                 providerRuntimeSettings
+	VEL                  providerRuntimeSettings
+	Timeout              time.Duration
+	M2SFOptionalEvidence bool
 }
 
 var flowCapabilityInputSchema = json.RawMessage("{\"type\":\"object\",\"required\":[\"contract_version\",\"operation\",\"input\"],\"properties\":{\"contract_version\":{\"type\":\"string\"},\"operation\":{\"type\":\"string\"},\"input\":{\"type\":\"object\"},\"compare_to\":{\"type\":\"object\"}},\"additionalProperties\":false}")
 
-func configureCrossPlatformRuntime(registry *tool.ToolRegistry) error {
-	settings, err := loadCrossPlatformRuntimeSettings()
-	if err != nil {
-		return err
-	}
+func configureCrossPlatformRuntime(
+	registry *tool.ToolRegistry,
+	settings crossPlatformRuntimeSettings,
+) error {
 	if settings.M2SF.Enabled {
 		if err := registerM2SFCapabilities(registry, settings); err != nil {
 			return err
@@ -123,7 +126,22 @@ func loadCrossPlatformRuntimeSettings() (crossPlatformRuntimeSettings, error) {
 	if err != nil {
 		return crossPlatformRuntimeSettings{}, err
 	}
-	return crossPlatformRuntimeSettings{M2SF: m2sf, VEL: vel, Timeout: timeout}, nil
+	optionalEvidence, err := optionalM2SFEvidence()
+	if err != nil {
+		return crossPlatformRuntimeSettings{}, err
+	}
+	if optionalEvidence && !vel.Enabled {
+		return crossPlatformRuntimeSettings{}, fmt.Errorf(
+			"%w: M2SF optional evidence requires VEL configuration",
+			errIntegrationConfig,
+		)
+	}
+	return crossPlatformRuntimeSettings{
+		M2SF:                 m2sf,
+		VEL:                  vel,
+		Timeout:              timeout,
+		M2SFOptionalEvidence: optionalEvidence,
+	}, nil
 }
 
 func providerSettingsFromEnv(urlKey, tokenKey string) (providerRuntimeSettings, error) {
@@ -156,4 +174,36 @@ func integrationTimeout() (time.Duration, error) {
 		return 0, fmt.Errorf("%w: integration timeout must be 100..120000 ms", errIntegrationConfig)
 	}
 	return time.Duration(ms) * time.Millisecond, nil
+}
+
+func optionalM2SFEvidence() (bool, error) {
+	raw := strings.TrimSpace(os.Getenv(envM2SFEvidenceEnabled))
+	if raw == "" {
+		return false, nil
+	}
+	enabled, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf(
+			"%w: %s must be a boolean",
+			errIntegrationConfig,
+			envM2SFEvidenceEnabled,
+		)
+	}
+	return enabled, nil
+}
+
+type crossPlatformPolicySelector struct {
+	optionalM2SFEvidence bool
+}
+
+func (s crossPlatformPolicySelector) SelectRuntimePolicy(
+	_ context.Context,
+	profile governance.Profile,
+) (governance.RuntimePolicySelection, error) {
+	return governance.RuntimePolicySelection{
+		Allowed:          true,
+		PolicyReference:  "fenix:w1-policy-gate",
+		OptionalEvidence: s.optionalM2SFEvidence &&
+			profile.EvidenceRequirement == governance.EvidenceOptional,
+	}, nil
 }
