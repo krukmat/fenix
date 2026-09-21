@@ -35,9 +35,9 @@
 | W4-T2 Evidence policy | CLOSED |
 | W4-T3 GovernanceDecision contract | CLOSED |
 | W4-T4 Cross-component invariants | CLOSED |
-| W4-B Runtime governance integration | OPEN |
+| W4-B Runtime governance integration | CLOSED |
 
-W1, W2, and W3 are closed. W4-A is also closed at contract level: Fenix now owns a single cross-platform GovernanceDecision that resolves provider execution, approval, and VEL evidence participation independently. Runtime wiring of this decision remains W4-B.
+W1, W2, W3, and W4 are closed at contract/runtime-governance level. Fenix owns one GovernanceDecision per execution_id; provider execution and VEL evidence participation remain independently controlled, and evidence reconciliation never repeats the business capability.
 
 ## W0 — ownership and scope
 
@@ -296,7 +296,9 @@ This means M2SF and VEL are not required to execute together.
 
 See `docs/plans/fenix-integration-w4-governance-contract.md`.
 
-W4-A contract status: CLOSED. W4-B runtime integration remains OPEN.
+W4-A contract status: CLOSED. W4-B runtime integration status: CLOSED.
+
+The ToolRegistry now resolves governance once per execution, gates provider invocation, triggers evidence only when planned, records a compact proof projection in audit, and surfaces evidence-indeterminate / verification-failed states without replaying the provider. Concrete M2SF and VEL transports remain deferred.
 
 ## Dependency spine
 
