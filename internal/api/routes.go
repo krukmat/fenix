@@ -22,6 +22,8 @@ import (
 	copilotdomain "github.com/matiasleandrokruk/fenix/internal/domain/copilot"
 	"github.com/matiasleandrokruk/fenix/internal/domain/crm"
 	domaineval "github.com/matiasleandrokruk/fenix/internal/domain/eval"
+	"github.com/matiasleandrokruk/fenix/internal/domain/flowinterop"
+	"github.com/matiasleandrokruk/fenix/internal/domain/governance"
 	"github.com/matiasleandrokruk/fenix/internal/domain/knowledge"
 	"github.com/matiasleandrokruk/fenix/internal/domain/policy"
 	"github.com/matiasleandrokruk/fenix/internal/domain/relationship"
