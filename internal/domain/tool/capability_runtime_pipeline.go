@@ -102,7 +102,7 @@ func (r *ToolRegistry) handleGovernanceDenial(
 	)
 	extra := capabilityTerminalMetadata(decision, CapabilityStatusDenied, 0, evidenceResult)
 	if evidenceErr != nil {
-		extra["evidence_error_code"] = string(ToolErrorEvidenceIndeterminate)
+		extra["evidence_error_code"] = string(resolveEvidenceErrorCode(evidenceErr))
 	}
 	return nil, r.handleExecutionError(
 		ctx, workspaceID, descriptor.Name, params,
@@ -158,10 +158,11 @@ func (r *ToolRegistry) finalizeCapabilitySuccess(
 	)
 	extra := capabilityTerminalMetadata(decision, CapabilityStatusSucceeded, attempt, evidenceResult)
 	if evidenceErr != nil {
-		extra["evidence_error_code"] = string(ToolErrorEvidenceIndeterminate)
+		extra["evidence_error_code"] = string(resolveEvidenceErrorCode(evidenceErr))
+		code := resolveEvidenceErrorCode(evidenceErr)
 		err := r.handleExecutionError(
 			ctx, workspaceID, descriptor.Name, params,
-			ToolErrorEvidenceIndeterminate, evidenceErr, startedAt, extra,
+			code, evidenceErr, startedAt, extra,
 		)
 		return output, err
 	}
@@ -189,7 +190,7 @@ func (r *ToolRegistry) finalizeCapabilityFailure(
 	)
 	extra := capabilityTerminalMetadata(decision, status, attempt, evidenceResult)
 	if evidenceErr != nil {
-		extra["evidence_error_code"] = string(ToolErrorEvidenceIndeterminate)
+		extra["evidence_error_code"] = string(resolveEvidenceErrorCode(evidenceErr))
 	}
 	return r.handleExecutionError(
 		ctx, workspaceID, descriptor.Name, params,
@@ -234,7 +235,17 @@ func (r *ToolRegistry) recordRuntimeEvidence(
 		}
 		return result, err
 	}
+	if result.State == "verification_failed" {
+		return result, ErrCapabilityEvidenceVerificationFailed
+	}
 	return result, nil
+}
+
+func resolveEvidenceErrorCode(err error) ExecutionErrorCode {
+	if errors.Is(err, ErrCapabilityEvidenceVerificationFailed) {
+		return ToolErrorEvidenceVerificationFailed
+	}
+	return ToolErrorEvidenceIndeterminate
 }
 
 func capabilityTerminalMetadata(
