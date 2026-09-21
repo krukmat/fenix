@@ -106,34 +106,27 @@ func TestRateLimit_WindowReset_AllowsAgain(t *testing.T) {
 	}
 }
 
-// TestRateLimit_XRealIP_UsedOverRemoteAddr verifies that X-Real-IP header is used
-// for bucket keying (RealIP middleware sets this).
-func TestRateLimit_XRealIP_UsedOverRemoteAddr(t *testing.T) {
+// TestRateLimit_SpoofedXRealIPIgnored verifies that an untrusted forwarding
+// header cannot change the rate-limit bucket.
+func TestRateLimit_SpoofedXRealIPIgnored(t *testing.T) {
 	t.Parallel()
 
-	limit := 1
-	handler := RateLimitMiddleware(limit, time.Minute)(rateLimitOKHandler)
+	handler := RateLimitMiddleware(1, time.Minute)(rateLimitOKHandler)
+	peerIP := "10.0.0.99"
 
-	realIP := "192.168.1.50"
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
-	req.RemoteAddr = "10.0.0.99:12345" // different from real IP
-	req.Header.Set(headerXRealIP, realIP)
-
-	// First request from realIP — should pass.
+	req := newIPRequest(peerIP)
+	req.Header.Set("X-Real-IP", "192.168.1.50")
 	rr1 := httptest.NewRecorder()
 	handler.ServeHTTP(rr1, req)
 	if rr1.Code != http.StatusOK {
 		t.Errorf("first request: status = %d; want %d", rr1.Code, http.StatusOK)
 	}
 
-	// Second request with same X-Real-IP — should be limited.
-	req2 := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
-	req2.RemoteAddr = "10.0.0.100:12345" // different RemoteAddr
-	req2.Header.Set(headerXRealIP, realIP)
-
+	req2 := newIPRequest(peerIP)
+	req2.Header.Set("X-Real-IP", "192.168.1.51")
 	rr2 := httptest.NewRecorder()
 	handler.ServeHTTP(rr2, req2)
 	if rr2.Code != http.StatusTooManyRequests {
-		t.Errorf("second request same X-Real-IP: status = %d; want %d", rr2.Code, http.StatusTooManyRequests)
+		t.Errorf("spoofed header changed bucket: status = %d; want %d", rr2.Code, http.StatusTooManyRequests)
 	}
 }
