@@ -9,12 +9,15 @@ concurrency:
   cancel-in-progress: true
 
 # Repository wave policy:
-# - During an active implementation wave, automatic CI is disabled to avoid
-#   queueing expensive pipelines for intermediate commits.
-# - Run this workflow manually only when a checkpoint is explicitly required.
-# - Re-enable automatic CI at wave closure for the final validation run.
-# W5 is currently active, so only manual dispatch is enabled.
+# - Automatic CI is enabled for push/pull_request and the nightly schedule.
+# - workflow_dispatch remains available for explicit checkpoints.
+# - During future active implementation waves this can be paused temporarily
+#   and restored for closure validation.
 on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 3 * * *'
   workflow_dispatch:
 
 jobs:
