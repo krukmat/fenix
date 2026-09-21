@@ -7,6 +7,13 @@ import (
 	"testing"
 )
 
+const (
+	runtimeTestCapabilityName = runtimeTestCapabilityName
+	runtimeTestParams         = "{"value":"x"}"
+	runtimeExecuteErrFormat   = runtimeExecuteErrFormat
+	runtimeCallsErrFormat     = runtimeCallsErrFormat
+)
+
 type runtimePlannerStub struct {
 	decision CapabilityRuntimeDecision
 	err      error
@@ -74,7 +81,7 @@ func newRuntimeTestRegistry(
 
 func runtimeDescriptor(class SideEffectClass) CapabilityDescriptor {
 	return CapabilityDescriptor{
-		Name:            "runtime.capability",
+		Name:            runtimeTestCapabilityName,
 		Version:         "1",
 		Operation:       "execute",
 		SideEffectClass: class,
@@ -90,11 +97,11 @@ func TestRuntimeGovernance_ProviderCanExecuteWithoutEvidence(t *testing.T) {
 	)
 
 	_, err := registry.Execute(
-		capabilityTestContext(), workspaceID, "runtime.capability",
-		json.RawMessage(`{"value":"x"}`),
+		capabilityTestContext(), workspaceID, runtimeTestCapabilityName,
+		json.RawMessage(runtimeTestParams),
 	)
 	if err != nil {
-		t.Fatalf("Execute returned error: %v", err)
+		t.Fatalf(runtimeExecuteErrFormat, err)
 	}
 	if planner.calls != 1 || executor.calls != 1 || recorder.calls != 0 {
 		t.Fatalf("calls planner=%d executor=%d recorder=%d", planner.calls, executor.calls, recorder.calls)
@@ -121,14 +128,14 @@ func TestRuntimeGovernance_ProviderAndEvidenceExecuteIndependently(t *testing.T)
 	)
 
 	_, err := registry.Execute(
-		capabilityTestContext(), workspaceID, "runtime.capability",
-		json.RawMessage(`{"value":"x"}`),
+		capabilityTestContext(), workspaceID, runtimeTestCapabilityName,
+		json.RawMessage(runtimeTestParams),
 	)
 	if err != nil {
-		t.Fatalf("Execute returned error: %v", err)
+		t.Fatalf(runtimeExecuteErrFormat, err)
 	}
 	if executor.calls != 1 || recorder.calls != 1 {
-		t.Fatalf("calls executor=%d recorder=%d", executor.calls, recorder.calls)
+		t.Fatalf(runtimeCallsErrFormat, executor.calls, recorder.calls)
 	}
 	if recorder.requests[0].Status != CapabilityStatusSucceeded {
 		t.Fatalf("evidence status = %q", recorder.requests[0].Status)
@@ -159,14 +166,14 @@ func TestRuntimeGovernance_DenialCanBeEvidencedWithoutProviderInvocation(t *test
 	)
 
 	_, err := registry.Execute(
-		capabilityTestContext(), workspaceID, "runtime.capability",
-		json.RawMessage(`{"value":"x"}`),
+		capabilityTestContext(), workspaceID, runtimeTestCapabilityName,
+		json.RawMessage(runtimeTestParams),
 	)
 	if !IsToolExecutionErrorCode(err, ToolErrorGovernanceDenied) {
 		t.Fatalf("expected governance denial, got %v", err)
 	}
 	if executor.calls != 0 || recorder.calls != 1 {
-		t.Fatalf("calls executor=%d recorder=%d", executor.calls, recorder.calls)
+		t.Fatalf(runtimeCallsErrFormat, executor.calls, recorder.calls)
 	}
 	if recorder.requests[0].Status != CapabilityStatusDenied {
 		t.Fatalf("evidence status = %q, want denied", recorder.requests[0].Status)
@@ -180,7 +187,7 @@ func TestRuntimeGovernance_ApprovalFailureCannotBeOverriddenByPlanner(t *testing
 	planner := &runtimePlannerStub{decision: decision}
 	registry, workspaceID, _ := newRuntimeTestRegistry(
 		t, CapabilityDescriptor{
-			Name:            "runtime.capability",
+			Name:            runtimeTestCapabilityName,
 			Version:         "1",
 			Operation:       "execute",
 			SideEffectClass: SideEffectIrreversible,
@@ -191,8 +198,8 @@ func TestRuntimeGovernance_ApprovalFailureCannotBeOverriddenByPlanner(t *testing
 	)
 
 	_, err := registry.Execute(
-		capabilityTestContext(), workspaceID, "runtime.capability",
-		json.RawMessage(`{"value":"x"}`),
+		capabilityTestContext(), workspaceID, runtimeTestCapabilityName,
+		json.RawMessage(runtimeTestParams),
 	)
 	if !IsToolExecutionErrorCode(err, ToolErrorGovernanceDenied) {
 		t.Fatalf("expected governance denial, got %v", err)
@@ -214,8 +221,8 @@ func TestRuntimeGovernance_EvidenceFailureDoesNotRepeatProvider(t *testing.T) {
 	)
 
 	output, err := registry.Execute(
-		capabilityTestContext(), workspaceID, "runtime.capability",
-		json.RawMessage(`{"value":"x"}`),
+		capabilityTestContext(), workspaceID, runtimeTestCapabilityName,
+		json.RawMessage(runtimeTestParams),
 	)
 	if !IsToolExecutionErrorCode(err, ToolErrorEvidenceIndeterminate) {
 		t.Fatalf("expected evidence indeterminate, got %v", err)
@@ -224,7 +231,7 @@ func TestRuntimeGovernance_EvidenceFailureDoesNotRepeatProvider(t *testing.T) {
 		t.Fatal("provider output must be preserved after evidence failure")
 	}
 	if executor.calls != 1 || recorder.calls != 1 {
-		t.Fatalf("calls executor=%d recorder=%d", executor.calls, recorder.calls)
+		t.Fatalf(runtimeCallsErrFormat, executor.calls, recorder.calls)
 	}
 }
 
@@ -239,8 +246,8 @@ func TestRuntimeGovernance_VerificationFailureIsExplicit(t *testing.T) {
 	)
 
 	output, err := registry.Execute(
-		capabilityTestContext(), workspaceID, "runtime.capability",
-		json.RawMessage(`{"value":"x"}`),
+		capabilityTestContext(), workspaceID, runtimeTestCapabilityName,
+		json.RawMessage(runtimeTestParams),
 	)
 	if !IsToolExecutionErrorCode(err, ToolErrorEvidenceVerificationFailed) {
 		t.Fatalf("expected verification failure, got %v", err)
@@ -261,11 +268,11 @@ func TestRuntimeGovernance_DecisionIsResolvedOnceAcrossProviderRetry(t *testing.
 	registry, workspaceID, _ := newRuntimeTestRegistry(t, descriptor, executor, planner, nil)
 
 	_, err := registry.Execute(
-		capabilityTestContext(), workspaceID, "runtime.capability",
-		json.RawMessage(`{"value":"x"}`),
+		capabilityTestContext(), workspaceID, runtimeTestCapabilityName,
+		json.RawMessage(runtimeTestParams),
 	)
 	if err != nil {
-		t.Fatalf("Execute returned error: %v", err)
+		t.Fatalf(runtimeExecuteErrFormat, err)
 	}
 	if planner.calls != 1 {
 		t.Fatalf("governance decisions = %d, want 1", planner.calls)
