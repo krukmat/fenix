@@ -24,9 +24,13 @@ func (r *ToolRegistry) executeGovernedCapability(
 ) (json.RawMessage, error) {
 	decision, err := r.resolveRuntimeGovernance(ctx, descriptor)
 	if err != nil {
+		code := ToolErrorGovernanceDenied
+		if errors.Is(err, ErrCapabilityContextMissing) {
+			code = ToolErrorCapabilityContext
+		}
 		return nil, r.handleExecutionError(
 			ctx, workspaceID, descriptor.Name, params,
-			ToolErrorGovernanceDenied, err, startedAt, nil,
+			code, err, startedAt, nil,
 		)
 	}
 	if !decision.Allowed {
