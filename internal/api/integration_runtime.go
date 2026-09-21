@@ -22,9 +22,9 @@ import (
 
 const (
 	envM2SFURL             = "FENIX_M2SF_URL"
-	envM2SFToken           = "FENIX_M2SF_TOKEN"
+	envM2SFToken           = "FENIX_M2SF_TOKEN" // #nosec G101 -- environment variable name, not a credential
 	envVELURL              = "FENIX_VEL_URL"
-	envVELToken            = "FENIX_VEL_TOKEN"
+	envVELToken            = "FENIX_VEL_TOKEN" // #nosec G101 -- environment variable name, not a credential
 	envIntegrationMS       = "FENIX_INTEGRATION_TIMEOUT_MS"
 	envM2SFEvidenceEnabled = "FENIX_M2SF_EVIDENCE_ENABLED"
 	defaultIntegrationMS   = 15000
@@ -86,12 +86,12 @@ func registerM2SFCapabilities(
 			InputSchema:         flowCapabilityInputSchema,
 			RequiredPermissions: []string{"tools:" + descriptor.Name},
 		}
-		if err := registry.RegisterCapabilityWithDefinition(
+		if registerErr := registry.RegisterCapabilityWithDefinition(
 			descriptor,
 			executor,
 			definition,
-		); err != nil {
-			return fmt.Errorf("api: register M2SF capability %s: %w", descriptor.Name, err)
+		); registerErr != nil {
+			return fmt.Errorf("api: register M2SF capability %s: %w", descriptor.Name, registerErr)
 		}
 	}
 	return nil
@@ -116,11 +116,11 @@ func configureVELEvidence(
 func loadCrossPlatformRuntimeSettings() (crossPlatformRuntimeSettings, error) {
 	m2sf, err := providerSettingsFromEnv(envM2SFURL, envM2SFToken)
 	if err != nil {
-		return crossPlatformRuntimeSettings{}, fmt.Errorf("%w: M2SF: %v", errIntegrationConfig, err)
+		return crossPlatformRuntimeSettings{}, fmt.Errorf("%w: M2SF: %w", errIntegrationConfig, err)
 	}
 	vel, err := providerSettingsFromEnv(envVELURL, envVELToken)
 	if err != nil {
-		return crossPlatformRuntimeSettings{}, fmt.Errorf("%w: VEL: %v", errIntegrationConfig, err)
+		return crossPlatformRuntimeSettings{}, fmt.Errorf("%w: VEL: %w", errIntegrationConfig, err)
 	}
 	timeout, err := integrationTimeout()
 	if err != nil {
@@ -150,11 +150,8 @@ func providerSettingsFromEnv(urlKey, tokenKey string) (providerRuntimeSettings, 
 	if providerConfigEmpty(baseURL, token) {
 		return providerRuntimeSettings{}, nil
 	}
-	if err := validateProviderConfigPresence(baseURL, token); err != nil {
-		return providerRuntimeSettings{}, err
-	}
-	if err := validateProviderURL(baseURL); err != nil {
-		return providerRuntimeSettings{}, err
+	if validationErr := validateProviderConfig(baseURL, token); validationErr != nil {
+		return providerRuntimeSettings{}, validationErr
 	}
 	return providerRuntimeSettings{
 		BaseURL: strings.TrimRight(baseURL, "/"),
@@ -167,19 +164,16 @@ func providerConfigEmpty(baseURL, token string) bool {
 	return baseURL == "" && token == ""
 }
 
-func validateProviderConfigPresence(baseURL, token string) error {
+func validateProviderConfig(baseURL, token string) error {
 	if baseURL == "" || token == "" {
 		return errors.New("URL and token must be configured together")
 	}
-	return nil
+	return validateProviderURL(baseURL)
 }
 
 func validateProviderURL(baseURL string) error {
 	parsed, err := url.Parse(baseURL)
-	if err != nil {
-		return errors.New("URL must use http or https")
-	}
-	if parsed.Host == "" || !validProviderScheme(parsed.Scheme) {
+	if err != nil || parsed.Host == "" || !validProviderScheme(parsed.Scheme) {
 		return errors.New("URL must use http or https")
 	}
 	return nil
