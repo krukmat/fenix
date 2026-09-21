@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/flowinterop"
+	"github.com/matiasleandrokruk/fenix/internal/domain/governance"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 )
 
@@ -41,7 +43,11 @@ func TestConfigureCrossPlatformRuntimeRegistersM2SFCapabilities(t *testing.T) {
 	t.Setenv(envIntegrationMS, "2500")
 
 	registry := tool.NewToolRegistry(nil)
-	if err := configureCrossPlatformRuntime(registry); err != nil {
+	settings, err := loadCrossPlatformRuntimeSettings()
+	if err != nil {
+		t.Fatalf("loadCrossPlatformRuntimeSettings: %v", err)
+	}
+	if err := configureCrossPlatformRuntime(registry, settings); err != nil {
 		t.Fatalf("configureCrossPlatformRuntime: %v", err)
 	}
 
@@ -65,7 +71,46 @@ func clearIntegrationEnv(t *testing.T) {
 		envVELURL,
 		envVELToken,
 		envIntegrationMS,
+		envM2SFEvidenceEnabled,
 	} {
 		t.Setenv(key, "")
 	}
 }
+func TestLoadCrossPlatformRuntimeSettingsOptionalEvidenceRequiresVEL(t *testing.T) {
+	clearIntegrationEnv(t)
+	t.Setenv(envM2SFURL, "http://127.0.0.1:4000")
+	t.Setenv(envM2SFToken, "test-token")
+	t.Setenv(envM2SFEvidenceEnabled, "true")
+
+	_, err := loadCrossPlatformRuntimeSettings()
+	if !errors.Is(err, errIntegrationConfig) {
+		t.Fatalf("expected integration config error, got %v", err)
+	}
+}
+
+func TestCrossPlatformPolicySelectorPlansOnlyOptionalEvidence(t *testing.T) {
+	selector := crossPlatformPolicySelector{optionalM2SFEvidence: true}
+
+	optional, err := selector.SelectRuntimePolicy(
+		context.Background(),
+		governance.Profile{EvidenceRequirement: governance.EvidenceOptional},
+	)
+	if err != nil {
+		t.Fatalf("SelectRuntimePolicy optional: %v", err)
+	}
+	if !optional.OptionalEvidence {
+		t.Fatal("expected optional evidence selection")
+	}
+
+	none, err := selector.SelectRuntimePolicy(
+		context.Background(),
+		governance.Profile{EvidenceRequirement: governance.EvidenceNone},
+	)
+	if err != nil {
+		t.Fatalf("SelectRuntimePolicy none: %v", err)
+	}
+	if none.OptionalEvidence {
+		t.Fatal("evidence NONE must not be selected")
+	}
+}
+
