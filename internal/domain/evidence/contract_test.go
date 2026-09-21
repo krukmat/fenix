@@ -10,14 +10,16 @@ import (
 )
 
 const (
-	testDigest      = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	testExecutionID = "exec-1"
+	testDigest        = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	testExecutionID   = "exec-1"
+	testStreamID      = "workspace/ws-1"
+	testValidateError = "Validate returned error: %v"
 )
 
 func validEnvelope() Envelope {
 	return Envelope{
 		SchemaVersion: SchemaVersion,
-		StreamID:      "workspace/ws-1",
+		StreamID:      testStreamID,
 		WorkspaceID:   "ws-1",
 		TraceID:       "trace-1",
 		ExecutionID:   testExecutionID,
@@ -49,7 +51,7 @@ func validEnvelope() Envelope {
 func TestEnvelope_ValidatesMinimalVerifiableContext(t *testing.T) {
 	envelope := validEnvelope()
 	if err := envelope.Validate(); err != nil {
-		t.Fatalf("Validate returned error: %v", err)
+		t.Fatalf(testValidateError, err)
 	}
 }
 
@@ -74,7 +76,7 @@ func TestProofReference_RequiresExecutionCorrelationAndEventEvidence(t *testing.
 		SchemaVersion:      SchemaVersion,
 		Provider:           "verifiable-event-ledger",
 		ExecutionID:        testExecutionID,
-		StreamID:           "workspace/ws-1",
+		StreamID:           testStreamID,
 		EventID:            "event-1",
 		EventHash:          testDigest,
 		KeyID:              "key-1",
@@ -83,7 +85,7 @@ func TestProofReference_RequiresExecutionCorrelationAndEventEvidence(t *testing.
 		VerificationStatus: VerificationRecorded,
 	}
 	if err := ref.Validate(); err != nil {
-		t.Fatalf("Validate returned error: %v", err)
+		t.Fatalf(testValidateError, err)
 	}
 
 	ref.ExecutionID = ""
@@ -97,7 +99,7 @@ func TestProofReference_ValidatesCheckpointShape(t *testing.T) {
 		SchemaVersion: SchemaVersion,
 		Provider:      "verifiable-event-ledger",
 		ExecutionID:   testExecutionID,
-		StreamID:      "workspace/ws-1",
+		StreamID:      testStreamID,
 		EventID:       "event-1",
 		EventHash:     testDigest,
 		KeyID:         "key-1",
@@ -112,6 +114,6 @@ func TestProofReference_ValidatesCheckpointShape(t *testing.T) {
 		VerificationStatus: VerificationVerified,
 	}
 	if err := ref.Validate(); err != nil {
-		t.Fatalf("Validate returned error: %v", err)
+		t.Fatalf(testValidateError, err)
 	}
 }
