@@ -76,6 +76,7 @@ func clearIntegrationEnv(t *testing.T) {
 		t.Setenv(key, "")
 	}
 }
+
 func TestLoadCrossPlatformRuntimeSettingsOptionalEvidenceRequiresVEL(t *testing.T) {
 	clearIntegrationEnv(t)
 	t.Setenv(envM2SFURL, "http://127.0.0.1:4000")
