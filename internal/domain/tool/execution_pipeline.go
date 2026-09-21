@@ -33,9 +33,11 @@ const (
 	ToolErrorInvalidInput        ExecutionErrorCode = "invalid_input"
 	ToolErrorPermissionDenied    ExecutionErrorCode = "permission_denied"
 	ToolErrorToolInactive        ExecutionErrorCode = "tool_inactive"
-	ToolErrorCapabilityContext   ExecutionErrorCode = "capability_context_missing"
-	ToolErrorGovernanceDenied    ExecutionErrorCode = "governance_denied"
-	ToolErrorInternal            ExecutionErrorCode = "internal_error"
+	ToolErrorCapabilityContext       ExecutionErrorCode = "capability_context_missing"
+	ToolErrorGovernanceDenied        ExecutionErrorCode = "governance_denied"
+	ToolErrorCapabilityFailed        ExecutionErrorCode = "capability_failed"
+	ToolErrorCapabilityIndeterminate ExecutionErrorCode = "capability_indeterminate"
+	ToolErrorInternal                ExecutionErrorCode = "internal_error"
 )
 
 type ExecutionError struct {
@@ -76,17 +78,85 @@ func (r *ToolRegistry) executeDefinition(
 
 	executor, err := r.Get(def.Name)
 	if err != nil {
-		return nil, r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInternal, err, startedAt)
+		return nil, r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInternal, err, startedAt, nil)
+	}
+	if descriptor, ok := r.capability(def.Name); ok {
+		return r.executeCapability(ctx, workspaceID, descriptor, executor, params, startedAt)
 	}
 
 	out, err := executor.Execute(ctx, params)
 	if err != nil {
-		return nil, r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInternal, err, startedAt)
+		return nil, r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInternal, err, startedAt, nil)
 	}
 
-	r.auditToolExecution(ctx, workspaceID, def.Name, params, audit.OutcomeSuccess, "")
+	r.auditToolExecution(ctx, workspaceID, def.Name, params, audit.OutcomeSuccess, "", nil)
 	r.recordToolUsage(ctx, workspaceID, def.Name, startedAt)
 	return out, nil
+}
+
+func (r *ToolRegistry) executeCapability(
+	ctx context.Context,
+	workspaceID string,
+	descriptor CapabilityDescriptor,
+	executor ToolExecutor,
+	params json.RawMessage,
+	startedAt time.Time,
+) (json.RawMessage, error) {
+	attempts := descriptor.maxAttempts()
+	for attempt := 1; attempt <= attempts; attempt++ {
+		out, err := executor.Execute(ctx, params)
+		if err == nil {
+			r.auditToolExecution(ctx, workspaceID, descriptor.Name, params, audit.OutcomeSuccess, "", map[string]any{
+				"capability_execution_status": string(CapabilityStatusSucceeded),
+				"attempt_count":              attempt,
+			})
+			r.recordToolUsage(ctx, workspaceID, descriptor.Name, startedAt)
+			return out, nil
+		}
+
+		disposition := capabilityRetryDisposition(err)
+		if disposition == CapabilityRetryIndeterminate {
+			return nil, r.handleCapabilityError(ctx, workspaceID, descriptor, params, ToolErrorCapabilityIndeterminate, err, startedAt, attempt, CapabilityStatusIndeterminate)
+		}
+		if disposition == CapabilityRetryable && attempt < attempts && descriptor.canRetryAutomatically() {
+			continue
+		}
+		status := CapabilityStatusFailed
+		code := ToolErrorCapabilityFailed
+		if disposition == CapabilityRetryNone && !descriptor.canRetryAutomatically() {
+			status = CapabilityStatusIndeterminate
+			code = ToolErrorCapabilityIndeterminate
+		}
+		return nil, r.handleCapabilityError(ctx, workspaceID, descriptor, params, code, err, startedAt, attempt, status)
+	}
+	return nil, r.handleCapabilityError(
+		ctx,
+		workspaceID,
+		descriptor,
+		params,
+		ToolErrorCapabilityFailed,
+		errors.New("capability retry budget exhausted"),
+		startedAt,
+		attempts,
+		CapabilityStatusFailed,
+	)
+}
+
+func (r *ToolRegistry) handleCapabilityError(
+	ctx context.Context,
+	workspaceID string,
+	descriptor CapabilityDescriptor,
+	params json.RawMessage,
+	code ExecutionErrorCode,
+	err error,
+	startedAt time.Time,
+	attempt int,
+	status CapabilityExecutionStatus,
+) error {
+	return r.handleExecutionError(ctx, workspaceID, descriptor.Name, params, code, err, startedAt, map[string]any{
+		"capability_execution_status": string(status),
+		"attempt_count":              attempt,
+	})
 }
 
 func (r *ToolRegistry) ensureExecutable(
@@ -97,20 +167,20 @@ func (r *ToolRegistry) ensureExecutable(
 	startedAt time.Time,
 ) error {
 	if !def.IsActive {
-		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorToolInactive, ErrToolInactive, startedAt)
+		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorToolInactive, ErrToolInactive, startedAt, nil)
 	}
 	if err := r.ValidateParams(ctx, workspaceID, def.Name, params); err != nil {
-		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInvalidInput, err, startedAt)
+		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInvalidInput, err, startedAt, nil)
 	}
 	if err := r.enforceToolPermission(ctx, def.Name); err != nil {
-		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorPermissionDenied, err, startedAt)
+		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorPermissionDenied, err, startedAt, nil)
 	}
 	if err := r.enforceCapabilityBoundary(ctx, def.Name); err != nil {
 		code := ToolErrorGovernanceDenied
 		if errors.Is(err, ErrCapabilityContextMissing) {
 			code = ToolErrorCapabilityContext
 		}
-		return r.handleExecutionError(ctx, workspaceID, def.Name, params, code, err, startedAt)
+		return r.handleExecutionError(ctx, workspaceID, def.Name, params, code, err, startedAt, nil)
 	}
 	return nil
 }
@@ -173,9 +243,10 @@ func (r *ToolRegistry) handleExecutionError(
 	code ExecutionErrorCode,
 	err error,
 	startedAt time.Time,
+	extra map[string]any,
 ) error {
 	wrapped := &ExecutionError{ToolName: toolName, Code: code, Err: err}
-	r.auditToolExecution(ctx, workspaceID, toolName, params, resolveAuditOutcome(code), string(code))
+	r.auditToolExecution(ctx, workspaceID, toolName, params, resolveAuditOutcome(code), string(code), extra)
 	r.recordToolUsage(ctx, workspaceID, toolName, startedAt)
 	return wrapped
 }
@@ -186,6 +257,7 @@ func (r *ToolRegistry) auditToolExecution(
 	params json.RawMessage,
 	outcome audit.Outcome,
 	errorCode string,
+	extra map[string]any,
 ) {
 	if r.audit == nil {
 		return
@@ -207,7 +279,7 @@ func (r *ToolRegistry) auditToolExecution(
 		action,
 		&entityType,
 		&entityID,
-		&audit.EventDetails{Metadata: r.buildToolAuditMetadata(ctx, toolName, params, errorCode)},
+		&audit.EventDetails{Metadata: r.buildToolAuditMetadata(ctx, toolName, params, errorCode, extra)},
 		outcome,
 	)
 }
@@ -226,7 +298,7 @@ func auditActorFromContext(ctx context.Context) (string, audit.ActorType) {
 	return "system", audit.ActorTypeSystem
 }
 
-func (r *ToolRegistry) buildToolAuditMetadata(ctx context.Context, toolName string, params json.RawMessage, errorCode string) map[string]any {
+func (r *ToolRegistry) buildToolAuditMetadata(ctx context.Context, toolName string, params json.RawMessage, errorCode string, extra map[string]any) map[string]any {
 	meta := map[string]any{
 		"tool_name":  toolName,
 		"param_keys": extractParamKeys(params),
@@ -245,6 +317,9 @@ func (r *ToolRegistry) buildToolAuditMetadata(ctx context.Context, toolName stri
 	}
 	if errorCode != "" {
 		meta["error_code"] = errorCode
+	}
+	for key, value := range extra {
+		meta[key] = value
 	}
 	return meta
 }
