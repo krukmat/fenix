@@ -20,6 +20,14 @@ const (
 
 	// RunID is the context key for the active agent run when tool execution happens inside a runtime flow.
 	RunID Key = "run_id"
+
+	// TraceID correlates one top-level governed execution across runtime,
+	// capability, audit, and eventual evidence boundaries.
+	TraceID Key = "trace_id"
+
+	// ExecutionID identifies one logical governed capability execution.
+	// Retries of the same logical operation must retain this value.
+	ExecutionID Key = "execution_id"
 )
 
 // WithValue adds a ctxkeys.Key value to the context.
