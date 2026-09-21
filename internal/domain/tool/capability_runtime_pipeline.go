@@ -11,8 +11,11 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 )
 
-const evidenceStateNotPlanned = "not_planned"
-const evidenceStateIndeterminate = "indeterminate"
+const (
+	evidenceStateNotPlanned       = "not_planned"
+	evidenceStateIndeterminate    = "indeterminate"
+	auditEvidenceErrorCodeKey     = "evidence_error_code"
+)
 
 func (r *ToolRegistry) executeGovernedCapability(
 	ctx context.Context,
@@ -102,7 +105,7 @@ func (r *ToolRegistry) handleGovernanceDenial(
 	)
 	extra := capabilityTerminalMetadata(decision, CapabilityStatusDenied, 0, evidenceResult)
 	if evidenceErr != nil {
-		extra["evidence_error_code"] = string(resolveEvidenceErrorCode(evidenceErr))
+		extra[auditEvidenceErrorCodeKey] = string(resolveEvidenceErrorCode(evidenceErr))
 	}
 	return nil, r.handleExecutionError(
 		ctx, workspaceID, descriptor.Name, params,
@@ -158,7 +161,7 @@ func (r *ToolRegistry) finalizeCapabilitySuccess(
 	)
 	extra := capabilityTerminalMetadata(decision, CapabilityStatusSucceeded, attempt, evidenceResult)
 	if evidenceErr != nil {
-		extra["evidence_error_code"] = string(resolveEvidenceErrorCode(evidenceErr))
+		extra[auditEvidenceErrorCodeKey] = string(resolveEvidenceErrorCode(evidenceErr))
 		code := resolveEvidenceErrorCode(evidenceErr)
 		err := r.handleExecutionError(
 			ctx, workspaceID, descriptor.Name, params,
@@ -190,7 +193,7 @@ func (r *ToolRegistry) finalizeCapabilityFailure(
 	)
 	extra := capabilityTerminalMetadata(decision, status, attempt, evidenceResult)
 	if evidenceErr != nil {
-		extra["evidence_error_code"] = string(resolveEvidenceErrorCode(evidenceErr))
+		extra[auditEvidenceErrorCodeKey] = string(resolveEvidenceErrorCode(evidenceErr))
 	}
 	return r.handleExecutionError(
 		ctx, workspaceID, descriptor.Name, params,
