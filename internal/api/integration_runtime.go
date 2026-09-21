@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	envM2SFURL           = "FENIX_M2SF_URL"
-	envM2SFToken         = "FENIX_M2SF_TOKEN"
-	envVELURL            = "FENIX_VEL_URL"
-	envVELToken          = "FENIX_VEL_TOKEN"
+	envM2SFURL             = "FENIX_M2SF_URL"
+	envM2SFToken           = "FENIX_M2SF_TOKEN"
+	envVELURL              = "FENIX_VEL_URL"
+	envVELToken            = "FENIX_VEL_TOKEN"
 	envIntegrationMS       = "FENIX_INTEGRATION_TIMEOUT_MS"
 	envM2SFEvidenceEnabled = "FENIX_M2SF_EVIDENCE_ENABLED"
 	defaultIntegrationMS   = 15000
