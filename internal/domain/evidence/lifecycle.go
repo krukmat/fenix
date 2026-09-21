@@ -70,3 +70,20 @@ func reconciliationDecision(action ReconciliationAction, reason string) Reconcil
 		MayRepeatBusinessAction: false,
 	}
 }
+
+
+// DeliveryStateFromProof maps a proof reference into the corresponding evidence lifecycle state.
+func DeliveryStateFromProof(ref ProofReference) DeliveryState {
+	switch ref.VerificationStatus {
+	case VerificationRecorded:
+		return DeliveryRecorded
+	case VerificationPendingCheckpoint:
+		return DeliveryPendingCheckpoint
+	case VerificationVerified:
+		return DeliveryVerified
+	case VerificationFailed:
+		return DeliveryVerificationFailed
+	default:
+		return DeliveryIndeterminate
+	}
+}
