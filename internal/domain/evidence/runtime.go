@@ -13,7 +13,10 @@ import (
 )
 
 // ErrRuntimeSinkUnavailable indicates that evidence was planned but no VEL adapter is configured.
-var ErrRuntimeSinkUnavailable = errors.New("evidence runtime sink is unavailable")
+var (
+	ErrRuntimeSinkUnavailable = errors.New("evidence runtime sink is unavailable")
+	ErrRuntimeProofMismatch   = errors.New("evidence proof does not match governed execution")
+)
 
 // IndeterminateRecordError marks an append outcome that must be reconciled by execution identity.
 type IndeterminateRecordError struct {
@@ -73,6 +76,9 @@ func (r *RuntimeRecorder) RecordCapabilityEvidence(
 		if err != nil {
 			return tool.CapabilityEvidenceResult{State: string(DeliveryIndeterminate)}, err
 		}
+	}
+	if ref.ExecutionID != envelope.ExecutionID || ref.StreamID != envelope.StreamID {
+		return tool.CapabilityEvidenceResult{State: string(DeliveryIndeterminate)}, ErrRuntimeProofMismatch
 	}
 	projection, err := NewAuditProjection(ref)
 	if err != nil {
