@@ -140,10 +140,20 @@ func (r *ToolRegistry) enforceCapabilityBoundary(ctx context.Context, toolName s
 	if !ok {
 		return nil
 	}
-	if contextString(ctx, ctxkeys.TraceID) == "" ||
-		contextString(ctx, ctxkeys.ExecutionID) == "" {
+	if err := validateCapabilityExecutionContext(ctx); err != nil {
+		return err
+	}
+	return r.enforceCapabilityGovernance(ctx, descriptor)
+}
+
+func validateCapabilityExecutionContext(ctx context.Context) error {
+	if contextString(ctx, ctxkeys.TraceID) == "" || contextString(ctx, ctxkeys.ExecutionID) == "" {
 		return ErrCapabilityContextMissing
 	}
+	return nil
+}
+
+func (r *ToolRegistry) enforceCapabilityGovernance(ctx context.Context, descriptor CapabilityDescriptor) error {
 	if !requiresCapabilityGovernor(descriptor.SideEffectClass) {
 		return nil
 	}
