@@ -15,9 +15,34 @@ import (
 // ErrRuntimeSinkUnavailable indicates that evidence was planned but no VEL adapter is configured.
 var ErrRuntimeSinkUnavailable = errors.New("evidence runtime sink is unavailable")
 
+// IndeterminateRecordError marks an append outcome that must be reconciled by execution identity.
+type IndeterminateRecordError struct {
+	Err error
+}
+
+func (e *IndeterminateRecordError) Error() string {
+	if e == nil || e.Err == nil {
+		return "evidence append outcome is indeterminate"
+	}
+	return e.Err.Error()
+}
+
+func (e *IndeterminateRecordError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// NewIndeterminateRecordError marks an evidence append whose persistence outcome is unknown.
+func NewIndeterminateRecordError(err error) error {
+	return &IndeterminateRecordError{Err: err}
+}
+
 // RuntimeSink is the transport-neutral VEL recording port.
 type RuntimeSink interface {
 	RecordEvidence(ctx context.Context, envelope Envelope) (ProofReference, error)
+	LookupEvidence(ctx context.Context, streamID, executionID string) (*ProofReference, error)
 }
 
 // RuntimeRecorder adapts the W4 tool evidence port to the W3 evidence contract.
@@ -44,7 +69,10 @@ func (r *RuntimeRecorder) RecordCapabilityEvidence(
 	}
 	ref, err := r.sink.RecordEvidence(ctx, envelope)
 	if err != nil {
-		return tool.CapabilityEvidenceResult{State: string(DeliveryIndeterminate)}, err
+		ref, err = r.reconcileIndeterminateRecord(ctx, envelope, err)
+		if err != nil {
+			return tool.CapabilityEvidenceResult{State: string(DeliveryIndeterminate)}, err
+		}
 	}
 	projection, err := NewAuditProjection(ref)
 	if err != nil {
@@ -181,4 +209,24 @@ func auditProjectionMetadata(projection AuditProjection) map[string]any {
 		"verification_status": string(projection.VerificationStatus),
 		"issue_count":         projection.IssueCount,
 	}
+}
+
+
+func (r *RuntimeRecorder) reconcileIndeterminateRecord(
+	ctx context.Context,
+	envelope Envelope,
+	recordErr error,
+) (ProofReference, error) {
+	var indeterminate *IndeterminateRecordError
+	if !errors.As(recordErr, &indeterminate) {
+		return ProofReference{}, recordErr
+	}
+	ref, lookupErr := r.sink.LookupEvidence(ctx, envelope.StreamID, envelope.ExecutionID)
+	if lookupErr != nil {
+		return ProofReference{}, lookupErr
+	}
+	if ref == nil {
+		return ProofReference{}, recordErr
+	}
+	return *ref, nil
 }
