@@ -71,7 +71,7 @@ func newRouterWithConfig(db *sql.DB, cfg config.Config) (*chi.Mux, error) {
 	return newRouterWithConfigAndRuntime(db, cfg, RouterRuntime{})
 }
 
-//nolint:funlen,maintidx // router principal mantiene registro centralizado de rutas por diseño
+//nolint:funlen,maintidx,gocognit // router principal mantiene registro centralizado de rutas por diseño
 func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime RouterRuntime) (*chi.Mux, error) {
 	runtime = normalizeRouterRuntime(runtime)
 
@@ -150,8 +150,8 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		approvalService := policy.NewApprovalServiceWithBus(db, auditService, sharedBus)
 		toolRegistry.SetCapabilityGovernor(policy.NewCapabilityApprovalGovernor(approvalService))
 		toolRegistry.SetCapabilityGovernancePlanner(governancePlanner)
-		if err := configureCrossPlatformRuntime(toolRegistry, crossPlatformSettings); err != nil {
-			crossPlatformRuntimeErr = err
+		if runtimeErr := configureCrossPlatformRuntime(toolRegistry, crossPlatformSettings); runtimeErr != nil {
+			crossPlatformRuntimeErr = runtimeErr
 			return
 		}
 		runnerRegistry := agent.NewRunnerRegistry()
