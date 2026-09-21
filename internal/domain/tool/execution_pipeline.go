@@ -30,10 +30,12 @@ type AuditLogger interface {
 type ExecutionErrorCode string
 
 const (
-	ToolErrorInvalidInput     ExecutionErrorCode = "invalid_input"
-	ToolErrorPermissionDenied ExecutionErrorCode = "permission_denied"
-	ToolErrorToolInactive     ExecutionErrorCode = "tool_inactive"
-	ToolErrorInternal         ExecutionErrorCode = "internal_error"
+	ToolErrorInvalidInput        ExecutionErrorCode = "invalid_input"
+	ToolErrorPermissionDenied    ExecutionErrorCode = "permission_denied"
+	ToolErrorToolInactive        ExecutionErrorCode = "tool_inactive"
+	ToolErrorCapabilityContext   ExecutionErrorCode = "capability_context_missing"
+	ToolErrorGovernanceDenied    ExecutionErrorCode = "governance_denied"
+	ToolErrorInternal            ExecutionErrorCode = "internal_error"
 )
 
 type ExecutionError struct {
@@ -100,6 +102,13 @@ func (r *ToolRegistry) ensureExecutable(
 	if err := r.enforceToolPermission(ctx, def.Name); err != nil {
 		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorPermissionDenied, err, startedAt)
 	}
+	if err := r.enforceCapabilityBoundary(ctx, def.Name); err != nil {
+		code := ToolErrorGovernanceDenied
+		if errors.Is(err, ErrCapabilityContextMissing) {
+			code = ToolErrorCapabilityContext
+		}
+		return r.handleExecutionError(ctx, workspaceID, def.Name, params, code, err, startedAt)
+	}
 	return nil
 }
 
@@ -119,6 +128,28 @@ func (r *ToolRegistry) enforceToolPermission(ctx context.Context, toolName strin
 	}
 	if !allowed {
 		return ErrToolPermissionDenied
+	}
+	return nil
+}
+
+func (r *ToolRegistry) enforceCapabilityBoundary(ctx context.Context, toolName string) error {
+	descriptor, ok := r.capability(toolName)
+	if !ok {
+		return nil
+	}
+	if contextString(ctx, ctxkeys.TraceID) == "" ||
+		contextString(ctx, ctxkeys.ExecutionID) == "" ||
+		contextString(ctx, ctxkeys.UserID) == "" {
+		return ErrCapabilityContextMissing
+	}
+	if !requiresCapabilityGovernor(descriptor.SideEffectClass) {
+		return nil
+	}
+	if r.governor == nil {
+		return ErrCapabilityGovernanceRequired
+	}
+	if err := r.governor.CheckCapabilityExecution(ctx, descriptor); err != nil {
+		return fmt.Errorf("check capability governance: %w", err)
 	}
 	return nil
 }
@@ -144,7 +175,7 @@ func (r *ToolRegistry) auditToolExecution(
 	outcome audit.Outcome,
 	errorCode string,
 ) {
-	if r.audit == nil || !isBuiltinTool(toolName) {
+	if r.audit == nil {
 		return
 	}
 
@@ -164,13 +195,13 @@ func (r *ToolRegistry) auditToolExecution(
 		action,
 		&entityType,
 		&entityID,
-		&audit.EventDetails{Metadata: buildToolAuditMetadata(toolName, params, errorCode)},
+		&audit.EventDetails{Metadata: r.buildToolAuditMetadata(ctx, toolName, params, errorCode)},
 		outcome,
 	)
 }
 
 func resolveAuditOutcome(code ExecutionErrorCode) audit.Outcome {
-	if code == ToolErrorPermissionDenied {
+	if code == ToolErrorPermissionDenied || code == ToolErrorGovernanceDenied {
 		return audit.OutcomeDenied
 	}
 	return audit.OutcomeError
@@ -183,15 +214,32 @@ func auditActorFromContext(ctx context.Context) (string, audit.ActorType) {
 	return "system", audit.ActorTypeSystem
 }
 
-func buildToolAuditMetadata(toolName string, params json.RawMessage, errorCode string) map[string]any {
+func (r *ToolRegistry) buildToolAuditMetadata(ctx context.Context, toolName string, params json.RawMessage, errorCode string) map[string]any {
 	meta := map[string]any{
 		"tool_name":  toolName,
 		"param_keys": extractParamKeys(params),
+	}
+	if executionID := contextString(ctx, ctxkeys.ExecutionID); executionID != "" {
+		meta["execution_id"] = executionID
+	}
+	if runID := contextString(ctx, ctxkeys.RunID); runID != "" {
+		meta["run_id"] = runID
+	}
+	if descriptor, ok := r.capability(toolName); ok {
+		meta["capability_name"] = descriptor.Name
+		meta["capability_version"] = descriptor.Version
+		meta["capability_operation"] = descriptor.Operation
+		meta["side_effect_class"] = string(descriptor.SideEffectClass)
 	}
 	if errorCode != "" {
 		meta["error_code"] = errorCode
 	}
 	return meta
+}
+
+func contextString(ctx context.Context, key ctxkeys.Key) string {
+	value, _ := ctx.Value(key).(string)
+	return strings.TrimSpace(value)
 }
 
 func (r *ToolRegistry) recordToolUsage(ctx context.Context, workspaceID, toolName string, startedAt time.Time) {
