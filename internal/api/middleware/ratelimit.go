@@ -7,9 +7,10 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
-const headerXRealIP = "X-Real-IP"
 
 // bucket tracks request count and the start of the current window for one IP.
 type bucket struct {
@@ -61,9 +62,11 @@ func (l *ipLimiter) allow(ip string) bool {
 	return true
 }
 
-// remoteIP extracts the client IP, respecting X-Real-IP set by RealIP middleware.
+// remoteIP returns only a client IP established by trusted middleware.
+// When none is present, it falls back to the TCP peer address and never
+// trusts forwarding headers supplied directly by the request.
 func remoteIP(r *http.Request) string {
-	if ip := r.Header.Get(headerXRealIP); ip != "" {
+	if ip := chimiddleware.GetClientIP(r.Context()); ip != "" {
 		return ip
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
