@@ -149,6 +149,9 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		approvalService := policy.NewApprovalServiceWithBus(db, auditService, sharedBus)
 		toolRegistry.SetCapabilityGovernor(policy.NewCapabilityApprovalGovernor(approvalService))
 		toolRegistry.SetCapabilityGovernancePlanner(governancePlanner)
+		if err := configureCrossPlatformRuntime(toolRegistry); err != nil {
+			return
+		}
 		runnerRegistry := agent.NewRunnerRegistry()
 		agentOrchestrator := agent.NewOrchestratorWithRegistry(db, runnerRegistry)
 		dslRunner := agent.NewDSLRunner(db)
