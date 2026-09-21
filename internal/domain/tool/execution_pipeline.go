@@ -84,7 +84,7 @@ func (r *ToolRegistry) executeDefinition(
 		return nil, r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorInternal, err, startedAt, nil)
 	}
 	if descriptor, ok := r.capability(def.Name); ok {
-		return r.executeCapability(ctx, workspaceID, descriptor, executor, params, startedAt)
+		return r.executeGovernedCapability(ctx, workspaceID, descriptor, executor, params, startedAt)
 	}
 
 	out, err := executor.Execute(ctx, params)
@@ -228,13 +228,6 @@ func (r *ToolRegistry) ensureExecutable(
 	}
 	if err := r.enforceToolPermission(ctx, def.Name); err != nil {
 		return r.handleExecutionError(ctx, workspaceID, def.Name, params, ToolErrorPermissionDenied, err, startedAt, nil)
-	}
-	if err := r.enforceCapabilityBoundary(ctx, def.Name); err != nil {
-		code := ToolErrorGovernanceDenied
-		if errors.Is(err, ErrCapabilityContextMissing) {
-			code = ToolErrorCapabilityContext
-		}
-		return r.handleExecutionError(ctx, workspaceID, def.Name, params, code, err, startedAt, nil)
 	}
 	return nil
 }
