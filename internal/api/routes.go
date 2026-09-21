@@ -141,6 +141,9 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		toolRegistry := tooldomain.NewToolRegistryWithRuntimeAndUsage(db, policyEngine, auditService, usageService)
 		approvalService := policy.NewApprovalServiceWithBus(db, auditService, sharedBus)
 		toolRegistry.SetCapabilityGovernor(policy.NewCapabilityApprovalGovernor(approvalService))
+		if err := configureCrossPlatformGovernance(toolRegistry); err != nil {
+			return nil, err
+		}
 		runnerRegistry := agent.NewRunnerRegistry()
 		agentOrchestrator := agent.NewOrchestratorWithRegistry(db, runnerRegistry)
 		dslRunner := agent.NewDSLRunner(db)
@@ -519,4 +522,25 @@ func normalizeRouterRuntime(runtime RouterRuntime) RouterRuntime {
 		}
 	}
 	return runtime
+}
+
+
+func configureCrossPlatformGovernance(registry *tooldomain.ToolRegistry) error {
+	planner := governance.NewRuntimePlanner(nil)
+	for _, operation := range []flowinterop.Operation{
+		flowinterop.OperationImport,
+		flowinterop.OperationExport,
+		flowinterop.OperationValidate,
+		flowinterop.OperationCompare,
+	} {
+		profile, ok := flowinterop.GovernanceProfile(operation)
+		if !ok {
+			return fmt.Errorf("api: missing governance profile for %s", operation)
+		}
+		if err := planner.RegisterProfile(profile); err != nil {
+			return fmt.Errorf("api: register governance profile %s: %w", operation, err)
+		}
+	}
+	registry.SetCapabilityGovernancePlanner(planner)
+	return nil
 }
