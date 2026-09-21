@@ -75,7 +75,7 @@ func (r *DSLRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgentI
 	if err != nil {
 		return nil, err
 	}
-	ctx = withAgentRunExecutionContext(ctx, run)
+	ctx = WithRunExecutionContext(ctx, run)
 	evalCtx := mergeDSLContexts(input.TriggerContext, input.Inputs)
 	carta := parseCartaWorkflowSpec(workflow)
 	if early, earlyErr := r.runPreflights(ctx, rc, workflow, carta, input, run, evalCtx); earlyErr != nil || early != nil {
@@ -120,7 +120,7 @@ func (r *DSLRunner) Resume(ctx context.Context, rc *RunContext, workspaceID stri
 	if err != nil {
 		return run, err
 	}
-	ctx = withAgentRunExecutionContext(ctx, run)
+	ctx = WithRunExecutionContext(ctx, run)
 
 	execCtx := rc.WithCall(run.DefinitionID)
 	triggerInput := buildResumeTriggerInput(run, workspaceID)
