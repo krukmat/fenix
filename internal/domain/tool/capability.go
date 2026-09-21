@@ -30,10 +30,13 @@ const (
 // externally-backed governed tool. Transport details intentionally stay out of
 // this descriptor.
 type CapabilityDescriptor struct {
-	Name            string
-	Version         string
-	Operation       string
-	SideEffectClass SideEffectClass
+	Name             string
+	Version          string
+	Operation        string
+	SideEffectClass  SideEffectClass
+	ApprovalRequired bool
+	RetryPolicy      CapabilityRetryPolicy
+	IdempotencyMode  CapabilityIdempotencyMode
 }
 
 // CapabilityGovernor owns additional execution gates that are not covered by
@@ -41,6 +44,108 @@ type CapabilityDescriptor struct {
 // mutating or irreversible external capabilities.
 type CapabilityGovernor interface {
 	CheckCapabilityExecution(ctx context.Context, descriptor CapabilityDescriptor) error
+}
+
+// CapabilityExecutionStatus is the observable final state of one logical capability execution.
+type CapabilityExecutionStatus string
+
+const (
+	CapabilityStatusReady         CapabilityExecutionStatus = "ready"
+	CapabilityStatusExecuting     CapabilityExecutionStatus = "executing"
+	CapabilityStatusSucceeded     CapabilityExecutionStatus = "succeeded"
+	CapabilityStatusFailed        CapabilityExecutionStatus = "failed"
+	CapabilityStatusIndeterminate CapabilityExecutionStatus = "indeterminate"
+)
+
+// CapabilityRetryPolicy controls bounded automatic retries for transient provider errors.
+type CapabilityRetryPolicy struct {
+	MaxAttempts int
+}
+
+// CapabilityIdempotencyMode states how a provider prevents duplicate logical mutations.
+type CapabilityIdempotencyMode string
+
+const (
+	CapabilityIdempotencyNone        CapabilityIdempotencyMode = ""
+	CapabilityIdempotencyExecutionID CapabilityIdempotencyMode = "execution_id"
+)
+
+// CapabilityRetryDisposition classifies provider failures without coupling Fenix to transport details.
+type CapabilityRetryDisposition string
+
+const (
+	CapabilityRetryNone          CapabilityRetryDisposition = ""
+	CapabilityRetryable          CapabilityRetryDisposition = "retryable"
+	CapabilityRetryIndeterminate CapabilityRetryDisposition = "indeterminate"
+)
+
+// CapabilityExecutionError communicates retry semantics from a provider executor to the governed runtime.
+type CapabilityExecutionError struct {
+	Disposition CapabilityRetryDisposition
+	Err         error
+}
+
+func (e *CapabilityExecutionError) Error() string {
+	if e == nil || e.Err == nil {
+		return "capability execution failed"
+	}
+	return e.Err.Error()
+}
+
+func (e *CapabilityExecutionError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// NewRetryableCapabilityError marks a provider failure as safe to retry subject to the capability retry contract.
+func NewRetryableCapabilityError(err error) error {
+	return &CapabilityExecutionError{Disposition: CapabilityRetryable, Err: err}
+}
+
+// NewIndeterminateCapabilityError marks a provider result as uncertain and therefore never automatically retried.
+func NewIndeterminateCapabilityError(err error) error {
+	return &CapabilityExecutionError{Disposition: CapabilityRetryIndeterminate, Err: err}
+}
+
+// CapabilityApprovalResourceType binds approval records to one logical capability execution.
+const CapabilityApprovalResourceType = "capability_execution"
+
+// CapabilityApprovalAction returns the canonical approval action key for a capability operation.
+func CapabilityApprovalAction(descriptor CapabilityDescriptor) string {
+	return "capability:" + descriptor.Name + ":" + descriptor.Operation
+}
+
+// RequiresApproval reports whether the capability must present an approved request before execution.
+func (d CapabilityDescriptor) RequiresApproval() bool {
+	return d.SideEffectClass == SideEffectIrreversible || d.ApprovalRequired
+}
+
+func (d CapabilityDescriptor) maxAttempts() int {
+	if d.RetryPolicy.MaxAttempts <= 0 {
+		return 1
+	}
+	return d.RetryPolicy.MaxAttempts
+}
+
+func (d CapabilityDescriptor) canRetryAutomatically() bool {
+	switch d.SideEffectClass {
+	case SideEffectRead, SideEffectTransform, SideEffectVerify:
+		return true
+	case SideEffectMutate, SideEffectIrreversible:
+		return d.IdempotencyMode == CapabilityIdempotencyExecutionID
+	default:
+		return false
+	}
+}
+
+func capabilityRetryDisposition(err error) CapabilityRetryDisposition {
+	var capabilityErr *CapabilityExecutionError
+	if errors.As(err, &capabilityErr) {
+		return capabilityErr.Disposition
+	}
+	return CapabilityRetryNone
 }
 
 // IntegrationActor identifies the principal behind a governed execution.
@@ -89,6 +194,13 @@ func (d CapabilityDescriptor) validate() error {
 		strings.TrimSpace(d.Version) == "" ||
 		strings.TrimSpace(d.Operation) == "" ||
 		!isValidSideEffectClass(d.SideEffectClass) {
+		return ErrToolDefinitionInvalid
+	}
+	if d.RetryPolicy.MaxAttempts < 0 || d.RetryPolicy.MaxAttempts > 5 {
+		return ErrToolDefinitionInvalid
+	}
+	if d.IdempotencyMode != CapabilityIdempotencyNone &&
+		d.IdempotencyMode != CapabilityIdempotencyExecutionID {
 		return ErrToolDefinitionInvalid
 	}
 	return nil
