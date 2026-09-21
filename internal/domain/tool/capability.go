@@ -190,20 +190,37 @@ func contextValue(ctx context.Context, key ctxkeys.Key) string {
 }
 
 func (d CapabilityDescriptor) validate() error {
-	if strings.TrimSpace(d.Name) == "" ||
-		strings.TrimSpace(d.Version) == "" ||
-		strings.TrimSpace(d.Operation) == "" ||
-		!isValidSideEffectClass(d.SideEffectClass) {
+	if !d.hasValidIdentity() {
 		return ErrToolDefinitionInvalid
 	}
-	if d.RetryPolicy.MaxAttempts < 0 || d.RetryPolicy.MaxAttempts > 5 {
+	if !isValidRetryPolicy(d.RetryPolicy) {
 		return ErrToolDefinitionInvalid
 	}
-	if d.IdempotencyMode != CapabilityIdempotencyNone &&
-		d.IdempotencyMode != CapabilityIdempotencyExecutionID {
+	if !isValidIdempotencyMode(d.IdempotencyMode) {
 		return ErrToolDefinitionInvalid
 	}
 	return nil
+}
+
+func (d CapabilityDescriptor) hasValidIdentity() bool {
+	if strings.TrimSpace(d.Name) == "" {
+		return false
+	}
+	if strings.TrimSpace(d.Version) == "" {
+		return false
+	}
+	if strings.TrimSpace(d.Operation) == "" {
+		return false
+	}
+	return isValidSideEffectClass(d.SideEffectClass)
+}
+
+func isValidRetryPolicy(policy CapabilityRetryPolicy) bool {
+	return policy.MaxAttempts >= 0 && policy.MaxAttempts <= 5
+}
+
+func isValidIdempotencyMode(mode CapabilityIdempotencyMode) bool {
+	return mode == CapabilityIdempotencyNone || mode == CapabilityIdempotencyExecutionID
 }
 
 func isValidSideEffectClass(class SideEffectClass) bool {
