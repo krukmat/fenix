@@ -97,51 +97,6 @@ func (r *ToolRegistry) executeDefinition(
 	return out, nil
 }
 
-func (r *ToolRegistry) executeCapability(
-	ctx context.Context,
-	workspaceID string,
-	descriptor CapabilityDescriptor,
-	executor ToolExecutor,
-	params json.RawMessage,
-	startedAt time.Time,
-) (json.RawMessage, error) {
-	attempts := descriptor.maxAttempts()
-	for attempt := 1; attempt <= attempts; attempt++ {
-		out, err := executor.Execute(ctx, params)
-		if err == nil {
-			r.auditCapabilitySuccess(ctx, workspaceID, descriptor, params, startedAt, attempt)
-			return out, nil
-		}
-
-		decision := decideCapabilityFailure(descriptor, err, attempt, attempts)
-		if decision.retry {
-			continue
-		}
-		return nil, r.handleCapabilityError(
-			ctx,
-			workspaceID,
-			descriptor,
-			params,
-			decision.code,
-			err,
-			startedAt,
-			attempt,
-			decision.status,
-		)
-	}
-	return nil, r.handleCapabilityError(
-		ctx,
-		workspaceID,
-		descriptor,
-		params,
-		ToolErrorCapabilityFailed,
-		errors.New("capability retry budget exhausted"),
-		startedAt,
-		attempts,
-		CapabilityStatusFailed,
-	)
-}
-
 type capabilityFailureDecision struct {
 	retry  bool
 	code   ExecutionErrorCode
@@ -179,38 +134,6 @@ func decideCapabilityFailure(
 			status: CapabilityStatusFailed,
 		}
 	}
-}
-
-func (r *ToolRegistry) auditCapabilitySuccess(
-	ctx context.Context,
-	workspaceID string,
-	descriptor CapabilityDescriptor,
-	params json.RawMessage,
-	startedAt time.Time,
-	attempt int,
-) {
-	r.auditToolExecution(ctx, workspaceID, descriptor.Name, params, audit.OutcomeSuccess, "", map[string]any{
-		"capability_execution_status": string(CapabilityStatusSucceeded),
-		"attempt_count":              attempt,
-	})
-	r.recordToolUsage(ctx, workspaceID, descriptor.Name, startedAt)
-}
-
-func (r *ToolRegistry) handleCapabilityError(
-	ctx context.Context,
-	workspaceID string,
-	descriptor CapabilityDescriptor,
-	params json.RawMessage,
-	code ExecutionErrorCode,
-	err error,
-	startedAt time.Time,
-	attempt int,
-	status CapabilityExecutionStatus,
-) error {
-	return r.handleExecutionError(ctx, workspaceID, descriptor.Name, params, code, err, startedAt, map[string]any{
-		"capability_execution_status": string(status),
-		"attempt_count":              attempt,
-	})
 }
 
 func (r *ToolRegistry) ensureExecutable(
@@ -252,33 +175,9 @@ func (r *ToolRegistry) enforceToolPermission(ctx context.Context, toolName strin
 	return nil
 }
 
-func (r *ToolRegistry) enforceCapabilityBoundary(ctx context.Context, toolName string) error {
-	descriptor, ok := r.capability(toolName)
-	if !ok {
-		return nil
-	}
-	if err := validateCapabilityExecutionContext(ctx); err != nil {
-		return err
-	}
-	return r.enforceCapabilityGovernance(ctx, descriptor)
-}
-
 func validateCapabilityExecutionContext(ctx context.Context) error {
 	if contextValue(ctx, ctxkeys.TraceID) == "" || contextValue(ctx, ctxkeys.ExecutionID) == "" {
 		return ErrCapabilityContextMissing
-	}
-	return nil
-}
-
-func (r *ToolRegistry) enforceCapabilityGovernance(ctx context.Context, descriptor CapabilityDescriptor) error {
-	if !requiresCapabilityGovernor(descriptor.SideEffectClass) {
-		return nil
-	}
-	if r.governor == nil {
-		return ErrCapabilityGovernanceRequired
-	}
-	if err := r.governor.CheckCapabilityExecution(ctx, descriptor); err != nil {
-		return fmt.Errorf("check capability governance: %w", err)
 	}
 	return nil
 }
