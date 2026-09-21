@@ -13,6 +13,8 @@ import (
 var (
 	ErrCapabilityContextMissing     = errors.New("external capability execution context is incomplete")
 	ErrCapabilityGovernanceRequired = errors.New("external capability requires governance")
+	ErrCapabilityGovernanceDenied   = errors.New("external capability denied by governance decision")
+	ErrCapabilityEvidenceUnavailable = errors.New("planned capability evidence recorder is unavailable")
 )
 
 // SideEffectClass classifies the operational risk of a governed capability.
@@ -53,6 +55,7 @@ const (
 	CapabilityStatusReady         CapabilityExecutionStatus = "ready"
 	CapabilityStatusExecuting     CapabilityExecutionStatus = "executing"
 	CapabilityStatusSucceeded     CapabilityExecutionStatus = "succeeded"
+	CapabilityStatusDenied        CapabilityExecutionStatus = "denied"
 	CapabilityStatusFailed        CapabilityExecutionStatus = "failed"
 	CapabilityStatusIndeterminate CapabilityExecutionStatus = "indeterminate"
 )
