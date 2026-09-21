@@ -28,6 +28,9 @@ const (
 	// ExecutionID identifies one logical governed capability execution.
 	// Retries of the same logical operation must retain this value.
 	ExecutionID Key = "execution_id"
+
+	// ApprovalID binds an approved governance decision to a specific capability execution.
+	ApprovalID Key = "approval_id"
 )
 
 // WithValue adds a ctxkeys.Key value to the context.
