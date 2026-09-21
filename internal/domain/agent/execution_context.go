@@ -7,7 +7,8 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 )
 
-func withAgentRunExecutionContext(ctx context.Context, run *Run) context.Context {
+// WithRunExecutionContext propagates the stable identity of an agent run into downstream execution context.
+func WithRunExecutionContext(ctx context.Context, run *Run) context.Context {
 	if run == nil {
 		return ctx
 	}
