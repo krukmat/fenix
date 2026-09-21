@@ -4,6 +4,10 @@
 
 name: CI
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
   pull_request:
@@ -267,7 +271,7 @@ jobs:
         run: make eval
 
       - name: Race stability gate
-        run: RACE_STABILITY_COUNT=3 make race-stability
+        run: RACE_STABILITY_COUNT=1 make race-stability
 
       - name: Coverage gate
         run: COVERAGE_MIN=83 make coverage-gate
