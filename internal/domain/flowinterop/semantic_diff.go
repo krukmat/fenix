@@ -32,18 +32,26 @@ type SemanticDiff struct {
 
 // Validate ensures compare results do not contradict themselves.
 func (d SemanticDiff) Validate() error {
-	if d.Equal && len(d.Changes) > 0 {
+	if !d.hasConsistentSummary() || !hasValidSemanticChanges(d.Changes) {
 		return ErrSemanticDiff
-	}
-	if !d.Equal && len(d.Changes) == 0 {
-		return ErrSemanticDiff
-	}
-	for _, change := range d.Changes {
-		if change.Path == "" || !isSemanticChangeKind(change.Kind) {
-			return ErrSemanticDiff
-		}
 	}
 	return nil
+}
+
+func (d SemanticDiff) hasConsistentSummary() bool {
+	if d.Equal {
+		return len(d.Changes) == 0
+	}
+	return len(d.Changes) > 0
+}
+
+func hasValidSemanticChanges(changes []SemanticChange) bool {
+	for _, change := range changes {
+		if change.Path == "" || !isSemanticChangeKind(change.Kind) {
+			return false
+		}
+	}
+	return true
 }
 
 func isSemanticChangeKind(kind SemanticChangeKind) bool {
