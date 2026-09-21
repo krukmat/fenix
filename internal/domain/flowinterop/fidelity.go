@@ -85,16 +85,26 @@ func MaxSupport(operation Operation, family FlowFamily) SupportCeiling {
 
 // Validate checks internal fidelity invariants only; it does not infer support.
 func (f FidelityReport) Validate() error {
-	if f.ContractVersion != ContractVersion || !isFidelityLevel(f.Level) || !isKnownFamily(f.FlowFamily) {
-		return ErrFidelity
-	}
-	if f.Level == FidelityGuaranteed && len(f.UnsupportedFeatures) > 0 {
-		return ErrFidelity
-	}
-	if f.Level == FidelityUnsupported && len(f.SupportedFeatures) > 0 {
+	if !f.hasValidIdentity() || !f.hasConsistentFeatureBoundary() {
 		return ErrFidelity
 	}
 	return nil
+}
+
+func (f FidelityReport) hasValidIdentity() bool {
+	return f.ContractVersion == ContractVersion &&
+		isFidelityLevel(f.Level) &&
+		isKnownFamily(f.FlowFamily)
+}
+
+func (f FidelityReport) hasConsistentFeatureBoundary() bool {
+	if f.Level == FidelityGuaranteed {
+		return len(f.UnsupportedFeatures) == 0
+	}
+	if f.Level == FidelityUnsupported {
+		return len(f.SupportedFeatures) == 0
+	}
+	return true
 }
 
 func isGuaranteedFamily(family FlowFamily) bool {
