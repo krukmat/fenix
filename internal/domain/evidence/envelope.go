@@ -9,10 +9,13 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 )
 
+// SchemaVersion is the current version of the Fenix evidence contract.
 const SchemaVersion = "1"
 
+// ErrEnvelopeInvalid indicates that an evidence envelope violates contract invariants.
 var ErrEnvelopeInvalid = errors.New("invalid evidence envelope")
 
+// PolicyDecision is the policy outcome recorded by the Fenix authority.
 type PolicyDecision string
 
 const (
@@ -20,6 +23,7 @@ const (
 	PolicyDeny  PolicyDecision = "DENY"
 )
 
+// OutcomeStatus is the final governed execution state recorded as evidence.
 type OutcomeStatus string
 
 const (
@@ -30,11 +34,13 @@ const (
 	OutcomeIndeterminate OutcomeStatus = "indeterminate"
 )
 
+// ActorRef identifies the principal responsible for the governed execution.
 type ActorRef struct {
 	ID   string `json:"id"`
 	Type string `json:"type"`
 }
 
+// CapabilityRef identifies the governed capability that produced the evidence.
 type CapabilityRef struct {
 	Name            string               `json:"name"`
 	Version         string               `json:"version"`
@@ -42,54 +48,60 @@ type CapabilityRef struct {
 	SideEffectClass tool.SideEffectClass `json:"side_effect_class"`
 }
 
+// AuthorizationEvidence records the Fenix policy decision without copying the full policy context.
 type AuthorizationEvidence struct {
-	PolicyID    string         `json:"policy_id"`
-	PolicyVersion string       `json:"policy_version"`
-	Decision    PolicyDecision `json:"decision"`
-	Reason      string         `json:"reason"`
-	ContextHash string         `json:"context_hash"`
+	PolicyID      string         `json:"policy_id"`
+	PolicyVersion string         `json:"policy_version"`
+	Decision      PolicyDecision `json:"decision"`
+	Reason        string         `json:"reason"`
+	ContextHash   string         `json:"context_hash"`
 }
 
+// ApprovalEvidence binds the execution to the relevant Fenix approval decision.
 type ApprovalEvidence struct {
 	ApprovalID string `json:"approval_id"`
 	Decision   string `json:"decision"`
 }
 
+// ExecutionOutcome describes the final result of the governed execution.
 type ExecutionOutcome struct {
 	Status    OutcomeStatus `json:"status"`
 	ErrorCode string        `json:"error_code,omitempty"`
 }
 
+// DigestRef references sensitive evidence content by digest instead of embedding the full payload.
 type DigestRef struct {
 	Algorithm string `json:"algorithm"`
 	Value     string `json:"value"`
 }
 
-type EvidenceEnvelope struct {
-	SchemaVersion string                 `json:"schema_version"`
-	StreamID      string                 `json:"stream_id"`
-	WorkspaceID   string                 `json:"workspace_id"`
-	TraceID       string                 `json:"trace_id"`
-	ExecutionID   string                 `json:"execution_id"`
-	RunID         string                 `json:"run_id,omitempty"`
-	Actor         ActorRef               `json:"actor"`
-	Capability    CapabilityRef          `json:"capability"`
-	Authorization AuthorizationEvidence  `json:"authorization"`
-	Approval      *ApprovalEvidence      `json:"approval,omitempty"`
-	Outcome       ExecutionOutcome       `json:"outcome"`
-	InputDigest   *DigestRef             `json:"input_digest,omitempty"`
-	OutputDigest  *DigestRef             `json:"output_digest,omitempty"`
-	OccurredAt    time.Time              `json:"occurred_at"`
+// Envelope is the versioned evidence record constructed from a governed Fenix execution.
+type Envelope struct {
+	SchemaVersion string                `json:"schema_version"`
+	StreamID      string                `json:"stream_id"`
+	WorkspaceID   string                `json:"workspace_id"`
+	TraceID       string                `json:"trace_id"`
+	ExecutionID   string                `json:"execution_id"`
+	RunID         string                `json:"run_id,omitempty"`
+	Actor         ActorRef              `json:"actor"`
+	Capability    CapabilityRef         `json:"capability"`
+	Authorization AuthorizationEvidence `json:"authorization"`
+	Approval      *ApprovalEvidence     `json:"approval,omitempty"`
+	Outcome       ExecutionOutcome      `json:"outcome"`
+	InputDigest   *DigestRef            `json:"input_digest,omitempty"`
+	OutputDigest  *DigestRef            `json:"output_digest,omitempty"`
+	OccurredAt    time.Time             `json:"occurred_at"`
 }
 
-func (e EvidenceEnvelope) Validate() error {
+// Validate checks envelope structure without re-evaluating policy or approval.
+func (e Envelope) Validate() error {
 	if !e.hasValidCore() || !e.hasValidOptionalEvidence() {
 		return ErrEnvelopeInvalid
 	}
 	return nil
 }
 
-func (e EvidenceEnvelope) hasValidCore() bool {
+func (e Envelope) hasValidCore() bool {
 	return e.SchemaVersion == SchemaVersion &&
 		hasRequiredEnvelopeIdentity(e) &&
 		validActor(e.Actor) &&
@@ -99,14 +111,14 @@ func (e EvidenceEnvelope) hasValidCore() bool {
 		!e.OccurredAt.IsZero()
 }
 
-func (e EvidenceEnvelope) hasValidOptionalEvidence() bool {
+func (e Envelope) hasValidOptionalEvidence() bool {
 	if e.Approval != nil && !validApproval(*e.Approval) {
 		return false
 	}
 	return validOptionalDigest(e.InputDigest) && validOptionalDigest(e.OutputDigest)
 }
 
-func hasRequiredEnvelopeIdentity(e EvidenceEnvelope) bool {
+func hasRequiredEnvelopeIdentity(e Envelope) bool {
 	return nonEmpty(e.StreamID) &&
 		nonEmpty(e.WorkspaceID) &&
 		nonEmpty(e.TraceID) &&
