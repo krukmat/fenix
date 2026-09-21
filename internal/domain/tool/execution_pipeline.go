@@ -291,17 +291,6 @@ func normalizeToolParams(params json.RawMessage) json.RawMessage {
 	return params
 }
 
-func isBuiltinTool(toolName string) bool {
-	switch toolName {
-	case BuiltinCreateTask, BuiltinUpdateCase, BuiltinSendReply,
-		BuiltinGetLead, BuiltinGetAccount, BuiltinCreateKnowledgeItem,
-		BuiltinUpdateKnowledgeItem, BuiltinQueryMetrics:
-		return true
-	default:
-		return false
-	}
-}
-
 func IsToolExecutionErrorCode(err error, code ExecutionErrorCode) bool {
 	var execErr *ExecutionError
 	return errors.As(err, &execErr) && execErr.Code == code
