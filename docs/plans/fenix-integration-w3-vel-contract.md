@@ -1,6 +1,6 @@
 # W3 — Fenix ↔ Verifiable Event Ledger contract
 
-> Status: W3-T1 / W3-T2 / W3-T3 implemented  
+> Status: W3-T1 through W3-T6 implemented — contract wave complete  
 > Transport: intentionally undefined  
 > VEL evidence baseline: `verifiable-event-ledger@0e942480` plus the external-authority seam introduced by this wave.
 
@@ -147,6 +147,104 @@ VerificationResult
 
 Before a checkpoint exists, a recorded event may legitimately have `pending_checkpoint` status.
 
+## W3-T4 — idempotency and replay
+
+The Fenix → VEL append idempotency key is the stable `execution_id`.
+
+```text
+same stream_id + same execution_id + same evidence
+    → return the original VEL event
+
+same stream_id + same execution_id + different evidence
+    → IDEMPOTENCY CONFLICT
+    → do not create another event
+```
+
+VEL now validates replay consistency across actor, action/resource, payload digest, and authorization evidence.
+
+This closes a critical ambiguity: a duplicate key is not accepted merely because the key matches.
+
+VEL also exposes domain lookup by `(stream_id, idempotency_key)` so an uncertain caller can reconcile before re-appending.
+
+## W3-T5 — failure and reconciliation semantics
+
+Evidence delivery is independent from the governed business execution:
+
+```text
+pending_record
+recorded
+pending_checkpoint
+verified
+verification_failed
+indeterminate
+```
+
+The safe recovery policy is:
+
+```text
+pending_record        → retry evidence append with same execution_id
+recorded              → await checkpoint
+pending_checkpoint    → await checkpoint
+verified              → no action
+verification_failed   → escalate
+indeterminate         → lookup existing event by idempotency key first
+```
+
+**Invariant:** evidence reconciliation never repeats the governed business capability.
+
+For an indeterminate append:
+
+```text
+timeout / lost response
+        ↓
+lookup(stream_id, execution_id)
+        ├── found     → recover ProofReference
+        └── not found → retry evidence append with same key
+```
+
+A VEL evidence failure therefore does not convert a successful Salesforce/agent operation into a request to execute that operation again.
+
+## W3-T6 — agent and operational-audit exposure
+
+Fenix operational audit stores only a compact `AuditProjection`:
+
+```text
+provider
+execution_id
+stream_id
+event_id
+event_hash
+key_id
+signature_ref
+sequence
+checkpoint_id?
+checkpoint_hash?
+merkle_root?
+tree_size?
+verification_status
+issue_count
+```
+
+It does not copy:
+
+- the signed event payload;
+- the complete verification bundle;
+- private/public key registry data;
+- raw signature bytes;
+- full verification issue messages.
+
+Agent consumption is conservative:
+
+```text
+verified + valid verified ProofReference → USE
+pending record/checkpoint                → PENDING
+verification_failed                      → ABSTAIN
+indeterminate                            → ABSTAIN
+state/proof contradiction                → ABSTAIN
+```
+
+Agents may report that evidence is pending, but they may not describe evidence as cryptographically verified before the verified proof state exists.
+
 ## Ownership
 
 ```text
@@ -166,12 +264,26 @@ Fenix operational audit
 
 Fenix does not replicate the full signed event, Merkle bundle, or key registry into its operational audit.
 
-## Deferred
+## W3 closure
 
-W3-T4 through W3-T6 remain open:
+W3 contract work is complete.
 
-- idempotency / replay contract;
-- evidence failure and reconciliation semantics;
-- agent/audit exposure.
+The Fenix/VEL boundary now defines:
 
-Transport and deployment topology remain deferred.
+- evidence envelope;
+- authority separation;
+- proof reference;
+- replay/idempotency;
+- reconciliation semantics;
+- compact audit projection;
+- agent evidence-consumption rules.
+
+Still deliberately deferred:
+
+- transport selection;
+- deployment topology;
+- stream-partition strategy;
+- checkpoint scheduling policy;
+- asynchronous delivery implementation.
+
+Those are integration-execution concerns and do not change the W3 semantic contract.
