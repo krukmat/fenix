@@ -94,7 +94,9 @@ func (a *InsightsAgent) Run(ctx context.Context, config InsightsAgentConfig) (*a
 	})
 	if err != nil {
 		return nil, fmt.Errorf("trigger insights run: %w", err)
-	}
+	}	ctx = agent.WithRunExecutionContext(ctx, run)
+
+
 
 	toolCtx := context.WithValue(ctx, ctxkeys.WorkspaceID, normalized.WorkspaceID) // Task 4.5d — toolCtx workspace propagation.
 	if normalized.TriggeredByUserID != nil {
