@@ -1,7 +1,7 @@
 # W4-A — Cross-Platform Governance Decision Contract
 
-> Status: W4-T1 through W4-T4 implemented  
-> Scope: governance decision only; runtime adapter binding remains deferred.  
+> Status: W4-A and W4-B implemented  
+> Scope: governance decision + runtime binding; external transport adapters remain deferred.  
 > Authority: Fenix.
 
 ## Goal
@@ -183,14 +183,125 @@ The last case demonstrates why provider execution and evidence participation mus
 
 The two branches are independent. Either branch can exist without the other when the governance decision requires it.
 
+## W4-B — runtime integration
+
+The W4 decision is now bound into the W1 `ToolRegistry` execution path through two transport-neutral runtime ports:
+
+```text
+CapabilityGovernancePlanner
+CapabilityEvidenceRecorder
+```
+
+The runtime order is:
+
+```text
+tool prechecks
+    ↓
+execution context
+    ↓
+W1 governor / approval facts
+    ↓
+GovernanceDecision            ← once per execution_id
+    ↓
+allowed?
+├── no  → optional/required evidence of denial → audit → stop
+└── yes → provider execution / retry
+              ↓
+          terminal outcome
+              ↓
+       evidence_planned?
+       ├── no  → unified audit
+       └── yes → EvidenceEnvelope
+                     ↓
+                 evidence sink
+                     ↓
+               ProofReference
+                     ↓
+                unified audit
+```
+
+Provider retries do **not** recompute governance. The same decision and `execution_id` remain stable across retries.
+
+### Evidence failure behavior
+
+Provider/business execution and evidence recording remain independent:
+
+```text
+provider succeeded
+VEL append indeterminate
+        ↓
+provider is NOT executed again
+        ↓
+evidence reconciliation uses execution_id
+```
+
+An indeterminate evidence append may be reconciled through the transport-neutral sink lookup:
+
+```text
+RecordEvidence(...)
+   ↓ indeterminate
+LookupEvidence(stream_id, execution_id)
+   ├── found     → recover ProofReference
+   └── not found → evidence remains indeterminate
+```
+
+A deterministic evidence error is not converted into a replay lookup.
+
+`verification_failed` is surfaced separately from `evidence_indeterminate`; provider output is preserved in both cases so callers can distinguish business outcome from evidence outcome.
+
+### Unified audit
+
+The terminal audit event contains:
+
+```text
+execution_id
+capability status
+attempt count
+governance
+├── allowed
+├── denial_reason
+├── approval_required
+├── evidence_requirement
+├── evidence_planned
+├── evidence_reason
+└── policy_reference
+evidence
+├── lifecycle state
+└── compact ProofReference projection when available
+```
+
+Raw capability payloads, signed bundles, and raw signatures are not copied into operational audit.
+
+### Runtime wiring
+
+The Fenix router installs `governance.RuntimePlanner` as the capability governance planner.
+
+Current Mermaid2SF governance profiles are registered during router construction. No VEL transport is wired in the router yet because selecting a concrete sink would choose deployment/transport topology, which remains deferred.
+
+### W4-B tests
+
+Runtime tests cover:
+
+- provider execution without evidence;
+- provider + planned evidence;
+- policy/governance denial with evidence;
+- missing approval/governor cannot be overridden by a planner;
+- provider success + evidence indeterminate without provider replay;
+- explicit verification failure;
+- governance resolution exactly once across provider retries;
+- EvidenceEnvelope payload minimization;
+- indeterminate append reconciliation by `execution_id`;
+- deterministic evidence failure without reconciliation lookup.
+
 ## Closure
 
-W4-A is complete when any capability can be assigned a valid governance profile and Fenix can deterministically resolve:
+W4 contract/runtime integration is complete.
 
-- provider execution permission;
-- approval requirement;
-- evidence requirement;
-- actual evidence participation;
-- policy reference.
+Still deferred:
 
-Runtime wiring of this decision into the existing W1 execution pipeline is **W4-B** and remains intentionally outside this block.
+- concrete M2SF runtime adapter;
+- concrete VEL transport/sink;
+- deployment topology;
+- stream/checkpoint operational policy.
+
+Those belong to later readiness/execution waves and must preserve the W4 governance runtime contract.
