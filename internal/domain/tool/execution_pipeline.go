@@ -13,6 +13,8 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/usage"
 )
 
+const auditActionToolExecuted = "tool.executed"
+
 type AuditLogger interface {
 	LogWithDetails(
 		ctx context.Context,
@@ -314,7 +316,7 @@ func (r *ToolRegistry) auditToolExecution(
 		return
 	}
 
-	action := "tool.executed"
+	action := auditActionToolExecuted
 	if outcome == audit.OutcomeDenied {
 		action = "tool.denied"
 	}
