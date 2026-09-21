@@ -15,6 +15,7 @@ type AuditProjection struct {
 	SignatureRef       string             `json:"signature_ref"`
 	Sequence           int64              `json:"sequence"`
 	CheckpointID       string             `json:"checkpoint_id,omitempty"`
+	CheckpointHash     string             `json:"checkpoint_hash,omitempty"`
 	MerkleRoot         string             `json:"merkle_root,omitempty"`
 	TreeSize           int64              `json:"tree_size,omitempty"`
 	VerificationStatus VerificationStatus `json:"verification_status"`
@@ -40,6 +41,7 @@ func NewAuditProjection(ref ProofReference) (AuditProjection, error) {
 	}
 	if ref.Checkpoint != nil {
 		projection.CheckpointID = ref.Checkpoint.CheckpointID
+		projection.CheckpointHash = ref.Checkpoint.CheckpointHash
 		projection.MerkleRoot = ref.Checkpoint.MerkleRoot
 		projection.TreeSize = ref.Checkpoint.TreeSize
 	}
