@@ -12,6 +12,7 @@ const (
 	OperationImport   Operation = "salesforce.flow.import"
 	OperationExport   Operation = "salesforce.flow.export"
 	OperationValidate Operation = "salesforce.flow.validate"
+	OperationCompare  Operation = "salesforce.flow.compare"
 )
 
 // ArtifactFormat identifies an artifact representation without importing Mermaid2SF FlowIR types into Fenix.
@@ -31,7 +32,7 @@ type CapabilitySpec struct {
 }
 
 // Catalog returns only capabilities backed by Mermaid2SF's current production semantic paths.
-// Semantic compare and round-trip remain W2-T4 concerns; they are intentionally not exposed yet.
+// Round-trip remains correctness evidence rather than a runtime capability.
 func Catalog() []CapabilitySpec {
 	return []CapabilitySpec{
 		{
@@ -62,6 +63,20 @@ func Catalog() []CapabilitySpec {
 				SideEffectClass: tool.SideEffectVerify,
 			},
 			InputFormats:  []ArtifactFormat{FormatMermaid, FormatFlowIRV2},
+			OutputFormats: nil,
+		},
+		{
+			Descriptor: tool.CapabilityDescriptor{
+				Name:            string(OperationCompare),
+				Version:         ContractVersion,
+				Operation:       "compare",
+				SideEffectClass: tool.SideEffectVerify,
+			},
+			InputFormats: []ArtifactFormat{
+				FormatMermaid,
+				FormatSalesforceFlowXML,
+				FormatFlowIRV2,
+			},
 			OutputFormats: nil,
 		},
 	}
