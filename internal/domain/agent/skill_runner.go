@@ -70,6 +70,7 @@ func (r *SkillRunner) Run(ctx context.Context, rc *RunContext, input TriggerAgen
 	if err != nil {
 		return nil, err
 	}
+	ctx = withAgentRunExecutionContext(ctx, accepted)
 
 	executedSteps, toolCalls, pendingApproval, err := r.executeSequentialSteps(ctx, rc, input.WorkspaceID, accepted.ID, actorIDFromInput(input, evalCtx), workflow, evalCtx)
 	return r.finalizeRun(ctx, rc, input.WorkspaceID, accepted.ID, workflow, source, executedSteps, toolCalls, pendingApproval, err)
