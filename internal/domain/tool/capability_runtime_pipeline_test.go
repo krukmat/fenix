@@ -249,3 +249,31 @@ func TestRuntimeGovernance_VerificationFailureIsExplicit(t *testing.T) {
 		t.Fatalf("provider result lost or repeated: output=%q calls=%d", output, executor.calls)
 	}
 }
+
+
+func TestRuntimeGovernance_DecisionIsResolvedOnceAcrossProviderRetry(t *testing.T) {
+	executor := &sequenceCapabilityExecutor{
+		errs: []error{NewRetryableCapabilityError(errors.New("temporary provider failure"))},
+	}
+	planner := &runtimePlannerStub{decision: allowedRuntimeDecision(false)}
+	descriptor := runtimeDescriptor(SideEffectRead)
+	descriptor.RetryPolicy = CapabilityRetryPolicy{MaxAttempts: 2}
+	registry, workspaceID, _ := newRuntimeTestRegistry(t, descriptor, executor, planner, nil)
+
+	_, err := registry.Execute(
+		capabilityTestContext(), workspaceID, "runtime.capability",
+		json.RawMessage(`{"value":"x"}`),
+	)
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if planner.calls != 1 {
+		t.Fatalf("governance decisions = %d, want 1", planner.calls)
+	}
+	if executor.calls != 2 {
+		t.Fatalf("provider calls = %d, want 2", executor.calls)
+	}
+	if executor.executionIDs[0] != executor.executionIDs[1] {
+		t.Fatalf("execution id changed across retry: %#v", executor.executionIDs)
+	}
+}
