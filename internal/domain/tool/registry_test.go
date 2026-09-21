@@ -67,6 +67,16 @@ func (s *toolUsageStub) RecordEvent(_ context.Context, input usage.RecordEventIn
 	return &usage.Event{}, nil
 }
 
+type capabilityGovernorStub struct {
+	calls int
+	err   error
+}
+
+func (s *capabilityGovernorStub) CheckCapabilityExecution(_ context.Context, _ CapabilityDescriptor) error {
+	s.calls++
+	return s.err
+}
+
 func openToolTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sqlite.NewDB(":memory:")
@@ -554,5 +564,156 @@ func TestExecutionError_Error_Format(t *testing.T) {
 	}
 	if err.Unwrap() != underlying {
 		t.Fatal("Unwrap() should return underlying error")
+	}
+}
+
+
+func TestToolRegistry_ExternalCapabilityRequiresTraceContext(t *testing.T) {
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	r := NewToolRegistry(db)
+
+	descriptor := CapabilityDescriptor{
+		Name:            "external.verify",
+		Version:         "1",
+		Operation:       "verify",
+		SideEffectClass: SideEffectVerify,
+	}
+	if err := r.RegisterCapability(descriptor, noopExecutor{}); err != nil {
+		t.Fatalf("RegisterCapability returned error: %v", err)
+	}
+	_, err := r.CreateToolDefinition(context.Background(), CreateToolDefinitionInput{
+		WorkspaceID: wsID,
+		Name:        descriptor.Name,
+		InputSchema: json.RawMessage(`{"type":"object","required":["value"],"properties":{"value":{"type":"string"}},"additionalProperties":false}`),
+	})
+	if err != nil {
+		t.Fatalf("CreateToolDefinition returned error: %v", err)
+	}
+
+	_, err = r.Execute(context.Background(), wsID, descriptor.Name, json.RawMessage(`{"value":"x"}`))
+	if !IsToolExecutionErrorCode(err, ToolErrorCapabilityContext) {
+		t.Fatalf("expected ToolErrorCapabilityContext, got %v", err)
+	}
+	if !errors.Is(err, ErrCapabilityContextMissing) {
+		t.Fatalf("expected ErrCapabilityContextMissing, got %v", err)
+	}
+}
+
+func TestToolRegistry_ExternalCapabilityAuditsCorrelationMetadata(t *testing.T) {
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	auditStub := &toolAuditStub{}
+	r := NewToolRegistryWithRuntime(db, nil, auditStub)
+
+	descriptor := CapabilityDescriptor{
+		Name:            "external.verify",
+		Version:         "1",
+		Operation:       "verify",
+		SideEffectClass: SideEffectVerify,
+	}
+	if err := r.RegisterCapability(descriptor, noopExecutor{}); err != nil {
+		t.Fatalf("RegisterCapability returned error: %v", err)
+	}
+	_, err := r.CreateToolDefinition(context.Background(), CreateToolDefinitionInput{
+		WorkspaceID: wsID,
+		Name:        descriptor.Name,
+		InputSchema: json.RawMessage(`{"type":"object","required":["secret"],"properties":{"secret":{"type":"string"}},"additionalProperties":false}`),
+	})
+	if err != nil {
+		t.Fatalf("CreateToolDefinition returned error: %v", err)
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkeys.TraceID, "trace-1")
+	ctx = context.WithValue(ctx, ctxkeys.RunID, "run-1")
+	if _, err := r.Execute(ctx, wsID, descriptor.Name, json.RawMessage(`{"secret":"do-not-audit"}`)); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if len(auditStub.actions) != 1 || auditStub.actions[0] != "tool.executed" {
+		t.Fatalf("unexpected audit actions: %#v", auditStub.actions)
+	}
+	meta := auditStub.details[0]
+	if meta["execution_id"] == nil || meta["execution_id"] == "" {
+		t.Fatalf("expected generated execution_id, got %#v", meta["execution_id"])
+	}
+	if meta["run_id"] != "run-1" {
+		t.Fatalf("unexpected run_id metadata: %#v", meta["run_id"])
+	}
+	if meta["capability_name"] != descriptor.Name ||
+		meta["capability_version"] != descriptor.Version ||
+		meta["capability_operation"] != descriptor.Operation ||
+		meta["side_effect_class"] != string(descriptor.SideEffectClass) {
+		t.Fatalf("unexpected capability metadata: %#v", meta)
+	}
+	if _, leaked := meta["secret"]; leaked {
+		t.Fatalf("audit metadata must not contain full params: %#v", meta)
+	}
+}
+
+func TestToolRegistry_MutatingCapabilityFailsClosedWithoutGovernor(t *testing.T) {
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	r := NewToolRegistry(db)
+
+	descriptor := CapabilityDescriptor{
+		Name:            "external.mutate",
+		Version:         "1",
+		Operation:       "apply",
+		SideEffectClass: SideEffectMutate,
+	}
+	if err := r.RegisterCapability(descriptor, noopExecutor{}); err != nil {
+		t.Fatalf("RegisterCapability returned error: %v", err)
+	}
+	_, err := r.CreateToolDefinition(context.Background(), CreateToolDefinitionInput{
+		WorkspaceID: wsID,
+		Name:        descriptor.Name,
+		InputSchema: json.RawMessage(`{"type":"object","required":["value"],"properties":{"value":{"type":"string"}},"additionalProperties":false}`),
+	})
+	if err != nil {
+		t.Fatalf("CreateToolDefinition returned error: %v", err)
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkeys.TraceID, "trace-1")
+	_, err = r.Execute(ctx, wsID, descriptor.Name, json.RawMessage(`{"value":"x"}`))
+	if !IsToolExecutionErrorCode(err, ToolErrorGovernanceDenied) {
+		t.Fatalf("expected ToolErrorGovernanceDenied, got %v", err)
+	}
+	if !errors.Is(err, ErrCapabilityGovernanceRequired) {
+		t.Fatalf("expected ErrCapabilityGovernanceRequired, got %v", err)
+	}
+}
+
+func TestToolRegistry_MutatingCapabilityUsesGovernor(t *testing.T) {
+	db := openToolTestDB(t)
+	wsID := createWorkspace(t, db)
+	r := NewToolRegistry(db)
+	governor := &capabilityGovernorStub{}
+	r.SetCapabilityGovernor(governor)
+
+	descriptor := CapabilityDescriptor{
+		Name:            "external.mutate",
+		Version:         "1",
+		Operation:       "apply",
+		SideEffectClass: SideEffectMutate,
+	}
+	if err := r.RegisterCapability(descriptor, noopExecutor{}); err != nil {
+		t.Fatalf("RegisterCapability returned error: %v", err)
+	}
+	_, err := r.CreateToolDefinition(context.Background(), CreateToolDefinitionInput{
+		WorkspaceID: wsID,
+		Name:        descriptor.Name,
+		InputSchema: json.RawMessage(`{"type":"object","required":["value"],"properties":{"value":{"type":"string"}},"additionalProperties":false}`),
+	})
+	if err != nil {
+		t.Fatalf("CreateToolDefinition returned error: %v", err)
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkeys.TraceID, "trace-1")
+	if _, err := r.Execute(ctx, wsID, descriptor.Name, json.RawMessage(`{"value":"x"}`)); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if governor.calls != 1 {
+		t.Fatalf("expected governor to be called once, got %d", governor.calls)
 	}
 }
