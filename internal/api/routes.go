@@ -122,7 +122,15 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		r.With(loginLimiter).Post("/login", authHandler.Login)          // POST /auth/login
 	})
 
-	governancePlanner, err := newCrossPlatformGovernancePlanner()
+	crossPlatformSettings, err := loadCrossPlatformRuntimeSettings()
+	if err != nil {
+		return nil, err
+	}
+	governancePlanner, err := newCrossPlatformGovernancePlanner(
+		crossPlatformPolicySelector{
+			optionalM2SFEvidence: crossPlatformSettings.M2SFOptionalEvidence,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +158,7 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		approvalService := policy.NewApprovalServiceWithBus(db, auditService, sharedBus)
 		toolRegistry.SetCapabilityGovernor(policy.NewCapabilityApprovalGovernor(approvalService))
 		toolRegistry.SetCapabilityGovernancePlanner(governancePlanner)
-		if err := configureCrossPlatformRuntime(toolRegistry); err != nil {
+		if err := configureCrossPlatformRuntime(toolRegistry, crossPlatformSettings); err != nil {
 			crossPlatformRuntimeErr = err
 			return
 		}
@@ -538,8 +546,10 @@ func normalizeRouterRuntime(runtime RouterRuntime) RouterRuntime {
 }
 
 
-func newCrossPlatformGovernancePlanner() (*governance.RuntimePlanner, error) {
-	planner := governance.NewRuntimePlanner(nil)
+func newCrossPlatformGovernancePlanner(
+	selector governance.RuntimePolicySelector,
+) (*governance.RuntimePlanner, error) {
+	planner := governance.NewRuntimePlanner(selector)
 	for _, operation := range []flowinterop.Operation{
 		flowinterop.OperationImport,
 		flowinterop.OperationExport,
