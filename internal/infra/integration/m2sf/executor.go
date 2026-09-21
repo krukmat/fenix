@@ -59,11 +59,28 @@ func (e *Executor) Execute(ctx context.Context, params json.RawMessage) (json.Ra
 	if err != nil {
 		return nil, err
 	}
+	httpRequest, err := e.newHTTPRequest(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	responseRaw, err := e.executeHTTPRequest(httpRequest)
+	if err != nil {
+		return nil, err
+	}
+	if err := decodeAndValidateResult(e.operation, responseRaw); err != nil {
+		return nil, err
+	}
+	return json.RawMessage(responseRaw), nil
+}
+
+func (e *Executor) newHTTPRequest(
+	ctx context.Context,
+	request flowinterop.Request,
+) (*http.Request, error) {
 	raw, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("marshal Mermaid2SF request: %w", err)
 	}
-
 	httpRequest, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -74,8 +91,11 @@ func (e *Executor) Execute(ctx context.Context, params json.RawMessage) (json.Ra
 		return nil, fmt.Errorf("create Mermaid2SF request: %w", err)
 	}
 	e.decorateRequest(ctx, httpRequest)
+	return httpRequest, nil
+}
 
-	response, err := e.client.Do(httpRequest)
+func (e *Executor) executeHTTPRequest(request *http.Request) ([]byte, error) {
+	response, err := e.client.Do(request)
 	if err != nil {
 		return nil, tool.NewRetryableCapabilityError(
 			fmt.Errorf("call Mermaid2SF provider: %w", err),
@@ -89,23 +109,30 @@ func (e *Executor) Execute(ctx context.Context, params json.RawMessage) (json.Ra
 			fmt.Errorf("read Mermaid2SF response: %w", err),
 		)
 	}
-	if response.StatusCode >= http.StatusInternalServerError {
-		return nil, tool.NewRetryableCapabilityError(
-			fmt.Errorf("Mermaid2SF provider status %d", response.StatusCode),
-		)
-	}
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("Mermaid2SF provider status %d: %s", response.StatusCode, bodySummary(responseRaw))
-	}
-
-	var result flowinterop.Result
-	if err := json.Unmarshal(responseRaw, &result); err != nil {
-		return nil, fmt.Errorf("%w: decode JSON: %v", errInvalidResponse, err)
-	}
-	if err := validateResult(e.operation, result); err != nil {
+	if err := validateHTTPResponse(response.StatusCode, responseRaw); err != nil {
 		return nil, err
 	}
-	return json.RawMessage(responseRaw), nil
+	return responseRaw, nil
+}
+
+func validateHTTPResponse(statusCode int, responseRaw []byte) error {
+	if statusCode >= http.StatusInternalServerError {
+		return tool.NewRetryableCapabilityError(
+			fmt.Errorf("Mermaid2SF provider status %d", statusCode),
+		)
+	}
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("Mermaid2SF provider status %d: %s", statusCode, bodySummary(responseRaw))
+	}
+	return nil
+}
+
+func decodeAndValidateResult(operation flowinterop.Operation, responseRaw []byte) error {
+	var result flowinterop.Result
+	if err := json.Unmarshal(responseRaw, &result); err != nil {
+		return fmt.Errorf("%w: decode JSON: %v", errInvalidResponse, err)
+	}
+	return validateResult(operation, result)
 }
 
 func (e *Executor) decodeRequest(params json.RawMessage) (flowinterop.Request, error) {
@@ -146,26 +173,46 @@ func setContextHeader(
 }
 
 func validateResult(operation flowinterop.Operation, result flowinterop.Result) error {
-	if result.ContractVersion != flowinterop.ContractVersion || result.Operation != operation {
-		return errInvalidResponse
-	}
-	switch result.Status {
-	case flowinterop.ResultSucceeded, flowinterop.ResultRejected, flowinterop.ResultUnsupported:
-	default:
+	if !validResultIdentity(operation, result) || !validResultStatus(result.Status) {
 		return errInvalidResponse
 	}
 	if err := result.Fidelity.Validate(); err != nil {
 		return fmt.Errorf("%w: fidelity: %v", errInvalidResponse, err)
 	}
-	for _, diagnostic := range result.Diagnostics {
+	if err := validateDiagnostics(result.Diagnostics); err != nil {
+		return err
+	}
+	return validateSemanticDiff(result.Diff)
+}
+
+func validResultIdentity(operation flowinterop.Operation, result flowinterop.Result) bool {
+	return result.ContractVersion == flowinterop.ContractVersion && result.Operation == operation
+}
+
+func validResultStatus(status flowinterop.ResultStatus) bool {
+	switch status {
+	case flowinterop.ResultSucceeded, flowinterop.ResultRejected, flowinterop.ResultUnsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+func validateDiagnostics(diagnostics []flowinterop.Diagnostic) error {
+	for _, diagnostic := range diagnostics {
 		if err := diagnostic.Validate(); err != nil {
 			return fmt.Errorf("%w: diagnostic: %v", errInvalidResponse, err)
 		}
 	}
-	if result.Diff != nil {
-		if err := result.Diff.Validate(); err != nil {
-			return fmt.Errorf("%w: semantic diff: %v", errInvalidResponse, err)
-		}
+	return nil
+}
+
+func validateSemanticDiff(diff *flowinterop.SemanticDiff) error {
+	if diff == nil {
+		return nil
+	}
+	if err := diff.Validate(); err != nil {
+		return fmt.Errorf("%w: semantic diff: %v", errInvalidResponse, err)
 	}
 	return nil
 }
