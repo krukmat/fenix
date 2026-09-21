@@ -28,11 +28,11 @@
 | W3-T1 EvidenceEnvelope v1 | CLOSED |
 | W3-T2 Authority boundary | CLOSED |
 | W3-T3 ProofReference v1 | CLOSED |
-| W3-T4 Idempotency / replay | OPEN |
-| W3-T5 Failure / reconciliation semantics | OPEN |
-| W3-T6 Agent / audit exposure | OPEN |
+| W3-T4 Idempotency / replay | CLOSED |
+| W3-T5 Failure / reconciliation semantics | CLOSED |
+| W3-T6 Agent / audit exposure | CLOSED |
 
-W1 and the W2 Mermaid2SF semantic contract are closed. W3-T1 through W3-T3 are also closed: Fenix owns EvidenceEnvelope/ProofReference contracts and VEL now has an external-authorization domain seam that does not replay LocalPolicyEngine. W2 and W3 remain transport-neutral.
+W1, W2, and the full W3 VEL contract are closed. Fenix owns the evidence envelope, replay/reconciliation policy, compact audit projection, and agent consumption rules; VEL owns cryptographic recording and verification and does not replay Fenix policy. W2 and W3 remain transport-neutral.
 
 ## W0 — ownership and scope
 
@@ -245,7 +245,9 @@ The existing standalone VEL path may still use LocalPolicyEngine. Fenix-originat
 
 See `docs/plans/fenix-integration-w3-vel-contract.md`.
 
-Remaining W3 work: idempotency/replay (T4), failure/reconciliation semantics (T5), and agent/audit exposure (T6).
+W3 contract status: CLOSED.
+
+Replay uses `execution_id` as the stable evidence idempotency key. Contradictory evidence under the same key is rejected. Evidence reconciliation never repeats the governed business action. Operational audit stores only a compact proof projection, and agents may only claim verification when the proof is actually verified.
 
 ## Dependency spine
 
