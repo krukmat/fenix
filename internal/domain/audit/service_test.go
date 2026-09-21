@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
@@ -1459,5 +1460,42 @@ func TestAuditHelpers_DecisionFromMapAndPointerField(t *testing.T) {
 	}
 	if got := optionalStructFieldValue(reflect.ValueOf(withPtrField{Name: nil}), "Name"); got != nil {
 		t.Fatalf("optionalStructFieldValue(nil *string) = %v, want nil", got)
+	}
+}
+
+
+func TestLogWithDetails_PropagatesTraceIDFromContext(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	service := NewAuditService(db)
+	workspaceID := uuid.NewV7().String()
+	createWorkspaceForTest(t, db, workspaceID)
+
+	ctx := context.WithValue(context.Background(), ctxkeys.TraceID, "trace-integration-1")
+	err := service.LogWithDetails(
+		ctx,
+		workspaceID,
+		uuid.NewV7().String(),
+		ActorTypeUser,
+		"tool.executed",
+		nil,
+		nil,
+		&EventDetails{Metadata: map[string]any{"execution_id": "exec-1"}},
+		OutcomeSuccess,
+	)
+	if err != nil {
+		t.Fatalf("LogWithDetails failed: %v", err)
+	}
+
+	events, total, err := service.ListByWorkspace(context.Background(), workspaceID, 10, 0)
+	if err != nil {
+		t.Fatalf("ListByWorkspace failed: %v", err)
+	}
+	if total != 1 || len(events) != 1 {
+		t.Fatalf("expected one audit event, total=%d len=%d", total, len(events))
+	}
+	if events[0].TraceID == nil || *events[0].TraceID != "trace-integration-1" {
+		t.Fatalf("unexpected trace id: %#v", events[0].TraceID)
 	}
 }
