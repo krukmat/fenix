@@ -9,7 +9,10 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 )
 
-const testDigest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+const (
+	testDigest      = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	testExecutionID = testExecutionID
+)
 
 func validEnvelope() Envelope {
 	return Envelope{
@@ -17,7 +20,7 @@ func validEnvelope() Envelope {
 		StreamID:      "workspace/ws-1",
 		WorkspaceID:   "ws-1",
 		TraceID:       "trace-1",
-		ExecutionID:   "exec-1",
+		ExecutionID:   testExecutionID,
 		RunID:         "run-1",
 		Actor:         ActorRef{ID: "user-1", Type: "user"},
 		Capability: CapabilityRef{
@@ -70,7 +73,7 @@ func TestProofReference_RequiresExecutionCorrelationAndEventEvidence(t *testing.
 	ref := ProofReference{
 		SchemaVersion:      SchemaVersion,
 		Provider:           "verifiable-event-ledger",
-		ExecutionID:        "exec-1",
+		ExecutionID:        testExecutionID,
 		StreamID:           "workspace/ws-1",
 		EventID:            "event-1",
 		EventHash:          testDigest,
@@ -93,7 +96,7 @@ func TestProofReference_ValidatesCheckpointShape(t *testing.T) {
 	ref := ProofReference{
 		SchemaVersion: SchemaVersion,
 		Provider:      "verifiable-event-ledger",
-		ExecutionID:   "exec-1",
+		ExecutionID:   testExecutionID,
 		StreamID:      "workspace/ws-1",
 		EventID:       "event-1",
 		EventHash:     testDigest,
