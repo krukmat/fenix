@@ -25,8 +25,14 @@
 | W2-T4 Semantic diff contract | CLOSED |
 | W2-T5 Diagnostics contract | CLOSED |
 | W2-T6 Agent-safe surface | CLOSED |
+| W3-T1 EvidenceEnvelope v1 | CLOSED |
+| W3-T2 Authority boundary | CLOSED |
+| W3-T3 ProofReference v1 | CLOSED |
+| W3-T4 Idempotency / replay | OPEN |
+| W3-T5 Failure / reconciliation semantics | OPEN |
+| W3-T6 Agent / audit exposure | OPEN |
 
-W1 and the W2 Mermaid2SF semantic contract are closed. W2 remains transport-neutral: no CLI, HTTP, MCP, sidecar, or library adapter has been selected. W3 remains independent and may proceed without changing W2 contract decisions.
+W1 and the W2 Mermaid2SF semantic contract are closed. W3-T1 through W3-T3 are also closed: Fenix owns EvidenceEnvelope/ProofReference contracts and VEL now has an external-authorization domain seam that does not replay LocalPolicyEngine. W2 and W3 remain transport-neutral.
 
 ## W0 — ownership and scope
 
@@ -210,11 +216,36 @@ See `docs/plans/fenix-integration-w2-mermaid2sf-contract.md`.
 
 W2 contract status: CLOSED. Runtime adapter/transport selection remains a later integration concern.
 
-## VEL prerequisite
+## VEL integration — W3 current state
 
-Current standalone VEL `POST /v1/events` evaluates through a local policy engine.
+Implemented contract:
 
-W3 must define the Fenix integration path where Fenix remains the policy authority and VEL records/verifies that authorization evidence without re-deciding it.
+```text
+Fenix governed execution
+        ↓
+EvidenceEnvelope v1
+        ↓
+VEL external-authority seam
+        ↓
+signed event / hash chain / checkpoint
+        ↓
+ProofReference v1
+        ↓
+Fenix operational audit correlation
+```
+
+Authority is explicit:
+
+```text
+Fenix = policy / approval authority
+VEL   = cryptographic evidence / verification authority
+```
+
+The existing standalone VEL path may still use LocalPolicyEngine. Fenix-originated evidence uses `Ledger.append_external(...)`, which validates supplied authorization context integrity without re-evaluating policy.
+
+See `docs/plans/fenix-integration-w3-vel-contract.md`.
+
+Remaining W3 work: idempotency/replay (T4), failure/reconciliation semantics (T5), and agent/audit exposure (T6).
 
 ## Dependency spine
 
