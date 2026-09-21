@@ -55,17 +55,17 @@ func isDiagnosticSeverity(severity DiagnosticSeverity) bool {
 		severity == DiagnosticError
 }
 
+var diagnosticStages = map[DiagnosticStage]struct{}{
+	DiagnosticStageParse:     {},
+	DiagnosticStageNormalize: {},
+	DiagnosticStageValidate:  {},
+	DiagnosticStageGenerate:  {},
+	DiagnosticStageCompare:   {},
+	DiagnosticStageFidelity:  {},
+	DiagnosticStageProvider:  {},
+}
+
 func isDiagnosticStage(stage DiagnosticStage) bool {
-	switch stage {
-	case DiagnosticStageParse,
-		DiagnosticStageNormalize,
-		DiagnosticStageValidate,
-		DiagnosticStageGenerate,
-		DiagnosticStageCompare,
-		DiagnosticStageFidelity,
-		DiagnosticStageProvider:
-		return true
-	default:
-		return false
-	}
+	_, ok := diagnosticStages[stage]
+	return ok
 }
