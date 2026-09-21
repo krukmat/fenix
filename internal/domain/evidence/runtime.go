@@ -64,30 +64,49 @@ func (r *RuntimeRecorder) RecordCapabilityEvidence(
 	request tool.CapabilityEvidenceRequest,
 ) (tool.CapabilityEvidenceResult, error) {
 	if r == nil || r.sink == nil {
-		return tool.CapabilityEvidenceResult{State: string(DeliveryIndeterminate)}, ErrRuntimeSinkUnavailable
+		return indeterminateRuntimeResult(), ErrRuntimeSinkUnavailable
 	}
 	envelope, err := BuildRuntimeEnvelope(request)
 	if err != nil {
-		return tool.CapabilityEvidenceResult{State: string(DeliveryIndeterminate)}, err
+		return indeterminateRuntimeResult(), err
 	}
-	ref, err := r.sink.RecordEvidence(ctx, envelope)
+	ref, err := r.recordOrReconcile(ctx, envelope)
 	if err != nil {
-		ref, err = r.reconcileIndeterminateRecord(ctx, envelope, err)
-		if err != nil {
-			return tool.CapabilityEvidenceResult{State: string(DeliveryIndeterminate)}, err
-		}
+		return indeterminateRuntimeResult(), err
 	}
+	return runtimeResultFromProof(envelope, ref)
+}
+
+func (r *RuntimeRecorder) recordOrReconcile(
+	ctx context.Context,
+	envelope Envelope,
+) (ProofReference, error) {
+	ref, err := r.sink.RecordEvidence(ctx, envelope)
+	if err == nil {
+		return ref, nil
+	}
+	return r.reconcileIndeterminateRecord(ctx, envelope, err)
+}
+
+func runtimeResultFromProof(
+	envelope Envelope,
+	ref ProofReference,
+) (tool.CapabilityEvidenceResult, error) {
 	if ref.ExecutionID != envelope.ExecutionID || ref.StreamID != envelope.StreamID {
-		return tool.CapabilityEvidenceResult{State: string(DeliveryIndeterminate)}, ErrRuntimeProofMismatch
+		return indeterminateRuntimeResult(), ErrRuntimeProofMismatch
 	}
 	projection, err := NewAuditProjection(ref)
 	if err != nil {
-		return tool.CapabilityEvidenceResult{State: string(DeliveryIndeterminate)}, err
+		return indeterminateRuntimeResult(), err
 	}
 	return tool.CapabilityEvidenceResult{
 		State:         string(DeliveryStateFromProof(ref)),
 		AuditMetadata: auditProjectionMetadata(projection),
 	}, nil
+}
+
+func indeterminateRuntimeResult() tool.CapabilityEvidenceResult {
+	return tool.CapabilityEvidenceResult{State: string(DeliveryIndeterminate)}
 }
 
 // BuildRuntimeEnvelope maps one governed runtime outcome into the W3 EvidenceEnvelope contract.
