@@ -314,7 +314,7 @@ func TestToolRegistry_Execute_BuiltinAuditAndErrorContract(t *testing.T) {
 	if _, err := r.Execute(ctx, wsID, BuiltinCreateTask, json.RawMessage(`{"title":"x"}`)); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if len(auditStub.actions) != 1 || auditStub.actions[0] != "tool.executed" {
+	if len(auditStub.actions) != 1 || auditStub.actions[0] != auditActionToolExecuted {
 		t.Fatalf("unexpected audit actions: %#v", auditStub.actions)
 	}
 	if auditStub.outcomes[0] != audit.OutcomeSuccess {
@@ -632,7 +632,7 @@ func TestToolRegistry_ExternalCapabilityAuditsCorrelationMetadata(t *testing.T) 
 		t.Fatalf("Execute returned error: %v", err)
 	}
 
-	if len(auditStub.actions) != 1 || auditStub.actions[0] != "tool.executed" {
+	if len(auditStub.actions) != 1 || auditStub.actions[0] != auditActionToolExecuted {
 		t.Fatalf("unexpected audit actions: %#v", auditStub.actions)
 	}
 	meta := auditStub.details[0]
