@@ -11,18 +11,30 @@ func withAgentRunExecutionContext(ctx context.Context, run *Run) context.Context
 	if run == nil {
 		return ctx
 	}
-	if strings.TrimSpace(run.WorkspaceID) != "" {
-		ctx = ctxkeys.WithValue(ctx, ctxkeys.WorkspaceID, run.WorkspaceID)
+	ctx = contextWithNonEmpty(ctx, ctxkeys.WorkspaceID, run.WorkspaceID)
+	ctx = contextWithNonEmpty(ctx, ctxkeys.RunID, run.ID)
+	ctx = contextWithOptional(ctx, ctxkeys.TraceID, run.TraceID)
+	return contextWithTriggeredBy(ctx, run.TriggeredByUserID)
+}
+
+func contextWithNonEmpty(ctx context.Context, key ctxkeys.Key, value string) context.Context {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ctx
 	}
-	if strings.TrimSpace(run.ID) != "" {
-		ctx = ctxkeys.WithValue(ctx, ctxkeys.RunID, run.ID)
+	return ctxkeys.WithValue(ctx, key, value)
+}
+
+func contextWithOptional(ctx context.Context, key ctxkeys.Key, value *string) context.Context {
+	if value == nil {
+		return ctx
 	}
-	if run.TraceID != nil && strings.TrimSpace(*run.TraceID) != "" {
-		ctx = ctxkeys.WithValue(ctx, ctxkeys.TraceID, strings.TrimSpace(*run.TraceID))
+	return contextWithNonEmpty(ctx, key, *value)
+}
+
+func contextWithTriggeredBy(ctx context.Context, triggeredBy *string) context.Context {
+	if _, exists := ctx.Value(ctxkeys.UserID).(string); exists {
+		return ctx
 	}
-	if _, exists := ctx.Value(ctxkeys.UserID).(string); !exists &&
-		run.TriggeredByUserID != nil && strings.TrimSpace(*run.TriggeredByUserID) != "" {
-		ctx = ctxkeys.WithValue(ctx, ctxkeys.UserID, strings.TrimSpace(*run.TriggeredByUserID))
-	}
-	return ctx
+	return contextWithOptional(ctx, ctxkeys.UserID, triggeredBy)
 }
