@@ -39,7 +39,7 @@ func IdempotencyKey(envelope Envelope) string {
 	if executionID == "" {
 		return ""
 	}
-	return "fenix:evidence:v1:" + executionID
+	return executionID
 }
 
 // DecideReconciliation returns the safe next evidence-only action.
