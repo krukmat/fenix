@@ -17,9 +17,11 @@ const (
 
 // CapabilityGovernanceFacts are W1 facts already known by the governed runtime.
 type CapabilityGovernanceFacts struct {
+	GovernorRequired bool
+	GovernorPassed   bool
 	ApprovalRequired bool
 	ApprovalGranted  bool
-	ApprovalError    string
+	GovernanceError  string
 }
 
 // CapabilityRuntimeDecision is the tool-layer projection of the single W4 GovernanceDecision.
@@ -78,9 +80,12 @@ func defaultRuntimeDecision(
 	descriptor CapabilityDescriptor,
 	facts CapabilityGovernanceFacts,
 ) CapabilityRuntimeDecision {
-	allowed := !facts.ApprovalRequired || facts.ApprovalGranted
+	allowed := (!facts.GovernorRequired || facts.GovernorPassed) &&
+		(!facts.ApprovalRequired || facts.ApprovalGranted)
 	denialReason := ""
-	if !allowed {
+	if facts.GovernorRequired && !facts.GovernorPassed {
+		denialReason = "governance_unavailable"
+	} else if facts.ApprovalRequired && !facts.ApprovalGranted {
 		denialReason = "approval_denied"
 	}
 	return CapabilityRuntimeDecision{
@@ -99,6 +104,9 @@ func validateRuntimeDecision(
 ) error {
 	if strings.TrimSpace(decision.PolicyReference) == "" ||
 		!validRuntimeEvidenceRequirement(decision.EvidenceRequirement) {
+		return ErrCapabilityGovernanceRequired
+	}
+	if decision.Allowed && facts.GovernorRequired && !facts.GovernorPassed {
 		return ErrCapabilityGovernanceRequired
 	}
 	if decision.Allowed && facts.ApprovalRequired && !facts.ApprovalGranted {
