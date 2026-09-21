@@ -43,10 +43,19 @@
 | W5-A-T4 Operational topology gaps | CLOSED |
 | W5-A-T5 Observability / reconciliation gaps | CLOSED |
 | W5-A-T6 Readiness matrix | CLOSED |
+| W5-B1 Transport decision | IMPLEMENTED |
+| W5-B2 Mermaid2SF provider surface | IMPLEMENTED / PROVIDER CI GREEN |
+| W5-B3 VEL provider surface | IMPLEMENTED / PROVIDER CI GREEN |
+| W5-B4 Fenix adapters | IMPLEMENTED |
+| W5-B5 Runtime wiring | IMPLEMENTED |
+| W5-B6 Cross-repo integration tests | IMPLEMENTED / FENIX FINAL CI DEFERRED |
 
 W1, W2, W3, and W4 are closed at contract/runtime-governance level. W5-A is also closed: the remaining work is now classified as concrete adapter/provider-surface/operational readiness gaps. Fenix owns one GovernanceDecision per execution_id; provider execution and VEL evidence participation remain independently controlled, and evidence reconciliation never repeats the business capability.
 
-W5-A canonical inventory: `docs/plans/fenix-integration-w5-readiness-gap-inventory.md`.
+W5-A canonical inventory: `docs/plans/fenix-integration-w5-readiness-gap-inventory.md`.  
+W5-B adapter/provider implementation: `docs/plans/fenix-integration-w5b-adapter-provider-integration.md`.
+
+W5-B implements authenticated HTTP/JSON provider boundaries, concrete Fenix adapters and opt-in Fenix-owned evidence selection. Mermaid2SF and VEL provider CI are green. Fenix full CI remains intentionally deferred until the final W5 checkpoint.
 
 ## W0 — ownership and scope
 
