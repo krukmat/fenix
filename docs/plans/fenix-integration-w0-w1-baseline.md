@@ -18,9 +18,15 @@
 | W1-T3 Capability boundary | IMPLEMENTATION TARGET |
 | W1-T4 Governance path | IMPLEMENTATION TARGET |
 | W1-T5 Audit / trace propagation | IMPLEMENTATION TARGET |
-| W1-T6 Failure / retry / idempotency | OPEN |
+| W1-T6 Failure / retry / idempotency | CLOSED |
+| W2-T1 Mermaid2SF capability catalog | CLOSED |
+| W2-T2 Mermaid2SF request/result contract | CLOSED |
+| W2-T3 Mermaid2SF fidelity contract | CLOSED |
+| W2-T4 Semantic diff contract | OPEN |
+| W2-T5 Diagnostics contract | OPEN |
+| W2-T6 Agent-safe surface | OPEN |
 
-No W2/W3 implementation starts before W1 closes.
+W1 is closed. W2-T1 through W2-T3 are implemented as transport-neutral contracts; W2-T4 through W2-T6 remain open. W3 remains independent and may proceed without changing W2 transport decisions.
 
 ## W0 — ownership and scope
 
@@ -179,7 +185,7 @@ ctxkeys
 - keep only parameter keys in audit, not full payloads;
 - inject run/trace/execution identity from runtime paths before closing T5.
 
-## Mermaid2SF prerequisite
+## Mermaid2SF integration — W2 current state
 
 Existing semantic contract:
 
@@ -187,7 +193,19 @@ Existing semantic contract:
 Salesforce Flow XML ⇄ FlowIR v2 ⇄ Mermaid
 ```
 
-W2 will define the Fenix-facing versioned capability, fidelity, diagnostics, semantic diff, and round-trip contracts.
+Implemented Fenix-facing capabilities:
+
+```text
+salesforce.flow.import@1
+salesforce.flow.export@1
+salesforce.flow.validate@1
+```
+
+The request/result contract is transport-neutral and FlowIR v2 remains opaque to Fenix. Fidelity is artifact-scoped: family support is only a ceiling and cannot automatically become a runtime `guaranteed` verdict.
+
+See `docs/plans/fenix-integration-w2-mermaid2sf-contract.md`.
+
+Remaining W2 work: semantic diff (T4), typed diagnostics (T5), and agent-safe invocation surface (T6).
 
 ## VEL prerequisite
 
