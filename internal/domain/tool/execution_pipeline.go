@@ -57,6 +57,9 @@ func (r *ToolRegistry) Execute(ctx context.Context, workspaceID, toolName string
 	if err != nil {
 		return nil, err
 	}
+	if _, ok := r.capability(toolName); ok {
+		ctx = prepareCapabilityExecutionContext(ctx, workspaceID)
+	}
 	return r.executeDefinition(ctx, workspaceID, def, normalizeToolParams(params))
 }
 
@@ -138,8 +141,7 @@ func (r *ToolRegistry) enforceCapabilityBoundary(ctx context.Context, toolName s
 		return nil
 	}
 	if contextString(ctx, ctxkeys.TraceID) == "" ||
-		contextString(ctx, ctxkeys.ExecutionID) == "" ||
-		contextString(ctx, ctxkeys.UserID) == "" {
+		contextString(ctx, ctxkeys.ExecutionID) == "" {
 		return ErrCapabilityContextMissing
 	}
 	if !requiresCapabilityGovernor(descriptor.SideEffectClass) {
