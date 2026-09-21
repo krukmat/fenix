@@ -11,7 +11,7 @@ import (
 
 const (
 	testDigest      = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	testExecutionID = testExecutionID
+	testExecutionID = "exec-1"
 )
 
 func validEnvelope() Envelope {
