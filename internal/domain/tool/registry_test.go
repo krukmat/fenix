@@ -17,6 +17,8 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 )
 
+const testCapabilityTraceID = testCapabilityTraceID
+
 type noopExecutor struct{}
 
 func (noopExecutor) Execute(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
@@ -624,7 +626,7 @@ func TestToolRegistry_ExternalCapabilityAuditsCorrelationMetadata(t *testing.T) 
 		t.Fatalf("CreateToolDefinition returned error: %v", err)
 	}
 
-	ctx := context.WithValue(context.Background(), ctxkeys.TraceID, "trace-1")
+	ctx := context.WithValue(context.Background(), ctxkeys.TraceID, testCapabilityTraceID)
 	ctx = context.WithValue(ctx, ctxkeys.RunID, "run-1")
 	if _, err := r.Execute(ctx, wsID, descriptor.Name, json.RawMessage(`{"secret":"do-not-audit"}`)); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
@@ -674,7 +676,7 @@ func TestToolRegistry_MutatingCapabilityFailsClosedWithoutGovernor(t *testing.T)
 		t.Fatalf("CreateToolDefinition returned error: %v", err)
 	}
 
-	ctx := context.WithValue(context.Background(), ctxkeys.TraceID, "trace-1")
+	ctx := context.WithValue(context.Background(), ctxkeys.TraceID, testCapabilityTraceID)
 	_, err = r.Execute(ctx, wsID, descriptor.Name, json.RawMessage(`{"value":"x"}`))
 	if !IsToolExecutionErrorCode(err, ToolErrorGovernanceDenied) {
 		t.Fatalf("expected ToolErrorGovernanceDenied, got %v", err)
@@ -709,7 +711,7 @@ func TestToolRegistry_MutatingCapabilityUsesGovernor(t *testing.T) {
 		t.Fatalf("CreateToolDefinition returned error: %v", err)
 	}
 
-	ctx := context.WithValue(context.Background(), ctxkeys.TraceID, "trace-1")
+	ctx := context.WithValue(context.Background(), ctxkeys.TraceID, testCapabilityTraceID)
 	if _, err := r.Execute(ctx, wsID, descriptor.Name, json.RawMessage(`{"value":"x"}`)); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
