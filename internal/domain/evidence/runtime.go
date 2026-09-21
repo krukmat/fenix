@@ -181,6 +181,10 @@ func runtimeOutcome(request tool.CapabilityEvidenceRequest) ExecutionOutcome {
 		status = OutcomeDenied
 	case tool.CapabilityStatusFailed:
 		status = OutcomeFailed
+	case tool.CapabilityStatusReady,
+		tool.CapabilityStatusExecuting,
+		tool.CapabilityStatusIndeterminate:
+		status = OutcomeIndeterminate
 	}
 	return ExecutionOutcome{Status: status, ErrorCode: request.ErrorCode}
 }
