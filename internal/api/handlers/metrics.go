@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"github.com/matiasleandrokruk/fenix/internal/infra/integration/telemetry"
 )
 
 // MetricsCollector holds atomic counters — safe for concurrent use.
@@ -51,4 +53,5 @@ func MetricsHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprintf(w, "# HELP fenixcrm_uptime_seconds Process uptime in seconds\n")
 	fmt.Fprintf(w, "# TYPE fenixcrm_uptime_seconds gauge\n")
 	fmt.Fprintf(w, "fenixcrm_uptime_seconds %.2f\n", Metrics.UptimeSeconds())
+	_, _ = fmt.Fprint(w, telemetry.Default.Prometheus())
 }
