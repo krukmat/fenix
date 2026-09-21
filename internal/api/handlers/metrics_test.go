@@ -27,6 +27,9 @@ func TestMetricsHandler_PrometheusFormat(t *testing.T) {
 	if !strings.Contains(body, "# TYPE fenixcrm_requests_total counter") {
 		t.Errorf("body missing TYPE declaration: %s", body)
 	}
+	if !strings.Contains(body, "fenixcrm_evidence_pending") {
+		t.Errorf("body missing W5-C integration metrics: %s", body)
+	}
 }
 
 func TestMetricsHandler_ContentType(t *testing.T) {
