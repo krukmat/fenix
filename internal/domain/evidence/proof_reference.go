@@ -39,22 +39,27 @@ type ProofReference struct {
 }
 
 func (p ProofReference) Validate() error {
-	if p.SchemaVersion != SchemaVersion ||
-		strings.TrimSpace(p.Provider) == "" ||
-		strings.TrimSpace(p.ExecutionID) == "" ||
-		strings.TrimSpace(p.StreamID) == "" ||
-		strings.TrimSpace(p.EventID) == "" ||
-		!isSHA256Hex(p.EventHash) ||
-		strings.TrimSpace(p.KeyID) == "" ||
-		strings.TrimSpace(p.SignatureRef) == "" ||
-		p.Sequence < 1 ||
-		!validVerificationStatus(p.VerificationStatus) {
-		return ErrProofReferenceInvalid
-	}
-	if p.Checkpoint != nil && !validCheckpointReference(*p.Checkpoint) {
+	if !p.hasValidCore() || !p.hasValidCheckpoint() {
 		return ErrProofReferenceInvalid
 	}
 	return nil
+}
+
+func (p ProofReference) hasValidCore() bool {
+	return p.SchemaVersion == SchemaVersion &&
+		strings.TrimSpace(p.Provider) != "" &&
+		strings.TrimSpace(p.ExecutionID) != "" &&
+		strings.TrimSpace(p.StreamID) != "" &&
+		strings.TrimSpace(p.EventID) != "" &&
+		isSHA256Hex(p.EventHash) &&
+		strings.TrimSpace(p.KeyID) != "" &&
+		strings.TrimSpace(p.SignatureRef) != "" &&
+		p.Sequence >= 1 &&
+		validVerificationStatus(p.VerificationStatus)
+}
+
+func (p ProofReference) hasValidCheckpoint() bool {
+	return p.Checkpoint == nil || validCheckpointReference(*p.Checkpoint)
 }
 
 func validCheckpointReference(checkpoint CheckpointReference) bool {
