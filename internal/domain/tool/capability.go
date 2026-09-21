@@ -15,6 +15,7 @@ var (
 	ErrCapabilityGovernanceRequired = errors.New("external capability requires governance")
 	ErrCapabilityGovernanceDenied   = errors.New("external capability denied by governance decision")
 	ErrCapabilityEvidenceUnavailable = errors.New("planned capability evidence recorder is unavailable")
+	ErrCapabilityEvidenceVerificationFailed = errors.New("capability evidence verification failed")
 )
 
 // SideEffectClass classifies the operational risk of a governed capability.
