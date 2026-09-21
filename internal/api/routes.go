@@ -150,7 +150,7 @@ func newRouterWithConfigAndRuntime(db *sql.DB, cfg config.Config, runtime Router
 		approvalService := policy.NewApprovalServiceWithBus(db, auditService, sharedBus)
 		toolRegistry.SetCapabilityGovernor(policy.NewCapabilityApprovalGovernor(approvalService))
 		toolRegistry.SetCapabilityGovernancePlanner(governancePlanner)
-		if runtimeErr := configureCrossPlatformRuntime(toolRegistry, crossPlatformSettings); runtimeErr != nil {
+		if runtimeErr := configureCrossPlatformRuntimeWithServices(toolRegistry, crossPlatformSettings, db, runtime); runtimeErr != nil {
 			crossPlatformRuntimeErr = runtimeErr
 			return
 		}
