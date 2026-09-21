@@ -127,9 +127,8 @@ func (a *DealRiskAgent) Run(ctx context.Context, config DealRiskAgentConfig) (*a
 	})
 	if err != nil {
 		return nil, fmt.Errorf("trigger deal risk run: %w", err)
-	}	ctx = agent.WithRunExecutionContext(ctx, run)
-
-
+	}
+	ctx = agent.WithRunExecutionContext(ctx, run)
 
 	result, err := a.executeDealRiskFlow(ctx, normalized)
 	if err != nil {
