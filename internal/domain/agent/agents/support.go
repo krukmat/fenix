@@ -157,7 +157,9 @@ func (a *SupportAgent) Run(ctx context.Context, config SupportAgentConfig) (*age
 	run, err := a.triggerSupportRun(ctx, config)
 	if err != nil {
 		return nil, err
-	}
+	}	ctx = agent.WithRunExecutionContext(ctx, run)
+
+
 
 	result, err := a.executeSupportFlow(ctx, run.ID, config)
 	if err != nil {
