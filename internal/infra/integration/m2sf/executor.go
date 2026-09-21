@@ -67,8 +67,8 @@ func (e *Executor) Execute(ctx context.Context, params json.RawMessage) (json.Ra
 	if err != nil {
 		return nil, err
 	}
-	if err := decodeAndValidateResult(e.operation, responseRaw); err != nil {
-		return nil, err
+	if validationErr := decodeAndValidateResult(e.operation, responseRaw); validationErr != nil {
+		return nil, validationErr
 	}
 	return json.RawMessage(responseRaw), nil
 }
@@ -109,8 +109,8 @@ func (e *Executor) executeHTTPRequest(request *http.Request) ([]byte, error) {
 			fmt.Errorf("read Mermaid2SF response: %w", err),
 		)
 	}
-	if err := validateHTTPResponse(response.StatusCode, responseRaw); err != nil {
-		return nil, err
+	if statusErr := validateHTTPResponse(response.StatusCode, responseRaw); statusErr != nil {
+		return nil, statusErr
 	}
 	return responseRaw, nil
 }
@@ -130,7 +130,7 @@ func validateHTTPResponse(statusCode int, responseRaw []byte) error {
 func decodeAndValidateResult(operation flowinterop.Operation, responseRaw []byte) error {
 	var result flowinterop.Result
 	if err := json.Unmarshal(responseRaw, &result); err != nil {
-		return fmt.Errorf("%w: decode JSON: %v", errInvalidResponse, err)
+		return fmt.Errorf("%w: decode JSON: %w", errInvalidResponse, err)
 	}
 	return validateResult(operation, result)
 }
@@ -177,7 +177,7 @@ func validateResult(operation flowinterop.Operation, result flowinterop.Result) 
 		return errInvalidResponse
 	}
 	if err := result.Fidelity.Validate(); err != nil {
-		return fmt.Errorf("%w: fidelity: %v", errInvalidResponse, err)
+		return fmt.Errorf("%w: fidelity: %w", errInvalidResponse, err)
 	}
 	if err := validateDiagnostics(result.Diagnostics); err != nil {
 		return err
@@ -201,7 +201,7 @@ func validResultStatus(status flowinterop.ResultStatus) bool {
 func validateDiagnostics(diagnostics []flowinterop.Diagnostic) error {
 	for _, diagnostic := range diagnostics {
 		if err := diagnostic.Validate(); err != nil {
-			return fmt.Errorf("%w: diagnostic: %v", errInvalidResponse, err)
+			return fmt.Errorf("%w: diagnostic: %w", errInvalidResponse, err)
 		}
 	}
 	return nil
@@ -212,7 +212,7 @@ func validateSemanticDiff(diff *flowinterop.SemanticDiff) error {
 		return nil
 	}
 	if err := diff.Validate(); err != nil {
-		return fmt.Errorf("%w: semantic diff: %v", errInvalidResponse, err)
+		return fmt.Errorf("%w: semantic diff: %w", errInvalidResponse, err)
 	}
 	return nil
 }
