@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/infra/eventbus"
 	"github.com/matiasleandrokruk/fenix/internal/infra/sqlite/sqlcgen"
 	"github.com/matiasleandrokruk/fenix/pkg/uuid"
@@ -121,6 +122,7 @@ func (s *AuditService) LogWithDetails(
 		EntityID:    entityID,
 		Details:     detailsJSON,
 		Outcome:     outcome,
+		TraceID:     traceIDFromContext(ctx),
 		CreatedAt:   time.Now(),
 	}
 
@@ -128,6 +130,15 @@ func (s *AuditService) LogWithDetails(
 }
 
 // GetByID retrieves a single audit event by ID
+func traceIDFromContext(ctx context.Context) *string {
+	traceID, _ := ctx.Value(ctxkeys.TraceID).(string)
+	traceID = strings.TrimSpace(traceID)
+	if traceID == "" {
+		return nil
+	}
+	return &traceID
+}
+
 func (s *AuditService) GetByID(ctx context.Context, id string) (*AuditEvent, error) {
 	row, err := s.querier.GetAuditEventByID(ctx, id)
 	if err != nil {
