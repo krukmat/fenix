@@ -15,6 +15,7 @@ var (
 	ErrCapabilityGovernanceRequired = errors.New("external capability requires governance")
 )
 
+// SideEffectClass classifies the operational risk of a governed capability.
 type SideEffectClass string
 
 const (
@@ -42,16 +43,19 @@ type CapabilityGovernor interface {
 	CheckCapabilityExecution(ctx context.Context, descriptor CapabilityDescriptor) error
 }
 
+// IntegrationActor identifies the principal behind a governed execution.
 type IntegrationActor struct {
 	ID   string `json:"id"`
 	Type string `json:"type"`
 }
 
+// IntegrationCapabilityRef identifies the versioned semantic capability contract.
 type IntegrationCapabilityRef struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
 }
 
+// IntegrationExecutionContext is the provider-neutral execution identity propagated across external boundaries.
 type IntegrationExecutionContext struct {
 	SchemaVersion string                   `json:"schema_version"`
 	WorkspaceID   string                   `json:"workspace_id"`
