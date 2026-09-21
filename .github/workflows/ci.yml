@@ -104,7 +104,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.12'
+          go-version: '1.25.13'
           cache: true
 
       - name: Check cyclomatic complexity
@@ -129,7 +129,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.12'
+          go-version: '1.25.13'
           cache: true
 
       - name: Create venv and install Doorstop
@@ -195,12 +195,12 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.12'
+          go-version: '1.25.13'
           cache: true
 
       - name: Install golangci-lint
         run: |
-          # Install via go install so the binary is compiled with the same Go toolchain as CI (Go 1.25.8).
+          # Install via go install so the binary is compiled with the same Go toolchain as CI (Go 1.25.13).
           # The curl/sh binary installer ships a pre-built binary compiled with Go 1.24, which rejects
           # modules declaring go 1.25.0 (our go.mod was bumped to 1.25.0 by mcp go-sdk v1.4.1).
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
@@ -324,7 +324,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.12'
+          go-version: '1.25.13'
           cache: true
 
       - name: Run critical endpoint benchmarks
@@ -350,7 +350,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.12'
+          go-version: '1.25.13'
           cache: true
 
       - name: Run scheduled endpoint benchmarks
@@ -382,7 +382,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.12'
+          go-version: '1.25.13'
           cache: true
 
       - name: Create venv and install Schemathesis + Doorstop
