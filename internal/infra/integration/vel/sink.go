@@ -25,6 +25,7 @@ const (
 	headerAuthorization     = "Authorization"
 	providerOutcomeSuccess  = "success"
 	providerOutcomeError    = "error"
+	providerNameVEL         = "vel"
 )
 
 var errInvalidConfig = errors.New("invalid VEL integration configuration")
@@ -60,7 +61,7 @@ func (s *Sink) RecordEvidence(
 		if err != nil {
 			outcome = providerOutcomeError
 		}
-		telemetry.Default.ObserveProvider("vel", "append_external", outcome, time.Since(started))
+		telemetry.Default.ObserveProvider(providerNameVEL, "append_external", outcome, time.Since(started))
 	}()
 
 	request, err := s.newAppendRequest(ctx, envelope)
@@ -145,7 +146,7 @@ func (s *Sink) LookupEvidence(
 		if err != nil {
 			outcome = providerOutcomeError
 		}
-		telemetry.Default.ObserveProvider("vel", "lookup_external", outcome, time.Since(started))
+		telemetry.Default.ObserveProvider(providerNameVEL, "lookup_external", outcome, time.Since(started))
 	}()
 
 	request, err := s.newLookupRequest(ctx, streamID, executionID)
