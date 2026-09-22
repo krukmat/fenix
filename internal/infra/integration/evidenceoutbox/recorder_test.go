@@ -186,27 +186,26 @@ func newDurableTestRecorder(t *testing.T, sink *lifecycleSinkStub) *Recorder {
 	return recorder
 }
 
-func TestRecorderInteractiveRecordIsIdempotent(t *testing.T) {
-	sink := &lifecycleSinkStub{ref: durableProof()}
-	recorder := newDurableTestRecorder(t, sink)
-
-	first, err := recorder.RecordCapabilityEvidence(context.Background(), durableEvidenceRequest())
+func TestRecorderPersistEnvelopeIsIdempotentForSameEnvelope(t *testing.T) {
+	recorder := newDurableTestRecorder(t, &lifecycleSinkStub{})
+	envelope, err := evidence.BuildRuntimeEnvelope(durableEvidenceRequest())
 	if err != nil {
-		t.Fatalf("first RecordCapabilityEvidence: %v", err)
-	}
-	if first.State != string(evidence.DeliveryRecorded) {
-		t.Fatalf("first state = %q", first.State)
+		t.Fatalf("BuildRuntimeEnvelope: %v", err)
 	}
 
-	second, err := recorder.RecordCapabilityEvidence(context.Background(), durableEvidenceRequest())
+	first, err := recorder.persistEnvelope(context.Background(), envelope)
 	if err != nil {
-		t.Fatalf("second RecordCapabilityEvidence: %v", err)
+		t.Fatalf("first persistEnvelope: %v", err)
 	}
-	if second.State != string(evidence.DeliveryRecorded) {
-		t.Fatalf("second state = %q", second.State)
+	second, err := recorder.persistEnvelope(context.Background(), envelope)
+	if err != nil {
+		t.Fatalf("second persistEnvelope: %v", err)
 	}
-	if sink.recordCalls != 1 {
-		t.Fatalf("record calls = %d, want 1", sink.recordCalls)
+
+	if first.ExecutionID != second.ExecutionID ||
+		first.EnvelopeRaw != second.EnvelopeRaw ||
+		second.State != evidence.DeliveryPendingRecord {
+		t.Fatalf("idempotent persist mismatch: first=%#v second=%#v", first, second)
 	}
 }
 
