@@ -27,8 +27,8 @@ func (r *Recorder) reconcileRecords(ctx context.Context) error {
 		return err
 	}
 	for _, row := range rows {
-		if err := r.reconcileRecordRow(ctx, row); err != nil {
-			return err
+		if rowErr := r.reconcileRecordRow(ctx, row); rowErr != nil {
+			return rowErr
 		}
 	}
 	return nil
@@ -99,8 +99,8 @@ func (r *Recorder) reconcileVerification(ctx context.Context) error {
 		return err
 	}
 	for streamID, group := range groupByStream(rows) {
-		if err := r.verifyStreamGroup(ctx, streamID, group); err != nil {
-			return err
+		if verifyErr := r.verifyStreamGroup(ctx, streamID, group); verifyErr != nil {
+			return verifyErr
 		}
 	}
 	return nil
@@ -127,8 +127,8 @@ func (r *Recorder) verifyStreamGroup(
 		telemetry.Default.IncLifecycle("verification", "error")
 		return r.rescheduleVerificationGroup(ctx, rows, err)
 	}
-	if err := progress.Validate(); err != nil {
-		return r.rescheduleVerificationGroup(ctx, rows, err)
+	if validationErr := progress.Validate(); validationErr != nil {
+		return r.rescheduleVerificationGroup(ctx, rows, validationErr)
 	}
 	telemetry.Default.IncLifecycle("verification", string(progress.Status))
 	return r.applyVerificationProgress(ctx, rows, progress)
@@ -137,15 +137,15 @@ func (r *Recorder) verifyStreamGroup(
 func (r *Recorder) markGroupPendingCheckpoint(ctx context.Context, rows []deliveryRow) error {
 	due := r.now().Add(r.retryDelay)
 	for _, row := range rows {
-		if err := r.scheduleState(
+		if scheduleErr := r.scheduleState(
 			ctx,
 			row.ExecutionID,
 			evidence.DeliveryPendingCheckpoint,
 			nil,
 			&due,
 			false,
-		); err != nil {
-			return err
+		); scheduleErr != nil {
+			return scheduleErr
 		}
 	}
 	telemetry.Default.IncLifecycle("checkpoint", "requested")
@@ -159,15 +159,15 @@ func (r *Recorder) rescheduleVerificationGroup(
 ) error {
 	due := r.now().Add(r.retryDelay)
 	for _, row := range rows {
-		if err := r.scheduleState(
+		if scheduleErr := r.scheduleState(
 			ctx,
 			row.ExecutionID,
 			evidence.DeliveryPendingCheckpoint,
 			cause,
 			&due,
 			false,
-		); err != nil {
-			return err
+		); scheduleErr != nil {
+			return scheduleErr
 		}
 	}
 	return nil
@@ -179,24 +179,29 @@ func (r *Recorder) applyVerificationProgress(
 	progress evidence.VerificationProgress,
 ) error {
 	for _, row := range rows {
-		if row.Proof == nil {
-			return fmt.Errorf("verification row %s has no proof reference", row.ExecutionID)
-		}
-		if row.Proof.Sequence > progress.Checkpoint.TreeSize {
-			if err := r.rescheduleUncovered(ctx, row.ExecutionID); err != nil {
-				return err
-			}
-			continue
-		}
-		proof := *row.Proof
-		proof.Checkpoint = &progress.Checkpoint
-		proof.VerificationStatus = progress.Status
-		proof.VerificationIssues = append([]string(nil), progress.Issues...)
-		if err := r.markVerification(ctx, row.ExecutionID, proof); err != nil {
-			return err
+		if applyErr := r.applyVerificationRow(ctx, row, progress); applyErr != nil {
+			return applyErr
 		}
 	}
 	return nil
+}
+
+func (r *Recorder) applyVerificationRow(
+	ctx context.Context,
+	row deliveryRow,
+	progress evidence.VerificationProgress,
+) error {
+	if row.Proof == nil {
+		return fmt.Errorf("verification row %s has no proof reference", row.ExecutionID)
+	}
+	if row.Proof.Sequence > progress.Checkpoint.TreeSize {
+		return r.rescheduleUncovered(ctx, row.ExecutionID)
+	}
+	proof := *row.Proof
+	proof.Checkpoint = &progress.Checkpoint
+	proof.VerificationStatus = progress.Status
+	proof.VerificationIssues = append([]string(nil), progress.Issues...)
+	return r.markVerification(ctx, row.ExecutionID, proof)
 }
 
 func (r *Recorder) rescheduleUncovered(ctx context.Context, executionID string) error {
