@@ -109,7 +109,7 @@ func TestRecorderRecoversIndeterminateAppendAfterRestartAndVerifies(t *testing.T
 	if state != string(evidence.DeliveryVerified) {
 		t.Fatalf("durable state = %q", state)
 	}
-	if !strings.Contains(proofRaw, ""verification_status":"verified"") {
+	if !strings.Contains(proofRaw, "\"verification_status\":\"verified\"") {
 		t.Fatalf("proof not verified: %s", proofRaw)
 	}
 }
