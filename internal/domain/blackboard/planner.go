@@ -104,7 +104,7 @@ func BuildCollaborativePlan(
 			State:          state,
 			Constraints:    buildConstraints(ranked.Score, evidence, policy, cfg.MinReadyScore),
 			Contributors:   buildContributors(signal, evidence, policy),
-			Steps:          buildSteps(ranked, evidence, policy),
+			Steps:          buildSteps(ranked, evidence, policy, cfg.ActionSteps),
 		}
 		proposals = append(proposals, proposal)
 	}
@@ -255,7 +255,15 @@ func buildContributors(signal, evidence, policy *planningArtifact) []string {
 	return contributors
 }
 
-func buildSteps(ranked RankedHypothesis, evidence, policy *planningArtifact) []ToolSequenceStep {
+func buildSteps(
+	ranked RankedHypothesis,
+	evidence, policy *planningArtifact,
+	actionSteps []ToolSequenceStep,
+) []ToolSequenceStep {
+	if len(actionSteps) > 0 {
+		return bindActionSteps(actionSteps)
+	}
+
 	steps := []ToolSequenceStep{
 		{
 			Sequence: 1,
@@ -288,4 +296,15 @@ func buildSteps(ranked RankedHypothesis, evidence, policy *planningArtifact) []T
 		Reason:   "Execute the highest-ranked governed action when all constraints are satisfied.",
 	})
 	return steps
+}
+
+func bindActionSteps(actionSteps []ToolSequenceStep) []ToolSequenceStep {
+	bound := make([]ToolSequenceStep, 0, len(actionSteps))
+	for index, action := range actionSteps {
+		step := action
+		step.Sequence = index + 1
+		step.Params = append(json.RawMessage(nil), action.Params...)
+		bound = append(bound, step)
+	}
+	return bound
 }

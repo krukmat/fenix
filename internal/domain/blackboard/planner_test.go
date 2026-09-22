@@ -299,3 +299,81 @@ func TestPlannerBuildWorkspacePlan_PreservesArbitrationOrderAndPersistsResult(t 
 		t.Fatalf("arbitration memory mutated: %#v", unchanged.Ranked)
 	}
 }
+
+
+func TestPlannerBuildWorkspacePlan_BindsConcreteActionSteps(t *testing.T) {
+	db, cwID := setupPlannerDB(t)
+	store := blackboard.NewMemoryStore(db)
+	now := time.Date(2026, 9, 22, 10, 30, 0, 0, time.UTC)
+
+	persistMemoryJSON(t, store, cwID, blackboard.DefaultArbitrationMemoryKey, now, rankedResult(cwID, now,
+		blackboard.RankedHypothesis{
+			Rank:  1,
+			Score: 0.92,
+			Hypothesis: blackboard.SignalHypothesis{
+				ID:                   "hyp-w6-bound",
+				CognitiveWorkspaceID: cwID,
+				Content:              "validate and export the selected Salesforce Flow",
+				Confidence:           0.92,
+				Status:               blackboard.HypothesisStatusOpen,
+				CreatedAt:            now.Add(-10 * time.Minute),
+			},
+		},
+	))
+	persistMemoryJSON(t, store, cwID, "specialized_agents/blackboard-signal-agent/last_artifact", now, map[string]any{
+		"contributor":   "blackboard-signal-agent",
+		"artifact_type": "signal_hypothesis",
+		"summary":       "Signal agent selected the Flow interoperability hypothesis.",
+	})
+	persistMemoryJSON(t, store, cwID, "specialized_agents/blackboard-evidence-agent/last_artifact", now, map[string]any{
+		"contributor":   "blackboard-evidence-agent",
+		"artifact_type": "evidence_finding",
+		"summary":       "Evidence agent confirmed the Flow artifact is available.",
+	})
+
+	exportParams := json.RawMessage(`{"operation":"salesforce.flow.export"}`)
+	validateParams := json.RawMessage(`{"operation":"salesforce.flow.validate"}`)
+	result, err := blackboard.NewPlanner(db).BuildWorkspacePlan(context.Background(), cwID, blackboard.PlanningConfig{
+		Now: now,
+		ActionSteps: []blackboard.ToolSequenceStep{
+			{
+				Sequence: 99,
+				ToolName: "salesforce.flow.export",
+				Reason:   "Export the selected Flow.",
+				Params:   exportParams,
+			},
+			{
+				Sequence: 100,
+				ToolName: "salesforce.flow.validate",
+				Reason:   "Validate the same Flow.",
+				Params:   validateParams,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildWorkspacePlan(): %v", err)
+	}
+	if result.State != blackboard.PlanningStateReady || result.SelectedProposal == nil {
+		t.Fatalf("plan = %#v; want ready selected proposal", result)
+	}
+
+	proposal := result.SelectedProposal
+	if len(proposal.Contributors) != 2 ||
+		proposal.Contributors[0] != "blackboard-signal-agent" ||
+		proposal.Contributors[1] != "blackboard-evidence-agent" {
+		t.Fatalf("contributors = %#v", proposal.Contributors)
+	}
+	if len(proposal.Steps) != 2 {
+		t.Fatalf("steps = %#v; want only two bound executable actions", proposal.Steps)
+	}
+	if proposal.Steps[0].Sequence != 1 ||
+		proposal.Steps[0].ToolName != "salesforce.flow.export" ||
+		string(proposal.Steps[0].Params) != string(exportParams) {
+		t.Fatalf("first bound step = %#v", proposal.Steps[0])
+	}
+	if proposal.Steps[1].Sequence != 2 ||
+		proposal.Steps[1].ToolName != "salesforce.flow.validate" ||
+		string(proposal.Steps[1].Params) != string(validateParams) {
+		t.Fatalf("second bound step = %#v", proposal.Steps[1])
+	}
+}

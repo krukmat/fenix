@@ -131,6 +131,7 @@ type PlanningConfig struct {
 	ResultMemoryKey      string
 	MinReadyScore        float64
 	PersistResult        bool
+	ActionSteps          []ToolSequenceStep
 }
 
 // ToolSequenceStep is one planned governed action in execution order.
