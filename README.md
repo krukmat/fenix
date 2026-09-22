@@ -244,150 +244,124 @@ flowchart LR
 
 ---
 
-## Governed Cross-Platform Integration
+## How Fenix Connects to Salesforce and Verifiable Evidence
 
-Fenix keeps execution, semantic transformation, and cryptographic evidence as separate authorities.
-Mermaid2SF is exposed as a governed capability provider. VEL is **not** an agent tool and is not
-registered in the ToolRegistry; it participates through Fenix's evidence runtime only when the
-governance decision plans evidence.
+Fenix can ask external systems to do specialized work without giving up control of the execution.
+
+For Salesforce Flow work, Fenix uses **Mermaid2SF**. For tamper-evident proof of what happened,
+Fenix can use **VEL**. They solve different problems and neither one replaces Fenix.
 
 ```mermaid
 flowchart LR
-    AGENT[Agent] --> BB[Agentic Blackboard]
-    BB --> PLAN[Collaborative Planner]
-    PLAN --> EXEC[PlannerExecutor]
-    EXEC --> TR[ToolRegistry]
-    TR --> GOV[Fenix Governance]
-    GOV --> M2SF[Mermaid2SF]
-    M2SF --> RESULT[Semantic Result]
-    RESULT --> BB
+    A[Agent] --> B[Shared Blackboard]
+    B --> F[Fenix decides and executes]
+    F --> M[Mermaid2SF]
+    M --> R[Salesforce Flow result]
+    R --> B
 
-    GOV -. evidence planned .-> ER[Evidence Runtime / Durable Outbox]
-    ER --> VEL[VEL]
-    VEL --> PROOF[Compact Proof / Verification State]
-    PROOF --> AUDIT[Fenix Audit]
+    F -. when proof is needed .-> E[Evidence layer]
+    E --> V[VEL]
+    V --> P[Verified proof]
 ```
 
-Authority boundaries are intentionally narrow:
+### One task, step by step
 
-| Component | Responsibility |
+Example: an agent needs to turn a Mermaid flow into a Salesforce Flow.
+
+```text
+Agents share context
+        ↓
+Fenix builds the action plan
+        ↓
+Fenix checks whether the action is allowed
+        ↓
+Mermaid2SF converts / validates the Flow
+        ↓
+Fenix receives the result
+        ↓
+Agents continue with that result
+
+Optional:
+if this action must be evidenced
+        ↓
+Fenix sends a compact evidence record to VEL
+        ↓
+VEL records and verifies it
+```
+
+### Who is responsible for what?
+
+| Part | Job |
 |---|---|
-| **Fenix** | orchestration, governance, approvals and business execution authority |
-| **Agentic Blackboard** | multi-agent coordination, shared artifacts and collaborative planning |
-| **ToolRegistry** | governed capability execution seam |
-| **Mermaid2SF** | Salesforce Flow / FlowIR semantic authority |
-| **Evidence Runtime / Outbox** | durable evidence delivery and reconciliation owned by Fenix |
-| **VEL** | cryptographic evidence, checkpoint and independent verification authority |
+| **Fenix** | Coordinates agents, decides what may run, executes approved actions and keeps the operational audit |
+| **Blackboard** | Shared workspace where agents contribute findings and plans |
+| **Mermaid2SF** | Understands Salesforce Flow structure and converts between Salesforce Flow, FlowIR and Mermaid |
+| **VEL** | Records cryptographic evidence and independently verifies it |
 
-VEL is therefore orthogonal to the business capability path:
+Two rules keep the design simple:
 
-| M2SF | VEL | Meaning |
+1. **Agents do not call Mermaid2SF or VEL directly.** Fenix stays in control.
+2. **VEL is not a tool.** It is only used by Fenix when an execution needs verifiable evidence.
+
+### Mermaid2SF and VEL are independent
+
+Using Mermaid2SF does not automatically mean using VEL.
+
+| Mermaid2SF | VEL | What happens |
 |---|---|---|
-| yes | no | Salesforce semantic work without cryptographic evidence |
-| yes | yes | Salesforce semantic work plus evidence lifecycle |
-| no | yes | another governed Fenix capability may still produce evidence |
-| no | no | ordinary governed Fenix execution |
+| yes | no | Salesforce Flow work, no cryptographic evidence |
+| yes | yes | Salesforce Flow work plus verifiable evidence |
+| no | yes | Another Fenix action can still be evidenced |
+| no | no | Normal governed Fenix execution |
 
-The normal Salesforce Flow happy path is:
+### What happens when something fails?
 
-```text
-specialized agents
-      ↓
-Agentic Blackboard
-      ↓
-collaborative proposal
-      ↓
-PlannerExecutor
-      ↓
-ToolRegistry
-      ↓
-Fenix governance
-      ↓
-Mermaid2SF
-      ↓
-normalized semantic result
-      ↓
-Blackboard / agent-safe outcome
+Fenix keeps business execution separate from evidence recovery.
 
-if evidence_planned=true:
-      governance outcome
-             ↓
-      Evidence Runtime
-             ↓
-        durable outbox
-             ↓
-             VEL
-             ↓
- compact proof / verification state
+```mermaid
+flowchart TD
+    X[Business action succeeds] --> Y{Evidence available?}
+    Y -->|yes| Z[Record and verify proof]
+    Y -->|no| Q[Keep business result]
+    Q --> W[Mark evidence as pending / indeterminate]
+    W --> K[Retry evidence later]
+    K --> Z
 ```
 
-This separation is also the resilience boundary: evidence recovery can continue after restart
-without replaying the Mermaid2SF business capability.
+This means an evidence problem does **not** cause Fenix to repeat the business action.
 
-> Integration proof and implementation status:
-> [`docs/plans/fenix-integration-w6-functional-execution.md`](docs/plans/fenix-integration-w6-functional-execution.md)
+| Situation | Fenix behavior |
+|---|---|
+| Mermaid2SF temporarily fails | Retry the same logical execution with the same execution ID |
+| Mermaid2SF keeps failing | Stop with an explicit failure; do not invent a result |
+| VEL is unavailable | Keep the successful business result and mark evidence as unresolved |
+| Verification fails | Keep the business result but never claim that it was verified |
+| Fenix restarts | Resume evidence reconciliation without repeating the business action |
 
-### Failure behavior
+### Technical proof
 
-The integration is designed so evidence problems never silently become business-action retries:
+The integration behavior is exercised in:
 
-| Condition | Business result | Evidence state | Business replay |
-|---|---|---|---|
-| M2SF transient 5xx | succeeds after bounded retry | policy-dependent | retry keeps the same execution ID |
-| M2SF persistent 5xx | explicit failure; no invented result | none | bounded provider retry only |
-| VEL unavailable | successful capability result is preserved | `indeterminate` | no |
-| verification failure | successful capability result is preserved | `verification_failed` | no |
-| process restart | preserved | outbox reconciles to terminal state | no |
+`internal/api/integration_runtime_w6_test.go`
 
-The restart path is intentionally separate:
+It covers:
 
-```text
-business capability already completed
-            ↓
-durable evidence row
-            ↓
-restart / new recorder
-            ↓
-lookup by execution_id
-            ↓
-checkpoint + verify
-            ↓
-compact verified proof
+- governed Salesforce Flow execution with evidence on and off;
+- multi-agent planning through the Blackboard;
+- stable execution identity across retries;
+- provider failure handling;
+- evidence failure and verification failure;
+- restart-safe evidence reconciliation without business replay.
 
-NO second business capability invocation
-```
+For the detailed contracts and implementation history, see:
 
-### Executable integration proof
+- [`docs/plans/fenix-integration-w2-mermaid2sf-contract.md`](docs/plans/fenix-integration-w2-mermaid2sf-contract.md)
+- [`docs/plans/fenix-integration-w3-vel-contract.md`](docs/plans/fenix-integration-w3-vel-contract.md)
+- [`docs/plans/fenix-integration-w4-governance-contract.md`](docs/plans/fenix-integration-w4-governance-contract.md)
+- [`docs/plans/fenix-integration-w6-functional-execution.md`](docs/plans/fenix-integration-w6-functional-execution.md)
 
-The W6 functional proof is concentrated in
-`internal/api/integration_runtime_w6_test.go`:
-
-- `TestW6A_BlackboardExecutesGovernedM2SFWithOptionalEvidence` — first governed vertical slice;
-- `TestW6B_CollaborativePlanExecutesDistinctGovernedStepsWithStableRetryIdentity` — multi-agent proposal, retries and execution identity;
-- `TestW6B_NotReadyCollaborationDefersBeforeProviderInvocation` — collaboration defers before provider execution;
-- `TestW6C_M2SFUnavailableFailsExplicitlyWithoutInventedResult` — explicit semantic-provider failure;
-- `TestW6C_OptionalVELUnavailablePreservesBusinessResultAsIndeterminateEvidence` — evidence outage without business replay;
-- `TestW6C_VerificationFailureCannotBePresentedAsVerified` — failed verification remains explicit;
-- `TestW6C_RestartReconcilesEvidenceWithoutReplayingM2SF` — durable restart/reconciliation proof.
-
-Supporting contracts:
-
-- [`docs/plans/fenix-integration-w2-mermaid2sf-contract.md`](docs/plans/fenix-integration-w2-mermaid2sf-contract.md) — Salesforce/FlowIR semantic boundary;
-- [`docs/plans/fenix-integration-w3-vel-contract.md`](docs/plans/fenix-integration-w3-vel-contract.md) — evidence/proof boundary;
-- [`docs/plans/fenix-integration-w4-governance-contract.md`](docs/plans/fenix-integration-w4-governance-contract.md) — governance and evidence-selection semantics;
-- [`docs/plans/fenix-integration-w5c-operational-readiness.md`](docs/plans/fenix-integration-w5c-operational-readiness.md) — durable outbox, verification lifecycle and observability;
-- [`docs/plans/fenix-integration-w6-functional-execution.md`](docs/plans/fenix-integration-w6-functional-execution.md) — complete functional integration handoff.
-
-**Validation note:** W5-C closed under the explicitly accepted 82.9% vs 83.0% coverage waiver.
-W6 proof changes were committed without another global QA run; they are not represented as a new
-fully green CI validation.
-
-### After W6
-
-W6 closes the integration architecture and functional proof. It does **not** imply another
-integration layer. The next planning decision is productization: either run a live three-process
-demo against real Mermaid2SF + VEL instances, or consume the governed integration from a concrete
-product use case. A new wave should be created only after that decision.
+**Current validation note:** W5-C closed with the accepted 82.9% vs 83.0% coverage waiver.
+The W6 functional proofs were added without another full QA run.
 
 ## Project Structure
 
