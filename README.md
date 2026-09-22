@@ -121,20 +121,6 @@ That separation also protects retries: if evidence cannot be recorded, Fenix doe
 
 **Stack:** Go · SQLite · Express.js BFF · React Native / Expo
 
-```text
-Mobile
-  ↓
-BFF
-  ↓
-Go backend
-  ├─ agents + Blackboard
-  ├─ knowledge / retrieval
-  ├─ policy + approvals
-  ├─ ToolRegistry
-  ├─ audit / observability
-  └─ SQLite
-```
-
 ```mermaid
 flowchart LR
     MOB[Mobile] --> BFF[BFF]
@@ -154,26 +140,15 @@ For the full system model, ERD and API view, see [Architecture](docs/architectur
 
 ## Current status
 
-The core platform is implemented:
+The core product already includes governed agents, grounded retrieval, policy and approvals,
+multi-agent Blackboard coordination, declarative workflows, mobile/admin surfaces and audit.
 
-- governed agent execution;
-- retrieval and evidence-backed context;
-- policy and human approval;
-- multi-agent Blackboard coordination;
-- declarative workflow engine;
-- mobile and admin surfaces;
-- Mermaid2SF integration;
-- optional VEL evidence lifecycle;
-- restart-safe evidence reconciliation.
+The cross-platform integration program through **W6 is closed** at architecture, runtime and
+functional-proof level.
 
-The integration program through **W6 is closed** at architecture/runtime/proof level.
-
-Two validation caveats remain explicit:
-
-- the last full W5 validation reached **82.9%** coverage against an **83.0%** gate; the 0.1-point gap was accepted without lowering the threshold;
-- W6 functional proof changes were committed without another full QA run.
-
-A live three-process smoke using real Fenix + Mermaid2SF + VEL processes remains an optional acceptance step before production-style use.
+Production-style acceptance remains a separate step. The exact QA caveats and the optional live
+Fenix + Mermaid2SF + VEL smoke are documented in the
+[integration guide](docs/integration-overview.md#validation-boundary).
 
 ---
 
