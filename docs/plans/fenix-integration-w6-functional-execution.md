@@ -142,7 +142,7 @@ Exercise functional behavior when M2SF or VEL is unavailable:
 
 ## W6-C implementation status
 
-**IN PROGRESS — first block C1-C4 implemented, 2026-09-22**
+**CLOSED — C1-C7 implemented, 2026-09-22**
 
 The first resilience block is preserved in `internal/api/integration_runtime_w6_test.go`.
 
@@ -157,15 +157,19 @@ The first resilience block is preserved in `internal/api/integration_runtime_w6_
 - **C4 — verification failure:** M2SF succeeds once; the provider result remains present while
   Fenix exposes `evidence_verification_failed` and never presents the execution as verified.
 
-No production runtime change was required for C1-C4; the existing W1-W5 contracts already implement
-the intended behavior. The block adds end-to-end Blackboard projections proving those semantics.
+- **C5 — restart/reconciliation:** a real durable outbox recorder persists an indeterminate append,
+  then a fresh recorder instance reconciles the same SQLite row by execution identity, advances
+  through checkpoint/verify, and reaches `verified`. M2SF remains at one business call.
+- **C6 — agent-safe projection:** persisted Blackboard failure state retains provider output plus
+  explicit evidence error status while excluding verification bundles, event hashes, Merkle roots,
+  signature references and reasoning traces.
+- **C7 — consolidated proof:** C1-C6 now form the resilience portion of the W6 demo/handoff.
 
-No full GitHub QA run was started, per the repository-owner QA decision. A local targeted Go test
-was attempted but this execution environment could not resolve GitHub to clone the repository, so
-this block is recorded as implementation/proof complete rather than globally QA-validated.
+No production runtime change was required for W6-C; the W1-W5 contracts already implement these
+semantics. W6-C adds the functional vertical proofs.
 
-Remaining W6-C work: C5 restart/reconciliation, C6 Blackboard failure projection hardening, and C7
-resilience proof consolidation.
+No full GitHub QA run was started, per the repository-owner QA decision. The proof is therefore
+recorded as implementation-complete rather than represented as a globally green QA run.
 
 ## W6-D — Product/demo handoff
 
