@@ -53,5 +53,7 @@ func MetricsHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprintf(w, "# HELP fenixcrm_uptime_seconds Process uptime in seconds\n")
 	fmt.Fprintf(w, "# TYPE fenixcrm_uptime_seconds gauge\n")
 	fmt.Fprintf(w, "fenixcrm_uptime_seconds %.2f\n", Metrics.UptimeSeconds())
-	_, _ = fmt.Fprint(w, telemetry.Default.Prometheus())
+	if _, err := fmt.Fprint(w, telemetry.Default.Prometheus()); err != nil {
+		return
+	}
 }
