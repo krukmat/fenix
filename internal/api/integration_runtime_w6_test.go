@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -84,6 +85,20 @@ func (r *w6BoundaryEvidenceRecorder) RecordCapabilityEvidence(
 			"stream_id":    envelope.StreamID,
 		},
 	}, nil
+}
+
+type w6ResilienceEvidenceRecorder struct {
+	result   tool.CapabilityEvidenceResult
+	err      error
+	requests []tool.CapabilityEvidenceRequest
+}
+
+func (r *w6ResilienceEvidenceRecorder) RecordCapabilityEvidence(
+	_ context.Context,
+	request tool.CapabilityEvidenceRequest,
+) (tool.CapabilityEvidenceResult, error) {
+	r.requests = append(r.requests, request)
+	return r.result, r.err
 }
 
 type w6ProviderCall struct {
@@ -715,4 +730,222 @@ func TestW6B_NotReadyCollaborationDefersBeforeProviderInvocation(t *testing.T) {
 	if calls != 0 {
 		t.Fatalf("provider calls = %d, want 0 while collaboration is not ready", calls)
 	}
+}
+
+
+func TestW6C_M2SFUnavailableFailsExplicitlyWithoutInventedResult(t *testing.T) {
+	db, workspace := setupW6FunctionalWorkspace(t)
+
+	var mu sync.Mutex
+	calls := make([]w6ProviderCall, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		var semanticRequest flowinterop.Request
+		if err := json.NewDecoder(request.Body).Decode(&semanticRequest); err != nil {
+			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		calls = append(calls, w6ProviderCall{
+			traceID:     request.Header.Get("X-Fenix-Trace-ID"),
+			executionID: request.Header.Get("X-Fenix-Execution-ID"),
+			request:     semanticRequest,
+		})
+		mu.Unlock()
+		http.Error(w, "provider unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	registry := tool.NewToolRegistry(db)
+	settings := crossPlatformRuntimeSettings{
+		M2SF: providerRuntimeSettings{
+			BaseURL: server.URL,
+			Token:   "test-token",
+			Enabled: true,
+		},
+		Timeout: 2 * time.Second,
+	}
+	if err := configureCrossPlatformRuntime(registry, settings); err != nil {
+		t.Fatalf("configureCrossPlatformRuntime: %v", err)
+	}
+	governancePlanner, err := newCrossPlatformGovernancePlanner(
+		crossPlatformPolicySelector{optionalM2SFEvidence: false},
+	)
+	if err != nil {
+		t.Fatalf("newCrossPlatformGovernancePlanner: %v", err)
+	}
+	registry.SetCapabilityGovernancePlanner(governancePlanner)
+
+	traceID := "trace-w6-c-m2sf-down"
+	ctx := ctxkeys.WithValue(context.Background(), ctxkeys.TraceID, traceID)
+	ctx = ctxkeys.WithValue(ctx, ctxkeys.UserID, "agent-w6")
+	executor := blackboard.NewPlannerExecutor(db, nil, nil, registry, nil)
+
+	outcome, err := executor.Execute(ctx, workspace, w6ExportPlan(workspace.ID))
+	if err != nil {
+		t.Fatalf("PlannerExecutor.Execute: %v", err)
+	}
+	if outcome.DeferralReason != "tool_failure" || len(outcome.Executed) != 1 {
+		t.Fatalf("outcome = %#v", outcome)
+	}
+	if len(outcome.Executed[0].Result) != 0 {
+		t.Fatalf("M2SF failure produced invented result: %s", outcome.Executed[0].Result)
+	}
+	if !strings.Contains(outcome.Executed[0].Error, string(tool.ToolErrorCapabilityFailed)) {
+		t.Fatalf("tool error = %q", outcome.Executed[0].Error)
+	}
+
+	mu.Lock()
+	recorded := append([]w6ProviderCall(nil), calls...)
+	mu.Unlock()
+	if len(recorded) != 2 {
+		t.Fatalf("M2SF calls = %d, want 2 bounded attempts", len(recorded))
+	}
+	if recorded[0].executionID == "" || recorded[1].executionID != recorded[0].executionID {
+		t.Fatalf("execution identity across failed retries = %#v", recorded)
+	}
+	if recorded[0].traceID != traceID || recorded[1].traceID != traceID {
+		t.Fatalf("trace identity across failed retries = %#v", recorded)
+	}
+}
+
+func TestW6C_OptionalVELUnavailablePreservesBusinessResultAsIndeterminateEvidence(t *testing.T) {
+	recorder := &w6ResilienceEvidenceRecorder{
+		result: tool.CapabilityEvidenceResult{State: "indeterminate"},
+		err:    errors.New("evidence provider unavailable"),
+	}
+	outcome, providerCalls := executeW6CExportWithEvidenceRecorder(
+		t,
+		"trace-w6-c-vel-down",
+		recorder,
+	)
+
+	if providerCalls != 1 {
+		t.Fatalf("provider calls = %d, want 1", providerCalls)
+	}
+	if len(recorder.requests) != 1 {
+		t.Fatalf("evidence calls = %d, want 1", len(recorder.requests))
+	}
+	if outcome.DeferralReason != "tool_failure" || len(outcome.Executed) != 1 {
+		t.Fatalf("outcome = %#v", outcome)
+	}
+	step := outcome.Executed[0]
+	if len(step.Result) == 0 {
+		t.Fatal("business result was lost when optional evidence became unavailable")
+	}
+	if !strings.Contains(step.Error, string(tool.ToolErrorEvidenceIndeterminate)) {
+		t.Fatalf("tool error = %q", step.Error)
+	}
+
+	var result flowinterop.Result
+	if err := json.Unmarshal(step.Result, &result); err != nil {
+		t.Fatalf("decode preserved provider result: %v", err)
+	}
+	if result.Status != flowinterop.ResultSucceeded || result.ProviderReference != "m2sf-w6-c" {
+		t.Fatalf("preserved provider result = %#v", result)
+	}
+}
+
+func TestW6C_VerificationFailureCannotBePresentedAsVerified(t *testing.T) {
+	recorder := &w6ResilienceEvidenceRecorder{
+		result: tool.CapabilityEvidenceResult{
+			State: "verification_failed",
+			AuditMetadata: map[string]any{
+				"verification_status": "failed",
+				"issue_count":         1,
+			},
+		},
+	}
+	outcome, providerCalls := executeW6CExportWithEvidenceRecorder(
+		t,
+		"trace-w6-c-verification-failed",
+		recorder,
+	)
+
+	if providerCalls != 1 || len(recorder.requests) != 1 {
+		t.Fatalf("provider=%d evidence=%d, want 1/1", providerCalls, len(recorder.requests))
+	}
+	if outcome.DeferralReason != "tool_failure" || len(outcome.Executed) != 1 {
+		t.Fatalf("outcome = %#v", outcome)
+	}
+	step := outcome.Executed[0]
+	if len(step.Result) == 0 {
+		t.Fatal("business result was lost after evidence verification failure")
+	}
+	if !strings.Contains(step.Error, string(tool.ToolErrorEvidenceVerificationFailed)) {
+		t.Fatalf("tool error = %q", step.Error)
+	}
+}
+
+func executeW6CExportWithEvidenceRecorder(
+	t *testing.T,
+	traceID string,
+	recorder tool.CapabilityEvidenceRecorder,
+) (*blackboard.ExecutionOutcome, int) {
+	t.Helper()
+
+	db, workspace := setupW6FunctionalWorkspace(t)
+	var mu sync.Mutex
+	providerCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		mu.Lock()
+		providerCalls++
+		mu.Unlock()
+		_ = json.NewEncoder(w).Encode(flowinterop.Result{
+			ContractVersion: flowinterop.ContractVersion,
+			Operation:       flowinterop.OperationExport,
+			Status:          flowinterop.ResultSucceeded,
+			Artifacts: []flowinterop.Artifact{{
+				Format:  flowinterop.FormatSalesforceFlowXML,
+				Name:    "Demo",
+				Content: "<Flow />",
+			}},
+			Fidelity: flowinterop.FidelityReport{
+				ContractVersion: flowinterop.ContractVersion,
+				Level:           flowinterop.FidelityGuaranteed,
+				FlowFamily:      flowinterop.FlowFamilyAutolaunched,
+			},
+			SemanticMetadata: flowinterop.SemanticMetadata{
+				FlowFamily:  flowinterop.FlowFamilyAutolaunched,
+				FlowAPIName: "Demo",
+			},
+			ProviderReference: "m2sf-w6-c",
+		})
+	}))
+	defer server.Close()
+
+	registry := tool.NewToolRegistry(db)
+	settings := crossPlatformRuntimeSettings{
+		M2SF: providerRuntimeSettings{
+			BaseURL: server.URL,
+			Token:   "test-token",
+			Enabled: true,
+		},
+		Timeout:              2 * time.Second,
+		M2SFOptionalEvidence: true,
+	}
+	if err := configureCrossPlatformRuntime(registry, settings); err != nil {
+		t.Fatalf("configureCrossPlatformRuntime: %v", err)
+	}
+	governancePlanner, err := newCrossPlatformGovernancePlanner(
+		crossPlatformPolicySelector{optionalM2SFEvidence: true},
+	)
+	if err != nil {
+		t.Fatalf("newCrossPlatformGovernancePlanner: %v", err)
+	}
+	registry.SetCapabilityGovernancePlanner(governancePlanner)
+	registry.SetCapabilityEvidenceRecorder(recorder)
+
+	ctx := ctxkeys.WithValue(context.Background(), ctxkeys.TraceID, traceID)
+	ctx = ctxkeys.WithValue(ctx, ctxkeys.UserID, "agent-w6")
+	ctx = ctxkeys.WithValue(ctx, ctxkeys.RunID, "run-w6-c")
+	executor := blackboard.NewPlannerExecutor(db, nil, nil, registry, nil)
+	outcome, err := executor.Execute(ctx, workspace, w6ExportPlan(workspace.ID))
+	if err != nil {
+		t.Fatalf("PlannerExecutor.Execute: %v", err)
+	}
+
+	mu.Lock()
+	calls := providerCalls
+	mu.Unlock()
+	return outcome, calls
 }
