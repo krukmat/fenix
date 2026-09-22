@@ -295,7 +295,7 @@ The rule is the same in both cases:
 - If an external system is unavailable, Fenix reports the failure instead of inventing a result.
 - A failure in an external system should not silently repeat an already completed business action.
 
-The goal is not to avoid external systems. It is to use them without losing control of the workflow.
+External systems are treated as dependencies that may fail; Fenix keeps permissions, execution identity, retries and failure handling on its side.
 
 [Read the integration guide, failure model and proof index →](docs/integration-overview.md)
 
