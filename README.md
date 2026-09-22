@@ -12,7 +12,7 @@
 - [Inside the agent loop](#inside-the-agent-loop)
 - [From copilot to controlled execution](#from-copilot-to-controlled-execution)
 - [See it in action](#see-it-in-action)
-- [A small stack of purpose-built components](#a-small-stack-of-purpose-built-components)
+- [Built as a toolchain, not a monolith](#built-as-a-toolchain-not-a-monolith)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Explore the code](#explore-the-code)
 - [Run it](#run-it)
@@ -176,16 +176,16 @@ This is what the operating model looks like in the product. The screenshots come
 
 ---
 
-## A small stack of purpose-built components
+## Built as a toolchain, not a monolith
 
-Fenix is part of a small set of purpose-built projects that were designed to work together. They are
-not third-party products or external platform dependencies: each one owns a narrow problem and keeps
-that logic out of the others.
+Fenix, Mermaid2SF and VEL are separate repositories in the same internally developed stack. The split
+is an architecture choice, not a third-party dependency: each project owns one problem well and keeps
+that complexity out of the others.
 
 ### Mermaid2SF — move between Salesforce and a human-readable model
 
-**[Mermaid2SF](https://github.com/krukmat/Mermaid2SF)** is one of those companion projects. It
-focuses on a simple question:
+**[Mermaid2SF](https://github.com/krukmat/Mermaid2SF)** is the Flow-focused part of that toolchain.
+It starts from a simple question:
 
 > Can a Salesforce Flow move into a readable diagram, be inspected or changed, and come back without
 > losing its meaning?
@@ -217,8 +217,8 @@ participate in a path back to Salesforce Flow.
 
 ### VEL — keep proof separate from the action itself
 
-**[Verifiable Event Ledger (VEL)](https://github.com/krukmat/verifiable-event-ledger)** is another
-companion project, focused on a different question:
+**[Verifiable Event Ledger (VEL)](https://github.com/krukmat/verifiable-event-ledger)** is the
+evidence-focused part of the same toolchain, built around a different question:
 
 > After Fenix performs an action, can the evidence of that execution be independently checked later
 > instead of being trusted only because it sits in an application database?
