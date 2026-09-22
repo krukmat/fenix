@@ -1,0 +1,24 @@
+{
+  "blocked_message": "response cut by token limit; output may be truncated \u2014 increase FENIX_REVIEW_NUM_PREDICT or review packet manually",
+  "blocked_reason": "stream_error",
+  "reports": {
+    "blocked_json_path": "docs/reports/push-review/artifacts/2026-09-22-f97a430/blocked.json",
+    "fallback_packet_path": "docs/reports/push-review/artifacts/2026-09-22-f97a430/blocked.json",
+    "markdown_summary_path": "logs/gemma-push-review/f97a4300f8f04c59b2f81606d5fb81784df1a8df/35697139481/reports/2026-09-22-f97a430.md"
+  },
+  "role": "gemma-push-reviewer",
+  "run_context": {
+    "branch": "main",
+    "conclusion": "failure",
+    "head_sha": "f97a4300f8f04c59b2f81606d5fb81784df1a8df",
+    "run_id": 35694469242,
+    "url": "https://api.github.com/repos/krukmat/fenix/actions/runs/35694469242"
+  },
+  "schema_version": 1,
+  "sentinel": "blocked",
+  "source_artifacts": {
+    "blocked_json_path": "logs/gemma-push-review/f97a4300f8f04c59b2f81606d5fb81784df1a8df/35697139481/blocked.json",
+    "raw_completion_path": null
+  },
+  "ts": "2026-09-22T07:01:56.583210Z"
+}
