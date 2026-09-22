@@ -12,7 +12,7 @@
 - [How it works](#how-it-works)
 - [Why this is technically interesting](#why-this-is-technically-interesting)
 - [Product surfaces](#product-surfaces)
-- [Where it gets interesting: controlled agents that can act](#where-it-gets-interesting-controlled-agents-that-can-act)
+- [External capabilities without losing control](#external-capabilities-without-losing-control)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Developer tour](#developer-tour)
 - [Quick start](#quick-start)
@@ -63,7 +63,6 @@ The result is not just an AI answer: it is an **inspectable operational run**.
 
 ---
 
-
 ## Why this is technically interesting
 
 Fenix is built around a few constraints that become more interesting once agents are allowed to **do** things instead of only generate text.
@@ -109,7 +108,7 @@ These screens are generated from the live product using the screenshot suites.
 
 ---
 
-## Where it gets interesting: controlled agents that can act
+## External capabilities without losing control
 
 Fenix can use external specialists without giving up control.
 
@@ -166,7 +165,6 @@ flowchart LR
 For the full system model, ERD and API view, see [Architecture](docs/architecture.md).
 
 ---
-
 
 ## Developer tour
 
