@@ -14,10 +14,8 @@ type VerificationProgress struct {
 
 // Validate enforces the compact provider-to-Fenix verification contract.
 func (p VerificationProgress) Validate() error {
-	if !validCheckpointReference(p.Checkpoint) {
-		return ErrVerificationProgressInvalid
-	}
-	if p.Status != VerificationVerified && p.Status != VerificationFailed {
+	if !validCheckpointReference(p.Checkpoint) ||
+		(p.Status != VerificationVerified && p.Status != VerificationFailed) {
 		return ErrVerificationProgressInvalid
 	}
 	return nil
