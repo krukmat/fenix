@@ -18,6 +18,7 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/evidence"
 	"github.com/matiasleandrokruk/fenix/internal/domain/flowinterop"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
+	evidenceoutbox "github.com/matiasleandrokruk/fenix/internal/infra/integration/evidenceoutbox"
 	isqlite "github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 )
 
@@ -99,6 +100,41 @@ func (r *w6ResilienceEvidenceRecorder) RecordCapabilityEvidence(
 ) (tool.CapabilityEvidenceResult, error) {
 	r.requests = append(r.requests, request)
 	return r.result, r.err
+}
+
+type w6RestartLifecycleSink struct {
+	recordErr         error
+	lookupRef         *evidence.ProofReference
+	progress          evidence.VerificationProgress
+	recordCalls       int
+	lookupCalls       int
+	verificationCalls int
+	envelopes         []evidence.Envelope
+}
+
+func (s *w6RestartLifecycleSink) RecordEvidence(
+	_ context.Context,
+	envelope evidence.Envelope,
+) (evidence.ProofReference, error) {
+	s.recordCalls++
+	s.envelopes = append(s.envelopes, envelope)
+	return evidence.ProofReference{}, s.recordErr
+}
+
+func (s *w6RestartLifecycleSink) LookupEvidence(
+	_ context.Context,
+	_, _ string,
+) (*evidence.ProofReference, error) {
+	s.lookupCalls++
+	return s.lookupRef, nil
+}
+
+func (s *w6RestartLifecycleSink) CheckpointAndVerify(
+	_ context.Context,
+	_ string,
+) (evidence.VerificationProgress, error) {
+	s.verificationCalls++
+	return s.progress, nil
 }
 
 type w6ProviderCall struct {
@@ -732,7 +768,6 @@ func TestW6B_NotReadyCollaborationDefersBeforeProviderInvocation(t *testing.T) {
 	}
 }
 
-
 func TestW6C_M2SFUnavailableFailsExplicitlyWithoutInventedResult(t *testing.T) {
 	db, workspace := setupW6FunctionalWorkspace(t)
 
@@ -813,7 +848,7 @@ func TestW6C_OptionalVELUnavailablePreservesBusinessResultAsIndeterminateEvidenc
 		result: tool.CapabilityEvidenceResult{State: "indeterminate"},
 		err:    errors.New("evidence provider unavailable"),
 	}
-	outcome, providerCalls := executeW6CExportWithEvidenceRecorder(
+	outcome, providerCalls, projection := executeW6CExportWithEvidenceRecorder(
 		t,
 		"trace-w6-c-vel-down",
 		recorder,
@@ -843,6 +878,11 @@ func TestW6C_OptionalVELUnavailablePreservesBusinessResultAsIndeterminateEvidenc
 	if result.Status != flowinterop.ResultSucceeded || result.ProviderReference != "m2sf-w6-c" {
 		t.Fatalf("preserved provider result = %#v", result)
 	}
+	assertW6CAgentSafeFailureProjection(
+		t,
+		projection,
+		string(tool.ToolErrorEvidenceIndeterminate),
+	)
 }
 
 func TestW6C_VerificationFailureCannotBePresentedAsVerified(t *testing.T) {
@@ -855,7 +895,7 @@ func TestW6C_VerificationFailureCannotBePresentedAsVerified(t *testing.T) {
 			},
 		},
 	}
-	outcome, providerCalls := executeW6CExportWithEvidenceRecorder(
+	outcome, providerCalls, projection := executeW6CExportWithEvidenceRecorder(
 		t,
 		"trace-w6-c-verification-failed",
 		recorder,
@@ -874,13 +914,18 @@ func TestW6C_VerificationFailureCannotBePresentedAsVerified(t *testing.T) {
 	if !strings.Contains(step.Error, string(tool.ToolErrorEvidenceVerificationFailed)) {
 		t.Fatalf("tool error = %q", step.Error)
 	}
+	assertW6CAgentSafeFailureProjection(
+		t,
+		projection,
+		string(tool.ToolErrorEvidenceVerificationFailed),
+	)
 }
 
 func executeW6CExportWithEvidenceRecorder(
 	t *testing.T,
 	traceID string,
 	recorder tool.CapabilityEvidenceRecorder,
-) (*blackboard.ExecutionOutcome, int) {
+) (*blackboard.ExecutionOutcome, int, string) {
 	t.Helper()
 
 	db, workspace := setupW6FunctionalWorkspace(t)
@@ -944,8 +989,239 @@ func executeW6CExportWithEvidenceRecorder(
 		t.Fatalf("PlannerExecutor.Execute: %v", err)
 	}
 
+	entry, err := blackboard.NewMemoryStore(db).Get(
+		context.Background(),
+		workspace.ID,
+		blackboard.DefaultPlannerExecutionResultMemoryKey,
+	)
+	if err != nil {
+		t.Fatalf("load persisted Blackboard failure projection: %v", err)
+	}
+
 	mu.Lock()
 	calls := providerCalls
 	mu.Unlock()
-	return outcome, calls
+	return outcome, calls, string(entry.Value)
+}
+
+func assertW6CAgentSafeFailureProjection(
+	t *testing.T,
+	projection string,
+	expectedErrorCode string,
+) {
+	t.Helper()
+
+	if !strings.Contains(projection, "m2sf-w6-c") {
+		t.Fatalf("Blackboard failure projection lost provider result: %s", projection)
+	}
+	if !strings.Contains(projection, expectedErrorCode) {
+		t.Fatalf(
+			"Blackboard failure projection missing %q: %s",
+			expectedErrorCode,
+			projection,
+		)
+	}
+	for _, forbidden := range []string{
+		"verification_bundle",
+		"portable_bundle",
+		"event_hash",
+		"merkle_root",
+		"signature_ref",
+		"reasoning_trace",
+	} {
+		if strings.Contains(projection, forbidden) {
+			t.Fatalf("Blackboard failure projection leaked %q: %s", forbidden, projection)
+		}
+	}
+}
+
+func TestW6C_RestartReconcilesEvidenceWithoutReplayingM2SF(t *testing.T) {
+	db, workspace := setupW6FunctionalWorkspace(t)
+
+	var providerMu sync.Mutex
+	providerCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		providerMu.Lock()
+		providerCalls++
+		providerMu.Unlock()
+		_ = json.NewEncoder(w).Encode(flowinterop.Result{
+			ContractVersion: flowinterop.ContractVersion,
+			Operation:       flowinterop.OperationExport,
+			Status:          flowinterop.ResultSucceeded,
+			Artifacts: []flowinterop.Artifact{{
+				Format:  flowinterop.FormatSalesforceFlowXML,
+				Name:    "Demo",
+				Content: "<Flow />",
+			}},
+			Fidelity: flowinterop.FidelityReport{
+				ContractVersion: flowinterop.ContractVersion,
+				Level:           flowinterop.FidelityGuaranteed,
+				FlowFamily:      flowinterop.FlowFamilyAutolaunched,
+			},
+			SemanticMetadata: flowinterop.SemanticMetadata{
+				FlowFamily:  flowinterop.FlowFamilyAutolaunched,
+				FlowAPIName: "Demo",
+			},
+			ProviderReference: "m2sf-w6-c-restart",
+		})
+	}))
+	defer server.Close()
+
+	firstSink := &w6RestartLifecycleSink{
+		recordErr: evidence.NewIndeterminateRecordError(errors.New("lost append response")),
+	}
+	firstRecorder, err := evidenceoutbox.NewRecorder(db, firstSink)
+	if err != nil {
+		t.Fatalf("create first durable recorder: %v", err)
+	}
+
+	registry := tool.NewToolRegistry(db)
+	settings := crossPlatformRuntimeSettings{
+		M2SF: providerRuntimeSettings{
+			BaseURL: server.URL,
+			Token:   "test-token",
+			Enabled: true,
+		},
+		Timeout:              2 * time.Second,
+		M2SFOptionalEvidence: true,
+	}
+	if err := configureCrossPlatformRuntime(registry, settings); err != nil {
+		t.Fatalf("configureCrossPlatformRuntime: %v", err)
+	}
+	governancePlanner, err := newCrossPlatformGovernancePlanner(
+		crossPlatformPolicySelector{optionalM2SFEvidence: true},
+	)
+	if err != nil {
+		t.Fatalf("newCrossPlatformGovernancePlanner: %v", err)
+	}
+	registry.SetCapabilityGovernancePlanner(governancePlanner)
+	registry.SetCapabilityEvidenceRecorder(firstRecorder)
+
+	ctx := ctxkeys.WithValue(context.Background(), ctxkeys.TraceID, "trace-w6-c-restart")
+	ctx = ctxkeys.WithValue(ctx, ctxkeys.UserID, "agent-w6")
+	ctx = ctxkeys.WithValue(ctx, ctxkeys.RunID, "run-w6-c-restart")
+	executor := blackboard.NewPlannerExecutor(db, nil, nil, registry, nil)
+	outcome, err := executor.Execute(ctx, workspace, w6ExportPlan(workspace.ID))
+	if err != nil {
+		t.Fatalf("PlannerExecutor.Execute: %v", err)
+	}
+	if outcome.DeferralReason != "" || len(outcome.Executed) != 1 ||
+		len(outcome.Executed[0].Result) == 0 || outcome.Executed[0].Error != "" {
+		t.Fatalf("initial business outcome = %#v", outcome)
+	}
+	if firstSink.recordCalls != 1 || firstSink.lookupCalls != 1 ||
+		len(firstSink.envelopes) != 1 {
+		t.Fatalf(
+			"initial evidence lifecycle record=%d lookup=%d envelopes=%d",
+			firstSink.recordCalls,
+			firstSink.lookupCalls,
+			len(firstSink.envelopes),
+		)
+	}
+
+	providerMu.Lock()
+	initialProviderCalls := providerCalls
+	providerMu.Unlock()
+	if initialProviderCalls != 1 {
+		t.Fatalf("initial M2SF calls = %d, want 1", initialProviderCalls)
+	}
+
+	envelope := firstSink.envelopes[0]
+	if _, err := db.Exec(
+		"UPDATE evidence_delivery SET next_attempt_at_ms = 0 WHERE execution_id = ?",
+		envelope.ExecutionID,
+	); err != nil {
+		t.Fatalf("make durable evidence due for restart: %v", err)
+	}
+
+	ref := evidence.ProofReference{
+		SchemaVersion:      evidence.SchemaVersion,
+		Provider:           "vel-http",
+		ExecutionID:        envelope.ExecutionID,
+		StreamID:           envelope.StreamID,
+		EventID:            "event-w6-c-restart",
+		EventHash:          strings.Repeat("a", 64),
+		KeyID:              "key-w6-c",
+		SignatureRef:       "vel://events/event-w6-c-restart#signature",
+		Sequence:           1,
+		VerificationStatus: evidence.VerificationRecorded,
+	}
+	secondSink := &w6RestartLifecycleSink{
+		lookupRef: &ref,
+		progress: evidence.VerificationProgress{
+			Checkpoint: evidence.CheckpointReference{
+				CheckpointID:   "checkpoint-w6-c-restart",
+				CheckpointHash: strings.Repeat("b", 64),
+				MerkleRoot:     strings.Repeat("c", 64),
+				TreeSize:       1,
+			},
+			Status: evidence.VerificationVerified,
+		},
+	}
+	secondRecorder, err := evidenceoutbox.NewRecorder(db, secondSink)
+	if err != nil {
+		t.Fatalf("create restarted durable recorder: %v", err)
+	}
+	if err := secondRecorder.ReconcileOnce(context.Background()); err != nil {
+		t.Fatalf("restart ReconcileOnce: %v", err)
+	}
+
+	if secondSink.recordCalls != 0 {
+		t.Fatalf("restart replayed VEL append %d times", secondSink.recordCalls)
+	}
+	if secondSink.lookupCalls != 1 || secondSink.verificationCalls != 1 {
+		t.Fatalf(
+			"restart lifecycle lookup=%d verification=%d, want 1/1",
+			secondSink.lookupCalls,
+			secondSink.verificationCalls,
+		)
+	}
+
+	providerMu.Lock()
+	finalProviderCalls := providerCalls
+	providerMu.Unlock()
+	if finalProviderCalls != 1 {
+		t.Fatalf(
+			"evidence reconciliation replayed M2SF: calls=%d, want 1",
+			finalProviderCalls,
+		)
+	}
+
+	var deliveryState string
+	var proofRaw string
+	if err := db.QueryRow(
+		"SELECT delivery_state, proof_json FROM evidence_delivery WHERE execution_id = ?",
+		envelope.ExecutionID,
+	).Scan(&deliveryState, &proofRaw); err != nil {
+		t.Fatalf("load reconciled durable evidence: %v", err)
+	}
+	if deliveryState != string(evidence.DeliveryVerified) {
+		t.Fatalf("delivery state = %q, want verified", deliveryState)
+	}
+	if !strings.Contains(proofRaw, "\"verification_status\":\"verified\"") {
+		t.Fatalf("proof was not verified after restart: %s", proofRaw)
+	}
+
+	entry, err := blackboard.NewMemoryStore(db).Get(
+		context.Background(),
+		workspace.ID,
+		blackboard.DefaultPlannerExecutionResultMemoryKey,
+	)
+	if err != nil {
+		t.Fatalf("load Blackboard business result after evidence restart: %v", err)
+	}
+	projection := string(entry.Value)
+	if !strings.Contains(projection, "m2sf-w6-c-restart") {
+		t.Fatalf("Blackboard lost business result after evidence recovery: %s", projection)
+	}
+	for _, forbidden := range []string{
+		"verification_bundle",
+		"portable_bundle",
+		"merkle_root",
+		"signature_ref",
+	} {
+		if strings.Contains(projection, forbidden) {
+			t.Fatalf("Blackboard absorbed evidence-provider internals %q: %s", forbidden, projection)
+		}
+	}
 }
