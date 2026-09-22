@@ -165,3 +165,159 @@ func durableVerificationProgress() evidence.VerificationProgress {
 		Status: evidence.VerificationVerified,
 	}
 }
+
+
+func newDurableTestRecorder(t *testing.T, sink *lifecycleSinkStub) *Recorder {
+	t.Helper()
+	db, err := sqlite.NewDB(":memory:")
+	if err != nil {
+		t.Fatalf("NewDB: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	db.SetMaxOpenConns(1)
+	if err := sqlite.MigrateUp(db); err != nil {
+		t.Fatalf("MigrateUp: %v", err)
+	}
+	recorder, err := NewRecorder(db, sink)
+	if err != nil {
+		t.Fatalf("NewRecorder: %v", err)
+	}
+	recorder.retryDelay = 0
+	return recorder
+}
+
+func TestRecorderInteractiveRecordIsIdempotent(t *testing.T) {
+	sink := &lifecycleSinkStub{ref: durableProof()}
+	recorder := newDurableTestRecorder(t, sink)
+
+	first, err := recorder.RecordCapabilityEvidence(context.Background(), durableEvidenceRequest())
+	if err != nil {
+		t.Fatalf("first RecordCapabilityEvidence: %v", err)
+	}
+	if first.State != string(evidence.DeliveryRecorded) {
+		t.Fatalf("first state = %q", first.State)
+	}
+
+	second, err := recorder.RecordCapabilityEvidence(context.Background(), durableEvidenceRequest())
+	if err != nil {
+		t.Fatalf("second RecordCapabilityEvidence: %v", err)
+	}
+	if second.State != string(evidence.DeliveryRecorded) {
+		t.Fatalf("second state = %q", second.State)
+	}
+	if sink.recordCalls != 1 {
+		t.Fatalf("record calls = %d, want 1", sink.recordCalls)
+	}
+}
+
+func TestRecorderWorkerReschedulesVerificationFailure(t *testing.T) {
+	sink := &lifecycleSinkStub{
+		ref:             durableProof(),
+		verificationErr: errors.New("checkpoint unavailable"),
+	}
+	recorder := newDurableTestRecorder(t, sink)
+	envelope, err := evidence.BuildRuntimeEnvelope(durableEvidenceRequest())
+	if err != nil {
+		t.Fatalf("BuildRuntimeEnvelope: %v", err)
+	}
+	if _, err := recorder.persistEnvelope(context.Background(), envelope); err != nil {
+		t.Fatalf("persistEnvelope: %v", err)
+	}
+
+	if err := recorder.ReconcileOnce(context.Background()); err != nil {
+		t.Fatalf("ReconcileOnce: %v", err)
+	}
+	if sink.recordCalls != 1 || sink.verificationCalls != 1 {
+		t.Fatalf("record=%d verification=%d", sink.recordCalls, sink.verificationCalls)
+	}
+
+	var state string
+	var lastError string
+	if err := recorder.db.QueryRow(
+		"SELECT delivery_state, last_error FROM evidence_delivery WHERE execution_id = ?",
+		"exec-1",
+	).Scan(&state, &lastError); err != nil {
+		t.Fatalf("query durable row: %v", err)
+	}
+	if state != string(evidence.DeliveryPendingCheckpoint) {
+		t.Fatalf("state = %q", state)
+	}
+	if lastError != "checkpoint unavailable" {
+		t.Fatalf("last_error = %q", lastError)
+	}
+}
+
+func TestRecorderWorkerSchedulesIndeterminateRetry(t *testing.T) {
+	sink := &lifecycleSinkStub{
+		recordErr: evidence.NewIndeterminateRecordError(errors.New("lost append response")),
+	}
+	recorder := newDurableTestRecorder(t, sink)
+	envelope, err := evidence.BuildRuntimeEnvelope(durableEvidenceRequest())
+	if err != nil {
+		t.Fatalf("BuildRuntimeEnvelope: %v", err)
+	}
+	if _, err := recorder.persistEnvelope(context.Background(), envelope); err != nil {
+		t.Fatalf("persistEnvelope: %v", err)
+	}
+
+	if err := recorder.ReconcileOnce(context.Background()); err != nil {
+		t.Fatalf("ReconcileOnce: %v", err)
+	}
+	if sink.recordCalls != 1 {
+		t.Fatalf("record calls = %d, want 1", sink.recordCalls)
+	}
+
+	var state string
+	var attempts int
+	if err := recorder.db.QueryRow(
+		"SELECT delivery_state, attempt_count FROM evidence_delivery WHERE execution_id = ?",
+		"exec-1",
+	).Scan(&state, &attempts); err != nil {
+		t.Fatalf("query durable row: %v", err)
+	}
+	if state != string(evidence.DeliveryIndeterminate) {
+		t.Fatalf("state = %q", state)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempt_count = %d, want 1", attempts)
+	}
+}
+
+func TestRecorderWorkerReschedulesEvidenceNotCoveredByCheckpoint(t *testing.T) {
+	sink := &lifecycleSinkStub{progress: durableVerificationProgress()}
+	recorder := newDurableTestRecorder(t, sink)
+	envelope, err := evidence.BuildRuntimeEnvelope(durableEvidenceRequest())
+	if err != nil {
+		t.Fatalf("BuildRuntimeEnvelope: %v", err)
+	}
+	if _, err := recorder.persistEnvelope(context.Background(), envelope); err != nil {
+		t.Fatalf("persistEnvelope: %v", err)
+	}
+	proof := durableProof()
+	proof.Sequence = 2
+	if err := recorder.markRecorded(context.Background(), "exec-1", proof, false); err != nil {
+		t.Fatalf("markRecorded: %v", err)
+	}
+
+	if err := recorder.ReconcileOnce(context.Background()); err != nil {
+		t.Fatalf("ReconcileOnce: %v", err)
+	}
+	if sink.verificationCalls != 1 {
+		t.Fatalf("verification calls = %d, want 1", sink.verificationCalls)
+	}
+
+	var state string
+	var lastError string
+	if err := recorder.db.QueryRow(
+		"SELECT delivery_state, last_error FROM evidence_delivery WHERE execution_id = ?",
+		"exec-1",
+	).Scan(&state, &lastError); err != nil {
+		t.Fatalf("query durable row: %v", err)
+	}
+	if state != string(evidence.DeliveryPendingCheckpoint) {
+		t.Fatalf("state = %q", state)
+	}
+	if lastError != "checkpoint does not yet cover evidence sequence" {
+		t.Fatalf("last_error = %q", lastError)
+	}
+}

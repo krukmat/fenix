@@ -54,3 +54,72 @@ func TestSinkCheckpointAndVerifySupportsWorkspaceSlashStream(t *testing.T) {
 		t.Fatalf("progress = %#v", progress)
 	}
 }
+
+
+func TestVerificationProgressCapturesFailureAndIssues(t *testing.T) {
+	treeSize := int64(2)
+	sequence := int64(2)
+	checkpoint := storedCheckpoint{
+		CheckpointID:   "checkpoint-2",
+		StreamID:       "workspace/ws-1",
+		TreeSize:       treeSize,
+		CheckpointHash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		MerkleRoot:     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+	}
+	verification := verificationResponse{
+		Valid:              false,
+		StreamID:           "workspace/ws-1",
+		CheckedEvents:      2,
+		CheckpointTreeSize: &treeSize,
+		Issues: []verificationIssue{
+			{Code: " signature_mismatch ", Sequence: &sequence},
+			{Code: "   "},
+		},
+	}
+
+	progress, err := verificationProgress("workspace/ws-1", checkpoint, verification)
+	if err != nil {
+		t.Fatalf("verificationProgress: %v", err)
+	}
+	if progress.Status != evidence.VerificationFailed {
+		t.Fatalf("status = %q", progress.Status)
+	}
+	if len(progress.Issues) != 1 || progress.Issues[0] != "signature_mismatch@2" {
+		t.Fatalf("issues = %#v", progress.Issues)
+	}
+}
+
+func TestVerificationProgressRejectsLifecycleMismatches(t *testing.T) {
+	treeSize := int64(2)
+	checkpoint := storedCheckpoint{
+		CheckpointID:   "checkpoint-2",
+		StreamID:       "workspace/ws-1",
+		TreeSize:       treeSize,
+		CheckpointHash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		MerkleRoot:     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+	}
+	verification := verificationResponse{
+		Valid:              true,
+		StreamID:           "workspace/ws-1",
+		CheckpointTreeSize: &treeSize,
+	}
+
+	wrongStream := checkpoint
+	wrongStream.StreamID = "workspace/ws-2"
+	if _, err := verificationProgress("workspace/ws-1", wrongStream, verification); err == nil {
+		t.Fatal("expected stream identity error")
+	}
+
+	wrongSize := int64(1)
+	verification.CheckpointTreeSize = &wrongSize
+	if _, err := verificationProgress("workspace/ws-1", checkpoint, verification); err == nil {
+		t.Fatal("expected checkpoint size mismatch")
+	}
+
+	verification.CheckpointTreeSize = &treeSize
+	invalidCheckpoint := checkpoint
+	invalidCheckpoint.CheckpointID = ""
+	if _, err := verificationProgress("workspace/ws-1", invalidCheckpoint, verification); err == nil {
+		t.Fatal("expected invalid checkpoint error")
+	}
+}
