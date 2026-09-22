@@ -2,7 +2,7 @@
 doc_type: task
 id: W6-D
 title: Product/demo handoff for the complete Fenix integration flow
-status: ready
+status: in_progress
 phase: integration
 week: W6
 tags: [fenix, w6, demo, handoff, blackboard, mermaid2sf, vel]
@@ -23,14 +23,14 @@ system does, where authority lives, when M2SF and VEL participate, and how failu
 
 ## Tasks
 
-- **D1 — Happy-path tour**
+- **D1 — Happy-path tour — IMPLEMENTED**
   - Agent / Blackboard contribution;
   - collaborative proposal;
   - governed ToolRegistry execution;
   - M2SF semantic result;
   - optional VEL evidence.
 
-- **D2 — Optionality matrix**
+- **D2 — Optionality matrix — IMPLEMENTED**
   - M2SF without VEL;
   - M2SF with VEL;
   - governed non-M2SF capability with VEL;
@@ -42,11 +42,12 @@ system does, where authority lives, when M2SF and VEL participate, and how failu
   - verification failure;
   - restart/reconciliation without business replay.
 
-- **D4 — Authority/boundary diagram**
+- **D4 — Authority/boundary diagram — IMPLEMENTED**
   - Fenix = governance/execution authority;
   - Blackboard = coordination/shared artifact state;
   - Mermaid2SF = Salesforce/FlowIR semantic authority;
-  - VEL = cryptographic evidence authority.
+  - Evidence Runtime / Outbox = Fenix evidence-delivery boundary;
+  - VEL = cryptographic evidence authority, explicitly **not a ToolRegistry tool**.
 
 - **D5 — Executable proof index**
   - link the W6-A/B/C tests and relevant W1-W5 contract docs;
@@ -62,3 +63,23 @@ system does, where authority lives, when M2SF and VEL participate, and how failu
 - no new provider coupling;
 - do not turn demo documentation into another architecture abstraction;
 - retain the W5-C QA waiver and W6 no-global-QA decision accurately.
+
+## D1/D2/D4 result — 2026-09-22
+
+The canonical README now separates the two runtime branches:
+
+```text
+business capability path:
+Agent -> Blackboard -> PlannerExecutor -> ToolRegistry -> Governance -> M2SF/other capability
+
+evidence path:
+governed outcome -> Evidence Runtime / Outbox -> VEL
+```
+
+VEL is not registered as an agent tool and cannot be directly invoked through ToolRegistry.
+
+Remaining work:
+
+- **D3** resilience tour;
+- **D5** executable proof index;
+- **D6** final README/operator handoff and W6 closure.

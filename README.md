@@ -244,6 +244,89 @@ flowchart LR
 
 ---
 
+## Governed Cross-Platform Integration
+
+Fenix keeps execution, semantic transformation, and cryptographic evidence as separate authorities.
+Mermaid2SF is exposed as a governed capability provider. VEL is **not** an agent tool and is not
+registered in the ToolRegistry; it participates through Fenix's evidence runtime only when the
+governance decision plans evidence.
+
+```mermaid
+flowchart LR
+    AGENT[Agent] --> BB[Agentic Blackboard]
+    BB --> PLAN[Collaborative Planner]
+    PLAN --> EXEC[PlannerExecutor]
+    EXEC --> TR[ToolRegistry]
+    TR --> GOV[Fenix Governance]
+    GOV --> M2SF[Mermaid2SF]
+    M2SF --> RESULT[Semantic Result]
+    RESULT --> BB
+
+    GOV -. evidence planned .-> ER[Evidence Runtime / Durable Outbox]
+    ER --> VEL[VEL]
+    VEL --> PROOF[Compact Proof / Verification State]
+    PROOF --> AUDIT[Fenix Audit]
+```
+
+Authority boundaries are intentionally narrow:
+
+| Component | Responsibility |
+|---|---|
+| **Fenix** | orchestration, governance, approvals and business execution authority |
+| **Agentic Blackboard** | multi-agent coordination, shared artifacts and collaborative planning |
+| **ToolRegistry** | governed capability execution seam |
+| **Mermaid2SF** | Salesforce Flow / FlowIR semantic authority |
+| **Evidence Runtime / Outbox** | durable evidence delivery and reconciliation owned by Fenix |
+| **VEL** | cryptographic evidence, checkpoint and independent verification authority |
+
+VEL is therefore orthogonal to the business capability path:
+
+| M2SF | VEL | Meaning |
+|---|---|---|
+| yes | no | Salesforce semantic work without cryptographic evidence |
+| yes | yes | Salesforce semantic work plus evidence lifecycle |
+| no | yes | another governed Fenix capability may still produce evidence |
+| no | no | ordinary governed Fenix execution |
+
+The normal Salesforce Flow happy path is:
+
+```text
+specialized agents
+      ↓
+Agentic Blackboard
+      ↓
+collaborative proposal
+      ↓
+PlannerExecutor
+      ↓
+ToolRegistry
+      ↓
+Fenix governance
+      ↓
+Mermaid2SF
+      ↓
+normalized semantic result
+      ↓
+Blackboard / agent-safe outcome
+
+if evidence_planned=true:
+      governance outcome
+             ↓
+      Evidence Runtime
+             ↓
+        durable outbox
+             ↓
+             VEL
+             ↓
+ compact proof / verification state
+```
+
+This separation is also the resilience boundary: evidence recovery can continue after restart
+without replaying the Mermaid2SF business capability.
+
+> Integration proof and implementation status:
+> [`docs/plans/fenix-integration-w6-functional-execution.md`](docs/plans/fenix-integration-w6-functional-execution.md)
+
 ## Project Structure
 
 ```text

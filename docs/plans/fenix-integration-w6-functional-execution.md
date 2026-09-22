@@ -30,20 +30,42 @@ Fenix agent orchestration
         |      shared task state / artifacts / coordination
         |
         v
-ToolRegistry governed capability
-        |
-        +--> M2SF when Salesforce-flow semantics are required
-        |
-        +--> other Fenix capabilities
-        |
-        +--> VEL evidence lifecycle when evidence_planned=true
+PlannerExecutor
         |
         v
-agent-safe result + audit + optional verified proof
+ToolRegistry
+        |
+        v
+Fenix governance
+        |
+        +--> M2SF when Salesforce-flow semantics are required
+        |       |
+        |       v
+        |   semantic result
+        |
+        +--> other governed capabilities
+        |
+        v
+agent-safe business result
+
+Separately, when evidence_planned=true:
+
+Fenix governance / capability outcome
+        |
+        v
+Evidence Runtime / durable outbox
+        |
+        v
+VEL
+        |
+        v
+compact proof / verification state
 ```
 
-The Blackboard coordinates work; it does not become an external authority. Agents never write raw
-reasoning to VEL. Fenix remains the governance/execution authority.
+The Blackboard coordinates work; it does not become an external authority. ToolRegistry executes
+business capabilities. VEL is not a ToolRegistry capability and is not directly callable by agents;
+it is reached only through Fenix's evidence runtime. Agents never write raw reasoning to VEL.
+Fenix remains the governance/execution authority.
 
 ## W6-A — First functional slice
 
@@ -183,6 +205,69 @@ Produce a concise end-to-end tour showing:
 - failure behavior.
 
 This becomes the functional proof and entry point for whatever productization wave follows W6.
+
+## W6-D implementation status
+
+**IN PROGRESS — D1, D2 and D4 implemented, 2026-09-22**
+
+### D1 — Happy-path tour
+
+The canonical path is now documented in the repository README:
+
+```text
+agents
+  -> Blackboard
+  -> collaborative proposal
+  -> PlannerExecutor
+  -> ToolRegistry
+  -> Fenix governance
+  -> M2SF capability
+  -> normalized business result
+  -> Blackboard / agent-safe outcome
+```
+
+Evidence is a separate post-governance branch and does not make VEL a tool.
+
+### D2 — Optionality matrix
+
+| M2SF | VEL | Meaning |
+|---|---|---|
+| yes | no | Salesforce semantic capability without cryptographic evidence |
+| yes | yes | Salesforce semantic capability plus evidence lifecycle |
+| no | yes | another governed capability may produce VEL evidence |
+| no | no | ordinary governed Fenix execution |
+
+This preserves the W4/W5 invariant that provider execution and evidence participation are
+independently governed.
+
+### D4 — Authority / boundary model
+
+```text
+                FENIX
+       orchestration + governance
+          /                 \
+         /                   \
+Blackboard                ToolRegistry
+coordination              capabilities
+                              |
+                              v
+                         Mermaid2SF
+                     semantic authority
+
+governed outcome
+      |
+      v
+Evidence Runtime / Outbox
+      |
+      v
+     VEL
+crypto evidence authority
+```
+
+VEL is explicitly outside ToolRegistry. Agents cannot invoke VEL directly.
+
+Remaining W6-D work: D3 resilience tour, D5 executable proof index and D6 final README/operator
+handoff + W6 closure.
 
 ## Exit criteria
 
