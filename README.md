@@ -12,7 +12,7 @@
 - [Inside the agent loop](#inside-the-agent-loop)
 - [From copilot to controlled execution](#from-copilot-to-controlled-execution)
 - [See it in action](#see-it-in-action)
-- [Specialized capabilities, one control plane](#specialized-capabilities-one-control-plane)
+- [A small stack of purpose-built components](#a-small-stack-of-purpose-built-components)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Explore the code](#explore-the-code)
 - [Run it](#run-it)
@@ -176,14 +176,16 @@ This is what the operating model looks like in the product. The screenshots come
 
 ---
 
-## Specialized capabilities, one control plane
+## A small stack of purpose-built components
 
-Fenix can delegate specialized work without delegating control. Two integrations show that idea in
-different ways.
+Fenix is part of a small set of purpose-built projects that were designed to work together. They are
+not third-party products or external platform dependencies: each one owns a narrow problem and keeps
+that logic out of the others.
 
 ### Mermaid2SF — move between Salesforce and a human-readable model
 
-**[Mermaid2SF](https://github.com/krukmat/Mermaid2SF)** explores a simple question:
+**[Mermaid2SF](https://github.com/krukmat/Mermaid2SF)** is one of those companion projects. It
+focuses on a simple question:
 
 > Can a Salesforce Flow move into a readable diagram, be inspected or changed, and come back without
 > losing its meaning?
@@ -215,8 +217,8 @@ participate in a path back to Salesforce Flow.
 
 ### VEL — keep proof separate from the action itself
 
-**[Verifiable Event Ledger (VEL)](https://github.com/krukmat/verifiable-event-ledger)** explores a
-different question:
+**[Verifiable Event Ledger (VEL)](https://github.com/krukmat/verifiable-event-ledger)** is another
+companion project, focused on a different question:
 
 > After Fenix performs an action, can the evidence of that execution be independently checked later
 > instead of being trusted only because it sits in an application database?
@@ -260,11 +262,14 @@ flowchart LR
     V --> P[Verifiable proof]
 ```
 
-They solve different problems:
+Together they form a small internal toolchain:
 
-- **Mermaid2SF** extends what Fenix can understand and transform.
-- **VEL** extends what Fenix can prove about an execution afterwards.
-- Neither one replaces Fenix governance, and neither is called directly by agents.
+- **Fenix** owns orchestration, governance and execution.
+- **Mermaid2SF** owns Salesforce Flow understanding and transformation.
+- **VEL** owns verifiable execution evidence.
+
+The projects are separate by design so each concern can evolve independently, but they are part of
+the same internal stack rather than external dependencies.
 
 [Read the integration guide, failure model and proof index →](docs/integration-overview.md)
 
