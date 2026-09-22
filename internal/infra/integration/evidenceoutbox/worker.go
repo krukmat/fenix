@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/evidence"
 	"github.com/matiasleandrokruk/fenix/internal/infra/integration/telemetry"
