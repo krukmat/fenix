@@ -8,7 +8,7 @@
 
 ## Contents
 
-- [AI operations, not another CRM](#ai-operations-not-another-crm)
+- [From CRM records to governed action](#from-crm-records-to-governed-action)
 - [From context to action](#from-context-to-action)
 - [From copilot to controlled execution](#from-copilot-to-controlled-execution)
 - [See it in action](#see-it-in-action)
@@ -21,21 +21,75 @@
 
 ---
 
-## AI operations, not another CRM
+## From CRM records to governed action
 
-FenixCRM is not intended to replace a CRM. It sits above customer-operation workflows and gives AI agents a controlled way to **reason, collaborate and act**.
+A traditional CRM is good at storing customer state: cases, accounts, contacts, opportunities and activity history.
 
-The operating idea is simple:
+Fenix does **not** replace that system of record. It adds an execution layer above it so agents can use that context, collaborate on a plan, pass through policy and approvals, and then perform a controlled action.
 
-1. **Ground before answering** — use customer and knowledge context.
-2. **Plan before acting** — agents collaborate through a shared Blackboard.
-3. **Govern before executing** — permissions, policy and approvals decide what may run.
-4. **Record what happened** — execution remains inspectable afterwards.
+```mermaid
+flowchart LR
+    CRM[CRM<br/>cases · accounts · deals] --> CTX[Customer context]
+    KB[Knowledge<br/>docs · evidence] --> CTX
 
-The initial product focus is deliberately narrow:
+    CTX --> AG[AI agents]
+    AG --> BB[Blackboard<br/>shared plan]
+    BB --> GOV{Policy / approval}
 
-- **Support Copilot / Support Agent** — case resolution, safe actions, approvals and handoff.
-- **Sales Copilot** — account context, risks, next actions and evidence-backed briefs.
+    GOV -->|allowed| ACT[Execute action]
+    GOV -->|needs review| HUMAN[Human approval]
+    HUMAN --> ACT
+    GOV -->|denied| STOP[Stop]
+
+    ACT --> CRM
+    ACT --> AUDIT[Audit trail]
+```
+
+The distinction is practical:
+
+| CRM responsibility | What Fenix adds |
+|---|---|
+| Store customer and business records | Turn those records into grounded agent context |
+| Expose workflows and APIs | Decide which actions agents are allowed to invoke |
+| Keep current business state | Coordinate several agents before one action is selected |
+| Record the final state | Keep the plan, approval and execution trace inspectable |
+| Run predefined automation | Allow AI-assisted execution without bypassing policy |
+
+### Example: a support case
+
+```mermaid
+flowchart LR
+    C[New support case] --> R[Retrieve case + account + knowledge]
+    R --> S[Agents propose diagnosis / next action]
+    S --> B[Blackboard combines proposals]
+    B --> G{Governance}
+    G -->|safe| X[Execute]
+    G -->|sensitive| H[Ask for approval]
+    H --> X
+    X --> U[Update case / call governed capability]
+    U --> A[Record outcome + audit]
+```
+
+So the product is not "AI inside a CRM" in the abstract. The concrete loop is:
+
+```text
+business context
+      ↓
+agent collaboration
+      ↓
+deterministic proposal
+      ↓
+policy / approval
+      ↓
+controlled execution
+      ↓
+traceable outcome
+```
+
+The initial use cases are intentionally narrow:
+
+- **Support Copilot / Support Agent** — understand a case, gather evidence, propose an action and execute only when allowed.
+- **Sales Copilot** — assemble account/deal context, surface risks and prepare governed next actions.
 
 [Read the product overview →](docs/product-overview.md)
 
