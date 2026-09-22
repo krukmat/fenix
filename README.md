@@ -271,6 +271,32 @@ Together they form a small internal toolchain:
 The projects are separate by design so each concern can evolve independently, but they are part of
 the same internal stack rather than external dependencies.
 
+### Works with external systems too
+
+The internal projects are only part of the picture. Fenix is also designed to work with external
+APIs, services and platforms that it does not control.
+
+```mermaid
+flowchart LR
+    A[Agents] --> F[Fenix]
+    F --> I[Internal tools<br/>Mermaid2SF · VEL]
+    F --> X[External systems<br/>APIs · services · platforms]
+
+    I --> R[Result]
+    X --> R
+
+    X -. unavailable .-> E[Retry or explicit failure]
+```
+
+The rule is the same in both cases:
+
+- Fenix decides what may run.
+- External calls keep the same execution identity and retry rules.
+- If an external system is unavailable, Fenix reports the failure instead of inventing a result.
+- A failure in an external system should not silently repeat an already completed business action.
+
+The goal is not to avoid external systems. It is to use them without losing control of the workflow.
+
 [Read the integration guide, failure model and proof index →](docs/integration-overview.md)
 
 ---

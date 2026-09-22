@@ -11,6 +11,10 @@ Fenix remains in charge of execution. It can use two external specialists:
 
 They are independent.
 
+Mermaid2SF and VEL are internal projects, but Fenix is not limited to internal tools. The same
+execution rules also apply when Fenix calls external APIs, services or platforms: Fenix keeps control
+of permissions, execution identity, retries and failure handling.
+
 ```mermaid
 flowchart LR
     A[Agent] --> B[Blackboard]
