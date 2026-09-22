@@ -178,39 +178,93 @@ This is what the operating model looks like in the product. The screenshots come
 
 ## Specialized capabilities, one control plane
 
-Fenix can delegate specialized work without delegating control.
+Fenix can delegate specialized work without delegating control. Two integrations show that idea in
+different ways.
 
-For Salesforce Flow work it can call **Mermaid2SF**. When an execution needs tamper-evident evidence, Fenix can separately use **VEL**.
+### Mermaid2SF — move between Salesforce and a human-readable model
 
-- **[Mermaid2SF](https://github.com/krukmat/Mermaid2SF)** — bidirectional Salesforce Flow ↔ Mermaid tooling built around FlowIR and Salesforce-aware validation.
-- **[Verifiable Event Ledger (VEL)](https://github.com/krukmat/verifiable-event-ledger)** — proof-of-concept ledger for audit evidence that can be independently verified rather than simply trusted because it is stored.
+**[Mermaid2SF](https://github.com/krukmat/Mermaid2SF)** explores a simple question:
+
+> Can a Salesforce Flow move into a readable diagram, be inspected or changed, and come back without
+> losing its meaning?
+
+```mermaid
+flowchart LR
+    SF[Salesforce Flow] --> IR[FlowIR<br/>shared semantic model]
+    IR --> MM[Mermaid<br/>read · review · change]
+    MM --> IR
+    IR --> SF
+```
+
+For Fenix, that creates a useful bridge between agent work and a real Salesforce artifact:
+
+```text
+understand the Flow
+      ↓
+reason about it
+      ↓
+propose a change
+      ↓
+validate the result
+      ↓
+return to Salesforce form
+```
+
+The important part is the round trip: Mermaid is not just a picture generated from Salesforce. It can
+participate in a path back to Salesforce Flow.
+
+### VEL — keep proof separate from the action itself
+
+**[Verifiable Event Ledger (VEL)](https://github.com/krukmat/verifiable-event-ledger)** explores a
+different question:
+
+> After Fenix performs an action, can the evidence of that execution be independently checked later
+> instead of being trusted only because it sits in an application database?
+
+```mermaid
+flowchart LR
+    F[Fenix executes action] --> R[Business result]
+    F -. compact evidence .-> V[VEL]
+    V --> P[Verifiable proof]
+
+    R --> C[Business continues]
+    P --> A[Audit / later verification]
+```
+
+That separation is deliberate:
+
+```text
+business action succeeds
+        │
+        ├──→ result continues through Fenix
+        │
+        └──→ evidence is recorded separately
+                    ↓
+              verify later
+```
+
+If the evidence path is temporarily unavailable, Fenix keeps the completed business result and
+recovers the evidence later. It does **not** replay the business action just to create proof.
+
+### How they fit together
 
 ```mermaid
 flowchart LR
     A[Agent] --> B[Blackboard]
     B --> F[Fenix]
+
     F --> M[Mermaid2SF]
     M --> R[Salesforce Flow result]
-    R --> B
 
-    F -. evidence needed .-> E[Evidence layer]
-    E --> V[VEL]
+    F -. evidence when needed .-> V[VEL]
+    V --> P[Verifiable proof]
 ```
 
-Mermaid2SF owns the Flow translation:
+They solve different problems:
 
-```mermaid
-flowchart LR
-    SF[Salesforce Flow XML] <--> IR[FlowIR]
-    IR <--> MM[Mermaid]
-```
-
-Two boundaries matter:
-
-- **Agents do not call Mermaid2SF or VEL directly.** Fenix remains the control point.
-- **VEL is not a tool.** It is on the evidence path, separate from business execution.
-
-That separation also protects retries: if evidence cannot be recorded, Fenix does **not** repeat an already completed business action.
+- **Mermaid2SF** extends what Fenix can understand and transform.
+- **VEL** extends what Fenix can prove about an execution afterwards.
+- Neither one replaces Fenix governance, and neither is called directly by agents.
 
 [Read the integration guide, failure model and proof index →](docs/integration-overview.md)
 
