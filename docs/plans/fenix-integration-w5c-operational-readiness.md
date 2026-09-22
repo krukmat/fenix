@@ -2,7 +2,7 @@
 doc_type: plan
 id: W5-C
 title: Fenix Integration W5-C Operational Readiness
-status: in_progress
+status: closed
 phase: integration
 tags: [fenix, integration, vel, reliability, observability]
 created: 2026-09-21
@@ -143,3 +143,29 @@ W5-C is complete when:
 5. unit/integration tests cover restart-safe recovery, idempotent retry, verification progression,
    stream policy and metrics;
 6. W5 documentation reflects the final runtime behavior.
+
+## Closure — 2026-09-22
+
+G07-G10 are implemented and W5-C is closed.
+
+Final validation run: GitHub Actions CI `35707040930` on code head `e1dd0723`.
+
+Validated successfully before the coverage gate:
+
+- pattern opportunities;
+- lint;
+- vulnerability scan;
+- dead-code gate;
+- full Go tests;
+- Go BDD baseline;
+- deterministic evaluation;
+- race stability.
+
+The app-only coverage gate measured **82.9%** against the repository threshold of **83.0%**.
+The repository owner accepted this **0.1 percentage-point shortfall** as an explicit QA waiver
+for W5-C. The threshold itself remains unchanged and the historical CI run remains failed.
+Downstream TDD coverage, build and API Contract Tests were skipped by dependency and are not
+retroactively claimed as passed.
+
+This waiver is scoped to W5-C closure only. It allows W5-FINAL to proceed without additional
+coverage-only work.

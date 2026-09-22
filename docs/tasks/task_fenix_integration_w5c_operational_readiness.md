@@ -2,7 +2,7 @@
 doc_type: task
 id: W5-C
 title: Durable evidence lifecycle and integration observability
-status: validation
+status: closed
 phase: integration
 week: W5
 tags: [fenix, w5, vel, outbox, reconciliation, checkpoint, observability]
@@ -18,7 +18,7 @@ files_affected:
   - internal/infra/sqlite/migrations/
   - docs/plans/
 created: 2026-09-21
-completed:
+completed: 2026-09-22
 ---
 
 # Task W5-C — Durable evidence lifecycle and integration observability
@@ -139,7 +139,7 @@ G07-G10 implementation is present on `main` and is entering the repository valid
 - G10: M2SF/VEL provider and evidence lifecycle telemetry exported through `/metrics`.
 - Cross-repo: VEL hierarchical stream routes accept `workspace/<id>`; VEL CI passed on commit `6920532`.
 
-Validation is not complete until the Fenix CI gate is green.
+Validation is complete under the explicit W5-C QA waiver recorded below.
 
 ### Validation remediation — 2026-09-22
 
@@ -153,4 +153,28 @@ functional test stages could run. The W5-C validation pass corrected:
 - metrics response write handling;
 - compact verification guard style.
 
-The implementation remains in validation until the CI workflow reaches the contract gate successfully.
+The final explicit validation run was GitHub Actions CI `35707040930` on code head
+`e1dd0723`. Pattern, lint, vulnerability, dead-code, unit/integration tests, BDD,
+deterministic eval and race-stability gates passed. The application coverage gate reported
+**82.9%** against an **83.0%** threshold (shortfall: **0.1 percentage point**), so downstream
+TDD-coverage/build/API-contract jobs were skipped by dependency.
+
+### QA waiver — 2026-09-22
+
+The repository owner explicitly accepted the 0.1 pp coverage shortfall as non-blocking for W5-C
+to avoid further low-value validation churn.
+
+Rules of the waiver:
+
+- W5-C is **CLOSED** and W5-FINAL may proceed.
+- The configured 83% threshold is **not lowered**.
+- CI run `35707040930` remains historically failed; it must not be represented as green.
+- The waived condition is only the 82.9% vs 83.0% coverage delta.
+- All gates that actually executed before coverage passed, including the full test suite,
+  BDD, deterministic evaluation and race stability.
+- TDD coverage, build and API Contract Tests were not executed in that run because the
+  coverage dependency stopped the job; W5-FINAL may exercise equivalent final integration
+  checks without reopening W5-C solely for this 0.1 pp delta.
+
+W5-C acceptance is therefore closed by owner-approved QA waiver rather than by a fully green
+GitHub Actions run.

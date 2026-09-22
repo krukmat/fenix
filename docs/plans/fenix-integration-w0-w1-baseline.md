@@ -48,14 +48,21 @@
 | W5-B3 VEL provider surface | IMPLEMENTED / PROVIDER CI GREEN |
 | W5-B4 Fenix adapters | IMPLEMENTED |
 | W5-B5 Runtime wiring | IMPLEMENTED |
-| W5-B6 Cross-repo integration tests | IMPLEMENTED / FENIX FINAL CI DEFERRED |
+| W5-B6 Cross-repo integration tests | IMPLEMENTED |
+| W5-C Operational readiness | CLOSED / QA WAIVER 82.9% vs 83.0% |
+| W5-FINAL Integration validation | NEXT |
 
 W1, W2, W3, and W4 are closed at contract/runtime-governance level. W5-A is also closed: the remaining work is now classified as concrete adapter/provider-surface/operational readiness gaps. Fenix owns one GovernanceDecision per execution_id; provider execution and VEL evidence participation remain independently controlled, and evidence reconciliation never repeats the business capability.
 
 W5-A canonical inventory: `docs/plans/fenix-integration-w5-readiness-gap-inventory.md`.  
 W5-B adapter/provider implementation: `docs/plans/fenix-integration-w5b-adapter-provider-integration.md`.
 
-W5-B implements authenticated HTTP/JSON provider boundaries, concrete Fenix adapters and opt-in Fenix-owned evidence selection. Mermaid2SF and VEL provider CI are green. Fenix full CI remains intentionally deferred until the final W5 checkpoint.
+W5-B implements authenticated HTTP/JSON provider boundaries, concrete Fenix adapters and opt-in Fenix-owned evidence selection. Mermaid2SF and VEL provider CI are green.
+
+W5-C is closed with an explicit owner-approved QA waiver: final validation run `35707040930`
+passed pattern/lint/security/dead-code/tests/BDD/eval/race and reached 82.9% application coverage
+against the 83.0% threshold. The 0.1 pp shortfall is accepted as non-blocking; the threshold was
+not changed and the failed CI run is not represented as green. W5-FINAL is next.
 
 ## W0 — ownership and scope
 
