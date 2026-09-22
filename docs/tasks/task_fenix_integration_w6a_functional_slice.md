@@ -2,7 +2,7 @@
 doc_type: task
 id: W6-A
 title: First agent-driven functional integration slice
-status: ready
+status: implemented
 phase: integration
 week: W6
 tags: [fenix, w6, agents, blackboard, mermaid2sf, vel]
@@ -25,6 +25,38 @@ completed:
 - **A5** Verify Blackboard stores coordination/artifact state, not raw reasoning or VEL bundles.
 - **A6** Verify trace/execution/audit/proof correlation.
 - **A7** Preserve an executable fixture/demo proof.
+
+## Implementation — 2026-09-22
+
+Implemented in `internal/api/integration_runtime_w6_test.go` (commit `17f8fef3`).
+
+The proof exercises the real composition seam:
+
+```text
+Blackboard PlannerExecutor
+        -> ToolRegistry.Execute
+        -> W4 governance planner
+        -> concrete M2SF HTTP adapter
+        -> normalized Flow result
+        -> Blackboard observation/memory
+        -> optional evidence recorder
+        -> correlated tool audit
+```
+
+Two variants use the same `salesforce.flow.export` functional scenario:
+
+- evidence OFF: M2SF executes and no evidence recorder call occurs;
+- evidence ON: the same governed execution calls the evidence port and preserves the same
+  `trace_id` / `execution_id` seen by M2SF.
+
+The proof also asserts that Blackboard memory contains the provider result/reference while not
+persisting verification bundles or a reasoning-trace field.
+
+No new Blackboard-to-ToolRegistry bridge was required: `PlannerExecutor` already executes
+planned steps through `ToolRegistry.Execute()`.
+
+Per the owner-approved QA policy for this continuation, no additional GitHub QA run is required
+to proceed to W6-B.
 
 ## Non-goals
 

@@ -73,6 +73,15 @@ agent receives Flow task
 - **A6** Assert audit/trace/execution correlation across agent, capability and optional proof.
 - **A7** Capture one executable/demo fixture as the W6 functional proof.
 
+## W6-A implementation status
+
+**IMPLEMENTED / proof-ready — 2026-09-22**
+
+The existing Blackboard `PlannerExecutor` already provides the required execution seam into
+`ToolRegistry`; W6-A therefore required a functional composition proof rather than new runtime
+plumbing. The proof lives at `internal/api/integration_runtime_w6_test.go` and covers evidence
+OFF/ON variants with M2SF correlation, Blackboard projection and audit/evidence correlation.
+
 ## W6-B — Multi-agent coordination
 
 After W6-A proves one vertical slice, exercise multiple agents sharing Blackboard state while one or
