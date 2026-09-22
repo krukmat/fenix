@@ -19,9 +19,12 @@ import (
 )
 
 const (
-	maxResponseBytes    = 4 << 20
-	fieldStreamID       = "stream_id"
-	fieldIdempotencyKey = "idempotency_key"
+	maxResponseBytes        = 4 << 20
+	fieldStreamID           = "stream_id"
+	fieldIdempotencyKey     = "idempotency_key"
+	headerAuthorization     = "Authorization"
+	providerOutcomeSuccess  = "success"
+	providerOutcomeError    = "error"
 )
 
 var errInvalidConfig = errors.New("invalid VEL integration configuration")
@@ -53,9 +56,9 @@ func (s *Sink) RecordEvidence(
 ) (ref evidence.ProofReference, err error) {
 	started := time.Now()
 	defer func() {
-		outcome := "success"
+		outcome := providerOutcomeSuccess
 		if err != nil {
-			outcome = "error"
+			outcome = providerOutcomeError
 		}
 		telemetry.Default.ObserveProvider("vel", "append_external", outcome, time.Since(started))
 	}()
@@ -138,9 +141,9 @@ func (s *Sink) LookupEvidence(
 ) (ref *evidence.ProofReference, err error) {
 	started := time.Now()
 	defer func() {
-		outcome := "success"
+		outcome := providerOutcomeSuccess
 		if err != nil {
-			outcome = "error"
+			outcome = providerOutcomeError
 		}
 		telemetry.Default.ObserveProvider("vel", "lookup_external", outcome, time.Since(started))
 	}()
@@ -331,7 +334,7 @@ func decodeStoredEvent(raw []byte) (storedEvent, error) {
 
 func (s *Sink) decorateRequest(ctx context.Context, request *http.Request) {
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+s.token)
+	request.Header.Set(headerAuthorization, "Bearer "+s.token)
 	setContextHeader(ctx, request, "X-Fenix-Trace-ID", ctxkeys.TraceID)
 	setContextHeader(ctx, request, "X-Fenix-Execution-ID", ctxkeys.ExecutionID)
 }
