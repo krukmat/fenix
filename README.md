@@ -10,9 +10,12 @@
 
 - [What Fenix is](#what-fenix-is)
 - [How it works](#how-it-works)
+- [Why this is technically interesting](#why-this-is-technically-interesting)
 - [Product surfaces](#product-surfaces)
-- [The interesting part: governed external capabilities](#the-interesting-part-governed-external-capabilities)
+- [Where it gets interesting: controlled agents that can act](#where-it-gets-interesting-controlled-agents-that-can-act)
 - [Architecture at a glance](#architecture-at-a-glance)
+- [Developer tour](#developer-tour)
+- [Quick start](#quick-start)
 - [Current status](#current-status)
 - [Documentation](#documentation)
 
@@ -60,6 +63,32 @@ The result is not just an AI answer: it is an **inspectable operational run**.
 
 ---
 
+
+## Why this is technically interesting
+
+Fenix is built around a few constraints that become more interesting once agents are allowed to **do** things instead of only generate text.
+
+| Problem | Fenix approach |
+|---|---|
+| Several agents need to contribute before an action | **Blackboard → ranked proposal → deterministic plan** |
+| Model reasoning must not directly cause side effects | **Agent → governance → ToolRegistry → action** |
+| Salesforce Flow must be editable in a human-readable form | **Salesforce XML ⇄ FlowIR ⇄ Mermaid** |
+| Evidence infrastructure may fail after an action succeeds | **Recover evidence separately; never replay the business action** |
+
+```mermaid
+flowchart LR
+    A[Agents collaborate] --> B[Deterministic plan]
+    B --> G{Governance}
+    G -->|allowed| X[Business action]
+    X --> R[Business result]
+    X -. optional evidence .-> E[Evidence recovery]
+```
+
+These are implemented boundaries, not just design goals. The functional proof exercises retries,
+multi-agent execution, provider failures and restart-safe evidence recovery.
+
+---
+
 ## Product surfaces
 
 These screens are generated from the live product using the screenshot suites.
@@ -80,7 +109,7 @@ These screens are generated from the live product using the screenshot suites.
 
 ---
 
-## The interesting part: governed external capabilities
+## Where it gets interesting: controlled agents that can act
 
 Fenix can use external specialists without giving up control.
 
@@ -135,6 +164,39 @@ flowchart LR
 ```
 
 For the full system model, ERD and API view, see [Architecture](docs/architecture.md).
+
+---
+
+
+## Developer tour
+
+If you want to understand the implementation rather than read more product documentation, these are
+the best entry points:
+
+| Question | Start here |
+|---|---|
+| How do agents share work and produce a plan? | [`internal/domain/blackboard/`](internal/domain/blackboard/) |
+| How are actions governed and executed? | [`internal/domain/tool/`](internal/domain/tool/) |
+| Where are Mermaid2SF and VEL wired into Fenix? | [`internal/api/integration_runtime.go`](internal/api/integration_runtime.go) |
+| Where is the complete functional integration exercised? | [`internal/api/integration_runtime_w6_test.go`](internal/api/integration_runtime_w6_test.go) |
+
+The W6 integration test is the fastest single-file tour of the current design: Blackboard planning,
+governed capability execution, Mermaid2SF, evidence optionality, retry identity, failure handling and
+restart reconciliation all meet there.
+
+---
+
+## Quick start
+
+For the shortest path into the codebase:
+
+```bash
+make run
+make test
+```
+
+Full setup, repository structure, quality hooks and screenshot commands are in the
+[development guide](docs/development-guide.md).
 
 ---
 
