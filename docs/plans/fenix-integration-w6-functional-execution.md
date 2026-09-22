@@ -140,6 +140,33 @@ Exercise functional behavior when M2SF or VEL is unavailable:
 - verification failed: agent may report evidence failure but may not claim verified integrity.
 - restart/reconciliation: only evidence lifecycle resumes; business action is not repeated.
 
+## W6-C implementation status
+
+**IN PROGRESS — first block C1-C4 implemented, 2026-09-22**
+
+The first resilience block is preserved in `internal/api/integration_runtime_w6_test.go`.
+
+- **C1 — M2SF unavailable:** persistent 503 responses consume the bounded two-attempt retry
+  contract, retain one stable `execution_id`, return no provider result, and project
+  `tool_failure` instead of inventing success.
+- **C2 — Retryable M2SF failure:** already proven by the W6-B functional proof: a transient 503
+  retries once with the same `execution_id` and then succeeds. This behavior is reused rather
+  than duplicated in another test.
+- **C3 — VEL unavailable / optional evidence:** M2SF succeeds once; the business result remains
+  present while the evidence path reports `evidence_indeterminate`. No business retry occurs.
+- **C4 — verification failure:** M2SF succeeds once; the provider result remains present while
+  Fenix exposes `evidence_verification_failed` and never presents the execution as verified.
+
+No production runtime change was required for C1-C4; the existing W1-W5 contracts already implement
+the intended behavior. The block adds end-to-end Blackboard projections proving those semantics.
+
+No full GitHub QA run was started, per the repository-owner QA decision. A local targeted Go test
+was attempted but this execution environment could not resolve GitHub to clone the repository, so
+this block is recorded as implementation/proof complete rather than globally QA-validated.
+
+Remaining W6-C work: C5 restart/reconciliation, C6 Blackboard failure projection hardening, and C7
+resilience proof consolidation.
+
 ## W6-D — Product/demo handoff
 
 Produce a concise end-to-end tour showing:
