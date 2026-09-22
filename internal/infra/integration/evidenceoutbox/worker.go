@@ -41,7 +41,7 @@ func (r *Recorder) reconcileRecordRow(ctx context.Context, row deliveryRow) erro
 			return r.scheduleWorkerRetry(ctx, row.ExecutionID, err, false)
 		}
 		if ref != nil {
-			telemetry.Default.IncLifecycle("reconciliation", "resolved")
+			telemetry.Default.IncLifecycle(metricReconciliation, "resolved")
 			return r.persistWorkerRecord(ctx, row.ExecutionID, *ref, false)
 		}
 	}
@@ -55,10 +55,10 @@ func (r *Recorder) appendWorker(ctx context.Context, row deliveryRow) error {
 	}
 	var indeterminate *evidence.IndeterminateRecordError
 	if errors.As(err, &indeterminate) {
-		telemetry.Default.IncLifecycle("delivery", "indeterminate")
+		telemetry.Default.IncLifecycle(metricDelivery, "indeterminate")
 		return r.scheduleWorkerRetry(ctx, row.ExecutionID, err, true)
 	}
-	telemetry.Default.IncLifecycle("delivery", "failed")
+	telemetry.Default.IncLifecycle(metricDelivery, "failed")
 	return r.scheduleState(ctx, row.ExecutionID, evidence.DeliveryIndeterminate, err, nil, true)
 }
 
@@ -71,7 +71,7 @@ func (r *Recorder) persistWorkerRecord(
 	if err := r.markRecorded(ctx, executionID, ref, incrementAttempt); err != nil {
 		return err
 	}
-	telemetry.Default.IncLifecycle("delivery", "recorded")
+	telemetry.Default.IncLifecycle(metricDelivery, "recorded")
 	return nil
 }
 
@@ -82,7 +82,7 @@ func (r *Recorder) scheduleWorkerRetry(
 	incrementAttempt bool,
 ) error {
 	due := r.now().Add(r.retryDelay)
-	telemetry.Default.IncLifecycle("reconciliation", "pending")
+	telemetry.Default.IncLifecycle(metricReconciliation, "pending")
 	return r.scheduleState(
 		ctx,
 		executionID,
