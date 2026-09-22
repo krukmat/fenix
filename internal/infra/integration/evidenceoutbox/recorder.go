@@ -14,8 +14,10 @@ import (
 )
 
 const (
-	defaultWorkerInterval = 5 * time.Second
-	defaultRetryDelay     = 5 * time.Second
+	defaultWorkerInterval  = 5 * time.Second
+	defaultRetryDelay      = 5 * time.Second
+	metricDelivery         = "delivery"
+	metricReconciliation   = "reconciliation"
 )
 
 var (
@@ -118,7 +120,7 @@ func (r *Recorder) appendInteractive(
 	if updateErr := r.scheduleState(ctx, row.ExecutionID, evidence.DeliveryIndeterminate, err, nil, true); updateErr != nil {
 		return pendingResult(row.ExecutionID, row.StreamID), updateErr
 	}
-	telemetry.Default.IncLifecycle("delivery", "failed")
+	telemetry.Default.IncLifecycle(metricDelivery, "failed")
 	return pendingResult(row.ExecutionID, row.StreamID), err
 }
 
@@ -132,10 +134,10 @@ func (r *Recorder) lookupInteractive(
 		if scheduleErr := r.scheduleRetry(ctx, row.ExecutionID, err, incrementAttempt); scheduleErr != nil {
 			return pendingResult(row.ExecutionID, row.StreamID), scheduleErr
 		}
-		telemetry.Default.IncLifecycle("reconciliation", "pending")
+		telemetry.Default.IncLifecycle(metricReconciliation, "pending")
 		return pendingResult(row.ExecutionID, row.StreamID), nil
 	}
-	telemetry.Default.IncLifecycle("reconciliation", "resolved")
+	telemetry.Default.IncLifecycle(metricReconciliation, "resolved")
 	return r.finishInteractiveRecord(ctx, row, *ref, incrementAttempt)
 }
 
@@ -148,7 +150,7 @@ func (r *Recorder) finishInteractiveRecord(
 	if err := r.markRecorded(ctx, row.ExecutionID, ref, incrementAttempt); err != nil {
 		return pendingResult(row.ExecutionID, row.StreamID), err
 	}
-	telemetry.Default.IncLifecycle("delivery", "recorded")
+	telemetry.Default.IncLifecycle(metricDelivery, "recorded")
 	r.refreshPendingMetric(ctx)
 	return evidence.RuntimeResultFromProof(row.Envelope, ref)
 }
