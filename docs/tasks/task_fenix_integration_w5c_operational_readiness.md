@@ -140,3 +140,17 @@ G07-G10 implementation is present on `main` and is entering the repository valid
 - Cross-repo: VEL hierarchical stream routes accept `workspace/<id>`; VEL CI passed on commit `6920532`.
 
 Validation is not complete until the Fenix CI gate is green.
+
+### Validation remediation — 2026-09-22
+
+Repository validation exposed pre-existing compile/lint defects in the new W5-C files before the
+functional test stages could run. The W5-C validation pass corrected:
+
+- malformed durable verification test assertion;
+- stale worker import;
+- worker cognitive-complexity and variable-shadowing findings;
+- repeated lifecycle/provider metric/header literals;
+- metrics response write handling;
+- compact verification guard style.
+
+The implementation remains in validation until the CI workflow reaches the contract gate successfully.
