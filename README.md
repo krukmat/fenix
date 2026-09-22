@@ -9,7 +9,7 @@
 ## Contents
 
 - [From CRM records to governed action](#from-crm-records-to-governed-action)
-- [From context to action](#from-context-to-action)
+- [Inside the agent loop](#inside-the-agent-loop)
 - [From copilot to controlled execution](#from-copilot-to-controlled-execution)
 - [See it in action](#see-it-in-action)
 - [Specialized capabilities, one control plane](#specialized-capabilities-one-control-plane)
@@ -95,25 +95,39 @@ The initial use cases are intentionally narrow:
 
 ---
 
-## From context to action
+## Inside the agent loop
+
+Fenix does not ask one model to make the whole decision. Specialized agents contribute different
+pieces of the problem into a shared Blackboard.
 
 ```mermaid
 flowchart LR
-    U[User or event] --> A[Agent]
-    A --> K[Grounded context]
-    K --> B[Blackboard]
-    B --> P[Collaborative plan]
-    P --> G{Governance}
-    G -->|allow| T[Execute]
-    G -->|approval| H[Human approval]
-    H --> T
-    G -->|deny| X[Stop]
-    T --> O[Result + audit]
+    CASE[Case / task context] --> S[Signal Agent]
+    CASE --> E[Evidence Agent]
+    CASE --> P[Policy Agent]
+
+    S --> B[Blackboard]
+    E --> B
+    P --> B
+
+    B --> R[Rank competing hypotheses]
+    R --> PLAN[Build deterministic proposal]
+    PLAN --> G{Governance}
+    G --> X[Execute or defer]
 ```
 
-The Blackboard is the shared work area for specialized agents. It collects signals, evidence and constraints, then turns them into a deterministic proposal before execution.
+In practice:
 
-The result is not just an AI answer: it is an **inspectable operational run**.
+- the **Signal Agent** identifies likely issues or opportunities;
+- the **Evidence Agent** adds supporting facts;
+- the **Policy Agent** contributes constraints;
+- the **Blackboard** keeps those contributions in one shared state;
+- arbitration ranks the alternatives;
+- the planner converts the selected alternative into an executable proposal.
+
+That separation matters because the model that suggests an action is not automatically the component
+that gets to execute it.
+
 
 ---
 
