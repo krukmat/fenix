@@ -2,14 +2,14 @@
 doc_type: task
 id: W5-FINAL
 title: Final integrated validation of Fenix, Mermaid2SF and VEL
-status: ready
+status: closed
 phase: integration
 week: W5
 tags: [fenix, w5, validation, mermaid2sf, vel]
 blocked_by: [W5-C]
 blocks: [W6]
 created: 2026-09-22
-completed:
+completed: 2026-09-22
 ---
 
 # Task W5-FINAL — Final integrated validation
@@ -24,6 +24,18 @@ completed:
 - **F4** Validate failure, recovery and no-business-replay semantics.
 - **F5** Reconfirm current cross-repo provider compatibility.
 - **F6** Close W5 documentation and produce the W6 handoff.
+
+## Result
+
+All F1-F6 validation slices are closed by existing focused runtime tests plus direct inspection of
+the current Mermaid2SF and VEL provider contracts. No new integration architecture was required.
+
+Residuals carried forward:
+
+- explicit W5-C coverage waiver: 82.9% vs 83.0%;
+- no final live three-process smoke in this closure pass.
+
+These are documented risks, not blockers for W6.
 
 ## Constraints
 

@@ -50,7 +50,7 @@
 | W5-B5 Runtime wiring | IMPLEMENTED |
 | W5-B6 Cross-repo integration tests | IMPLEMENTED |
 | W5-C Operational readiness | CLOSED / QA WAIVER 82.9% vs 83.0% |
-| W5-FINAL Integration validation | NEXT |
+| W5-FINAL Integration validation | CLOSED |
 
 W1, W2, W3, and W4 are closed at contract/runtime-governance level. W5-A is also closed: the remaining work is now classified as concrete adapter/provider-surface/operational readiness gaps. Fenix owns one GovernanceDecision per execution_id; provider execution and VEL evidence participation remain independently controlled, and evidence reconciliation never repeats the business capability.
 
@@ -62,7 +62,11 @@ W5-B implements authenticated HTTP/JSON provider boundaries, concrete Fenix adap
 W5-C is closed with an explicit owner-approved QA waiver: final validation run `35707040930`
 passed pattern/lint/security/dead-code/tests/BDD/eval/race and reached 82.9% application coverage
 against the 83.0% threshold. The 0.1 pp shortfall is accepted as non-blocking; the threshold was
-not changed and the failed CI run is not represented as green. W5-FINAL is next.
+not changed and the failed CI run is not represented as green.
+
+W5-FINAL is CLOSED. Focused Fenix runtime tests plus direct source-contract inspection confirm
+compatibility with Mermaid2SF main `34d94c9d` and VEL main `69205324`. W6 functional execution
+is the next phase.
 
 ## W0 — ownership and scope
 
