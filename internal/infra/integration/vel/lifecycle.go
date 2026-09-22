@@ -115,7 +115,7 @@ func (s *Sink) executeLifecycleRequest(
 	started := time.Now()
 	response, err := s.client.Do(request)
 	if err != nil {
-		telemetry.Default.ObserveProvider("vel", operation, providerOutcomeError, time.Since(started))
+		telemetry.Default.ObserveProvider(providerNameVEL, operation, providerOutcomeError, time.Since(started))
 		return nil, fmt.Errorf("call VEL %s: %w", operation, err)
 	}
 
@@ -124,7 +124,7 @@ func (s *Sink) executeLifecycleRequest(
 	if err != nil {
 		outcome = providerOutcomeError
 	}
-	telemetry.Default.ObserveProvider("vel", operation, outcome, time.Since(started))
+	telemetry.Default.ObserveProvider(providerNameVEL, operation, outcome, time.Since(started))
 	return raw, err
 }
 
