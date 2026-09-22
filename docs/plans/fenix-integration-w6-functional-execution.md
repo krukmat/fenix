@@ -2,7 +2,7 @@
 doc_type: plan
 id: W6
 title: Fenix Integration W6 Functional Execution
-status: planned
+status: in_progress
 phase: integration
 tags: [fenix, integration, agents, blackboard, mermaid2sf, vel]
 created: 2026-09-22
@@ -87,6 +87,49 @@ OFF/ON variants with M2SF correlation, Blackboard projection and audit/evidence 
 After W6-A proves one vertical slice, exercise multiple agents sharing Blackboard state while one or
 more governed capabilities execute. Validate ownership, handoff, stale-state handling and that each
 external execution receives its own stable execution identity.
+
+## W6-B implementation status
+
+**CLOSED — 2026-09-22**
+
+W6-B reuses the existing specialized-agent artifact model and adds one provider-neutral planner
+extension: `PlanningConfig.ActionSteps`. When supplied, those concrete steps become the executable
+selected-proposal sequence; when omitted, existing generic planner behavior is unchanged.
+
+The W6-B proof demonstrates:
+
+```text
+Signal/Evidence agent artifacts
+          +
+ranked collaborative hypothesis
+          ↓
+Blackboard Planner
+          ↓
+bound governed action sequence
+  1. salesforce.flow.export
+  2. salesforce.flow.validate
+          ↓
+PlannerExecutor
+          ↓
+ToolRegistry governance
+          ↓
+M2SF
+```
+
+Identity behavior is explicit:
+
+```text
+export attempt 1  ─┐
+export retry      ─┴─ same execution_id E1
+validate             distinct execution_id E2
+```
+
+With optional evidence selected for export, Fenix emits only the minimized evidence envelope with
+input/output digests; Blackboard-only collaboration content is not copied into it. A collaboration
+missing required evidence remains `awaiting_evidence` and invokes no provider.
+
+Executable proof:
+`internal/api/integration_runtime_w6_test.go`.
 
 ## W6-C — Functional resilience
 

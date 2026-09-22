@@ -62,7 +62,6 @@ func (r *w6EvidenceRecorder) RecordCapabilityEvidence(
 	}, nil
 }
 
-
 type w6BoundaryEvidenceRecorder struct {
 	requests  []tool.CapabilityEvidenceRequest
 	envelopes []evidence.Envelope
@@ -650,9 +649,12 @@ func TestW6B_NotReadyCollaborationDefersBeforeProviderInvocation(t *testing.T) {
 	db, workspace := setupW6FunctionalWorkspace(t)
 	seedW6CollaborativePlanningState(t, db, workspace.ID, false)
 
+	var providerMu sync.Mutex
 	providerCalls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		providerMu.Lock()
 		providerCalls++
+		providerMu.Unlock()
 		_ = json.NewEncoder(w).Encode(w6ProviderResult(flowinterop.OperationExport))
 	}))
 	defer server.Close()
@@ -707,7 +709,10 @@ func TestW6B_NotReadyCollaborationDefersBeforeProviderInvocation(t *testing.T) {
 	if outcome.DeferralReason != "awaiting_evidence" || len(outcome.Executed) != 0 {
 		t.Fatalf("deferred outcome = %#v", outcome)
 	}
-	if providerCalls != 0 {
-		t.Fatalf("provider calls = %d, want 0 while collaboration is not ready", providerCalls)
+	providerMu.Lock()
+	calls := providerCalls
+	providerMu.Unlock()
+	if calls != 0 {
+		t.Fatalf("provider calls = %d, want 0 while collaboration is not ready", calls)
 	}
 }

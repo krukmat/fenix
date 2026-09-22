@@ -131,7 +131,9 @@ type PlanningConfig struct {
 	ResultMemoryKey      string
 	MinReadyScore        float64
 	PersistResult        bool
-	ActionSteps          []ToolSequenceStep
+	// ActionSteps binds the collaborative decision to concrete executable tools.
+	// Empty preserves the legacy generic planning markers.
+	ActionSteps []ToolSequenceStep
 }
 
 // ToolSequenceStep is one planned governed action in execution order.
