@@ -8,20 +8,20 @@
 
 ## Contents
 
-- [What Fenix is](#what-fenix-is)
-- [How it works](#how-it-works)
-- [Why this is technically interesting](#why-this-is-technically-interesting)
-- [Product surfaces](#product-surfaces)
-- [External capabilities without losing control](#external-capabilities-without-losing-control)
+- [AI operations, not another CRM](#ai-operations-not-another-crm)
+- [From context to action](#from-context-to-action)
+- [From copilot to controlled execution](#from-copilot-to-controlled-execution)
+- [See it in action](#see-it-in-action)
+- [Specialized capabilities, one control plane](#specialized-capabilities-one-control-plane)
 - [Architecture at a glance](#architecture-at-a-glance)
-- [Developer tour](#developer-tour)
-- [Quick start](#quick-start)
-- [Current status](#current-status)
-- [Documentation](#documentation)
+- [Explore the code](#explore-the-code)
+- [Run it](#run-it)
+- [Project status](#project-status)
+- [Go deeper](#go-deeper)
 
 ---
 
-## What Fenix is
+## AI operations, not another CRM
 
 FenixCRM is not intended to replace a CRM. It sits above customer-operation workflows and gives AI agents a controlled way to **reason, collaborate and act**.
 
@@ -41,7 +41,7 @@ The initial product focus is deliberately narrow:
 
 ---
 
-## How it works
+## From context to action
 
 ```mermaid
 flowchart LR
@@ -63,9 +63,9 @@ The result is not just an AI answer: it is an **inspectable operational run**.
 
 ---
 
-## Why this is technically interesting
+## From copilot to controlled execution
 
-Fenix is built around a few constraints that become more interesting once agents are allowed to **do** things instead of only generate text.
+The point where Fenix stops behaving like a copilot and starts behaving like an operating layer is **execution**. Once agents can act, collaboration, policy, retries and evidence become part of the product—not plumbing hidden behind the model.
 
 | Problem | Fenix approach |
 |---|---|
@@ -88,9 +88,9 @@ multi-agent execution, provider failures and restart-safe evidence recovery.
 
 ---
 
-## Product surfaces
+## See it in action
 
-These screens are generated from the live product using the screenshot suites.
+This is what the operating model looks like in the product. The screenshots come from the live screenshot suites.
 
 | Inbox | Support case |
 |---|---|
@@ -108,9 +108,9 @@ These screens are generated from the live product using the screenshot suites.
 
 ---
 
-## External capabilities without losing control
+## Specialized capabilities, one control plane
 
-Fenix can use external specialists without giving up control.
+Fenix can delegate specialized work without delegating control.
 
 For Salesforce Flow work it can call **Mermaid2SF**. When an execution needs tamper-evident evidence, Fenix can separately use **VEL**.
 
@@ -166,10 +166,9 @@ For the full system model, ERD and API view, see [Architecture](docs/architectur
 
 ---
 
-## Developer tour
+## Explore the code
 
-If you want to understand the implementation rather than read more product documentation, these are
-the best entry points:
+If the architecture caught your attention, these are the shortest paths into the implementation:
 
 | Question | Start here |
 |---|---|
@@ -184,9 +183,9 @@ restart reconciliation all meet there.
 
 ---
 
-## Quick start
+## Run it
 
-For the shortest path into the codebase:
+The shortest path from README to a running backend:
 
 ```bash
 make run
@@ -198,7 +197,7 @@ Full setup, repository structure, quality hooks and screenshot commands are in t
 
 ---
 
-## Current status
+## Project status
 
 The core product already includes governed agents, grounded retrieval, policy and approvals,
 multi-agent Blackboard coordination, declarative workflows, mobile/admin surfaces and audit.
@@ -212,7 +211,7 @@ Fenix + Mermaid2SF + VEL smoke are documented in the
 
 ---
 
-## Documentation
+## Go deeper
 
 Start here:
 
