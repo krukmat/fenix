@@ -120,8 +120,8 @@ func (r *Recorder) queryRows(ctx context.Context, query string, args ...any) ([]
 		}
 		result = append(result, row)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, wrapDBError("iterate due rows", err)
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, wrapDBError("iterate due rows", rowsErr)
 	}
 	return result, nil
 }
