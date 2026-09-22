@@ -69,8 +69,8 @@ func (s *Sink) createCheckpoint(ctx context.Context, streamID string) (storedChe
 		return storedCheckpoint{}, err
 	}
 	var checkpoint storedCheckpoint
-	if err := json.Unmarshal(raw, &checkpoint); err != nil {
-		return storedCheckpoint{}, fmt.Errorf("decode VEL checkpoint: %w", err)
+	if decodeErr := json.Unmarshal(raw, &checkpoint); decodeErr != nil {
+		return storedCheckpoint{}, fmt.Errorf("decode VEL checkpoint: %w", decodeErr)
 	}
 	return checkpoint, nil
 }
@@ -97,8 +97,8 @@ func (s *Sink) verifyBundle(ctx context.Context, bundleRaw []byte) (verification
 		return verificationResponse{}, err
 	}
 	var verification verificationResponse
-	if err := json.Unmarshal(raw, &verification); err != nil {
-		return verificationResponse{}, fmt.Errorf("decode VEL verification: %w", err)
+	if decodeErr := json.Unmarshal(raw, &verification); decodeErr != nil {
+		return verificationResponse{}, fmt.Errorf("decode VEL verification: %w", decodeErr)
 	}
 	return verification, nil
 }
@@ -115,14 +115,14 @@ func (s *Sink) executeLifecycleRequest(
 	started := time.Now()
 	response, err := s.client.Do(request)
 	if err != nil {
-		telemetry.Default.ObserveProvider("vel", operation, "error", time.Since(started))
+		telemetry.Default.ObserveProvider("vel", operation, providerOutcomeError, time.Since(started))
 		return nil, fmt.Errorf("call VEL %s: %w", operation, err)
 	}
 
 	raw, err := readLifecycleResponse(operation, response)
-	outcome := "success"
+	outcome := providerOutcomeSuccess
 	if err != nil {
-		outcome = "error"
+		outcome = providerOutcomeError
 	}
 	telemetry.Default.ObserveProvider("vel", operation, outcome, time.Since(started))
 	return raw, err
