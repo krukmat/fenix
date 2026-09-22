@@ -2,7 +2,7 @@
 doc_type: plan
 id: W6
 title: Fenix Integration W6 Functional Execution
-status: in_progress
+status: closed
 phase: integration
 tags: [fenix, integration, agents, blackboard, mermaid2sf, vel]
 created: 2026-09-22
@@ -208,7 +208,7 @@ This becomes the functional proof and entry point for whatever productization wa
 
 ## W6-D implementation status
 
-**IN PROGRESS — D1, D2 and D4 implemented, 2026-09-22**
+**CLOSED — D1-D6 implemented, 2026-09-22**
 
 ### D1 — Happy-path tour
 
@@ -266,8 +266,27 @@ crypto evidence authority
 
 VEL is explicitly outside ToolRegistry. Agents cannot invoke VEL directly.
 
-Remaining W6-D work: D3 resilience tour, D5 executable proof index and D6 final README/operator
-handoff + W6 closure.
+### D3 — Resilience tour
+
+The README now carries the canonical failure matrix and restart path. Evidence lifecycle failure
+never causes a business-capability replay.
+
+### D5 — Executable proof index
+
+The README links the W6-A/B/C functional tests and the W2-W6 supporting contracts.
+
+### D6 — Operator handoff
+
+The integration tour is now part of the canonical README. Validation caveats are explicit:
+
+- W5-C retains the owner-approved 82.9% vs 83.0% coverage waiver;
+- W6 functional proofs were committed without another global QA run;
+- neither condition is represented as a new fully green validation run.
+
+**W6 CLOSED — 2026-09-22.**
+
+No additional integration layer is required. The next decision is productization: live-provider
+demo versus adoption by a concrete product workflow.
 
 ## Exit criteria
 

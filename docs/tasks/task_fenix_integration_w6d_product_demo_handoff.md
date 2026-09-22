@@ -2,14 +2,14 @@
 doc_type: task
 id: W6-D
 title: Product/demo handoff for the complete Fenix integration flow
-status: in_progress
+status: closed
 phase: integration
 week: W6
 tags: [fenix, w6, demo, handoff, blackboard, mermaid2sf, vel]
 blocked_by: [W6-C]
 blocks: []
 created: 2026-09-22
-completed:
+completed: 2026-09-22
 ---
 
 # Task W6-D — Product/demo handoff
@@ -36,7 +36,7 @@ system does, where authority lives, when M2SF and VEL participate, and how failu
   - governed non-M2SF capability with VEL;
   - governed execution with neither provider.
 
-- **D3 — Resilience tour**
+- **D3 — Resilience tour — IMPLEMENTED**
   - M2SF retry/failure;
   - VEL indeterminate;
   - verification failure;
@@ -49,11 +49,11 @@ system does, where authority lives, when M2SF and VEL participate, and how failu
   - Evidence Runtime / Outbox = Fenix evidence-delivery boundary;
   - VEL = cryptographic evidence authority, explicitly **not a ToolRegistry tool**.
 
-- **D5 — Executable proof index**
+- **D5 — Executable proof index — IMPLEMENTED**
   - link the W6-A/B/C tests and relevant W1-W5 contract docs;
   - distinguish executable proof from residual risks/QA waiver.
 
-- **D6 — README / operator handoff**
+- **D6 — README / operator handoff — IMPLEMENTED**
   - add the concise integration tour to the canonical README or integration entry point;
   - close W6 with the next productization decision clearly identified.
 
@@ -83,3 +83,37 @@ Remaining work:
 - **D3** resilience tour;
 - **D5** executable proof index;
 - **D6** final README/operator handoff and W6 closure.
+
+## D3/D5/D6 result — 2026-09-22
+
+### D3 — resilience tour
+
+The README now documents the functional failure matrix:
+
+- transient M2SF failure -> bounded retry with stable execution identity;
+- persistent M2SF failure -> explicit failure and no invented result;
+- VEL unavailable -> business result preserved, evidence indeterminate;
+- verification failure -> business result preserved, never reported as verified;
+- restart -> durable evidence reconciliation without replaying the business capability.
+
+### D5 — executable proof index
+
+The README indexes the W6-A/B/C executable tests and the W2-W6 contract/readiness documents.
+
+### D6 — operator handoff
+
+The canonical README now contains:
+
+- happy-path integration tour;
+- M2SF/VEL optionality matrix;
+- corrected authority model with VEL outside ToolRegistry;
+- resilience behavior;
+- executable proof index;
+- explicit validation/QA note;
+- post-W6 productization decision.
+
+**W6-D CLOSED — 2026-09-22.**
+
+W6 is complete. No W7 integration wave is implied by this closure. The next planning decision is
+whether to run a live multi-process demo against real M2SF/VEL providers or consume the integration
+from a concrete product use case.

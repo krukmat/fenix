@@ -3,7 +3,7 @@
 > Date: 2026-09-21  
 > Status: active prerequisite baseline  
 > Branch policy: work directly on `main` unless explicitly requested otherwise.  
-> CI policy: while an integration wave is active, automatic GitHub Actions CI stays disabled; use manual `workflow_dispatch` only for explicit checkpoints. Re-enable automatic CI at wave closure for the final validation run. W5 is currently in manual-CI mode.
+> CI policy: automatic GitHub Actions CI is enabled for push, pull request, nightly schedule and manual `workflow_dispatch`. W6 documentation/test-proof commits intentionally used `[skip ci]` under the owner-approved no-global-QA continuation decision.
 
 ## Wave status
 
@@ -51,6 +51,10 @@
 | W5-B6 Cross-repo integration tests | IMPLEMENTED |
 | W5-C Operational readiness | CLOSED / QA WAIVER 82.9% vs 83.0% |
 | W5-FINAL Integration validation | CLOSED |
+| W6-A Functional slice | CLOSED |
+| W6-B Multi-agent coordination | CLOSED |
+| W6-C Functional resilience | CLOSED |
+| W6-D Product/demo handoff | CLOSED |
 
 W1, W2, W3, and W4 are closed at contract/runtime-governance level. W5-A is also closed: the remaining work is now classified as concrete adapter/provider-surface/operational readiness gaps. Fenix owns one GovernanceDecision per execution_id; provider execution and VEL evidence participation remain independently controlled, and evidence reconciliation never repeats the business capability.
 
@@ -65,8 +69,17 @@ against the 83.0% threshold. The 0.1 pp shortfall is accepted as non-blocking; t
 not changed and the failed CI run is not represented as green.
 
 W5-FINAL is CLOSED. Focused Fenix runtime tests plus direct source-contract inspection confirm
-compatibility with Mermaid2SF main `34d94c9d` and VEL main `69205324`. W6 functional execution
-is the next phase.
+compatibility with Mermaid2SF main `34d94c9d` and VEL main `69205324`.
+
+W6 is CLOSED. The functional proof now covers the agent/Blackboard path, governed M2SF execution,
+independent optional VEL evidence, multi-agent planning, bounded retries, agent-safe failure
+projection and restart-safe evidence reconciliation without replaying the business capability.
+
+Canonical W6 handoff: `docs/plans/fenix-integration-w6-functional-execution.md`.
+
+Important authority clarification: VEL is not a ToolRegistry tool. Business capabilities execute
+through ToolRegistry; VEL is reached through Fenix Evidence Runtime / durable outbox only when
+`evidence_planned=true`.
 
 ## W0 — ownership and scope
 

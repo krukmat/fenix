@@ -327,6 +327,68 @@ without replaying the Mermaid2SF business capability.
 > Integration proof and implementation status:
 > [`docs/plans/fenix-integration-w6-functional-execution.md`](docs/plans/fenix-integration-w6-functional-execution.md)
 
+### Failure behavior
+
+The integration is designed so evidence problems never silently become business-action retries:
+
+| Condition | Business result | Evidence state | Business replay |
+|---|---|---|---|
+| M2SF transient 5xx | succeeds after bounded retry | policy-dependent | retry keeps the same execution ID |
+| M2SF persistent 5xx | explicit failure; no invented result | none | bounded provider retry only |
+| VEL unavailable | successful capability result is preserved | `indeterminate` | no |
+| verification failure | successful capability result is preserved | `verification_failed` | no |
+| process restart | preserved | outbox reconciles to terminal state | no |
+
+The restart path is intentionally separate:
+
+```text
+business capability already completed
+            ↓
+durable evidence row
+            ↓
+restart / new recorder
+            ↓
+lookup by execution_id
+            ↓
+checkpoint + verify
+            ↓
+compact verified proof
+
+NO second business capability invocation
+```
+
+### Executable integration proof
+
+The W6 functional proof is concentrated in
+`internal/api/integration_runtime_w6_test.go`:
+
+- `TestW6A_BlackboardExecutesGovernedM2SFWithOptionalEvidence` — first governed vertical slice;
+- `TestW6B_CollaborativePlanExecutesDistinctGovernedStepsWithStableRetryIdentity` — multi-agent proposal, retries and execution identity;
+- `TestW6B_NotReadyCollaborationDefersBeforeProviderInvocation` — collaboration defers before provider execution;
+- `TestW6C_M2SFUnavailableFailsExplicitlyWithoutInventedResult` — explicit semantic-provider failure;
+- `TestW6C_OptionalVELUnavailablePreservesBusinessResultAsIndeterminateEvidence` — evidence outage without business replay;
+- `TestW6C_VerificationFailureCannotBePresentedAsVerified` — failed verification remains explicit;
+- `TestW6C_RestartReconcilesEvidenceWithoutReplayingM2SF` — durable restart/reconciliation proof.
+
+Supporting contracts:
+
+- [`docs/plans/fenix-integration-w2-mermaid2sf-contract.md`](docs/plans/fenix-integration-w2-mermaid2sf-contract.md) — Salesforce/FlowIR semantic boundary;
+- [`docs/plans/fenix-integration-w3-vel-contract.md`](docs/plans/fenix-integration-w3-vel-contract.md) — evidence/proof boundary;
+- [`docs/plans/fenix-integration-w4-governance-contract.md`](docs/plans/fenix-integration-w4-governance-contract.md) — governance and evidence-selection semantics;
+- [`docs/plans/fenix-integration-w5c-operational-readiness.md`](docs/plans/fenix-integration-w5c-operational-readiness.md) — durable outbox, verification lifecycle and observability;
+- [`docs/plans/fenix-integration-w6-functional-execution.md`](docs/plans/fenix-integration-w6-functional-execution.md) — complete functional integration handoff.
+
+**Validation note:** W5-C closed under the explicitly accepted 82.9% vs 83.0% coverage waiver.
+W6 proof changes were committed without another global QA run; they are not represented as a new
+fully green CI validation.
+
+### After W6
+
+W6 closes the integration architecture and functional proof. It does **not** imply another
+integration layer. The next planning decision is productization: either run a live three-process
+demo against real Mermaid2SF + VEL instances, or consume the governed integration from a concrete
+product use case. A new wave should be created only after that decision.
+
 ## Project Structure
 
 ```text
