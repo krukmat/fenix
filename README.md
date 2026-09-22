@@ -182,6 +182,9 @@ Fenix can delegate specialized work without delegating control.
 
 For Salesforce Flow work it can call **Mermaid2SF**. When an execution needs tamper-evident evidence, Fenix can separately use **VEL**.
 
+- **[Mermaid2SF](https://github.com/krukmat/Mermaid2SF)** — bidirectional Salesforce Flow ↔ Mermaid tooling built around FlowIR and Salesforce-aware validation.
+- **[Verifiable Event Ledger (VEL)](https://github.com/krukmat/verifiable-event-ledger)** — proof-of-concept ledger for audit evidence that can be independently verified rather than simply trusted because it is stored.
+
 ```mermaid
 flowchart LR
     A[Agent] --> B[Blackboard]

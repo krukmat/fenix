@@ -6,8 +6,8 @@
 
 Fenix remains in charge of execution. It can use two external specialists:
 
-- **Mermaid2SF** for Salesforce Flow semantics and conversion.
-- **VEL** for tamper-evident execution evidence and independent verification.
+- **[Mermaid2SF](https://github.com/krukmat/Mermaid2SF)** — bidirectional Salesforce Flow ↔ Mermaid tooling built around FlowIR and Salesforce-aware validation.
+- **[Verifiable Event Ledger (VEL)](https://github.com/krukmat/verifiable-event-ledger)** — proof-of-concept ledger for audit evidence that can be independently verified rather than simply trusted because it is stored.
 
 They are independent.
 
