@@ -14,10 +14,13 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/api/ctxkeys"
 	"github.com/matiasleandrokruk/fenix/internal/domain/audit"
 	"github.com/matiasleandrokruk/fenix/internal/domain/blackboard"
+	"github.com/matiasleandrokruk/fenix/internal/domain/evidence"
 	"github.com/matiasleandrokruk/fenix/internal/domain/flowinterop"
 	"github.com/matiasleandrokruk/fenix/internal/domain/tool"
 	isqlite "github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 )
+
+const w6BlackboardOnlyMarker = "RAW_BLACKBOARD_REASONING_SHOULD_NOT_LEAVE"
 
 type w6AuditStub struct {
 	details []map[string]any
@@ -55,6 +58,31 @@ func (r *w6EvidenceRecorder) RecordCapabilityEvidence(
 		AuditMetadata: map[string]any{
 			"event_id":      "event-w6",
 			"checkpoint_id": "checkpoint-w6",
+		},
+	}, nil
+}
+
+
+type w6BoundaryEvidenceRecorder struct {
+	requests  []tool.CapabilityEvidenceRequest
+	envelopes []evidence.Envelope
+}
+
+func (r *w6BoundaryEvidenceRecorder) RecordCapabilityEvidence(
+	_ context.Context,
+	request tool.CapabilityEvidenceRequest,
+) (tool.CapabilityEvidenceResult, error) {
+	envelope, err := evidence.BuildRuntimeEnvelope(request)
+	if err != nil {
+		return tool.CapabilityEvidenceResult{State: "indeterminate"}, err
+	}
+	r.requests = append(r.requests, request)
+	r.envelopes = append(r.envelopes, envelope)
+	return tool.CapabilityEvidenceResult{
+		State: "recorded",
+		AuditMetadata: map[string]any{
+			"execution_id": envelope.ExecutionID,
+			"stream_id":    envelope.StreamID,
 		},
 	}, nil
 }
@@ -340,10 +368,9 @@ func boolCount(value bool) int {
 	return 0
 }
 
-
 func TestW6B_CollaborativePlanExecutesDistinctGovernedStepsWithStableRetryIdentity(t *testing.T) {
 	db, workspace := setupW6FunctionalWorkspace(t)
-	seedW6CollaborativePlanningState(t, db, workspace.ID)
+	seedW6CollaborativePlanningState(t, db, workspace.ID, true)
 
 	var mu sync.Mutex
 	providerCalls := make([]w6ProviderCall, 0, 3)
@@ -391,13 +418,15 @@ func TestW6B_CollaborativePlanExecutesDistinctGovernedStepsWithStableRetryIdenti
 	if err := configureCrossPlatformRuntime(registry, settings); err != nil {
 		t.Fatalf("configureCrossPlatformRuntime: %v", err)
 	}
+	boundaryRecorder := &w6BoundaryEvidenceRecorder{}
 	governancePlanner, err := newCrossPlatformGovernancePlanner(
-		crossPlatformPolicySelector{optionalM2SFEvidence: false},
+		crossPlatformPolicySelector{optionalM2SFEvidence: true},
 	)
 	if err != nil {
 		t.Fatalf("newCrossPlatformGovernancePlanner: %v", err)
 	}
 	registry.SetCapabilityGovernancePlanner(governancePlanner)
+	registry.SetCapabilityEvidenceRecorder(boundaryRecorder)
 
 	plan, err := blackboard.NewPlanner(db).BuildWorkspacePlan(
 		context.Background(),
@@ -487,9 +516,36 @@ func TestW6B_CollaborativePlanExecutesDistinctGovernedStepsWithStableRetryIdenti
 			exportExecutionID,
 		)
 	}
+
+	if len(boundaryRecorder.envelopes) != 1 || len(boundaryRecorder.requests) != 1 {
+		t.Fatalf(
+			"evidence records = %d envelopes / %d requests, want one export evidence record",
+			len(boundaryRecorder.envelopes),
+			len(boundaryRecorder.requests),
+		)
+	}
+	envelope := boundaryRecorder.envelopes[0]
+	if envelope.ExecutionID != exportExecutionID {
+		t.Fatalf("evidence execution_id = %q, want %q", envelope.ExecutionID, exportExecutionID)
+	}
+	if envelope.InputDigest == nil || envelope.OutputDigest == nil {
+		t.Fatalf("evidence envelope must contain input/output digests: %#v", envelope)
+	}
+	rawEnvelope, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("marshal evidence envelope: %v", err)
+	}
+	if strings.Contains(string(rawEnvelope), w6BlackboardOnlyMarker) {
+		t.Fatalf("Blackboard-only collaboration state leaked into evidence envelope: %s", rawEnvelope)
+	}
 }
 
-func seedW6CollaborativePlanningState(t *testing.T, db *sql.DB, cognitiveWorkspaceID string) {
+func seedW6CollaborativePlanningState(
+	t *testing.T,
+	db *sql.DB,
+	cognitiveWorkspaceID string,
+	includeEvidence bool,
+) {
 	t.Helper()
 	now := time.Date(2026, 9, 22, 10, 55, 0, 0, time.UTC)
 	store := blackboard.NewMemoryStore(db)
@@ -534,18 +590,20 @@ func seedW6CollaborativePlanningState(t *testing.T, db *sql.DB, cognitiveWorkspa
 		map[string]any{
 			"contributor":   "blackboard-signal-agent",
 			"artifact_type": "signal_hypothesis",
-			"summary":       "Signal agent selected the Flow interoperability action.",
+			"summary":       "Signal agent selected the Flow interoperability action. " + w6BlackboardOnlyMarker,
 		},
 	)
-	persist(
-		"w6-b-evidence",
-		"specialized_agents/blackboard-evidence-agent/last_artifact",
-		map[string]any{
-			"contributor":   "blackboard-evidence-agent",
-			"artifact_type": "evidence_finding",
-			"summary":       "Evidence agent confirmed the source Flow artifact.",
-		},
-	)
+	if includeEvidence {
+		persist(
+			"w6-b-evidence",
+			"specialized_agents/blackboard-evidence-agent/last_artifact",
+			map[string]any{
+				"contributor":   "blackboard-evidence-agent",
+				"artifact_type": "evidence_finding",
+				"summary":       "Evidence agent confirmed the source Flow artifact.",
+			},
+		)
+	}
 }
 
 func w6FlowRequest(operation flowinterop.Operation) json.RawMessage {
@@ -586,4 +644,70 @@ func w6ProviderResult(operation flowinterop.Operation) flowinterop.Result {
 		}}
 	}
 	return result
+}
+
+func TestW6B_NotReadyCollaborationDefersBeforeProviderInvocation(t *testing.T) {
+	db, workspace := setupW6FunctionalWorkspace(t)
+	seedW6CollaborativePlanningState(t, db, workspace.ID, false)
+
+	providerCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		providerCalls++
+		_ = json.NewEncoder(w).Encode(w6ProviderResult(flowinterop.OperationExport))
+	}))
+	defer server.Close()
+
+	registry := tool.NewToolRegistry(db)
+	settings := crossPlatformRuntimeSettings{
+		M2SF: providerRuntimeSettings{
+			BaseURL: server.URL,
+			Token:   "test-token",
+			Enabled: true,
+		},
+		Timeout: 2 * time.Second,
+	}
+	if err := configureCrossPlatformRuntime(registry, settings); err != nil {
+		t.Fatalf("configureCrossPlatformRuntime: %v", err)
+	}
+	governancePlanner, err := newCrossPlatformGovernancePlanner(
+		crossPlatformPolicySelector{optionalM2SFEvidence: false},
+	)
+	if err != nil {
+		t.Fatalf("newCrossPlatformGovernancePlanner: %v", err)
+	}
+	registry.SetCapabilityGovernancePlanner(governancePlanner)
+
+	plan, err := blackboard.NewPlanner(db).BuildWorkspacePlan(
+		context.Background(),
+		workspace.ID,
+		blackboard.PlanningConfig{
+			Now: time.Date(2026, 9, 22, 11, 15, 0, 0, time.UTC),
+			ActionSteps: []blackboard.ToolSequenceStep{{
+				ToolName: string(flowinterop.OperationExport),
+				Reason:   "Export only after collaboration is ready.",
+				Params:   w6FlowRequest(flowinterop.OperationExport),
+			}},
+		},
+	)
+	if err != nil {
+		t.Fatalf("BuildWorkspacePlan: %v", err)
+	}
+	if plan.State != blackboard.PlanningStateAwaitingEvidence {
+		t.Fatalf("plan state = %q, want awaiting_evidence", plan.State)
+	}
+
+	traceID := "trace-w6-b-not-ready"
+	ctx := ctxkeys.WithValue(context.Background(), ctxkeys.TraceID, traceID)
+	ctx = ctxkeys.WithValue(ctx, ctxkeys.UserID, "agent-w6")
+	executor := blackboard.NewPlannerExecutor(db, nil, nil, registry, nil)
+	outcome, err := executor.Execute(ctx, workspace, plan)
+	if err != nil {
+		t.Fatalf("PlannerExecutor.Execute: %v", err)
+	}
+	if outcome.DeferralReason != "awaiting_evidence" || len(outcome.Executed) != 0 {
+		t.Fatalf("deferred outcome = %#v", outcome)
+	}
+	if providerCalls != 0 {
+		t.Fatalf("provider calls = %d, want 0 while collaboration is not ready", providerCalls)
+	}
 }
