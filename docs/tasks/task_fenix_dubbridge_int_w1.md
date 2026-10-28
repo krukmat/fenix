@@ -34,8 +34,8 @@ blocks: [INT-W2]
 
 ## Block B3 — Fenix read-only capability
 
-- [x] **B3.T1** Local staging client: fixed project, HTTPS/loopback, no redirects, response limit, unknown-state/duplicate rejection, minimal Blackboard projection. Go unit tests and vet PASS **in staging**.
-- [ ] **B3.T2** Register `dubbridge.review_queue.list` in Fenix ToolRegistry with read class, permission enforcement and governed retries. Code drafted, not built within full Fenix app.
+- [x] **B3.T1** Feature-branch client (locally unit-tested): fixed project, HTTPS/loopback, no redirects, response limit, unknown-state/duplicate rejection, minimal Blackboard projection. Go unit tests and vet PASS **in staging**.
+- [ ] **B3.T2** Register `dubbridge.review_queue.list` in Fenix ToolRegistry with read class, permission enforcement and governed retries. WIP code committed on feature branch at `6bd73b8`; no full Fenix app build or runtime bootstrap wiring yet.
 - [ ] **B3.T3** Load opt-in credential/config and execute a real Blackboard -> ToolRegistry path; no mocked provider acceptance.
 
 ## Block B4 — E2E
@@ -53,4 +53,4 @@ blocks: [INT-W2]
 
 ## Current status
 
-Staged code is **not a GitHub commit** and the standalone test package is **not a full application test**. No Rust security changes or database migrations have been implemented yet. Full integration E2E has not run. Prior written approval permits continuation within this frozen scope but does not waive formal RRI, independent review and local QA.
+Client/executor/tests/CLI and opt-in registration helper are now **committed on the feature branch** (`6bd73b8`), but the helper is not wired into the active runtime. Standalone Go tests are **not a full application test**. No Rust security changes or database migrations have been implemented yet. Full integration E2E has not run. Prior written approval permits continuation within this frozen scope but does not waive formal RRI, independent review and local QA.
