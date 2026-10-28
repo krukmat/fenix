@@ -24,7 +24,7 @@ The owner confirmed GitHub Actions disabled on 2026-10-28; connector exposes no 
 | **B0 — Cost & control** | **B0.T1** confirm owner Actions pause; **B0.T2** check no new runs | — | Owner confirmed; API run tally stable; settings unverifiable |
 | **B1 — DubBridge identity** | **B1.T1** security ADR/least privilege; **B1.T2** principal persistence and revocation; **B1.T3** operator issuance and dedicated read route | B0 | B1.T1 proposed in DubBridge; runtime blocked |
 | **B2 — Correlation** | **B2.T1** header validation; **B2.T2** actual DubBridge audit propagation | B1 | B2.T1 client-side code staged; B2.T2 not started |
-| **B3 — Fenix capability** | **B3.T1** real GET transport and safe DTO; **B3.T2** ToolExecutor and permission/schema registration; **B3.T3** opt-in config and Blackboard validation | B1 | B3.T1 local unit QA PASS; B3.T2 staged, application build not verified |
+| **B3 — Fenix capability** | **B3.T1** real GET transport and safe DTO; **B3.T2** ToolExecutor and permission/schema registration; **B3.T3** opt-in config and Blackboard validation | B1 | B3.T1/B3.T2 WIP code committed; bootstrap wiring and full build NOT verified |
 | **B4 — Cross-product E2E** | **B4.T1** genuine DB/org/project/review seed; **B4.T2** allowed call; **B4.T3** 401/403/cross-tenant/expiry/revocation/mutation denials; **B4.T4** outage/retry/trace | B1-B3 | Not run |
 | **B5 — Closure** | **B5.T1** independent review and local QA; **B5.T2** document exact commands/evidence; **B5.T3** GO/NO-GO | B4 | Not started |
 
@@ -45,16 +45,17 @@ It requires a DubBridge-issued limited **S2S-only** token and a DB-backed active
 
 Fenix returns agent-safe `{contract_version,status,counts,tasks:[{ref,state}],source}`, omitting assets, assignees, personal identifiers, JWTs and raw provider payload.
 
-## Actual implementation staging
+## Source code committed to this feature branch — not yet live
 
-The Go source currently exists only in a separately validated local package, **not pushed** to this branch:
-- `internal/infra/integration/dubbridge/client.go`: HTTP GET, fixed tenant/project, HTTPS except loopback, redirect rejection, bounded response, strict DTO/queue state validation, correlation headers.
-- `internal/infra/integration/dubbridge/executor.go`: `ToolExecutor`-compatible semantic request and safe projection.
-- `internal/api/integration_runtime_dubbridge.go`: planned opt-in registration, permission and retry adapter.
-- `internal/api/integration_runtime.go`: one-function call insertion required.
-- `internal/infra/integration/dubbridge/*_test.go`: config, schema, projection, denial, real-only opt-in test. No fake HTTP provider.
+Commit `6bd73b8a5ab80d12351fef2cea3847cdab7f9fe0` adds eight files: HTTP read-only transport, governed ToolExecutor adapter, opt-in capability registration helper, CLI reader, four unit test files including an opt-in real-integration test. The source files match local Go staging blob SHAs exactly.
 
-The local Go package is unit-verifiable independently; **full Fenix Go 1.25 application QA and independent code review have not run in this container**, so the runtime files are withheld from remote push per `AGENTS.md`. Replacing Fenix's real `go.mod` with a staging module is expressly forbidden.
+- `internal/infra/integration/dubbridge/client.go`: fixed org/project target, HTTPS except loopback, no redirects, max response, strict DTO validation and safe agent projection.
+- `internal/infra/integration/dubbridge/executor.go`: ToolExecutor semantic request, `contract_version=1`.
+- `internal/api/integration_runtime_dubbridge.go`: registration helper with `SideEffectRead`, permission and bounded retry; **not called from** `integration_runtime.go`, so unavailable at application startup.
+- `cmd/dbqueue-read/main.go`: standalone real GET runner; cannot work until DubBridge dedicated endpoint and S2S token are live.
+- `internal/infra/integration/dubbridge/*_test.go`: isolated unit tests (9 PASS locally) and one real E2E test that SKIPs without authorized live environment.
+
+**Quality distinction:** source is now in the repo's feature branch, but full Fenix Go 1.25 project build, repository local pre-push quality gates, independent code review and Rust E2E did **not** run; the standalone Go 1.23 verification module is not an equivalent certification. This is **WIP source for review**, not completed integration. Do not merge to main until the repo QA and S2S security gates pass.
 
 ## Functional acceptance
 
