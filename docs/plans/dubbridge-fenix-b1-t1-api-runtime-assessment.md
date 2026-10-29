@@ -55,3 +55,22 @@ Use the **workflow execution engine behind a new, narrow S2S facade** dedicated 
 ## Evidence boundary
 
 This file is a source-inspection record. It is not an RRI receipt, peer-review PASS, live validation, security approval or cross-product test report.
+
+## B1.T1 executable diagnostic (2026-10-29)
+
+`scripts/int_b1_fenix_live_probe.py` is committed on the clean feature branch. It invokes the **real** existing Fenix `workflows/{id}/execute`, then reads the **real persisted** run by ID. It requires explicit `--ack-disposable-readonly` and an operator-supplied **disposable user test JWT** in `FENIX_B1_DISPOSABLE_TEST_JWT`. Only loopback hosts are accepted; it emits sanitized HTTP/status/trace evidence, not raw result or token. Operator must select a workflow proven read-only before running it.
+
+```bash
+export FENIX_B1_DISPOSABLE_TEST_JWT='<non-production local test-user token>'
+python3 scripts/int_b1_fenix_live_probe.py \
+  --base-url http://127.0.0.1:8080 \
+  --workflow-id '<existing active READ-ONLY test workflow ID>' \
+  --ack-disposable-readonly
+unset FENIX_B1_DISPOSABLE_TEST_JWT
+```
+
+**This diagnostic is not a DubBridge S2S path.** No live Fenix service or authorized disposable test token is available in this execution environment, so the script has **not been executed against the actual runtime**, and B1.T1 remains open.
+
+## Exact public-run status normalization observed in source
+
+The inspected `PublicRunOutcome` maps `success → completed`, `partial → completed_with_warnings`, `abstained → abstained`, `failed → failed`, `accepted → running` or `awaiting_approval`, `delegated/escalated → handed_off`, and `rejected → denied_by_policy` when policy-related (otherwise failed). These statuses are not equivalent to a final business approval. A proposed S2S facade must explicitly map them to a versioned external enum and must preserve the ambiguity of pending/delegated executions; this mapping is **design input**, not implemented.
