@@ -58,3 +58,12 @@ Suggested initial domain case: DubBridge creates an *authorized, privacy-minimiz
 ## Decision and checkpoint
 
 **Planning rebaseline:** COMPLETE. **Implementation:** NOT STARTED for the corrected direction. **Integration/E2E:** NO-GO until B1-B4 deliver evidence. Start with **B1.T1** real API/run contract inspection.
+
+
+## B1 implementation-neutral checkpoint — 2026-10-29
+
+- **B1.T1 SOURCE_REVIEW_PASS, LIVE_PENDING:** [runtime assessment](dubbridge-fenix-b1-t1-api-runtime-assessment.md) finds `agents/trigger` persists an initial run without invoking the agent runner; `workflows/{id}/execute` runs DSL inline; persisted run retrieval is workspace-bound. **Do not misinterpret accepted/running records as completed agent execution.**
+- **B1.T2 PROPOSED:** [restricted Fenix service identity ADR](../decisions/ADR-DB-FENIX-S2S-PROPOSED.md) requires separate human/service trust, operator-revocable identity, allowlisted workspace/workflow, minimal permissions. **No accepted ADR or issued credential.**
+- **B1.T3 CANDIDATE:** [DubBridge v1 protocol](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/plan/dubbridge-fenix-b1-contract-v1-proposal.md) proposes durable idempotent submission and status polling; the present Fenix endpoint is synchronous, so the facade does **not** exist yet.
+- **No GO to B2 runtime code:** actual Fenix run/model availability, full RRI calculation and independent peer/security readiness remain gates. GitHub Actions remain off.
+
