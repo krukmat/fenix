@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.fenix.local/integrations/dubbridge/v1/request.schema.json",
+  "title": "DubBridge to Fenix proposed S2S analysis request v1 (NOT LIVE)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "operation_id",
+    "operation",
+    "trace_id",
+    "source",
+    "input"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1"
+    },
+    "operation_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{16,96}$"
+    },
+    "operation": {
+      "const": "dubbridge.review_backlog.analyze"
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{8,96}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "product",
+        "org_id",
+        "project_id"
+      ],
+      "properties": {
+        "product": {
+          "const": "dubbridge"
+        },
+        "org_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "project_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_counts"
+      ],
+      "properties": {
+        "review_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pending",
+            "approved",
+            "rejected"
+          ],
+          "properties": {
+            "pending": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "approved": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "rejected": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          }
+        }
+      }
+    }
+  }
+}
