@@ -57,3 +57,15 @@ These are schema-level invariants only. They do not validate authentication, aut
 4. No Go full-app build, Rust service execution, PostgreSQL source data query or cross-product E2E.
 
 **Verdict: OFFLINE CONTRACT PASS, B1 OVERALL OPEN / E2E NO-GO.** The repository's GitHub Actions remain intentionally disabled; the above proof used no CI runs.
+
+## Additional diagnostic script static/CLI guard verification
+
+The current `scripts/int_b1_fenix_live_probe.py` was reproduced locally with exact Git blob SHA `93e50244caa9de52b0bc2636f0dd68d3313ee861`.
+
+- Python `ast.parse()`: **PASS**.
+- Attempt with non-loopback `--base-url http://evil.example`: **rejected** (exit 2).
+- Attempt with missing `FENIX_B1_DISPOSABLE_TEST_JWT`: **rejected** (exit 2).
+- Attempt without explicit `--ack-disposable-readonly`: **rejected** (exit 2).
+- Source now forces `urllib.request.ProxyHandler({})` so environment proxy settings cannot capture the diagnostic bearer. No call was made to any remote or local Fenix service during these guard tests.
+
+This is a **syntax and safe-CLI negative check**, not confirmation of a successful workflow invocation or service JWT authentication.
