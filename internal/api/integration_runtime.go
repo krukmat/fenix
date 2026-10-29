@@ -71,6 +71,11 @@ func configureCrossPlatformRuntimeWithServices(
 			return err
 		}
 	}
+	// INT-W1: opt-in, read-only DubBridge capability. Incomplete or unsafe
+	// configuration fails startup; no fallback to broad user-facing endpoints.
+	if err := configureDubBridgeReadOnlyFromEnv(registry, settings.Timeout); err != nil {
+		return err
+	}
 	return nil
 }
 
