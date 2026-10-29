@@ -2,7 +2,7 @@
 doc_type: task
 id: INT-W1
 title: "Real DubBridge read-only capability in Fenix"
-status: in_progress
+status: superseded
 phase: integration
 week: "2026-W44"
 created: 2026-10-28
@@ -11,6 +11,7 @@ blocked_by: [INT-W0]
 blocks: [INT-W2]
 ---
 
+> **SUPERSEDED / CLOSED AS WRONG DIRECTION (2026-10-29).** Previous checkboxes describe work on Fenix → DubBridge only; they are **not progress against the corrected project**. New tasks: [DubBridge → Fenix provider ledger](task_dubbridge_fenix_provider_int.md). Keep the previous Go paths quarantined and do not merge them as product integration.
 # INT-W1 — Fenix task ledger
 
 **Plan:** [INT-W1](../plans/fenix-dubbridge-int-w1-real-integration.md). DubBridge security authority is owned by the companion repository, not duplicated in Fenix.
