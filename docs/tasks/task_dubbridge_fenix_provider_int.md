@@ -57,3 +57,12 @@ tags: [fenix, dubbridge, service-consumer, agent-runtime]
 - [ ] **Required gates:** execute local probe on real disposable app; run `python3 scripts/int_b1_contract_selftest.py` in a checked-out Fenix branch with `jsonschema`; run required `scripts/rri.py` and peer-readiness/security review; approve ADR/contract. Do not record PASS until outputs are captured.
 
 **B1 status: PARTIAL / NO-GO TO RUNTIME AUTH MERGE.** Old reverse-direction code remains absent from this branch; no Actions, main or production changes.
+
+## 2026-10-29 executed offline test checkpoint (B1 continuation)
+
+- **B1.T3 source + LOCAL_OFFLINE_PASS:** committed and locally ran `scripts/int_b1_contract_selftest.py` (**4 positive + 14 negative PASS**) and `scripts/int_b1_contract_status_matrix.py` (**60/60 PASS; 10 allowed + 50 rejected**). Tested **exact committed Git blobs**, verified for both test scripts and both JSON schemas. [Evidence](../audit/dubbridge-fenix-b1-contract-check-2026-10-29.md).
+- Fixed an observed contract flaw: previously combinations such as `succeeded + error_code` or `failed + valid advisory result` were accepted by the candidate result schema. New schema explicitly separates success, in-progress and error states.
+- `scripts/int_b1_fenix_live_probe.py` hardened to disable environment proxying of its disposable JWT and reject invalid response shapes. **Live run NOT EXECUTED**; syntax/behavior of updated probe not independently run in a full Fenix checkout.
+- **B1.T2** security ADR remains proposed. Its scope includes principal-scoped DubBridge org/project, Fenix workspace + immutable workflow, separate human/service trust, revocation and dynamic tool permissions; **RRI, peer/security review and acceptance still pending**.
+- **B1.T1** source reviewed but live workflow/model behavior unverified.
+- **B1 verdict:** planning/contract preparation advanced, but **NOT CLOSED**, no S2S implementation or real E2E. Never treat 78 offline schema assertions as live agent validation.
