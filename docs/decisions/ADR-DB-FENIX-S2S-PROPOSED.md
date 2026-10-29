@@ -25,6 +25,21 @@ DubBridge is the product/client that needs advisory agent/workflow execution. Fe
 - Outbound responses include only `operation_id`, Fenix `run_id`, `status`, `trace_id`, `result` (allowlisted advisory schema) or an error code. Never return raw `reasoningTrace`, `toolCalls`, human JWT, secret or arbitrary internal input.
 - Preserve Fenix's native policy/governance/evidence gates; approvals for eventual DubBridge writes continue to be enforced by DubBridge. No direct DB sharing, no second agent engine, no forced paid hosting or MCP/A2A in v1.
 
+## Preferred implementation option for B2 review
+
+**Prefer a high-entropy opaque bearer credential, NOT a copied human JWT, for the first single-consumer S2S slice.** This is a security architecture **recommendation**, not an accepted decision. Fenix stores only a keyed identifier plus one-way credential digest, expiration, revocation and principal/workspace/workflow/version bindings; the plaintext token is revealed once through an operator-controlled provisioning process and injected to DubBridge via its secret configuration. Verify digest using constant-time comparison. Use distinct token namespace and middleware so this bearer never authenticates to ordinary `/api/v1` user routes. Benefits: immediate DB-backed revocation, no cross-product signing key exchange, simple rotation and no claim/audience parser ambiguity. Costs: a DB lookup per request; operational credential distribution is still required. A short-lived signed JWT with separate verifier and durable revocation is a legitimate alternative if independent security review shows an operational need.
+
+**Fail-closed server-side authorization order (required):**
+1. Identify the S2S route, parse strict bounded bearer; reject any user JWT or missing token.
+2. Load active service principal by bounded public credential key, validate its digest, expiry, revocation/rotation state.
+3. Verify `consumer=dubbridge`, allowed action (`invoke` or `read_run`), **one Fenix workspace** and **one immutable workflow version/allowlist**. Never derive those values from body fields or HTTP headers.
+4. For a submit, validate strict schema and compare `Idempotency-Key` to body `operation_id` before durable transactional reservation. Bind request fingerprint to both service principal and selected workflow version. Reject same key/different input.
+5. Resolve configured workflow and enforce its **effective ToolRegistry capability allowlist**, side-effect classification and current Fenix policy. Merely allowlisting a workflow ID is **insufficient** if workflow permissions or versions drift.
+6. Reserve, persist and dispatch exactly one logical run with a durable reconciliation path. Separate service-facing result projection from generic user-facing run DTO; never leak raw model reasoning or tool call parameters.
+7. Audit principal, workspace, workflow version, external operation key hash, trace and outcome, not bearer or raw task data.
+
+**Open design decision:** Fenix's existing persistence uses a local application DB for agent runs; choose transaction/lease schema against its actual supported DB before code. Do not use DubBridge PostgreSQL as Fenix's credential/operation store. Require explicit reviewer acceptance of token storage/TTL/rotation, tool-effect limits, idempotency crash safety and service output redaction.
+
 ## Security deny matrix (must become real negative tests)
 
 | Attempt | Expected |
