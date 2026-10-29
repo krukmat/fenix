@@ -99,10 +99,42 @@ def main():
     bad["result"] = {"summary": "OK", "recommendations": [], "toolCalls": []}
     must_reject(response, bad, "tool_calls_leak")
 
+    # Semantic constraints: never claim that a pending, failed or denied
+    # execution produced a successful advisory analysis.
+    bad = copy.deepcopy(valid_response)
+    bad["result"] = {"summary": "Unexpected advice", "recommendations": []}
+    must_reject(response, bad, "accepted_with_result")
+
+    bad = copy.deepcopy(valid_response)
+    bad["status"] = "failed"
+    bad["result"] = {"summary": "Unexpected success", "recommendations": []}
+    bad["error_code"] = "EXECUTION_FAILED"
+    must_reject(response, bad, "failed_with_success_result")
+
+    bad = copy.deepcopy(valid_response)
+    bad["status"] = "succeeded"
+    bad["result"] = {"summary": "OK", "recommendations": []}
+    bad["error_code"] = "EXECUTION_FAILED"
+    must_reject(response, bad, "success_with_error_code")
+
+    bad = copy.deepcopy(valid_response)
+    bad["status"] = "denied"
+    must_reject(response, bad, "denied_without_error_code")
+
+    bad = copy.deepcopy(valid_response)
+    bad["status"] = "abstained"
+    bad["result"] = {"summary": "Unexpected advice", "recommendations": []}
+    must_reject(response, bad, "abstained_with_result")
+
+    bad = copy.deepcopy(valid_response)
+    bad["status"] = "failed"
+    bad["error_code"] = "EXECUTION_FAILED"
+    response.validate(bad)
+
     print(json.dumps({
         "kind": "FENIX_DUBBRIDGE_B1_CONTRACT_SELFTEST_V1",
         "status": "PASS",
-        "positive": 3,
+        "positive": 4,
         "negative": len(negatives),
         "scope": "offline JSON schema only; NOT live API, NOT S2S, NOT E2E",
     }))
