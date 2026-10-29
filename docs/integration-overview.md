@@ -27,6 +27,21 @@ flowchart LR
     E --> V[VEL]
 ```
 
+## DubBridge as a consumer of Fenix agentic capabilities
+
+**Owner-corrected direction (2026-10-29):** DubBridge invokes Fenix, not the reverse. Fenix is an independent agent/workflow service provider, and DubBridge remains domain authority for projects, media, reviews, rights and P2P.
+
+```text
+DubBridge product/API → scoped Fenix service identity
+  → Fenix agent/workflow execution (governed)
+  → run ID / status / minimal analytical result
+  → DubBridge presentation / domain decision
+```
+
+The current user-JWT endpoints `POST /api/v1/agents/trigger`, `GET /api/v1/agents/runs/{id}` and `POST /api/v1/workflows/{id}/execute` are source-verified **candidate entrypoints**, not certified S2S interfaces. Fenix must own credential issuance/verification, workspace/allowlist checks and agent execution controls; DubBridge must never reuse a broad Fenix user login token.
+
+[Canonical provider plan](plans/dubbridge-consumes-fenix-integration.md) · [Provider task ledger](tasks/task_dubbridge_fenix_provider_int.md). Historical outgoing DubBridge adapter code is isolated on `feature/int-w1-dubbridge-readonly` and **must not be merged** for this corrected initiative.
+
 ## Salesforce Flow path
 
 Mermaid2SF owns the translation layer; Fenix does not duplicate it.
