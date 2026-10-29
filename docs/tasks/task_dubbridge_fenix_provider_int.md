@@ -18,9 +18,9 @@ tags: [fenix, dubbridge, service-consumer, agent-runtime]
 - [x] **B0.T3** Source inventory: existing `agents/trigger`, `agents/runs/{id}`, `workflows/{id}/execute` are user-JWT-protected; S2S restrictions unverified.
 
 ## B1 — Contract and service identity
-- [ ] **B1.T1** **SOURCE_REVIEW_PASS, LIVE_PENDING:** compared `agents/trigger` (creates/persists run without invoking runner) vs `workflows/{id}/execute` (runs DSL inline); inspected workspace-scoped run retrieval, human JWT and raw result exposure. [Assessment](../plans/dubbridge-fenix-b1-t1-api-runtime-assessment.md). Real runtime/agent test required for closure.
-- [ ] **B1.T2** **ADR_PROPOSED, NOT ACCEPTED:** scoped Fenix-owned S2S identity, distinct human JWT trust, durable revocation/rotation and workflow allowlist. [Draft ADR](../decisions/ADR-DB-FENIX-S2S-PROPOSED.md). Independent security review, RRI and human gate pending.
-- [ ] **B1.T3** **WIRE_PROPOSAL_WRITTEN, NOT FROZEN:** [DubBridge consumer v1 contract](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/plan/dubbridge-fenix-b1-contract-v1-proposal.md) proposes async 202 + durable operation key, run status and safe result. Real RRI script + peer-readiness and contract approval pending.
+- [ ] **B1.T1** **SOURCE_REVIEW_PASS, LIVE_PENDING; LOCAL PROBE COMMITTED:** compared `agents/trigger` (creates/persists run without invoking runner) vs `workflows/{id}/execute` (runs DSL inline); inspected workspace-scoped run retrieval, human JWT and raw result exposure. [Assessment](../plans/dubbridge-fenix-b1-t1-api-runtime-assessment.md). Real runtime/agent test required for closure.
+- [ ] **B1.T2** **ADR_EXPANDED, SECURITY_GATE_PENDING:** scoped Fenix-owned S2S identity, distinct human JWT trust, durable revocation/rotation and workflow allowlist. [Draft ADR](../decisions/ADR-DB-FENIX-S2S-PROPOSED.md). Independent security review, RRI and human gate pending.
+- [ ] **B1.T3** **STRICT JSON SCHEMAS + SELFTEST COMMITTED; CONTRACT NOT FROZEN:** [DubBridge consumer v1 contract](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/plan/dubbridge-fenix-b1-contract-v1-proposal.md) proposes async 202 + durable operation key, run status and safe result. Real RRI script + peer-readiness and contract approval pending.
 
 ## B2 — Fenix runtime implementation
 - [ ] **B2.T1** Service auth middleware/actor attribution isolated from general CRM JWTs.
@@ -48,3 +48,12 @@ tags: [fenix, dubbridge, service-consumer, agent-runtime]
 - **Finding:** generic run DTO includes reasoning and tool calls. The service-facing result must omit them.
 - **Decision for next phase:** reuse DSL execution engine behind a new strictly scoped S2S facade with durable deduplication, not a thin proxy to end-user endpoints.
 - **Blocks:** current connection cannot boot provider or execute local Go app and RRI/peer scripts. The completed work is documentary source evidence and a **proposed** ADR/contract, **not B1 security acceptance**.
+
+## 2026-10-29 additional deliverables
+
+- [x] **B1.T1 evidence-preparation:** `scripts/int_b1_fenix_live_probe.py` committed; it requires disposable read-only workflow, local app and operator test JWT, returns sanitized run ID/status evidence. **Live probe not executed**.
+- [x] **B1.T2 draft hardening:** ADR now recommends Fenix-issued opaque revocable service credential with isolated middleware, single Fenix workspace/immutable workflow version, and principal-bound **single DubBridge org/project pair**. This is a **proposal pending independent security review**, not accepted.
+- [x] **B1.T3 schema drafting:** `docs/contracts/dubbridge-fenix-v1-{request,run}.schema.json` and `scripts/int_b1_contract_selftest.py` committed with positive/negative schema scenarios. **No full repo QA or real E2E**.
+- [ ] **Required gates:** execute local probe on real disposable app; run `python3 scripts/int_b1_contract_selftest.py` in a checked-out Fenix branch with `jsonschema`; run required `scripts/rri.py` and peer-readiness/security review; approve ADR/contract. Do not record PASS until outputs are captured.
+
+**B1 status: PARTIAL / NO-GO TO RUNTIME AUTH MERGE.** Old reverse-direction code remains absent from this branch; no Actions, main or production changes.
