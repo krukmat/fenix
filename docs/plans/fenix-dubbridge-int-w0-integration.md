@@ -2,11 +2,12 @@
 doc_type: plan
 id: INT-W0
 title: "Fenix to DubBridge: real integration analysis and contract"
-status: draft
+status: superseded
 created: 2026-10-28
 tags: [fenix, dubbridge, integration, toolregistry, governance]
 ---
 
+> **SUPERSEDED (2026-10-29):** owner clarified **DubBridge → Fenix**, with Fenix as the agent/workflow service provider. This document is a historical *reverse-direction* source audit, not an active implementation plan. Follow [canonical Fenix provider plan](dubbridge-consumes-fenix-integration.md).
 # INT-W0 — Fenix ↔ DubBridge (Fenix-owned integration)
 
 ## Intent and actual status
