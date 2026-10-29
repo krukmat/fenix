@@ -27,6 +27,22 @@ flowchart LR
     E --> V[VEL]
 ```
 
+## External product as consumer: DubBridge → Fenix
+
+**Owner-corrected direction (2026-10-29): DubBridge is the client; Fenix is the provider** of agent/workflow execution, planning, Blackboard and ToolRegistry governance. This is different from Fenix calling external tools such as Mermaid2SF.
+
+```text
+DubBridge domain/API -> authorized S2S request
+  -> Fenix agent/workflow execution API + scoped service principal
+  -> Fenix run/Blackboard/ToolRegistry, authorized operations only
+  -> run ID/status/minimized analytical result
+  -> DubBridge presentation and domain-owned decisions
+```
+
+This product-to-platform relationship does **not** grant Fenix authority over DubBridge's rights, review approvals, publication or P2P. Fenix's existing user-JWT agent/workflow API needs S2S security, tenant isolation and a verified run/result contract before DubBridge may call it as a service. This integration is **planned, not E2E-certified**.
+
+See [Fenix provider plan](plans/dubbridge-consumes-fenix-integration.md) and [task ledger](tasks/task_dubbridge_fenix_provider_int.md). The former Fenix → DubBridge read-only ToolRegistry prototype on this branch is **quarantined, not the accepted product direction**.
+
 ## Salesforce Flow path
 
 Mermaid2SF owns the translation layer; Fenix does not duplicate it.
