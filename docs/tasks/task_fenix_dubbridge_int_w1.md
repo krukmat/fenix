@@ -35,8 +35,8 @@ blocks: [INT-W2]
 ## Block B3 — Fenix read-only capability
 
 - [x] **B3.T1** Feature-branch client (locally unit-tested): fixed project, HTTPS/loopback, no redirects, response limit, unknown-state/duplicate rejection, minimal Blackboard projection. Go unit tests and vet PASS **in staging**.
-- [ ] **B3.T2** Register `dubbridge.review_queue.list` in Fenix ToolRegistry with read class, permission enforcement and governed retries. WIP code committed on feature branch at `6bd73b8`; no full Fenix app build or runtime bootstrap wiring yet.
-- [ ] **B3.T3** Load opt-in credential/config and execute a real Blackboard -> ToolRegistry path; no mocked provider acceptance.
+- [x] **B3.T2** Capability code versioned and **wired to `configureCrossPlatformRuntimeWithServices`** on feature branch (`b4c0fc0`); read-only descriptor, required tool permission, bounded retries and fail-closed configuration. **Source integration done, runtime/full-app QA still pending**.
+- [ ] **B3.T3** Real Blackboard -> ToolRegistry call still pending actual DubBridge S2S API. Startup now loads opt-in config and rejects partial/unsafe credentials. Added a required `FENIX_DUBBRIDGE_WORKSPACE_ID` actor-workspace binding, checked before every provider request (`6cb7ed6`, `9bd66d2`).
 
 ## Block B4 — E2E
 
@@ -53,4 +53,13 @@ blocks: [INT-W2]
 
 ## Current status
 
-Client/executor/tests/CLI and opt-in registration helper are now **committed on the feature branch** (`6bd73b8`), but the helper is not wired into the active runtime. Standalone Go tests are **not a full application test**. No Rust security changes or database migrations have been implemented yet. Full integration E2E has not run. Prior written approval permits continuation within this frozen scope but does not waive formal RRI, independent review and local QA.
+Client/executor/tests/CLI, opt-in registration and startup wiring are **committed on the feature branch** (`6bd73b8`, `b4c0fc0`, `5620f4a`, `6cb7ed6`, `9bd66d2`). Full Fenix application QA cannot run in the current isolated Go 1.23 environment; the standalone client Go tests and vet PASS but **do not validate the registered application**. No Rust security changes or database migrations have been implemented yet. Full integration E2E has not run. Prior written approval permits continuation within this frozen scope but does not waive formal RRI, independent review and local QA.
+
+## 2026-10-29 checkpoint — Fenix wiring and workspace isolation
+
+- `B3.T2` source status: **WIRED IN FEATURE BRANCH**, pending integrated compile/test and peer code review.
+- `B3.T3` cannot pass until DubBridge has a real service issuer/verifier and protected route.
+- Required operator-controlled config: `FENIX_DUBBRIDGE_URL`, `FENIX_DUBBRIDGE_TOKEN`, `FENIX_DUBBRIDGE_ORG_ID`, `FENIX_DUBBRIDGE_PROJECT_ID`, **`FENIX_DUBBRIDGE_WORKSPACE_ID`**. All five absent = integration off; partial = startup failure. Provider HTTP is HTTPS-only except loopback.
+- `restrictedDubBridgeExecutor.Execute` denies a missing/mismatched `ctxkeys.WorkspaceID` before any network call. This prevents cross-workspace use even when another Fenix workspace grants `tools:dubbridge.review_queue.list` by mistake.
+- Tests for opt-in registration and workspace denial were committed; their execution in the **full application** is still unverified.
+- Latest reviewed Actions run totals (2026-10-29): Fenix 1200; DubBridge 3599, unchanged by these commits. Queued historic DubBridge jobs remain operator-owned.
