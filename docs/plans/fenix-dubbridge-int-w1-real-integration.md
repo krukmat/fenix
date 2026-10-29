@@ -1,11 +1,12 @@
 ---
 doc_type: plan
 title: "INT-W1 — Real read-only Fenix to DubBridge integration"
-status: in_progress
+status: superseded
 created: 2026-10-28
 tags: [fenix, dubbridge, toolregistry, security, real-e2e]
 ---
 
+> **SUPERSEDED (2026-10-29):** This Fenix → DubBridge review-queue design is not the product requirement. **Do not merge the outgoing DubBridge client or its startup wiring into main under this initiative.** Follow [canonical DubBridge → Fenix provider plan](dubbridge-consumes-fenix-integration.md). Historical implementation remains in this feature branch as WIP for review; it is not an E2E PASS.
 # INT-W1 — Real Fenix to DubBridge integration
 
 **Source baseline:** [INT-W0](fenix-dubbridge-int-w0-integration.md). **Branch:** `feature/int-w1-dubbridge-readonly`.
