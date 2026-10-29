@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.fenix.local/integrations/dubbridge/v1/run.schema.json",
+  "title": "Fenix S2S run response v1 — proposed, not implemented",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "operation_id",
+    "run_id",
+    "status",
+    "trace_id",
+    "result"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1"
+    },
+    "operation_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{16,96}$"
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{8,96}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "running",
+        "awaiting_approval",
+        "handed_off",
+        "succeeded",
+        "completed_with_warnings",
+        "abstained",
+        "failed",
+        "denied",
+        "indeterminate"
+      ]
+    },
+    "result": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary",
+            "recommendations"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "recommendations": {
+              "type": "array",
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "priority",
+                  "action"
+                ],
+                "properties": {
+                  "priority": {
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "error_code": {
+      "type": "string",
+      "enum": [
+        "INVALID_INPUT",
+        "NOT_AUTHORIZED",
+        "POLICY_DENIED",
+        "PROVIDER_UNAVAILABLE",
+        "EXECUTION_FAILED",
+        "TIMEOUT",
+        "UNKNOWN_STATE"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "succeeded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
+}
