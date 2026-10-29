@@ -109,7 +109,10 @@
       "if": {
         "properties": {
           "status": {
-            "const": "succeeded"
+            "enum": [
+              "succeeded",
+              "completed_with_warnings"
+            ]
           }
         },
         "required": [
@@ -121,7 +124,68 @@
           "result": {
             "type": "object"
           }
+        },
+        "not": {
+          "required": [
+            "error_code"
+          ]
         }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "accepted",
+              "running",
+              "awaiting_approval",
+              "handed_off",
+              "abstained"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "type": "null"
+          }
+        },
+        "not": {
+          "required": [
+            "error_code"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "failed",
+              "denied",
+              "indeterminate"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "error_code"
+        ]
       }
     }
   ]
