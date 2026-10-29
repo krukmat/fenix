@@ -26,7 +26,9 @@ def request(url, token, method="GET", body=None):
         method=method,
         headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
     )
-    opener = urllib.request.build_opener(NoRedirect())
+    # Prevent proxy-environment interception of a disposable bearer token.
+    # This diagnostic only targets loopback and must connect directly.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
     try:
         with opener.open(req, timeout=35) as resp:
             raw = resp.read(MAX_RESPONSE + 1)
@@ -87,13 +89,18 @@ def main(argv=None):
                           token, "POST", {"trigger_context": {"int_b1_diagnostic": True}, "inputs": {}})
     if status != 200 or not isinstance(doc, dict):
         raise RuntimeError("unexpected workflow execution HTTP/JSON contract")
-    run = doc.get("data", {}).get("run", {})
+    data = doc.get("data")
+    if not isinstance(data, dict) or not isinstance(data.get("run"), dict):
+        raise RuntimeError("invalid workflow response shape")
+    run = data["run"]
     run_id = run.get("id")
     if not isinstance(run_id, str) or not run_id or len(run_id) > 128:
         raise RuntimeError("workflow response lacks a valid persisted run ID")
     follow_status, follow = request(root + "/agents/runs/" +
                                     urllib.parse.quote(run_id, safe=""), token)
-    observed = follow.get("data", {})
+    if not isinstance(follow, dict) or not isinstance(follow.get("data"), dict):
+        raise RuntimeError("invalid persisted run response shape")
+    observed = follow["data"]
     if follow_status != 200 or observed.get("id") != run_id:
         raise RuntimeError("persisted run mismatch")
     # Do NOT print raw output, inputs, tools, reasoning, credential or user info.
