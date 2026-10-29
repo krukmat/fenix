@@ -17,7 +17,7 @@ DubBridge is the product/client that needs advisory agent/workflow execution. Fe
 ## Decision proposal
 
 - Fenix exclusively owns issuing/recognizing **service credentials**. Use a dedicated verification domain (separate key/audience/issuer/type from human JWTs), bounded TTL, service principal identifier, credential version/JTI, and exact `agentic:workflow:invoke` plus `agentic:run:read` permissions. Choose concrete signed token vs opaque reference after operational rotation review; never share keys with DubBridge.
-- Persist a revocable service principal bound to **one Fenix workspace**, one consumer `dubbridge`, and **allowlisted workflow IDs** with active state. An operator provisions/rotates/revokes through an authenticated, audited nonpublic management flow; no public self-issuance.
+- Persist a revocable service principal bound to **one Fenix workspace**, one consumer `dubbridge`, **one explicitly provisioned DubBridge organization/project pair for v1**, and **allowlisted immutable workflow versions** with active state. Verify org/project claims match the principal's fixed allowlist; do not take authority from request JSON. An operator provisions/rotates/revokes through an authenticated, audited nonpublic management flow; no public self-issuance.
 - Provide **isolated S2S routes**, e.g. `POST /integrations/dubbridge/runs` and `GET /integrations/dubbridge/runs/{id}`; do not mount under generic user-token `/api/v1` without a separate correctly ordered authenticator. Caller-supplied workspace/workflow IDs are advisory at best, never authority.
 - Create run with an **atomic unique** composite key `(service_principal_id, external_operation_id)` and immutable request digest. Identical replay returns existing run/status; same key with changed payload → 409. Handle crash after reservation and before outcome with durable state/reconciler; no automatic duplicate execution.
 - Validate DubBridge user/org/project at its own API before sending minimized facts. Fenix verifies its own service principal/allowed workspace/operation, **not** another product's JWT. DubBridge claim fields are untrusted metadata and correlation, not impersonation.
@@ -39,6 +39,12 @@ DubBridge is the product/client that needs advisory agent/workflow execution. Fe
 7. Audit principal, workspace, workflow version, external operation key hash, trace and outcome, not bearer or raw task data.
 
 **Open design decision:** Fenix's existing persistence uses a local application DB for agent runs; choose transaction/lease schema against its actual supported DB before code. Do not use DubBridge PostgreSQL as Fenix's credential/operation store. Require explicit reviewer acceptance of token storage/TTL/rotation, tool-effect limits, idempotency crash safety and service output redaction.
+
+## Multi-tenant isolation decision for security review
+
+A DubBridge project summary may contain private business metrics even if individual review tasks are omitted. Therefore v1 **MUST NOT let one service principal submit arbitrary DubBridge org/project identifiers into a shared Fenix workspace**. Provision a distinct principal + workspace/workflow binding per approved org/project pair, or implement stronger isolation with independently reviewed tenant policy before enabling multi-project usage. Fenix rejects a source org/project mismatch regardless of what the DubBridge caller claims; DubBridge separately enforces its own user/role permissions before constructing the summary.
+
+**This is a proposed isolation requirement, not a claim that Fenix currently enforces it.** Verify isolation of agent memory, Blackboard, evidence, logs, tool permissions, prompts and models when selecting the workspace; a fixed workspace alone does not prove a project's data is isolated from other projects within that workspace.
 
 ## Security deny matrix (must become real negative tests)
 
