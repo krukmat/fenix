@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# OPTIONAL FUTURE B6 functional workflow probe. A real workflow is NOT required by B1-B5.
+# This script is not a foundation readiness gate.
 """INT B1.T1: real Fenix workflow diagnostic. NEVER E2E/S2S certification.
 
 Runs a genuine Fenix workflow in a disposable, operator-verified read-only
