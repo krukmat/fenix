@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.fenix.local/integrations/dubbridge/v1/envelope/error",
+  "title": "Fenix S2S pre-acceptance error (PROPOSED)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "error_code",
+    "message"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1"
+    },
+    "error_code": {
+      "enum": [
+        "INVALID_REQUEST",
+        "UNAUTHENTICATED",
+        "FORBIDDEN",
+        "CAPABILITY_NOT_CONFIGURED",
+        "CAPABILITY_DISABLED",
+        "CONFLICT",
+        "PROVIDER_UNAVAILABLE"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    }
+  }
+}
