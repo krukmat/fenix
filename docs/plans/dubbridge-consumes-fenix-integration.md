@@ -1,74 +1,74 @@
 ---
 doc_type: plan
 id: DB-FENIX-INT
-title: "Fenix as agentic services provider for DubBridge"
-status: proposed
+title: "Fenix service provider for DubBridge — capability-neutral integration"
+status: active_design
 created: 2026-10-29
-tags: [fenix, dubbridge, provider, agent-runtime, integration]
+rebaseline: 2026-10-31
+tags: [fenix, dubbridge, integration, s2s, capability-registry]
 ---
 
-# Fenix provider plan — DubBridge → Fenix
+# Canonical plan — DubBridge consumes Fenix
 
-**Correction by product owner (2026-10-29): DubBridge consumes Fenix.** This document supersedes the reverse-direction `fenix-dubbridge-int-w0-integration.md` and `fenix-dubbridge-int-w1-real-integration.md` for the DubBridge integration initiative.
+**Owner correction 2026-10-31:** Actual business workflows and agents **emerge from product usage**. Their discovery, selection, definition, model quality and execution are **NOT entry criteria for B1, B2, B3 or infrastructure B4**. The old review-backlog-analysis example is a deferred, nonbinding idea, not the first mandatory capability.
 
-**Product ownership:** DubBridge selects domain use cases, authorizes source data and receives outcomes. Fenix executes governed agent/workflow capabilities as a **service provider**. DubBridge remains owner of review decisions, rights and P2P state. Fenix does not automatically approve/publish on DubBridge's behalf.
+DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
-Companion primary consumer plan: [DubBridge integration plan](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/plan/dubbridge-consumes-fenix-integration.md).
+## Architecture and interface boundary
 
-## As-built code evidence and open gap
+```text
+DubBridge API (domain authorization)
+   -> DubBridge S2S connector (credential + operation_id + trace)
+   -> Fenix S2S gateway (service principal, tenant/workspace scope, rate limit)
+   -> capability router (registered capabilities only; inactive by default)
+   -> [FUTURE: actual Fenix agent/workflow linked to registered capability]
+   -> operation status/result correlation -> DubBridge
+```
 
-Current Fenix `internal/api/routes.go` declares:
-- `POST /api/v1/agents/trigger`; `GET /api/v1/agents/runs/{id}`;
-- `POST /api/v1/workflows/{id}/execute`.
-`internal/api/handlers/agent.go` accepts `agent_id`, `trigger_context` and `inputs`, and returns a run record; `internal/api/handlers/workflow.go` declares `ExecuteWorkflowRequest{trigger_context,inputs}`. The routes are under the existing `AuthMiddleware` for end-user JWTs.
+**A capability is a logical, versioned integration contract, NOT an implementation workflow ID.** Fenix's registry maps a permitted capability key to a workflow/agent only when that capability is actually configured. If none is registered/enabled, deny invocation deterministically (`CAPABILITY_NOT_CONFIGURED` or `CAPABILITY_DISABLED`), without accepting or fabricating a run. No dynamic caller-selected workflow IDs, user-supplied DSL, arbitrary prompts or broad tool access.
 
-**Unverified:** dedicated S2S identity, strict workspace/agent/workflow allowlist, run acceptance and idempotency semantics, proper async polling, durable external event mapping, and negative authorization matrix. These are design/implementation tasks, not existing claims.
+B1 determines only the stable envelope and authorization boundary; it does **not** choose any concrete capability, prompt, agent or workflow. Real workflows are added through a **separate B6/on-demand capability onboarding lifecycle**.
 
-## Goal
+## Current source findings (not S2S implementation)
 
-Enable a **DubBridge-owned** request to trigger one bounded, allowlisted Fenix workflow/agent; return execution reference/status, later retrieve minimized terminal result and correlate the source request. Fenix service auth must be Fenix-owned with minimal permissions, revocation and isolation. No DubBridge JWT secret shared with Fenix and no Fenix user password/token copied into DubBridge. No Fenix-to-DubBridge callbacks in the first vertical slice.
+- Existing human-user APIs: `POST /api/v1/agents/trigger` only persists an initial run; `POST /api/v1/workflows/{id}/execute` runs DSL inline; `GET /api/v1/agents/runs/{id}` is workspace-scoped but exposes verbose internal fields. None is an approved DubBridge S2S interface.
+- Fenix persists agent runs in its own **SQLite** store; DubBridge keeps its own PostgreSQL database. No shared DB/JWT signing key.
+- Historical review-count schemas `docs/contracts/dubbridge-fenix-v1-{request,run}.schema.json`, scripts `int_b1_contract_selftest.py`, `int_b1_contract_status_matrix.py` and `int_b1_fenix_live_probe.py` demonstrate **only the retired example**. They remain as historical design evidence, not normative blockers for this plan.
+- Current normative candidate is the **capability-neutral envelope** in `docs/contracts/dubbridge-fenix-v1-envelope-{request,response}.schema.json`, with no concrete capability activated.
 
-Suggested initial domain case: DubBridge creates an *authorized, privacy-minimized review backlog analysis request*, using facts read from its own DB. Fenix analyzes them and returns advisory output. DubBridge chooses whether/how to present it; no domain mutation.
+## Block/task plan (two levels only)
 
-## Two-level tasks (block → task)
-
-| Block | Task leaves | Depends on | Status |
+| Block | Tasks | Depends on | Acceptance evidence |
 |---|---|---|---|
-| **B0 — Baseline** | **B0.T1** confirm direction; **B0.T2** quarantine outgoing DubBridge capability; **B0.T3** inspect current API/runtime | — | Direction confirmed; inventory source-verified |
-| **B1 — Contract** | **B1.T1** compare `agents/trigger` vs `workflows/{id}/execute`; **B1.T2** Fenix service identity/workspace binding and security ADR; **B1.T3** versioned request/status/result/idempotency contract | B0 | Pending |
-| **B2 — Provider** | **B2.T1** auth middleware S2S principal; **B2.T2** allowlisted agent/workflow execution and minimum input schema; **B2.T3** status/result/trace and negative tests | B1 + repo review gates | Pending |
-| **B3 — Consumer support** | **B3.T1** publish client contract for DubBridge; **B3.T2** verify error/cancellation/timeout semantics | B2 | Pending |
-| **B4 — E2E** | **B4.T1** prove DubBridge-issued request reaches Fenix; **B4.T2** actual agent/workflow run, result and trace; **B4.T3** abuse and replay tests | B2 + DubBridge B3 | Pending |
-| **B5 — Close** | **B5.T1** full Go QA and independent review; **B5.T2** evidence and GO/NO-GO | B4 | Pending |
+| **B0 — Rebaseline** | **B0.T1** direction DubBridge→Fenix; **B0.T2** quarantine reverse connector; **B0.T3** existing API/source inventory | — | Source and architectural boundary recorded — DONE |
+| **B1 — Neutral integration contract** | **B1.T1** verify existing API shape (source review only); **B1.T2** security/principal & tenant/workspace contract; **B1.T3** versioned neutral envelope, idempotency, lifecycle, errors, capability registration semantics; **B1.T4** risk/ADR and readiness gate | B0 | Consistent machine-readable schemas; negative schema checks; threat/RRI forecast and security review. **No workflow runtime required** |
+| **B2 — Fenix provider foundation** | **B2.A** isolated revocable S2S identity; **B2.B** fail-closed capability registry + tenant/policy checks (no built-in business workflow); **B2.C** SQLite durable operation/reservation/idempotency; **B2.D** status, errors, trace, safe projections and recovery; **B2.E** provider auth/transport/negative tests with unconfigured capability | B1 design & appropriate task-by-task security review | Real Fenix gateway; absent capability rejected; invalid tokens rejected; no run invented |
+| **B3 — DubBridge consumer foundation** | **B3.T1** opt-in Rust S2S client/config; **B3.T2** map authorized local tenancy and capability requests without implementing domain workflow; **B3.T3** operation/status polling, retries and error mapping | B1 envelope, B2 API contract | Real Rust client tests; no business workflow/LLM dependency |
+| **B4 — Infrastructure interoperability E2E** | **B4.T1** real DubBridge↔Fenix authenticated connectivity; **B4.T2** capability-not-configured path + invalid/revoked auth + cross-tenant negatives; **B4.T3** idempotency/status/outage/recovery traces | B2+B3 | Two real services exchanging HTTP, real stores/config, denial and recovery proven. **No real workflow required** |
+| **B5 — Foundation closure** | **B5.T1** Go/Rust local QA + peer/security review; **B5.T2** evidence and operations runbook; **B5.T3** GO/NO-GO for foundation rollout | B4 | A secure dormant integration; no business outcome claimed |
+| **B6 — Capabilities on demand** | **B6.T1** discover and prioritize a real user scenario; **B6.T2** register/version input/output schema + allowed runtime and tools; **B6.T3** implement/test actual agent/workflow and business E2E | B5 + explicit use-case decision | Only here is **real workflow execution** a required acceptance criterion |
 
-## Security and governance rules
+B2 is deliberately split because the earlier **monolithic** hypothetical risk forecast (RRI 122, not official script run) exceeded the repository's decomposition gate. Calculate task-specific RRI before each implementation leaf; do not treat the forecast or a missing business workflow as a blanket implementation veto.
 
-- Fenix validates a **Fenix-issued/recognized** service credential with restricted scopes, allowed workspace and allowlisted workflow/agent. Never treat DubBridge's JWT as Fenix authority.
-- Existing Fenix user JWT API and CRM access are not automatically granted to the DubBridge service principal; use separate middleware and permission surface if needed.
-- Fenix governs agent/tool execution, approvals and audit. DubBridge governs resource rights, project data and final business operations.
-- Fenix must not receive unnecessary personal reviewer/asset details. Only minimized, schema-validated inputs and outputs cross the boundary.
-- Retries after ambiguous acceptance must be idempotent; provide external operation correlation and terminal run state. Trace IDs are hints, not authorization.
-- E2E requires the real Fenix runtime and DubBridge API/DB, **not mocks or standalone adapter unit tests**. Run Go/Rust local QA and required RRI/peer review before merge.
-- GitHub Actions stay disabled until owner explicitly changes this policy.
+## B1 contract and safety
 
-## Prior reverse-direction branch work
+The generic envelope carries `contract_version`, `operation_id`, `capability_key`, `input_schema_version`, `trace_id` and minimal authorized source context. Payload is a bounded object whose content **MUST validate against the capability-specific schema when (and only when) that capability is registered**. The generic envelope alone never authorizes arbitrary payload execution. Result is null until a configured capability returns an allowlisted, schema-validated output. `run_id` is nullable until an actual Fenix run exists; `operation_id` is the stable polling key.
 
-`internal/infra/integration/dubbridge/*`, `internal/api/integration_runtime_dubbridge.go`, `cmd/dbqueue-read`, and startup wiring in `internal/api/integration_runtime.go` on the **legacy branch `feature/int-w1-dubbridge-readonly`** were produced under the mistaken Fenix → DubBridge direction. They are **quarantined**, not accepted for this initiative, and must not be merged into main as part of this plan. Their local tests prove nothing about the corrected direction. A future implementation branch should be based on main without these paths.
+Security: service principal owned by Fenix, separate from human auth; revocable/rotatable credentials; bindings to appropriate workspace and allowed tenant/capabilities, fail-closed unknown mappings; no authority derived solely from source JSON; deny arbitrary Fenix CRM, tools, workflow management and DubBridge writes. Enforce request limits, budget controls and audit.
 
-## Decision and checkpoint
+Lifecycle: unknown/disabled capability is rejected **before durable accepted execution** (e.g. HTTP 409/422 with `CAPABILITY_NOT_CONFIGURED`) and must not be recorded as a successful run. For a registered capability, reserve `operation_id` durably before executing, hash request for idempotent replay, and reconcile uncertain failures without duplicating effects.
 
-**Planning rebaseline:** COMPLETE. **Implementation:** NOT STARTED for the corrected direction. **Integration/E2E:** NO-GO until B1-B4 deliver evidence. Start with **B1.T1** real API/run contract inspection.
+## C1–C5 gate correction (2026-10-31)
 
+The [earlier B1.C gate audit](../audit/dubbridge-fenix-b1c-gate-2026-10-31.md) is **historical, superseded for sequencing**. Its blocker requiring a live review-analysis workflow was based on the wrong phase boundary. Correct status:
+- **C1** completed as source-only interface inventory; real workflow probe deferred to B6, not blocking B1/B2.
+- **C2** monolithic RRI forecast is a decomposition warning, not an official measured RRI or a ban on B2 task-level design.
+- **C3** ADR and independent security review still needed for relevant S2S work; this is a genuine security gate, unrelated to choosing a workflow.
+- **C4** generic contract replaces the review-count-specific request/result; individual capability schemas and model results deferred to B6.
+- **C5** **GO to scoped foundation preparation/design and test planning**; **NO-GO to deployment, merging security code, calling an unregistered workflow, or claiming a full integration E2E** until task-specific review/tests.
 
-## B1 implementation-neutral checkpoint — 2026-10-29
+Historical docs and previous audit/test counts describe the older example and are retained for provenance only. No GitHub Actions activation or main merge is authorized.
 
-- **B1.T1 SOURCE_REVIEW_PASS, LIVE_PENDING:** [runtime assessment](dubbridge-fenix-b1-t1-api-runtime-assessment.md) finds `agents/trigger` persists an initial run without invoking the agent runner; `workflows/{id}/execute` runs DSL inline; persisted run retrieval is workspace-bound. **Do not misinterpret accepted/running records as completed agent execution.**
-- **B1.T2 PROPOSED:** [restricted Fenix service identity ADR](../decisions/ADR-DB-FENIX-S2S-PROPOSED.md) requires separate human/service trust, operator-revocable identity, allowlisted workspace/workflow, minimal permissions. **No accepted ADR or issued credential.**
-- **B1.T3 CANDIDATE:** [DubBridge v1 protocol](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/plan/dubbridge-fenix-b1-contract-v1-proposal.md) proposes durable idempotent submission and status polling; the present Fenix endpoint is synchronous, so the facade does **not** exist yet.
-- **No GO to B2 runtime code:** actual Fenix run/model availability, full RRI calculation and independent peer/security readiness remain gates. GitHub Actions remain off.
+## Next executable action
 
-
-
-## C1–C5 gate update — 2026-10-31
-
-The current [B1.C1–C5 checkpoint](../audit/dubbridge-fenix-b1c-gate-2026-10-31.md) documents a **NO-GO to B2 runtime**. It adds a source-grounded RRI risk forecast 122 (not a signed receipt), seven security-review findings, and a critical v1 wire correction: `operation_id` is the durable key, `run_id` remains nullable until an actual run exists, and polling targets `GET /integrations/dubbridge/operations/{operation_id}`. Tests now define 120 status/result/run-link combinations, while current exact-blob rerun, real workflow evidence and independent security review are pending. Decompose B2 into principal, workflow policy, SQLite operation registry, dispatcher/reconciliation and result projection before requesting GO.
+Start **B1.T2/T3 final contract security review and capability-neutral schema tests** (no model credentials), then **B2.A** as an independently reviewed, isolated authentication slice. Later capabilities are registered only when product usage requires them. Companion DubBridge [canonical plan](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/plan/dubbridge-consumes-fenix-integration.md) and [tasks](../tasks/task_dubbridge_fenix_provider_int.md).
