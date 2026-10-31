@@ -1,86 +1,54 @@
 ---
 doc_type: adr
 id: ADR-DB-FENIX-S2S
-title: "Proposed — restricted DubBridge caller identity at Fenix"
+title: "Proposed — capability-neutral Fenix service principal for DubBridge"
 status: proposed
 created: 2026-10-29
+rebaseline: 2026-10-31
 ---
 
-# Proposed ADR — DubBridge as a restricted Fenix agentic service caller
+# ADR proposal — S2S boundary without a predefined workflow
 
-**Status: PROPOSED — NOT ACCEPTED.** Subject to RRI, independent security review and owner task approval. This is a draft design only, not an authorization to deploy or issue credentials.
+**Status: PROPOSED. Independent security review pending.** Owner clarification (2026-10-31): no actual workflow, agent, prompt, business operation or model provider needs to be chosen during B1–B5. Those are B6 use-driven capability onboarding. This ADR **replaces earlier assumptions** of binding DubBridge's first S2S credential to a hardcoded review backlog workflow and fixed workflow version.
 
 ## Context
 
-DubBridge is the product/client that needs advisory agent/workflow execution. Fenix owns the runtime. Existing `/api/v1` Fenix bearer auth uses human `JWT_SECRET`, `user_id` and `workspace_id`. Attaching a human token to DubBridge would grant a broad user authority rather than one integration capability.
+DubBridge calls Fenix to use its agentic platform. Fenix's existing `/api/v1` routes consume a **human JWT**; `workflows/{id}/execute` invokes its DSL runtime inline; generic run responses contain internal inputs, tool calls and reasoning. This is **not** a valid S2S integration surface.
 
-## Decision proposal
+## Proposed foundation decision
 
-- Fenix exclusively owns issuing/recognizing **service credentials**. Use a dedicated verification domain (separate key/audience/issuer/type from human JWTs), bounded TTL, service principal identifier, credential version/JTI, and exact `agentic:workflow:invoke` plus `agentic:run:read` permissions. Choose concrete signed token vs opaque reference after operational rotation review; never share keys with DubBridge.
-- Persist a revocable service principal bound to **one Fenix workspace**, one consumer `dubbridge`, **one explicitly provisioned DubBridge organization/project pair for v1**, and **allowlisted immutable workflow versions** with active state. Verify org/project claims match the principal's fixed allowlist; do not take authority from request JSON. An operator provisions/rotates/revokes through an authenticated, audited nonpublic management flow; no public self-issuance.
-- Provide **isolated S2S routes**, e.g. `POST /integrations/dubbridge/runs` and `GET /integrations/dubbridge/operations/{operation_id}`; do not mount under generic user-token `/api/v1` without a separate correctly ordered authenticator. Caller-supplied workspace/workflow IDs are advisory at best, never authority.
-- Reserve logical operation with an **atomic unique** composite key `(service_principal_id, external_operation_id)` and immutable request digest. Identical replay returns the same operation and any already-linked run/status; same key with changed payload → 409. `run_id` is nullable until the real runner allocates it; recovery uses `operation_id`. Handle crash after reservation and before outcome with durable state/reconciler; no automatic duplicate execution.
-- Validate DubBridge user/org/project at its own API before sending minimized facts. Fenix verifies its own service principal/allowed workspace/operation, **not** another product's JWT. DubBridge claim fields are untrusted metadata and correlation, not impersonation.
-- Wrap Fenix DSL workflow runtime through a narrowly allowed execution service with run persistence, result redaction and bounded concurrency/timeouts. Do not permit arbitrary tools, workflow IDs, prompt injection via raw DSL or direct CRM APIs.
-- Outbound responses include only `operation_id`, Fenix `run_id`, `status`, `trace_id`, `result` (allowlisted advisory schema) or an error code. Never return raw `reasoningTrace`, `toolCalls`, human JWT, secret or arbitrary internal input.
-- Preserve Fenix's native policy/governance/evidence gates; approvals for eventual DubBridge writes continue to be enforced by DubBridge. No direct DB sharing, no second agent engine, no forced paid hosting or MCP/A2A in v1.
+1. **Authentication:** Fenix owns a dedicated nonhuman S2S principal and restricted bearer. For a low-scale first consumer prefer a high-entropy opaque credential stored by digest only, with server-side active/revoked/expiry/rotation status in Fenix SQLite. Operator-issued via audited internal process; no shared `JWT_SECRET`, no Fenix user JWT, no credential embedded in DubBridge client code or responses. Human JWTs never authenticate S2S routes; S2S credentials never authenticate CRM routes.
+2. **Scopes:** `integration:capabilities:invoke` and `integration:operations:read` as separate permissions. Principal references one configured Fenix workspace and an explicitly authorized DubBridge organization/install identity; project-level access is constrained by verified, centrally provisioned allowlists as needed. Source org/project in JSON is **not authority**. Fail closed for missing mappings; do not assume workspace ID alone isolates Blackboard/memory.
+3. **Capability registry:** key/version is a **logical contract** distinct from workflow/agent ID. The registry starts empty, with all capabilities disabled until operator registration. A principal may invoke only a registered, enabled, specifically allowed capability for its mapped workspace/tenant. Unknown/disabled capability returns a stable typed error **before durable acceptance or model execution**. Fenix must never auto-create or select an arbitrary workflow from the caller's text.
+4. **Per-capability onboarding (B6):** define versioned input/output schemas, approved tool effects/budget, immutable workflow/agent mapping and independent approval when a real use case arises. No concrete workflow ID or read-only review analysis is required to build the S2S foundation.
+5. **Transport envelope:** versioned bounded JSON includes `operation_id`, `capability_key`, `input_schema_version`, `trace_id`, source context and `input`. Generic schema enforces structural limits; at invocation Fenix additionally enforces the registered capability-specific input schema, policy and budget. No user-supplied DSL/prompt/tool list. Responses must use sanitized typed per-capability output, never the generic internal `agentRunToResponse`.
+6. **Operation safety:** unique `(principal_id,operation_id)` plus canonical request digest and immutable capability configuration fingerprint in Fenix SQLite. `operation_id` is the stable polling reference, `run_id` is **nullable** until an actual runtime run exists. Replayed identical commands never create a second logical operation; changed payload with same key yields 409. Unknown capability yields rejection before reserving an accepted operation. Crash/lease ambiguity yields `indeterminate` rather than unsafe automatic redispatch.
+7. **Audit:** principal, mapped workspace/source scope, capability key/version, operation ID hash, timestamp, trace, deny/accept status, safe error and audit event. Never log raw bearer, model prompt, personal media or unrestricted input.
+8. **Rollout:** first deploy **disabled-by-default** with no registered domain capability. Prove real DubBridge↔Fenix transport, auth/revocation/cross-tenant denial, capability-not-configured rejection and idempotency/status behavior with real apps and stores. Actual agent execution belongs to B6, independently approved.
 
-## Preferred implementation option for B2 review
+## Threats and verification matrix (foundation only)
 
-**Prefer a high-entropy opaque bearer credential, NOT a copied human JWT, for the first single-consumer S2S slice.** This is a security architecture **recommendation**, not an accepted decision. Fenix stores only a keyed identifier plus one-way credential digest, expiration, revocation and principal/workspace/workflow/version bindings; the plaintext token is revealed once through an operator-controlled provisioning process and injected to DubBridge via its secret configuration. Verify digest using constant-time comparison. Use distinct token namespace and middleware so this bearer never authenticates to ordinary `/api/v1` user routes. Benefits: immediate DB-backed revocation, no cross-product signing key exchange, simple rotation and no claim/audience parser ambiguity. Costs: a DB lookup per request; operational credential distribution is still required. A short-lived signed JWT with separate verifier and durable revocation is a legitimate alternative if independent security review shows an operational need.
-
-**Fail-closed server-side authorization order (required):**
-1. Identify the S2S route, parse strict bounded bearer; reject any user JWT or missing token.
-2. Load active service principal by bounded public credential key, validate its digest, expiry, revocation/rotation state.
-3. Verify `consumer=dubbridge`, allowed action (`invoke` or `read_run`), **one Fenix workspace** and **one immutable workflow version/allowlist**. Never derive those values from body fields or HTTP headers.
-4. For a submit, validate strict schema and compare `Idempotency-Key` to body `operation_id` before durable transactional reservation. Bind request fingerprint to both service principal and selected workflow version. Reject same key/different input.
-5. Resolve configured workflow and enforce its **effective ToolRegistry capability allowlist**, side-effect classification and current Fenix policy. Merely allowlisting a workflow ID is **insufficient** if workflow permissions or versions drift.
-6. Reserve, persist and dispatch exactly one logical run with a durable reconciliation path. Separate service-facing result projection from generic user-facing run DTO; never leak raw model reasoning or tool call parameters.
-7. Audit principal, workspace, workflow version, external operation key hash, trace and outcome, not bearer or raw task data.
-
-**Open design decision:** Fenix's existing persistence uses a local application DB for agent runs; choose transaction/lease schema against its actual supported DB before code. Do not use DubBridge PostgreSQL as Fenix's credential/operation store. Require explicit reviewer acceptance of token storage/TTL/rotation, tool-effect limits, idempotency crash safety and service output redaction.
-
-## Multi-tenant isolation decision for security review
-
-A DubBridge project summary may contain private business metrics even if individual review tasks are omitted. Therefore v1 **MUST NOT let one service principal submit arbitrary DubBridge org/project identifiers into a shared Fenix workspace**. Provision a distinct principal + workspace/workflow binding per approved org/project pair, or implement stronger isolation with independently reviewed tenant policy before enabling multi-project usage. Fenix rejects a source org/project mismatch regardless of what the DubBridge caller claims; DubBridge separately enforces its own user/role permissions before constructing the summary.
-
-**This is a proposed isolation requirement, not a claim that Fenix currently enforces it.** Verify isolation of agent memory, Blackboard, evidence, logs, tool permissions, prompts and models when selecting the workspace; a fixed workspace alone does not prove a project's data is isolated from other projects within that workspace.
-
-## Security deny matrix (must become real negative tests)
-
-| Attempt | Expected |
+| Risk | Required control / negative evidence |
 |---|---|
-| Human user JWT on S2S path | 401/403 |
-| S2S credential on ordinary user CRM routes | 401/403 |
-| Missing/expired/revoked/rotated service token | 401 |
-| Wrong Fenix workspace, non-allowlisted workflow | 403/404, no tenant enumeration |
-| Service token with no invoke scope | 403 |
-| Service tries to create/modify Fenix tools/agents/CRM | 403 |
-| Duplicate identical external request | Same run; no re-execution |
-| Duplicate key with changed payload | 409 |
-| Provider unavailable or crashed | Explicit pending/failed/indeterminate with reconciliation |
-| Malformed payload/untrusted tool or prompt selection | 400/422, no run |
+| Human JWT accepted as service identity | 401/403 on S2S, tests against real auth middleware |
+| Service bearer accepted by ordinary user/CRM API | 401/403, no user context injection |
+| Expired/revoked/rotated credential | fail closed and auditable |
+| Cross-organization or wrong Fenix workspace | deny before any capability/runtime lookup, no tenant enumeration |
+| Unregistered/disabled capability | explicit `CAPABILITY_NOT_CONFIGURED` / `CAPABILITY_DISABLED`, no run created |
+| Caller supplies arbitrary workflow ID, prompts or tool definitions | request schema rejects, no execution |
+| Replay and network ambiguity | same logical operation for matching digest, 409 on mismatch; no unsafe retry |
+| Leaked model/tool reasoning | no generic internal run DTO on S2S boundary |
+| Request flood or costly execution | principal-bound rate/size/compute budgets, disabled capability cannot consume model resources |
+| Compromised per-project integration data | centrally configured tenant scopes, isolation tests for workspace/Blackboard/logs |
 
-## Required reviewer questions
+## Sequencing, risk and review gate
 
-1. Should service credentials be opaque rotating references or JWTs, given revocation durability and minimal ops cost?
-2. What recovery/lease mechanism ensures the unique request key never launches duplicate work after process failure?
-3. How to bind Fenix workspace to a DubBridge installation/project without trusting caller-supplied IDs?
-4. What explicit Fenix policy/tool allowlist restricts an agent invoked from a service principal?
-5. What compact audit record proves caller identity and run correlation without leaking source data?
+- **B1:** architecture, machine-readable **generic** envelope, RRI assessment and security review. No live workflow required.
+- **B2:** **decompose** into S2S auth, capability registry, SQLite operation registry, read/status projection, negative foundation tests. No business workflow configured.
+- **B3/B4:** real DubBridge consumer and infrastructure E2E with capability absent; this is valid proof of **foundation**, not functional model execution.
+- **B5:** independent security review, local Go/Rust QA and operational GO/NO-GO.
+- **B6:** define/version actual workflow from real use; certify full agent/model business E2E there.
 
-**Exit:** approve only after code-path threat analysis, signed RRI receipt, peer security review, negative tests and real service run. The owner approved execution of block B1, **not** a waiver of security reviews.
+Prior monolithic RRI forecast 122 (Excessive) was hypothetical, **not official or measured**. Recalculate actual RRI per B2 leaf before implementation, following Fenix policy. Reviewer still must verify token entropy/digest/rotation, tenant isolation, concurrency/lease/idempotency, tool policy and output redaction before deployment. No approvals are silently granted by this design rewrite.
 
-## C3 threat review — evidence-based concerns (2026-10-31)
-
-**Status: SELF-REVIEW ONLY.** These are blocking threat-model findings, **not** an independent peer/security approval.
-
-1. **Replay after ambiguous acceptance (HIGH):** The existing Fenix DSL runner creates an `agent_run` internally and executes on the same HTTP request. A `202` cannot be returned safely by merely wrapping that handler. Require a durable SQLite operation reservation, unique `(principal_id, operation_id)`, request digest, lease, explicit `run_id` linkage and reconciler. Following process failure, an uncertain leased operation becomes `indeterminate`; retrying the same key must not spawn a second workflow.
-2. **Run ID allocation race (HIGH):** A committed logical operation may exist before `DSLRunner` assigns a run ID. Stable GET is `/integrations/dubbridge/operations/{operation_id}` (not `runs/{run_id}`); allow `run_id: null` only before a real run exists or for pre-run failures. Once assigned, use an immutable link. Never manufacture a run ID that differs from the actual persisted `agent_run`.
-3. **Tenant mapping (HIGH):** The principal must be bound server-side to exactly one DubBridge org/project and one Fenix workspace/workflow version for v1. Any mismatch from submitted source metadata is denied before model/runtime access. Verify workspace-isolated Blackboard, memory, audit and tool configuration; a workspace string alone does not establish data isolation.
-4. **Credential trust separation (HIGH):** Use distinct S2S opaque-token lookup/digest/revocation; a human JWT must never validate on S2S endpoints, and the S2S bearer must never authenticate to generic CRM routes. Operator-only issuance/rotation, no shared JWT signing secret.
-5. **Tool escalation (HIGH):** Runtime must evaluate the effective workflow tool policy at invocation and every side-effecting tool call; a permitted workflow can evolve, so immutable workflow version pinning plus deny-by-default allowed capabilities is mandatory. Do not bypass policy engine.
-6. **Result data exfiltration (HIGH):** The current generic run DTO carries `inputs`, `toolCalls`, `reasoningTrace`. A dedicated allowlisted advisory result must be constructed and validated (size, schema, sensitive identifiers) before HTTP exposure; a JSON Schema alone cannot guarantee the model's prose is privacy-safe.
-7. **Availability/operational abuse (MEDIUM/HIGH):** Limit request bytes, token lifetime, concurrent runs, CPU/model budget, query frequency and dispatch lease duration. Derive rate limits from principal, not just client IP. Do not auto-retry non-idempotent work across outages.
-
-**Required reviewer gate:** a second independent security reviewer must evaluate these findings, the concrete SQLite transaction and recovery model, native Fenix auth separation, tool permission enforcement, negative tests and actual run evidence. The user approved B1 execution, not bypassing this review. The ADR remains PROPOSED.
+**Decision status: draft only. No service credential issued; no S2S runtime implemented; no changes to main or GitHub Actions.** Historical threat review remains in [older B1.C audit](../audit/dubbridge-fenix-b1c-gate-2026-10-31.md); its business-workflow gate is superseded.
