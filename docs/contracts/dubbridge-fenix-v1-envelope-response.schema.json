@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.fenix.local/integrations/dubbridge/v1/envelope/response",
+  "title": "Fenix → DubBridge neutral S2S operation state envelope (PROPOSED)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "operation_id",
+    "capability_key",
+    "status",
+    "run_id",
+    "trace_id",
+    "result"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1"
+    },
+    "operation_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{16,96}$"
+    },
+    "capability_key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+){1,6}$",
+      "maxLength": 96
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{8,96}$"
+    },
+    "run_id": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "uuid"
+        }
+      ]
+    },
+    "status": {
+      "enum": [
+        "accepted",
+        "running",
+        "awaiting_approval",
+        "handed_off",
+        "succeeded",
+        "completed_with_warnings",
+        "abstained",
+        "failed",
+        "denied",
+        "indeterminate"
+      ]
+    },
+    "result": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema_version",
+            "data"
+          ],
+          "properties": {
+            "schema_version": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,2}$"
+            },
+            "data": {
+              "type": "object",
+              "maxProperties": 64
+            }
+          }
+        }
+      ]
+    },
+    "error_code": {
+      "enum": [
+        "POLICY_DENIED",
+        "EXECUTION_FAILED",
+        "PROVIDER_UNAVAILABLE",
+        "TIMEOUT",
+        "UNKNOWN_STATE"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "succeeded",
+              "completed_with_warnings"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "type": "object"
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "not": {
+          "required": [
+            "error_code"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "accepted",
+              "running",
+              "awaiting_approval",
+              "handed_off",
+              "abstained"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "type": "null"
+          }
+        },
+        "not": {
+          "required": [
+            "error_code"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "failed",
+              "denied",
+              "indeterminate"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "error_code"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "running",
+              "awaiting_approval",
+              "handed_off",
+              "abstained"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      }
+    }
+  ]
+}
