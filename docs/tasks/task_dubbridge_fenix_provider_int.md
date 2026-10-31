@@ -9,6 +9,10 @@ rebaseline: 2026-10-31
 
 # Canonical tasks — Fenix as DubBridge's agentic platform
 
+> **Owner-scoped cloud execution rule (2026-10-31):** **RRI: N/A for DB-FENIX-INT cloud-agent tasks.** Any older mentions of `RRI pending`, `RRI 67` or `RRI 122` in checkpoints below are archival and **not blocking**. Independent security/peer review, Go QA and owner approval of security-sensitive actions remain. See [cloud scoped policy](../policies/RRI_POLICY.md).
+
+
+
 **Binding decision:** user-defined real workflows are developed **later, as use cases arise**. None is a blocker for B1/B2/B3/B4/B5. Follow [corrected plan](../plans/dubbridge-consumes-fenix-integration.md). Legacy work on outgoing Fenix → DubBridge branches is quarantined.
 
 ## B0 — Architecture (DONE)
