@@ -30,6 +30,14 @@ DubBridge calls Fenix to use its agentic platform. Fenix's existing `/api/v1` ro
 
 The real two-product infrastructure E2E needs one accepted durable operation to test deduplication, polling and recovery. An isolated nonproduction `integration.diagnostics` capability may be explicitly installed by the test harness to execute a deterministic, side-effect-free **provider diagnostic handler** through the actual S2S gateway and Fenix SQLite registry. It is neither a dummy agent nor a business workflow; all reports label its scope as infrastructure-only. It **MUST NOT** be enabled or auto-registered in production. Security tests must prove that production unregistered capability requests fail before acceptance, and that cross-tenant/invalid bearer checks are identical for diagnostic and absent-capability paths.
 
+## Source-backed B1 security readiness findings (2026-10-31)
+
+Existing Fenix `internal/api/middleware/auth.go` injects human `UserID`/`WorkspaceID` via `pkg/auth.ParseJWT`. The latter uses the human `JWT_SECRET` and HS256. **The new service principal requires a different context type and an isolated middleware/router, not another claim inside the human JWT.** `internal/infra/sqlite/migrations/001_init_schema.up.sql` defines Fenix's own workspace tenant root; do not design principal persistence against DubBridge's PostgreSQL or delegate authorization to caller-supplied source IDs. The existing ToolRegistry permission/capability governor must not be bypassed when future capabilities are registered.
+
+**Provisional wire/resource constraints for B2 review:** max request body **64 KiB** and response body **32 KiB**; single strict JSON document; bounded recursion/decode, fixed safe error projection; enforce `Idempotency-Key == operation_id`; principal-bound rate and concurrent-work limits. The generic JSON envelope has `maxProperties:64` but **does not** constrain nested JSON length/depth or guarantee any registered capability-specific schema. Unknown capability must be denied **before** any interpreter, model or tool receives input. These are server-side acceptance criteria, not existing controls.
+
+**B1 verification:** [neutral envelope audit](../audit/dubbridge-fenix-b1-neutral-checkpoint-2026-10-31.md) reports exact-blob local 17 directed and 120 matrix PASS; this is schema evidence **only**. Security peer-review remains pending. [B2.A task packet](../tasks/dubbridge-fenix-b2a-s2s-identity.md) decomposes the future auth implementation by risk; no operational credential or migration authorized.
+
 ## Threats and verification matrix (foundation only)
 
 | Risk | Required control / negative evidence |
