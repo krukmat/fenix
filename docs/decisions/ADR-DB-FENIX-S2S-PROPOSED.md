@@ -26,6 +26,10 @@ DubBridge calls Fenix to use its agentic platform. Fenix's existing `/api/v1` ro
 7. **Audit:** principal, mapped workspace/source scope, capability key/version, operation ID hash, timestamp, trace, deny/accept status, safe error and audit event. Never log raw bearer, model prompt, personal media or unrestricted input.
 8. **Rollout:** first deploy **disabled-by-default** with no registered domain capability. Prove real DubBridge↔Fenix transport, auth/revocation/cross-tenant denial, capability-not-configured rejection and idempotency/status behavior with real apps and stores. Actual agent execution belongs to B6, independently approved.
 
+## Nonproduction diagnostic capability — restricted test seam
+
+The real two-product infrastructure E2E needs one accepted durable operation to test deduplication, polling and recovery. An isolated nonproduction `integration.diagnostics` capability may be explicitly installed by the test harness to execute a deterministic, side-effect-free **provider diagnostic handler** through the actual S2S gateway and Fenix SQLite registry. It is neither a dummy agent nor a business workflow; all reports label its scope as infrastructure-only. It **MUST NOT** be enabled or auto-registered in production. Security tests must prove that production unregistered capability requests fail before acceptance, and that cross-tenant/invalid bearer checks are identical for diagnostic and absent-capability paths.
+
 ## Threats and verification matrix (foundation only)
 
 | Risk | Required control / negative evidence |
