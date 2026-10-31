@@ -132,6 +132,16 @@ status: active
   critical | standard` plus a `criticality_basis:` field in the task record and
   task card, following the wrapper contract in `AGENTS.md` / `CLAUDE.md`.
 
+## DB-FENIX-INT cloud-agent exception (owner decision, 2026-10-31)
+
+When executing tasks within the DubBridge → Fenix initiative with **cloud coding agents**:
+- Mark `RRI: N/A — DB-FENIX-INT/cloud`; **do not invoke `scripts/rri.py`**, use its bands to pick models, or require local Gemma/Ollama delegation.
+- Choose development/reviewer models based on capability and separation of duties; keep one task at a time and explicit acceptance criteria.
+- **Keep independent readiness and post-code review unchanged.** Security-boundary edits, SQLite migrations, credentials, production and deployment still need task-scoped human approval plus relevant Go/Rust QA.
+- Do not interpret absence of a local reviewer CLI as permission to self-approve; the review gate needs a genuine independent reviewer result or the repository's explicit waiver process.
+
+Other projects/task execution modes continue to follow the RRI procedure below.
+
 ## RRI, approval, and model guidance
 
 The workflow derives approval gates, effort, model tier, and decomposition from
