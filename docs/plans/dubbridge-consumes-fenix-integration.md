@@ -74,3 +74,8 @@ Historical docs and previous audit/test counts describe the older example and ar
 ## Next executable action
 
 Start **B1.T2/T3 final contract security review and capability-neutral schema tests** (no model credentials), then **B2.A** as an independently reviewed, isolated authentication slice. Later capabilities are registered only when product usage requires them. Companion DubBridge [canonical plan](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/plan/dubbridge-consumes-fenix-integration.md) and [tasks](../tasks/task_dubbridge_fenix_provider_int.md).
+
+
+## B1 neutral contract checkpoint — 2026-10-31
+
+[Exact-blob offline validation and source-backed security findings](../audit/dubbridge-fenix-b1-neutral-checkpoint-2026-10-31.md): **17/17 directed cases and 120/120 state cases PASS** for the *generic* capability-neutral envelope (not old review-specific schemas). No actual business workflow required or executed. [S2S ADR](../decisions/ADR-DB-FENIX-S2S-PROPOSED.md) remains **proposed**, with explicit middleware/JWT trust separation and bounds to review. [B2.A security leaves](../tasks/dubbridge-fenix-b2a-s2s-identity.md) are ready for separate RRI/peer/HITL gates. **B1 design work advanced; security acceptance and rollout remain NO-GO pending independent review.**
