@@ -74,3 +74,8 @@ A prior **RRI 122** was a forecast for an oversized, hypothetical S2S implementa
 - [x] **B2.A implementation prep** split into A1 pure secret/principal, A2 SQLite revocation, A3 isolated middleware, A4 operator QA. [Detailed task packet](dubbridge-fenix-b2a-s2s-identity.md). No application implementation, token issuance or S2S deployment.
 
 **Gate:** GO for isolated B2.A1 readiness and RRI planning, **NO-GO** for active auth/router changes, migration, production/rollout or merge until independent review and explicit leaf approvals. Neither product needs a real workflow for the foundation.
+
+
+## B2.A1 authorized scope and readiness — 2026-10-31
+
+B2.A plan approved by owner. [B2.A1 task card](task_dubbridge_fenix_b2a1_credential_readiness.md) now specifies format, secret isolation, constant-time comparison, negative tests and **RRI 67 provisional (Complex)**. Independent peer readiness and official RRI **not run** (reviewer binaries and local full repo unavailable), so per repository governance **Go source implementation remains blocked**, and A2–A4 remain untouched. Approval of the block does not prove peer PASS or production security readiness. No real workflow requirement.
