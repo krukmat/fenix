@@ -67,3 +67,8 @@ Suggested initial domain case: DubBridge creates an *authorized, privacy-minimiz
 - **B1.T3 CANDIDATE:** [DubBridge v1 protocol](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/plan/dubbridge-fenix-b1-contract-v1-proposal.md) proposes durable idempotent submission and status polling; the present Fenix endpoint is synchronous, so the facade does **not** exist yet.
 - **No GO to B2 runtime code:** actual Fenix run/model availability, full RRI calculation and independent peer/security readiness remain gates. GitHub Actions remain off.
 
+
+
+## C1–C5 gate update — 2026-10-31
+
+The current [B1.C1–C5 checkpoint](../audit/dubbridge-fenix-b1c-gate-2026-10-31.md) documents a **NO-GO to B2 runtime**. It adds a source-grounded RRI risk forecast 122 (not a signed receipt), seven security-review findings, and a critical v1 wire correction: `operation_id` is the durable key, `run_id` remains nullable until an actual run exists, and polling targets `GET /integrations/dubbridge/operations/{operation_id}`. Tests now define 120 status/result/run-link combinations, while current exact-blob rerun, real workflow evidence and independent security review are pending. Decompose B2 into principal, workflow policy, SQLite operation registry, dispatcher/reconciliation and result projection before requesting GO.
