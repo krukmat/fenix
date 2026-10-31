@@ -43,6 +43,10 @@ Preferred shortcut:
 - Do not reuse a previous agent signature such as `claude-sonnet-4-6` for commits authored by Codex/GPT.
 - The `prepare-commit-msg` hook appends `AI-Agent` and `AI-Timestamp` trailers based on `AI_AGENTS`, `AI_AGENT`, or `git config fenix.ai-agent`.
 
+## DB-FENIX-INT cloud-agent scope (owner decision, 2026-10-31)
+
+For DubBridge → Fenix coding tasks delegated to a **cloud agent**, `RRI: N/A` is an approved scoped process choice, not a missing gate. Do not require `scripts/rri.py`, RRI-derived model tiers or Ollama for those tasks. **Independent peer readiness and code review, local Go/Rust validation and explicit human approval for security/auth, migrations and deployment still apply.** See `CLAUDE.md` and the scoped exceptions in `docs/policies/RRI_POLICY.md` and `docs/policies/HITL_AUTONOMY_POLICY.md`.
+
 ## Reporting
 
 - Discrete tasks must be executed one at a time. After closing a task with the required outcome report, stop and wait for explicit user confirmation before starting the next task, even when a plan lists multiple tasks or waves.
