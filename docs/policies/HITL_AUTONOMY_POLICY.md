@@ -11,6 +11,12 @@ status: active
 > consolidates the approval and autonomy rules already stated in `CLAUDE.md` and
 > `AGENTS.md` into one referenceable document.
 
+## DB-FENIX-INT cloud-agent workflow (owner clarification, 2026-10-31)
+
+For the **DubBridge → Fenix** integration (`DB-FENIX-INT`) developed through a cloud coding agent, RRI is **N/A** and is **not** an approval trigger or prerequisite. See the scoped exception in `RRI_POLICY.md`. Do not demand the RRI CLI, RRI-dependent model choice or local-model delegation for this initiative.
+
+**Independent peer review and the always-sensitive-action controls below remain effective.** Authentication, authorization, secret lifecycle, security boundaries, SQLite migrations, production credentials, deployment and main merges still require explicit owner authorization and the project-mandated QA/reviewer artifacts. The existing user's approval of B2.A authorizes the bounded plan, not independent security acceptance or rollout. This exception is a deliberate policy scope choice, **not a reviewer waiver**.
+
 ## Principle
 
 The agent plans and proposes; a human approves before implementation. Irreversible
