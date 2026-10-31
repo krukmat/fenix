@@ -6,6 +6,9 @@ status: offline_pass_live_unverified
 date: 2026-10-29
 ---
 
+> **Historical example artifact (2026-10-31):** The reported offline PASS applies only to retired *review-backlog-specific* draft JSON schemas, not the new generic capability-neutral envelope. Do not cite these counts as verification of current B1.T3. See [current plan](../plans/dubbridge-consumes-fenix-integration.md).
+
+
 # B1 — Local offline schema verification receipt
 
 ## Source and setup
