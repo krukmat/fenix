@@ -65,3 +65,14 @@ The earlier **122 RRI** was a hypothetical score for an *oversized combined impl
 ## Allowed next action
 
 Prepare the A1 task readiness review and exact RRI, then implement A1 **only after the applicable task-level approval and independent reviewer gates**. No customer data, cloud spend, active credentials, production API or live workflows are needed for this step.
+
+
+## B2.A1 approval checkpoint — 2026-10-31
+
+[Granular B2.A1 readiness card](task_dubbridge_fenix_b2a1_credential_readiness.md) is now committed. User accepted B2.A block, and the A1 scope is explicitly narrowed to pure token generation/parsing/digest verification and tests (two new Go files, no active auth integration).
+
+- Forecast **RRI 67 (Complex)** using the Fenix policy formula with C=1 forecast, F=1, D=5, T=3, A=1, K=5, P=5, X=2, auth security +10. This is **not** an official `scripts/rri.py` receipt because the full repo/CLI is not present in this tool container.
+- Mandatory **independent peer task-readiness** **BLOCKED/NOT RUN**: local environment has neither `codex` nor `claude` executable. The repository policy does not equate plan approval with a reviewer waiver.
+- **Implementation A1–A4 NOT STARTED:** no service-token Go source or tests, SQLite migration, route, credential issuance, activation or deployment was changed. Next step is to execute the recorded RRI and peer review in an authorized full checkout.
+
+**No workflow or agent definition is part of B2.A.**
