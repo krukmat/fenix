@@ -27,6 +27,8 @@ DubBridge API (domain authorization)
 
 **A capability is a logical, versioned integration contract, NOT an implementation workflow ID.** Fenix's registry maps a permitted capability key to a workflow/agent only when that capability is actually configured. If none is registered/enabled, deny invocation deterministically (`CAPABILITY_NOT_CONFIGURED` or `CAPABILITY_DISABLED`), without accepting or fabricating a run. No dynamic caller-selected workflow IDs, user-supplied DSL, arbitrary prompts or broad tool access.
 
+**Infrastructure-only test seam:** To test accepted-operation/idempotency/status across real apps in B4 without a business workflow, permit one explicitly test-only `integration.diagnostics` capability in an isolated nonproduction configuration. It is a real, bounded, deterministic provider-side diagnostic operation using the real S2S middleware and SQLite operation store, **not** an agent, mock business outcome or production-enabled feature. Production registry remains empty/default-deny. B4 evidence must say **infrastructure E2E**, never functional agent E2E.
+
 B1 determines only the stable envelope and authorization boundary; it does **not** choose any concrete capability, prompt, agent or workflow. Real workflows are added through a **separate B6/on-demand capability onboarding lifecycle**.
 
 ## Current source findings (not S2S implementation)
