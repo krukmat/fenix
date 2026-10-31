@@ -58,6 +58,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - If a required local QA gate cannot be executed, stop and report that explicitly before pushing.
 - Hooks must be installed with `make install-hooks` (see setup above).
 
+**DB-FENIX-INT scoped cloud-agent execution policy (owner decision, 2026-10-31):** RRI is not applicable for this integration executed using a cloud coding agent; record `RRI: N/A (cloud, DB-FENIX-INT)`, do not run the RRI calculator or require Ollama. This is an exception to RRI-only steps in the shared workflow, **not** to independent peer review, code QA, sensitive-action HITL, credential protection, or deployment/main approvals. See `docs/policies/RRI_POLICY.md` and `docs/policies/HITL_AUTONOMY_POLICY.md`. Cloud-agent execution is not equivalent to production cloud hosting.
+
 **Task file discipline (MANDATORY)**:
 - Shared workflow order, task-readiness sequencing, and closure discipline live in
   `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`. Keep this section aligned with that
