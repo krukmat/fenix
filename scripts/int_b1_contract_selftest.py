@@ -131,10 +131,31 @@ def main():
     bad["error_code"] = "EXECUTION_FAILED"
     response.validate(bad)
 
+    # Accepted operation can be durably reserved before Fenix allocates agent_run.
+    accepted_without_run = copy.deepcopy(valid_response)
+    accepted_without_run["run_id"] = None
+    response.validate(accepted_without_run)
+
+    rejected_before_run = copy.deepcopy(accepted_without_run)
+    rejected_before_run["status"] = "denied"
+    rejected_before_run["error_code"] = "POLICY_DENIED"
+    response.validate(rejected_before_run)
+
+    bad = copy.deepcopy(valid_response)
+    bad["status"] = "succeeded"
+    bad["result"] = {"summary": "Done", "recommendations": []}
+    bad["run_id"] = None
+    must_reject(response, bad, "success_without_agent_run")
+
+    bad = copy.deepcopy(valid_response)
+    bad["status"] = "running"
+    bad["run_id"] = None
+    must_reject(response, bad, "running_without_agent_run")
+
     print(json.dumps({
         "kind": "FENIX_DUBBRIDGE_B1_CONTRACT_SELFTEST_V1",
         "status": "PASS",
-        "positive": 4,
+        "positive": 6,
         "negative": len(negatives),
         "scope": "offline JSON schema only; NOT live API, NOT S2S, NOT E2E",
     }))
