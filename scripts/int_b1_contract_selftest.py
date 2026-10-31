@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# ARCHIVED example-specific test for review_backlog draft. Not the active generic S2S envelope.
+# Generic contract verification lives in scripts/int_b1_envelope_selftest.py.
 """B1 contract schema unit checks only. This NEVER certifies a live integration.
 
 Usage from repository root:
