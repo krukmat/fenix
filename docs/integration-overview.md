@@ -27,20 +27,20 @@ flowchart LR
     E --> V[VEL]
 ```
 
-## DubBridge as a consumer of Fenix agentic capabilities
+## DubBridge as a consumer of Fenix's capability-neutral integration
 
-**Owner-corrected direction (2026-10-29):** DubBridge invokes Fenix, not the reverse. Fenix is an independent agent/workflow service provider, and DubBridge remains domain authority for projects, media, reviews, rights and P2P.
+**Owner clarification (2026-10-31):** DubBridge calls Fenix; a concrete workflow is **not an integration dependency**. Fenix provides separate S2S identity, a default-deny logical capability registry, stable operation IDs and status/trace. Agents and workflows are created/mapped later as individual product capabilities emerge.
 
 ```text
-DubBridge product/API → scoped Fenix service identity
-  → Fenix agent/workflow execution (governed)
-  → run ID / status / minimal analytical result
-  → DubBridge presentation / domain decision
+DubBridge → S2S Fenix API → principal/workspace/capability gate
+                                ├─ capability absent → explicit denial, no run
+                                └─ future registered capability → guarded runtime
+              ← operation_id/status/sanitized result only
 ```
 
-The current user-JWT endpoints `POST /api/v1/agents/trigger`, `GET /api/v1/agents/runs/{id}` and `POST /api/v1/workflows/{id}/execute` are source-verified **candidate entrypoints**, not certified S2S interfaces. Fenix must own credential issuance/verification, workspace/allowlist checks and agent execution controls; DubBridge must never reuse a broad Fenix user login token.
+Existing user-JWT APIs `agents/trigger`, `workflows/{id}/execute` and `agents/runs/{id}` are **source inventory only** and not the new service route. The old example-specific review-count JSON schemas and live workflow probe are historical, not prerequisites for B1–B5. No Fenix domain authority over DubBridge media, review, rights, publication or P2P.
 
-[Canonical provider plan](plans/dubbridge-consumes-fenix-integration.md) · [Provider task ledger](tasks/task_dubbridge_fenix_provider_int.md). Historical outgoing DubBridge adapter code is isolated on `feature/int-w1-dubbridge-readonly` and **must not be merged** for this corrected initiative.
+[Current provider plan](plans/dubbridge-consumes-fenix-integration.md) · [Task ledger](tasks/task_dubbridge_fenix_provider_int.md). Historical reverse-direction adapter is quarantined on `feature/int-w1-dubbridge-readonly`. B6 owns onboarding of actual workflows.
 
 ## Salesforce Flow path
 
