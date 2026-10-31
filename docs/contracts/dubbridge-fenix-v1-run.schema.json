@@ -21,8 +21,15 @@
       "pattern": "^[A-Za-z0-9_-]{16,96}$"
     },
     "run_id": {
-      "type": "string",
-      "format": "uuid"
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "uuid"
+        }
+      ]
     },
     "trace_id": {
       "type": "string",
@@ -123,6 +130,10 @@
         "properties": {
           "result": {
             "type": "object"
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "not": {
@@ -186,6 +197,31 @@
         "required": [
           "error_code"
         ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "running",
+              "awaiting_approval",
+              "handed_off",
+              "abstained"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
       }
     }
   ]
