@@ -26,29 +26,31 @@ def main():
     }
     allowed = rejected = 0
     for status in STATUSES:
-        for shape in ("null", "typed", "malformed"):
-            for with_error in (False, True):
-                result = (
-                    None if shape == "null" else
-                    {"summary": "Completed", "recommendations": []} if shape == "typed" else
-                    {"unexpected_payload": 1}
-                )
-                candidate = {**base, "status": status, "result": result}
-                if with_error:
-                    candidate["error_code"] = "EXECUTION_FAILED"
-                expected = (
-                    (status in SUCCESS and shape == "typed" and not with_error)
-                    or (status in ERROR and shape == "null" and with_error)
-                    or (status not in SUCCESS | ERROR and shape == "null" and not with_error)
-                )
-                actual = validator.is_valid(candidate)
-                if actual != expected:
-                    raise AssertionError(
-                        f"state={status} shape={shape} error={with_error}: "
-                        f"expected={expected}, got={actual}"
+        for run_id in (None, base["run_id"]):
+            for shape in ("null", "typed", "malformed"):
+                for with_error in (False, True):
+                    result = (
+                        None if shape == "null" else
+                        {"summary": "Completed", "recommendations": []} if shape == "typed" else
+                        {"unexpected_payload": 1}
                     )
-                allowed += int(actual)
-                rejected += int(not actual)
+                    candidate = {**base, "run_id": run_id, "status": status, "result": result}
+                    if with_error:
+                        candidate["error_code"] = "EXECUTION_FAILED"
+                    expected = (
+                        (status in SUCCESS and run_id is not None and shape == "typed" and not with_error)
+                        or (status in ERROR and shape == "null" and with_error)
+                        or (status not in SUCCESS | ERROR and shape == "null" and not with_error
+                            and (status == "accepted" or run_id is not None))
+                    )
+                    actual = validator.is_valid(candidate)
+                    if actual != expected:
+                        raise AssertionError(
+                            f"state={status} run_id={run_id} shape={shape} error={with_error}: "
+                            f"expected={expected}, got={actual}"
+                        )
+                    allowed += int(actual)
+                    rejected += int(not actual)
     print(json.dumps({
         "kind": "FENIX_B1_STATUS_MATRIX_V1",
         "status": "PASS",
