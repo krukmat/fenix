@@ -79,3 +79,8 @@ Start **B1.T2/T3 final contract security review and capability-neutral schema te
 ## B1 neutral contract checkpoint — 2026-10-31
 
 [Exact-blob offline validation and source-backed security findings](../audit/dubbridge-fenix-b1-neutral-checkpoint-2026-10-31.md): **17/17 directed cases and 120/120 state cases PASS** for the *generic* capability-neutral envelope (not old review-specific schemas). No actual business workflow required or executed. [S2S ADR](../decisions/ADR-DB-FENIX-S2S-PROPOSED.md) remains **proposed**, with explicit middleware/JWT trust separation and bounds to review. [B2.A security leaves](../tasks/dubbridge-fenix-b2a-s2s-identity.md) are ready for separate RRI/peer/HITL gates. **B1 design work advanced; security acceptance and rollout remain NO-GO pending independent review.**
+
+
+## B2.A1 readiness gate — 2026-10-31
+
+B2.A owner approval recorded. Pure S2S [token primitive task](../tasks/task_dubbridge_fenix_b2a1_credential_readiness.md) scoped to two future Go files; **RRI 67 forecast (Complex), official script not run**. Independent peer readiness unavailable in the current container; **implementation is not started** under Fenix HITL/peer governance. The next work is peer/RRI approval of A1, not any real business workflow, and no S2S runtime/tenant/SQLite code is yet live.
