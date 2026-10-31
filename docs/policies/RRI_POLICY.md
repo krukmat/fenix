@@ -11,6 +11,14 @@ status: active
 > detailed procedure it delegates to for complexity-and-risk scoring, model-tier
 > selection, and autonomy-gate determination.
 
+## Scoped cloud-agent exception — DB-FENIX-INT (owner decision, 2026-10-31)
+
+For the DubBridge → Fenix integration initiative **DB-FENIX-INT**, when implementation is performed by a **cloud-hosted coding agent** (ChatGPT, Codex cloud, or Claude Code cloud workflow), **RRI is NOT applicable**: do not run `scripts/rri.py`, infer model tier from an RRI score, route work through Ollama, or block a task because an RRI receipt is missing. Record `RRI: N/A — cloud-agent implementation, DB-FENIX-INT` in the task and closure report.
+
+This is a **narrow scope exception**, not a global repeal of RRI for unrelated Fenix development and not a waiver of quality/safety gates. Work must still be decomposed into reviewable tasks with explicit acceptance tests. Independent task-readiness and post-code peer review, Go/Rust QA, secure secret handling, tenant authorization, and **explicit human approval for authentication, authorization, migrations, production/deployment and other sensitive changes** remain mandatory under `HITL_AUTONOMY_POLICY.md`.
+
+Cloud execution refers to **where the coding agent runs** and must not be confused with hosting/deploying the application in a cloud provider. The exception does not authorize live credentials, public endpoints, merges or GitHub Actions. If the initiative or execution mode changes, apply the regular policy or seek a separate owner decision.
+
 ## Purpose
 
 RRI estimates how much reasoning, context, caution, and verification a task
