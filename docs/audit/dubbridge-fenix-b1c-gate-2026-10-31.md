@@ -3,10 +3,10 @@ doc_type: audit
 id: DUBBRIDGE-FENIX-B1C-2026-10-31
 title: "B1.C1–C5 execution checkpoint and risk gate"
 status: superseded_for_sequencing
-d> **SUPERSEDED SEQUENCING DECISION (owner clarification 2026-10-31):** The NO-GO below is historical and **must not block B1–B5 because a real workflow is undefined**. Specific workflow/agent tests now belong to B6 (usage-driven capability onboarding). Risk forecast 122 remains a nonofficial warning about a monolithic B2 implementation; independent security review and per-leaf RRI still apply. Current authoritative plan: [neutral Fenix provider plan](../plans/dubbridge-consumes-fenix-integration.md). Historical evidence retained unchanged below.
-
-ate: 2026-10-31
+date: 2026-10-31
 ---
+
+> **SUPERSEDED SEQUENCING DECISION (owner clarification 2026-10-31):** The historical NO-GO below must **not block B1–B5 simply because a real business workflow has not been defined**. Specific workflow/agent tests are deferred to B6 (usage-driven capability onboarding). The earlier RRI 122 is a hypothetical monolithic-scope forecast, not an official gate result; independent security review and per-leaf RRI still apply. See the [current neutral integration plan](../plans/dubbridge-consumes-fenix-integration.md).
 
 # B1.C checkpoint — DubBridge consumes Fenix
 
