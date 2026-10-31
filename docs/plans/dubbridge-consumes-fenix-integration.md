@@ -10,6 +10,10 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 # Canonical plan — DubBridge consumes Fenix
 
+> **Owner decision, 2026-10-31 — cloud-agent execution:** this initiative does **not** use RRI as a planning, model-routing or implementation gate. All earlier RRI references below are superseded for `DB-FENIX-INT`. Keep task decomposition, Go QA, independent peer/security review, and explicit approval for authentication, migrations and deployment. [Scoped policy](../policies/RRI_POLICY.md).
+
+
+
 **Owner correction 2026-10-31:** Actual business workflows and agents **emerge from product usage**. Their discovery, selection, definition, model quality and execution are **NOT entry criteria for B1, B2, B3 or infrastructure B4**. The old review-backlog-analysis example is a deferred, nonbinding idea, not the first mandatory capability.
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
