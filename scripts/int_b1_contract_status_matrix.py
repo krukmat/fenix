@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# ARCHIVED example-specific status matrix; retained for historic review_backlog concept.
+# A generic capability-neutral contract is now normative (docs/contracts/*envelope*).
 """Offline exhaustive status/result/error matrix for proposed S2S v1 (NOT E2E)."""
 import json
 from pathlib import Path
