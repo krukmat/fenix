@@ -63,3 +63,14 @@ Prior review-backlog request/result JSON schemas, 18/18 and 60/60 offline assert
 A prior **RRI 122** was a forecast for an oversized, hypothetical S2S implementation, **not** a measured run of `scripts/rri.py`. B2 is decomposed by security and persistence boundary to keep per-leaf RRI/review auditable.
 
 **Current state:** B0 DONE, B1.T1 SOURCE PASS, B1.T2–T4 OPEN; B2–B5 NOT IMPLEMENTED, B6 DEFERRED. **GO to scoped foundation design and risk review, NOT production rollout or unrestricted workflow execution.** GitHub Actions remain disabled; no main merge authorized.
+
+
+## 2026-10-31 B1 next-block checkpoint — actual verification
+
+- [x] **B1.T1 source inventory** accepted as the correct phase deliverable; real workflow functional run remains **B6**, not B1.
+- [x] **B1.T3 draft schema validation** using *exact GitHub blobs*, verified by `git hash-object`: three neutral JSON Schema draft-2020-12 contracts plus `scripts/int_b1_envelope_selftest.py` (**5 positive / 12 negative PASS**) and `scripts/int_b1_envelope_matrix.py` (**120/120 PASS**, 14 allowed / 106 denied). Python parse/compile PASS. [Evidence and exact hashes](../audit/dubbridge-fenix-b1-neutral-checkpoint-2026-10-31.md). **Schema not yet frozen or independently approved.**
+- [ ] **B1.T2 security approval**: dedicated Fenix S2S principal, SQLite trust, workspace/tenant authorization, opaque token lifecycle, capability default-deny proposal reviewed against actual middleware/JWT/tool registry code; [ADR](../decisions/ADR-DB-FENIX-S2S-PROPOSED.md) updated. **Independent security/peer approval NOT RUN**.
+- [ ] **B1.T4 official RRI + reviewer receipt**: current repo policies inspected; prior monolithic RRI 122 is nonofficial forecast, not clearance. **`scripts/rri.py` and peer-workflow-review CLI not executed** on a full repo checkout. Actual credential/router/migration code must remain behind their task-specific gates.
+- [x] **B2.A implementation prep** split into A1 pure secret/principal, A2 SQLite revocation, A3 isolated middleware, A4 operator QA. [Detailed task packet](dubbridge-fenix-b2a-s2s-identity.md). No application implementation, token issuance or S2S deployment.
+
+**Gate:** GO for isolated B2.A1 readiness and RRI planning, **NO-GO** for active auth/router changes, migration, production/rollout or merge until independent review and explicit leaf approvals. Neither product needs a real workflow for the foundation.
