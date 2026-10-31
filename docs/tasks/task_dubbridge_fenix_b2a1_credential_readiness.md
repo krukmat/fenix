@@ -10,6 +10,10 @@ criticality_basis: "Authentication secret validation and a future privilege boun
 
 # B2.A1 — service-token primitives (no runtime authorization)
 
+> **Owner process correction (2026-10-31):** Because DB-FENIX-INT is executed via cloud coding agents, **RRI: N/A**. The earlier `RRI 67` estimate and its script commands below are **HISTORICAL, NON-BLOCKING**; do not request or execute them for this initiative. Task readiness remains blocked **only on the independent peer review gate**, not on RRI. Security/auth implementation still requires task-scoped approval and verification under the repo's policies.
+
+
+
 **User approval scope:** B2.A plan was accepted on 2026-10-31. This task packet narrows the implementation to a standalone pure Go component. **No source code changes have been made yet** because the repository's mandatory independent task-readiness review cannot be run in the available tool container; do not represent approval of B2.A as waiver of the peer gate.
 
 ## Context and boundaries
