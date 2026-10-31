@@ -9,6 +9,10 @@ depends_on: DB-FENIX-B1
 
 # B2.A — Fenix service-principal security foundation
 
+> **Cloud-agent governance change (owner, 2026-10-31):** RRI **does not apply** to this integration; historical 67/122 estimates and RRI instructions below are superseded for DB-FENIX-INT and must **not block B2.A1–A4**. Keep independent security/peer readiness review, explicit approvals for auth and SQLite migration changes, and actual Go tests. The only present A1 gate is independent peer readiness (no verified verdict yet).
+
+
+
 **Boundary:** DubBridge consumes Fenix; **no actual agent/workflow is defined or executed here**. This task is a preparation packet, not an authorization to alter Fenix's active auth middleware, issue credentials, migrate production DB or merge.
 
 ## Source constraints confirmed
