@@ -43,6 +43,8 @@ rebaseline: 2026-10-31
 - [ ] **B4.T2** Negative tenant/scopes/revocation and unconfigured capability rejection; no model invoked.
 - [ ] **B4.T3** Idempotency, bounded errors and recovery; never interpret rejection as a successful agent run.
 
+**B4 diagnostic condition:** Permit only a nonproduction, test-harness-enabled `integration.diagnostics` provider handler to exercise accepted-operation persistence/idempotency across both real apps. Never call it a workflow/agent or allow it in production; production unknown capabilities must remain denied.
+
 ## B5 — Foundation closure
 
 - [ ] **B5.T1** Real Go/Rust local QA and independent security review.
