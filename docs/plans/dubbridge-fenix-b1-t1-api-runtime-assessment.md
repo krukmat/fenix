@@ -6,6 +6,9 @@ status: source_verified_runtime_unverified
 created: 2026-10-29
 ---
 
+> **Phase correction (2026-10-31):** The source review in this file already satisfies B1.T1 inventory. Its proposed *live business workflow* verification is **deferred to B6**, not a condition of B1/B2/B4 foundation. See [current plan](dubbridge-consumes-fenix-integration.md).
+
+
 # B1.T1 — Fenix agent / workflow execution API assessment
 
 **Consumer:** DubBridge. **Provider:** Fenix. **Scope:** source audit on `feature/int-v2-dubbridge-consumes-fenix` only. **No running Fenix service, model provider, or real cross-system E2E has been exercised by this assessment.**
