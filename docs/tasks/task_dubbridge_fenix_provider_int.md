@@ -66,3 +66,18 @@ tags: [fenix, dubbridge, service-consumer, agent-runtime]
 - **B1.T2** security ADR remains proposed. Its scope includes principal-scoped DubBridge org/project, Fenix workspace + immutable workflow, separate human/service trust, revocation and dynamic tool permissions; **RRI, peer/security review and acceptance still pending**.
 - **B1.T1** source reviewed but live workflow/model behavior unverified.
 - **B1 verdict:** planning/contract preparation advanced, but **NOT CLOSED**, no S2S implementation or real E2E. Never treat 78 offline schema assertions as live agent validation.
+
+
+## B1.C1–C5 checkpoint — 2026-10-31
+
+[Evidence and explicit NO-GO gate](../audit/dubbridge-fenix-b1c-gate-2026-10-31.md).
+
+| Task | Status | Delivered | Remains |
+|---|---|---|---|
+| B1.C1 | BLOCKED | Inspected local runtime: port 8080 belongs to Uvicorn, not Fenix; guard probe already available | Genuine local Fenix + active read-only workflow + disposable user test JWT; record observed terminal run |
+| B1.C2 | PRELIMINARY | Forecast RRI 122 (Excessive, conservative **not official script run**); B2 must be decomposed | Real measured code paths/CC, official `scripts/rri.py` and review receipt |
+| B1.C3 | SELF_REVIEW_ONLY | Added 7 prioritized S2S threats and mitigations to draft ADR | Independent security reviewer, actual negative auth tests, ADR acceptance |
+| B1.C4 | CANDIDATE_UPDATED | Stable `operation_id` poll and nullable pre-run `run_id`; 120-combination test source committed | Execute exact latest committed tests; approve wire contract; implement later in B2 |
+| B1.C5 | NO_GO | Recorded reasoned decision and B2.A–E decomposition | Reassess after C1/C2/C3/C4 gates |
+
+**Explicit stop:** no deployment, S2S credential, main merge or Github Actions reactivation. Earlier 78 offline cases were executed against prior schema; current local draft-pattern sanity test is **not exact latest Git blob test evidence**.
