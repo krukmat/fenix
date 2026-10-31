@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.fenix.local/integrations/dubbridge/v1/run.schema.json",
-  "title": "Fenix S2S run response v1 — proposed, not implemented",
+  "title": "ARCHIVED review-backlog-specific result schema (NOT the neutral integration contract)",
   "type": "object",
   "additionalProperties": false,
   "required": [
