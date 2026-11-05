@@ -9,6 +9,14 @@ rebaseline: 2026-10-31
 
 # Canonical tasks — Fenix as DubBridge's agentic platform
 
+## Cloud branch checkpoint — 2026-11-05
+
+**Real changes on `feature/int-v2-dubbridge-consumes-fenix`:** B2.A1 standalone Go token primitive and tests committed; isolated Go `-count=25`, `-race`, `vet`, `gofmt` PASS (95.7% isolated coverage). B2.A2 SQLite draft proposal and offline test are committed **outside the executable migrations folder**, with 5 invalid writes denied, revocation and rollback PASS. [Evidence](../audit/dubbridge-fenix-b2a1-cloud-2026-11-05.md) · [A1/A2 task status](dubbridge-fenix-b2a-s2s-identity.md).
+
+**No peer/security reviewer PASS or full repo Go QA; A1 remains candidate, A2 proposal only.** A3/A4 not started. RRI N/A, no real workflow needed, GitHub Actions disabled, no main merge.
+
+
+
 > **Owner-scoped cloud execution rule (2026-10-31):** **RRI: N/A for DB-FENIX-INT cloud-agent tasks.** Any older mentions of `RRI pending`, `RRI 67` or `RRI 122` in checkpoints below are archival and **not blocking**. Independent security/peer review, Go QA and owner approval of security-sensitive actions remain. See [cloud scoped policy](../policies/RRI_POLICY.md).
 
 
