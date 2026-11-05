@@ -9,6 +9,15 @@ depends_on: DB-FENIX-B1
 
 # B2.A — Fenix service-principal security foundation
 
+## Authoritative cloud status — 2026-11-05
+
+- **A1 CODE_COMMITTED, ISOLATED_TESTS_PASS, REVIEW_PENDING:** two Go files now exist on `feature/int-v2-dubbridge-consumes-fenix`; exact-blob tests (25 runs, race, vet, gofmt, 95.7% isolated coverage) confirmed. [Audit](../audit/dubbridge-fenix-b2a1-cloud-2026-11-05.md).
+- **A2 PROPOSAL_COMMITTED, NOT MIGRATED:** [up SQL](../contracts/dubbridge-fenix-b2a2-principal-sqlite-proposal.up.sql), [down SQL](../contracts/dubbridge-fenix-b2a2-principal-sqlite-proposal.down.sql), [exact-blob offline selftest](../../scripts/int_b2a2_sqlite_proposal_selftest.py) PASS (five rejected constraints, revocation, rollback). These are **under docs/contracts, NOT executable Fenix migrations**. Go persistence and integrated authorization remain pending.
+- **A3/A4 NOT STARTED**. Independent security peer review and full Fenix QA are unavailable in this cloud environment. Do not mark A1/A2 as completed or activate credentials. No functional workflow belongs here.
+- **Process:** owner-directed cloud-agent exception: RRI N/A. All old RRI references below are historical, not current gates.
+
+
+
 > **Cloud-agent governance change (owner, 2026-10-31):** RRI **does not apply** to this integration; historical 67/122 estimates and RRI instructions below are superseded for DB-FENIX-INT and must **not block B2.A1–A4**. Keep independent security/peer readiness review, explicit approvals for auth and SQLite migration changes, and actual Go tests. The only present A1 gate is independent peer readiness (no verified verdict yet).
 
 
