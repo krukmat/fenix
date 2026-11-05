@@ -9,6 +9,11 @@ rebaseline: 2026-10-31
 
 # Canonical tasks — Fenix as DubBridge's agentic platform
 
+## Current authoritative integration checkpoint — 2026-11-05
+
+[Cloud B2 audit](../audit/dubbridge-fenix-b2-cloud-checkpoint-2026-11-05.md): **B2.A1**, **B2.A2 standalone SQL-backed Go store**, **B2.A3 unmounted S2S middleware** and **B2.B in-memory, default-deny capability registry** now exist on the assigned Fenix branch with scoped local tests PASS. B2.C has a tested, **non-runtime SQLite idempotency proposal**, not an implemented Go operation store. Security reviewer, full Fenix QA, executable migrations and deployed endpoints remain PENDING; do not infer B2.A or B2.B certification. RRI N/A; real business workflows belong only to B6.
+
+
 ## Cloud branch checkpoint — 2026-11-05
 
 **Real changes on `feature/int-v2-dubbridge-consumes-fenix`:** B2.A1 standalone Go token primitive and tests committed; isolated Go `-count=25`, `-race`, `vet`, `gofmt` PASS (95.7% isolated coverage). B2.A2 SQLite draft proposal and offline test are committed **outside the executable migrations folder**, with 5 invalid writes denied, revocation and rollback PASS. [Evidence](../audit/dubbridge-fenix-b2a1-cloud-2026-11-05.md) · [A1/A2 task status](dubbridge-fenix-b2a-s2s-identity.md).
