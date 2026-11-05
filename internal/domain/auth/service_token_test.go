@@ -77,8 +77,7 @@ func TestServiceTokenRejectsMalformed(t *testing.T) {
 		"extra content":     valid + "1",
 		"whitespace":        " " + valid,
 		"trailing space":    valid[:len(valid)-1] + " ",
-		"newline":           valid[:len(valid)-1] + "
-",
+		"newline":           valid[:len(valid)-1] + "\n",
 		"jwt":               "aaa.bbb.ccc",
 		"wrong version":     strings.Replace(valid, "v1_", "v2_", 1),
 		"wrong alphabet":    badEnd,
