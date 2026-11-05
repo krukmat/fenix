@@ -21,6 +21,11 @@ completed:
 ---
 # Task DB-FENIX-B2C
 
+## Current authoritative cloud status — 2026-11-05
+
+PROPOSAL-ONLY operation table, rollback and offline SQLite idempotency selftest committed under docs/contracts/scripts. Replay, per-principal unique operation key, digest conflict, indeterminate crash state, negative constraints and rollback PASS in-memory. **No Go operation store, no embedded migration, no dispatcher or live HTTP endpoint has been implemented**. Independent security review and real Go/SQLite QA PENDING. Evidence: [B2 cloud audit](../audit/dubbridge-fenix-b2-cloud-checkpoint-2026-11-05.md).
+
+
 **Plan**: [Canonical DubBridge → Fenix plan](../plans/dubbridge-consumes-fenix-integration.md)
 
 ## System Context
