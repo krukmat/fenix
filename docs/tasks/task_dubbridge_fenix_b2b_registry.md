@@ -20,6 +20,11 @@ completed:
 ---
 # Task DB-FENIX-B2B-REGISTRY
 
+## Current authoritative cloud status — 2026-11-05
+
+Pure Go registry and tests **COMMITTED** in assigned feature branch; empty by default, scoped, fail-closed and concurrency-tested (50 repeats; 8 race repeats; 93.3% isolated coverage). Full project QA and independent review PENDING. Registry is in-memory and not connected to route dispatch or durable operator configuration. **B2.B4 OPEN**. Evidence: [B2 cloud audit](../audit/dubbridge-fenix-b2-cloud-checkpoint-2026-11-05.md).
+
+
 **Plan**: [DubBridge consumes Fenix — canonical plan](../plans/dubbridge-consumes-fenix-integration.md)
 
 ## System Context
