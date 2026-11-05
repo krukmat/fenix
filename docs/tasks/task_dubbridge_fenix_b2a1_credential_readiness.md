@@ -10,6 +10,20 @@ criticality_basis: "Authentication secret validation and a future privilege boun
 
 # B2.A1 — service-token primitives (no runtime authorization)
 
+## Authoritative cloud checkpoint — 2026-11-05
+
+**Status: CODE_COMMITTED_ISOLATED_TESTS_PASS / PEER_AND_FULL_QA_PENDING.** This supersedes any older statements below that A1 source files have not been written or committed.
+
+The user requested development on the already assigned feature branches. Fenix `feature/int-v2-dubbridge-consumes-fenix` now contains:
+- `internal/domain/auth/service_token.go` — Git blob `5d6c85ee791d2b205ee2db0dbdc67fee90d2d690`.
+- `internal/domain/auth/service_token_test.go` — Git blob `4d26f6f90e6f64c998a310288be57cd38d142111`.
+
+Both blob hashes match local files actually tested via `GO111MODULE=off go test -count=25`, `go test -race -count=5`, `go vet` and `gofmt` (all PASS), with 95.7% isolated statement coverage. Evidence: [cloud B2.A1 audit](../audit/dubbridge-fenix-b2a1-cloud-2026-11-05.md).
+
+**Not closed:** Fenix full-repository QA, independent peer/security code review and actual service authorization are NOT verified. No real S2S credential, SQLite migration or HTTP route is active. RRI remains N/A for this cloud integration.
+
+
+
 > **Owner process correction (2026-10-31):** Because DB-FENIX-INT is executed via cloud coding agents, **RRI: N/A**. The earlier `RRI 67` estimate and its script commands below are **HISTORICAL, NON-BLOCKING**; do not request or execute them for this initiative. Task readiness remains blocked **only on the independent peer review gate**, not on RRI. Security/auth implementation still requires task-scoped approval and verification under the repo's policies.
 
 
