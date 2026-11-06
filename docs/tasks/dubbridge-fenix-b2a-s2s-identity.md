@@ -9,6 +9,10 @@ depends_on: DB-FENIX-B1
 
 # B2.A — Fenix service-principal security foundation
 
+## Independent security review — 2026-11-06
+
+[B2.A2 independent security and QA review](../audit/dubbridge-fenix-b2a2-independent-security-review-2026-11-06.md): **FAIL** on `376209e`. Blocking: non-atomic rotation (H1), revocation refused under clock skew (H2), `scripts/qa-go-prepush.sh` failing (H3). B2.A2 remains open; re-review required after fixes.
+
 ## Current authoritative cloud checkpoint — 2026-11-05
 
 [Exact source/test audit](../audit/dubbridge-fenix-b2-cloud-checkpoint-2026-11-05.md) supersedes older checkpoints below: **B2.A1 CODE COMMITTED, B2.A2 CORE STORE CODE COMMITTED, B2.A3 STANDALONE MIDDLEWARE CODE COMMITTED**, with isolated Go repeat/race/vet/format and real SQLite proposal query checks PASS. The A2 SQLite proposal is **not** an executable Fenix migration, and A3 is **not wired** to `routes.go`. Neither a service credential nor a real HTTP endpoint has been provisioned. **B2.A4/production acceptance PENDING** independent peer/security review, full Fenix Go1.25 QA, integrated Go/SQLite tests and token rotation. RRI remains N/A. No functional workflow is required.
