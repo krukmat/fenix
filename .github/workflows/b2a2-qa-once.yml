@@ -1,3 +1,4 @@
+# Registered workflow: trigger one push-only run, then remove after collecting logs.
 name: B2A2 QA one-shot (temporary, no deployment)
 
 on:
