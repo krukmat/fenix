@@ -9,12 +9,15 @@ concurrency:
   cancel-in-progress: true
 
 # Repository wave policy:
-# - Automatic CI is enabled for push/pull_request and the nightly schedule.
+# - Automatic CI is paused for the DubBridge integration branch during review.
+# - Merged changes on main receive normal push/pull_request and nightly CI.
 # - workflow_dispatch remains available for explicit checkpoints.
 # - During future active implementation waves this can be paused temporarily
 #   and restored for closure validation.
 on:
   push:
+    branches-ignore:
+      - feature/int-v2-dubbridge-consumes-fenix
   pull_request:
   schedule:
     - cron: '0 3 * * *'
@@ -23,7 +26,7 @@ on:
 jobs:
   mobile-quality:
     name: Mobile Quality Gates
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.head_ref != 'feature/int-v2-dubbridge-consumes-fenix' && github.ref_name != 'feature/int-v2-dubbridge-consumes-fenix'
     runs-on: ubuntu-latest
 
     steps:
@@ -64,7 +67,7 @@ jobs:
 
   bff-quality:
     name: BFF Quality Gates
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.head_ref != 'feature/int-v2-dubbridge-consumes-fenix' && github.ref_name != 'feature/int-v2-dubbridge-consumes-fenix'
     runs-on: ubuntu-latest
 
     steps:
@@ -102,7 +105,7 @@ jobs:
   # This job must pass before lint and tests can run.
   complexity:
     name: Complexity Gate (max 7)
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.head_ref != 'feature/int-v2-dubbridge-consumes-fenix' && github.ref_name != 'feature/int-v2-dubbridge-consumes-fenix'
     runs-on: ubuntu-latest
 
     steps:
@@ -124,7 +127,7 @@ jobs:
 
   traceability:
     name: Traceability Gate
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.head_ref != 'feature/int-v2-dubbridge-consumes-fenix' && github.ref_name != 'feature/int-v2-dubbridge-consumes-fenix'
     runs-on: ubuntu-latest
 
     steps:
@@ -157,7 +160,7 @@ jobs:
   # Job 1.5: Check no inline eslint-disable comments
   no-inline-disable-gate:
     name: No Inline ESLint Disable
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.head_ref != 'feature/int-v2-dubbridge-consumes-fenix' && github.ref_name != 'feature/int-v2-dubbridge-consumes-fenix'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -167,7 +170,7 @@ jobs:
 
   qa-config-secrets:
     name: Config Secrets Gate
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.head_ref != 'feature/int-v2-dubbridge-consumes-fenix' && github.ref_name != 'feature/int-v2-dubbridge-consumes-fenix'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -177,7 +180,7 @@ jobs:
 
   qa-maintainability:
     name: Maintainability Gate
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.head_ref != 'feature/int-v2-dubbridge-consumes-fenix' && github.ref_name != 'feature/int-v2-dubbridge-consumes-fenix'
     runs-on: ubuntu-latest
     env:
       FENIX_MAINTAINABILITY_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
@@ -192,7 +195,7 @@ jobs:
   # Job 2: Lint, Test, Build — only runs if complexity gate passes
   test:
     name: Lint and Test
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.head_ref != 'feature/int-v2-dubbridge-consumes-fenix' && github.ref_name != 'feature/int-v2-dubbridge-consumes-fenix'
     needs: [mobile-quality, bff-quality, complexity, traceability, no-inline-disable-gate, qa-config-secrets, qa-maintainability]
     runs-on: ubuntu-latest
 
@@ -325,6 +328,7 @@ jobs:
 
   benchmark-critical:
     name: Critical Endpoint Benchmarks
+    if: github.head_ref != 'feature/int-v2-dubbridge-consumes-fenix' && github.ref_name != 'feature/int-v2-dubbridge-consumes-fenix'
     runs-on: ubuntu-latest
 
     steps:
@@ -376,7 +380,7 @@ jobs:
 
   contract:
     name: API Contract Tests
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && github.head_ref != 'feature/int-v2-dubbridge-consumes-fenix' && github.ref_name != 'feature/int-v2-dubbridge-consumes-fenix'
     needs: [test, benchmark-critical]
     runs-on: ubuntu-latest
 

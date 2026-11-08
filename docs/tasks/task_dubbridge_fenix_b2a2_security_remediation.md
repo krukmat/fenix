@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2A2-SECURITY-REMEDIATION
 title: "B2.A2 S2S credential store security remediation"
-status: blocked_qa_pending_security_review
+status: pending_independent_security_review_pipeline_paused
 phase: B2.A
 week: 2026-W45
 tags: [dubbridge, fenix, s2s, security, sqlite]
@@ -77,4 +77,6 @@ test(): use migrated modernc SQLite; verify FK/scope, concurrent rotation, rollb
 
 ## Current checkpoint
 
-The B2.A2-specific implementation and tests pass. The repository pre-push gate is blocked by 26 unrelated unformatted files; the separately run complexity and lint gates report B2.A3 middleware, S2S capability registry, and existing human auth middleware findings, while wrapcheck reports other branch files. The formal post-code peer workflow gate returned PASS through local-gemma fallback after the primary Claude Code CLI exited unavailable. Its critical-task local-qwen advisory returned `needs_changes` due the global QA failures and a truncated verification packet. A fresh independent security acceptance and full QA PASS remain pending. No push or task closure is authorized.
+At the 2026-11-06 checkpoint, the B2.A2-specific implementation and tests passed. The repository pre-push gate was blocked by 26 unrelated unformatted files; the separately run complexity and lint gates reported B2.A3 middleware, S2S capability registry, and existing human auth middleware findings, while wrapcheck reported other branch files. The formal post-code peer workflow gate returned PASS through local-gemma fallback after the primary Claude Code CLI exited unavailable. Its critical-task local-qwen advisory returned `needs_changes` due the global QA failures and a truncated verification packet. A fresh independent security acceptance and full QA PASS remained pending. No push or task closure was authorized at that checkpoint.
+
+On 2026-11-08 the operator directed a temporary pause of GitHub Actions and the local pre-push hook only for this integration branch. Branch guards preserve normal gates on `main` after merge. A later local pre-push attempt passed through coverage and deadcode, then was interrupted during race-stability at the operator's direction. The broad QA-cleanup changes were preserved in a local stash and are excluded from the branch diff. Independent security review and merge remain pending.
