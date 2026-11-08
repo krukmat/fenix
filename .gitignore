@@ -39,6 +39,7 @@ docs/audit.md
 agent.test.exe
 .claude/settings.json
 docs/plans/*
+!docs/plans/dubbridge_fenix_s2s_security_plan.md
 !docs/plans/deterministic-eval/
 !docs/plans/deterministic-eval/*.md
 !docs/plans/fenixcrm_strategic_repositioning_spec.md

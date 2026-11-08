@@ -1,5 +1,6 @@
 *
 !.gitignore
+!task_dubbridge_fenix_b2a2_security_remediation.md
 !task_quality_gate_comparison_dubbridge_fenix.md
 !task_fenix_maintainability_gate_wiring_alignment.md
 !task_docs_tracking_ignore_alignment.md

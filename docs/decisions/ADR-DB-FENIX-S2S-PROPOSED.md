@@ -11,6 +11,8 @@ rebaseline: 2026-10-31
 
 **Status: PROPOSED. Independent security review pending.** Owner clarification (2026-10-31): no actual workflow, agent, prompt, business operation or model provider needs to be chosen during B1–B5. Those are B6 use-driven capability onboarding. This ADR **replaces earlier assumptions** of binding DubBridge's first S2S credential to a hardcoded review backlog workflow and fixed workflow version.
 
+**B2.A2 checkpoint (2026-11-06):** The feature-branch [remediation packet](../audit/dubbridge-fenix-b2a2-remediation-2026-11-06.md) adds a local embedded SQLite schema and digest-only credential store with atomic rotation, revocation and an empty capability allowlist. The isolated middleware remains unwired; no endpoint, real credential, production migration or business workflow is active. Full repository QA and fresh independent security acceptance remain pending. RRI is N/A for this DB-FENIX-INT cloud-agent work.
+
 ## Context
 
 DubBridge calls Fenix to use its agentic platform. Fenix's existing `/api/v1` routes consume a **human JWT**; `workflows/{id}/execute` invokes its DSL runtime inline; generic run responses contain internal inputs, tool calls and reasoning. This is **not** a valid S2S integration surface.
@@ -61,6 +63,6 @@ Existing Fenix `internal/api/middleware/auth.go` injects human `UserID`/`Workspa
 - **B5:** independent security review, local Go/Rust QA and operational GO/NO-GO.
 - **B6:** define/version actual workflow from real use; certify full agent/model business E2E there.
 
-Prior monolithic RRI forecast 122 (Excessive) was hypothetical, **not official or measured**. Recalculate actual RRI per B2 leaf before implementation, following Fenix policy. Reviewer still must verify token entropy/digest/rotation, tenant isolation, concurrency/lease/idempotency, tool policy and output redaction before deployment. No approvals are silently granted by this design rewrite.
+Prior monolithic RRI forecast 122 (Excessive) was hypothetical, **not official or measured**. The scoped DB-FENIX-INT cloud-agent exception makes RRI N/A; independent readiness, code/security review, HITL approval and local QA remain required. Reviewer still must verify token entropy/digest/rotation, tenant isolation, concurrency/lease/idempotency, tool policy and output redaction before deployment. No approvals are silently granted by this design rewrite.
 
-**Decision status: draft only. No service credential issued; no S2S runtime implemented; no changes to main or GitHub Actions.** Historical threat review remains in [older B1.C audit](../audit/dubbridge-fenix-b1c-gate-2026-10-31.md); its business-workflow gate is superseded.
+**Decision status: draft only. No service credential issued; no active S2S route or workflow; no changes to main or GitHub Actions.** Historical threat review remains in [older B1.C audit](../audit/dubbridge-fenix-b1c-gate-2026-10-31.md); its business-workflow gate is superseded.

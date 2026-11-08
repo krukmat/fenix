@@ -1,262 +1,250 @@
-package auth
+package auth_test
 
 import (
+	"bytes"
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"database/sql/driver"
 	"errors"
-	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/matiasleandrokruk/fenix/internal/domain/auth"
+	fxsqlite "github.com/matiasleandrokruk/fenix/internal/infra/sqlite"
 )
 
-type credentialDriver struct {
-	mu                sync.Mutex
-	secret            []byte
-	active            bool
-	created           bool
-	credentialActive  bool
-	credentialExpires int64
-	issued            int64
-	revoked           bool
-	errorRead         bool
-	rows              int64
-	lastStmt          string
-	lastArgs          []driver.NamedValue
-}
-type credentialConn struct{ m *credentialDriver }
-type credentialRows struct {
-	cols []string
-	vals []driver.Value
-	done bool
-}
-
-func (r *credentialRows) Columns() []string { return r.cols }
-func (r *credentialRows) Close() error      { return nil }
-func (r *credentialRows) Next(dest []driver.Value) error {
-	if r.done {
-		return io.EOF
-	}
-	copy(dest, r.vals)
-	r.done = true
-	return nil
-}
-func (c *credentialConn) Prepare(query string) (driver.Stmt, error) {
-	return nil, errors.New("unexpected prepare")
-}
-func (c *credentialConn) Close() error                         { return nil }
-func (c *credentialConn) Begin() (driver.Tx, error)            { return nil, errors.New("unexpected transaction") }
-func (d *credentialDriver) Open(_ string) (driver.Conn, error) { return &credentialConn{m: d}, nil }
-func (c *credentialConn) ExecContext(_ context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	m := c.m
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.lastStmt = query
-	m.lastArgs = append([]driver.NamedValue(nil), args...)
-	switch {
-	case strings.Contains(query, "INSERT INTO service_principal"):
-		if len(args) != 6 || args[1].Value != "dubbridge" {
-			return nil, errors.New("bad principal")
-		}
-		m.created = true
-		m.active = true
-		m.rows = 1
-	case strings.Contains(query, "INSERT INTO service_credential"):
-		if !m.active {
-			m.rows = 0
-			break
-		}
-		raw, ok := args[1].Value.([]byte)
-		if !ok {
-			return nil, errors.New("expected digest BLOB")
-		}
-		m.secret = append([]byte(nil), raw...)
-		m.issued = args[2].Value.(int64)
-		m.credentialExpires = args[3].Value.(int64)
-		m.credentialActive = true
-		m.rows = 1
-	case strings.Contains(query, "UPDATE service_credential"):
-		if m.credentialActive {
-			m.credentialActive = false
-			m.rows = 1
-		} else {
-			m.rows = 0
-		}
-	case strings.Contains(query, "UPDATE service_principal"):
-		if m.active {
-			m.active = false
-			m.rows = 1
-		} else {
-			m.rows = 0
-		}
-	default:
-		return nil, errors.New("unexpected Exec SQL")
-	}
-	return driver.RowsAffected(m.rows), nil
-}
-func (c *credentialConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
-	m := c.m
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.lastStmt = query
-	m.lastArgs = append([]driver.NamedValue(nil), args...)
-	if m.errorRead {
-		return nil, errors.New("injected unavailable")
-	}
-	if !strings.Contains(query, "service_credential c JOIN service_principal p") {
-		return nil, errors.New("unexpected Query SQL")
-	}
-	got, ok := args[0].Value.([]byte)
-	now := args[1].Value.(int64)
-	if !ok || len(got) != 32 || !m.active || !m.credentialActive || now < m.issued || now >= m.credentialExpires {
-		return &credentialRows{cols: []string{"id", "consumer", "workspace_id", "dubbridge_org_id", "dubbridge_project_id", "token_sha256"}, done: true}, nil
-	}
-	if string(got) != string(m.secret) {
-		return &credentialRows{cols: []string{"id", "consumer", "workspace_id", "dubbridge_org_id", "dubbridge_project_id", "token_sha256"}, done: true}, nil
-	}
-	return &credentialRows{cols: []string{"id", "consumer", "workspace_id", "dubbridge_org_id", "dubbridge_project_id", "token_sha256"}, vals: []driver.Value{"p1", "dubbridge", "w1", "org1", nil, append([]byte(nil), m.secret...)}}, nil
-}
-
-var driverIndex int
-var driverMu sync.Mutex
-
-func fakeStore(t *testing.T) (*ServiceCredentialStore, *credentialDriver) {
+func serviceStoreDB(t *testing.T) (*sql.DB, *auth.ServiceCredentialStore) {
 	t.Helper()
-	driverMu.Lock()
-	driverIndex++
-	name := "credential-test-" + string(rune('a'+driverIndex))
-	driverMu.Unlock()
-	m := &credentialDriver{}
-	sql.Register(name, m)
-	db, err := sql.Open(name, "")
+	path := filepath.Join(t.TempDir(), "service-identity.db")
+	db, err := fxsqlite.NewDB(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { _ = db.Close() })
-	return NewServiceCredentialStore(db), m
+	if err := fxsqlite.MigrateUp(db); err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`INSERT INTO workspace(id,name,slug,created_at,updated_at)
+        VALUES ('w1','One','one','2026-01-01','2026-01-01'),
+               ('w2','Two','two','2026-01-01','2026-01-01')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db, auth.NewServiceCredentialStore(db)
 }
-func TestServiceCredentialStoreLifecycle(t *testing.T) {
-	ctx := context.Background()
-	repo, backend := fakeStore(t)
-	now := time.Unix(2000000000, 0)
-	ident := ServiceIdentity{ServicePrincipal: ServicePrincipal{ID: "p1", Consumer: "dubbridge", WorkspaceID: "w1"}, DubBridgeOrgID: "org1"}
-	if err := repo.RegisterServicePrincipal(ctx, ident, now); err != nil {
-		t.Fatal(err)
+
+func registerService(t *testing.T, store *auth.ServiceCredentialStore, id, workspace, org string, at time.Time) {
+	t.Helper()
+	identity := auth.ServiceIdentity{
+		ServicePrincipal: auth.ServicePrincipal{ID: id, Consumer: "dubbridge", WorkspaceID: workspace},
+		DubBridgeOrgID:   org,
 	}
-	secret, digest, err := GenerateServiceToken()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = repo.StoreServiceCredential(ctx, "c1", "p1", digest, now, now.Add(time.Hour)); err != nil {
-		t.Fatal(err)
-	}
-	backend.mu.Lock()
-	if string(backend.secret) == secret {
-		t.Error("plaintext stored")
-	}
-	backend.mu.Unlock()
-	p, err := repo.AuthenticateServiceToken(ctx, secret, now.Add(10*time.Second))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.ID != "p1" || p.WorkspaceID != "w1" || p.DubBridgeOrgID != "org1" || p.DubBridgeProjectID != "" {
-		t.Fatalf("unexpected verified identity: %+v", p)
-	}
-	if _, err = repo.AuthenticateServiceToken(ctx, secret, now.Add(time.Hour)); !errors.Is(err, ErrServiceIdentityDenied) {
-		t.Fatalf("expected expiration: %v", err)
-	}
-	if _, err = repo.AuthenticateServiceToken(ctx, "aaa.bbb.ccc", now); !errors.Is(err, ErrServiceIdentityDenied) {
-		t.Fatalf("must reject human JWT: %v", err)
-	}
-	if err = repo.RevokeServiceCredential(ctx, "c1", now.Add(30*time.Second)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = repo.AuthenticateServiceToken(ctx, secret, now.Add(40*time.Second)); !errors.Is(err, ErrServiceIdentityDenied) {
-		t.Fatalf("expected revoked credential denial: %v", err)
-	}
-	if err = repo.RevokeServiceCredential(ctx, "c1", now.Add(time.Minute)); !errors.Is(err, ErrServiceIdentityNotFound) {
-		t.Fatalf("expected already revoked: %v", err)
-	}
-	if err = repo.RevokeServicePrincipal(ctx, "p1", now.Add(time.Minute)); err != nil {
-		t.Fatal(err)
-	}
-	if err = repo.RevokeServicePrincipal(ctx, "p1", now.Add(2*time.Minute)); !errors.Is(err, ErrServiceIdentityNotFound) {
-		t.Fatalf("expected already revoked: %v", err)
-	}
-}
-func TestServiceCredentialStoreDenyInvalidAndUnavailable(t *testing.T) {
-	ctx := context.Background()
-	repo, backend := fakeStore(t)
-	now := time.Unix(2000000000, 0)
-	if err := repo.RegisterServicePrincipal(ctx, ServiceIdentity{}, now); !errors.Is(err, ErrServiceIdentityConfig) {
-		t.Fatal(err)
-	}
-	zero := ServiceTokenDigest{}
-	if err := repo.StoreServiceCredential(ctx, "c", "p", zero, now, now.Add(time.Hour)); !errors.Is(err, ErrServiceIdentityConfig) {
-		t.Fatal(err)
-	}
-	secret, digest, err := GenerateServiceToken()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = repo.StoreServiceCredential(ctx, "c", "missing", digest, now, now.Add(time.Hour)); !errors.Is(err, ErrServiceIdentityNotFound) {
-		t.Fatalf("must fail closed on missing principal: %v", err)
-	}
-	backend.mu.Lock()
-	backend.errorRead = true
-	backend.mu.Unlock()
-	if _, err = repo.AuthenticateServiceToken(ctx, secret, now); !errors.Is(err, ErrServiceIdentityUnavailable) {
-		t.Fatalf("unavailable must differ from rejected: %v", err)
-	}
-	if _, err = repo.AuthenticateServiceToken(ctx, secret+"!", now); !errors.Is(err, ErrServiceIdentityDenied) {
-		t.Fatalf("malformed: %v", err)
-	}
-	if _, err = repo.AuthenticateServiceToken(ctx, secret, time.Time{}); !errors.Is(err, ErrServiceIdentityDenied) {
-		t.Fatal(err)
-	}
-	var missing *ServiceCredentialStore
-	if _, err = missing.AuthenticateServiceToken(ctx, secret, now); !errors.Is(err, ErrServiceIdentityUnavailable) {
+	if err := store.RegisterServicePrincipal(context.Background(), identity, at); err != nil {
 		t.Fatal(err)
 	}
 }
-func TestCredentialStoreSQLHasRequiredGuards(t *testing.T) {
+
+func issueServiceToken(t *testing.T, store *auth.ServiceCredentialStore, credentialID, principalID string, at time.Time) string {
+	t.Helper()
+	secret, digest, err := auth.GenerateServiceToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.StoreServiceCredential(context.Background(), credentialID, principalID, digest, at, at.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	return secret
+}
+
+func assertDenied(t *testing.T, store *auth.ServiceCredentialStore, secret string, at time.Time) {
+	t.Helper()
+	_, err := store.AuthenticateServiceToken(context.Background(), secret, at)
+	if !errors.Is(err, auth.ErrServiceIdentityDenied) {
+		t.Fatalf("want denied; got %v", err)
+	}
+}
+
+func TestServiceCredentialSQLiteLifecycle(t *testing.T) {
+	db, store := serviceStoreDB(t)
 	ctx := context.Background()
-	repo, m := fakeStore(t)
-	now := time.Unix(2000000000, 0)
-	id := ServiceIdentity{ServicePrincipal: ServicePrincipal{ID: "p1", Consumer: "dubbridge", WorkspaceID: "w1"}, DubBridgeOrgID: "org1"}
-	if err := repo.RegisterServicePrincipal(ctx, id, now); err != nil {
-		t.Fatal(err)
+	now := time.Unix(2_000_000_000, 0)
+	registerService(t, store, "p1", "w1", "org-one", now)
+	registerService(t, store, "p2", "w2", "org-two", now)
+	secret := issueServiceToken(t, store, "c1", "p1", now)
+	other := issueServiceToken(t, store, "c2", "p2", now)
+
+	identity, err := store.AuthenticateServiceToken(ctx, secret, now)
+	if err != nil || identity.ID != "p1" || identity.WorkspaceID != "w1" || identity.DubBridgeOrgID != "org-one" {
+		t.Fatalf("wrong trusted scope: identity=%+v err=%v", identity, err)
 	}
-	secret, digest, err := GenerateServiceToken()
-	if err != nil {
-		t.Fatal(err)
+	otherIdentity, err := store.AuthenticateServiceToken(ctx, other, now)
+	if err != nil || otherIdentity.WorkspaceID != "w2" || otherIdentity.DubBridgeOrgID != "org-two" {
+		t.Fatalf("cross-workspace scope: identity=%+v err=%v", otherIdentity, err)
 	}
-	if err = repo.StoreServiceCredential(ctx, "c1", "p1", digest, now, now.Add(time.Hour)); err != nil {
-		t.Fatal(err)
+	assertDenied(t, store, secret, now.Add(-time.Second))
+	assertDenied(t, store, secret, now.Add(time.Hour))
+	assertDenied(t, store, "aaa.bbb.ccc", now)
+
+	var allowlist string
+	if err := db.QueryRow(`SELECT capability_allowlist_json FROM service_principal WHERE id='p1'`).Scan(&allowlist); err != nil || allowlist != "[]" {
+		t.Fatalf("capability allowlist must be empty: %q %v", allowlist, err)
 	}
-	p, err := repo.AuthenticateServiceToken(ctx, secret, now)
-	if err != nil {
-		t.Fatal(err)
+	if _, err := db.Exec(`UPDATE service_principal SET capability_allowlist_json='["unsafe"]' WHERE id='p1'`); err == nil {
+		t.Fatal("capability grant must be impossible in this schema")
 	}
-	_ = p
-	m.mu.Lock()
-	sqlText := m.lastStmt
-	params := append([]driver.NamedValue(nil), m.lastArgs...)
-	m.mu.Unlock()
-	for _, clause := range []string{"c.revoked_at_unix IS NULL", "c.expires_at_unix>?", "p.status='active'", "p.consumer='dubbridge'"} {
-		if !strings.Contains(sqlText, clause) {
-			t.Fatalf("missing SQL guard: %s", clause)
+	if _, err := db.Exec(`INSERT INTO service_principal(id,consumer,workspace_id,dubbridge_org_id,created_at_unix)
+        VALUES('orphan','dubbridge','missing','org',?)`, now.Unix()); err == nil {
+		t.Fatal("workspace foreign key not enforced")
+	}
+	if err := store.RevokeServiceCredential(ctx, "c1", now.Add(-5*time.Second)); err != nil {
+		t.Fatalf("clock-skew credential revoke: %v", err)
+	}
+	assertDenied(t, store, secret, now.Add(5*time.Second))
+	if err := store.RevokeServicePrincipal(ctx, "p2", now.Add(-5*time.Second)); err != nil {
+		t.Fatalf("clock-skew principal revoke: %v", err)
+	}
+	assertDenied(t, store, other, now.Add(5*time.Second))
+	if err := store.RevokeServiceCredential(ctx, "c1", now); !errors.Is(err, auth.ErrServiceIdentityNotFound) {
+		t.Fatalf("duplicate revoke: %v", err)
+	}
+	var revoked int64
+	if err := db.QueryRow(`SELECT revoked_at_unix FROM service_credential WHERE id='c1'`).Scan(&revoked); err != nil || revoked != now.Unix() {
+		t.Fatalf("revocation timestamp violates issue constraint: %d %v", revoked, err)
+	}
+	var events int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM service_identity_audit WHERE principal_id='p1'`).Scan(&events); err != nil || events != 3 {
+		t.Fatalf("principal audit linkage: %d %v", events, err)
+	}
+	if _, err := db.Exec(`DELETE FROM service_identity_audit WHERE principal_id='p1'`); err == nil {
+		t.Fatal("service identity audit must be append-only")
+	}
+	path := dbPath(t, db)
+	for _, file := range []string{path, path + "-wal"} {
+		raw, readErr := os.ReadFile(file)
+		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+			t.Fatal(readErr)
+		}
+		if bytes.Contains(raw, []byte(secret)) {
+			t.Fatal("plaintext bearer persisted")
 		}
 	}
-	if len(params) != 3 {
-		t.Fatalf("expected digest + time params: %d", len(params))
+}
+
+func dbPath(t *testing.T, db *sql.DB) string {
+	t.Helper()
+	var path string
+	if err := db.QueryRow(`PRAGMA database_list`).Scan(new(int), new(string), &path); err != nil {
+		t.Fatal(err)
 	}
-	want := sha256.Sum256([]byte(secret))
-	if got := params[0].Value.([]byte); string(got) != string(want[:]) {
-		t.Fatal("must bind digest, not secret")
+	return path
+}
+
+func TestServiceCredentialConcurrentRotationAndRollback(t *testing.T) {
+	db, store := serviceStoreDB(t)
+	ctx := context.Background()
+	now := time.Unix(2_000_000_000, 0)
+	registerService(t, store, "p1", "w1", "org-one", now)
+	old := issueServiceToken(t, store, "initial", "p1", now)
+
+	const rotators = 5
+	secrets := make([]string, rotators)
+	digests := make([]auth.ServiceTokenDigest, rotators)
+	for i := range secrets {
+		var err error
+		secrets[i], digests[i], err = auth.GenerateServiceToken()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var wg sync.WaitGroup
+	errs := make(chan error, rotators)
+	for i := range secrets {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs <- store.RotateServiceCredential(ctx, "rotation-"+string(rune('a'+i)), "p1",
+				digests[i], now.Add(time.Duration(i+1)*time.Second), now.Add(time.Hour))
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent rotation: %v", err)
+		}
+	}
+	assertDenied(t, store, old, now.Add(10*time.Second))
+	var live int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM service_credential WHERE principal_id='p1' AND revoked_at_unix IS NULL`).Scan(&live); err != nil || live != 1 {
+		t.Fatalf("active credential count = %d; err=%v", live, err)
+	}
+	var accepted string
+	for _, secret := range secrets {
+		if _, err := store.AuthenticateServiceToken(ctx, secret, now.Add(10*time.Second)); err == nil {
+			accepted = secret
+		}
+	}
+	if accepted == "" {
+		t.Fatal("no rotated credential authenticates")
+	}
+	var acceptedCount int
+	for _, secret := range secrets {
+		if _, err := store.AuthenticateServiceToken(ctx, secret, now.Add(10*time.Second)); err == nil {
+			acceptedCount++
+		}
+	}
+	if acceptedCount != 1 {
+		t.Fatalf("accepted rotated tokens = %d", acceptedCount)
+	}
+
+	_, duplicateDigest, err := auth.GenerateServiceToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RotateServiceCredential(ctx, "initial", "p1", duplicateDigest, now.Add(11*time.Second), now.Add(time.Hour)); !errors.Is(err, auth.ErrServiceIdentityUnavailable) {
+		t.Fatalf("duplicate ID must roll back: %v", err)
+	}
+	if _, err := store.AuthenticateServiceToken(ctx, accepted, now.Add(12*time.Second)); err != nil {
+		t.Fatalf("prior token lost on rollback: %v", err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM service_credential WHERE principal_id='p1' AND revoked_at_unix IS NULL`).Scan(&live); err != nil || live != 1 {
+		t.Fatalf("rollback active count = %d; err=%v", live, err)
+	}
+	var maxVersion int
+	if err := db.QueryRow(`SELECT MAX(version) FROM service_credential WHERE principal_id='p1'`).Scan(&maxVersion); err != nil || maxVersion != rotators+1 {
+		t.Fatalf("version sequence = %d; err=%v", maxVersion, err)
+	}
+	var rotations int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM service_identity_audit WHERE action='rotate_credential'`).Scan(&rotations); err != nil || rotations != rotators {
+		t.Fatalf("rollback audit count = %d; err=%v", rotations, err)
+	}
+}
+
+func TestServiceCredentialSanitizedFailures(t *testing.T) {
+	_, store := serviceStoreDB(t)
+	ctx := context.Background()
+	now := time.Unix(2_000_000_000, 0)
+	secret, digest, err := auth.GenerateServiceToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.StoreServiceCredential(ctx, "missing", "missing", digest, now, now.Add(time.Hour)); !errors.Is(err, auth.ErrServiceIdentityNotFound) {
+		t.Fatalf("missing principal: %v", err)
+	}
+	if _, err := store.AuthenticateServiceToken(ctx, secret, now); !errors.Is(err, auth.ErrServiceIdentityDenied) {
+		t.Fatalf("missing credential: %v", err)
+	}
+	if err := store.RegisterServicePrincipal(ctx, auth.ServiceIdentity{}, now); !errors.Is(err, auth.ErrServiceIdentityConfig) {
+		t.Fatalf("invalid principal: %v", err)
+	}
+	if err := store.StoreServiceCredential(ctx, "zero", "missing", auth.ServiceTokenDigest{}, now, now.Add(time.Hour)); !errors.Is(err, auth.ErrServiceIdentityConfig) {
+		t.Fatalf("zero digest: %v", err)
+	}
+	if strings.Contains(auth.ErrServiceIdentityDenied.Error(), secret) ||
+		strings.Contains(auth.ErrServiceIdentityUnavailable.Error(), secret) {
+		t.Fatal("secret leaked in public error")
 	}
 }

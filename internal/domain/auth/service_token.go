@@ -13,7 +13,7 @@ import (
 // pkg/auth.ParseJWT. Authentication/authorization of the service principal is
 // performed separately by the future B2.A2/A3 persistent verifier.
 const (
-	ServiceTokenPrefix      = "fenix_s2s_v1_"
+	ServiceTokenPrefix      = "fenix_s2s_v1_" // #nosec G101 -- public wire prefix, not a credential
 	serviceTokenRandomBytes = 32
 	serviceTokenEncodedLen  = 43 // unpadded base64url encoding of 32 bytes
 	serviceTokenLength      = len(ServiceTokenPrefix) + serviceTokenEncodedLen
@@ -58,10 +58,8 @@ func ParseServiceToken(candidate string) error {
 	}
 	encoded := candidate[len(ServiceTokenPrefix):]
 	decoded, err := base64.RawURLEncoding.DecodeString(encoded)
-	if err != nil || len(decoded) != serviceTokenRandomBytes {
-		return ErrInvalidServiceToken
-	}
-	if base64.RawURLEncoding.EncodeToString(decoded) != encoded {
+	if err != nil || len(decoded) != serviceTokenRandomBytes ||
+		base64.RawURLEncoding.EncodeToString(decoded) != encoded {
 		return ErrInvalidServiceToken
 	}
 	return nil

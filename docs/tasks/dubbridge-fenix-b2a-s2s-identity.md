@@ -9,6 +9,10 @@ depends_on: DB-FENIX-B1
 
 # B2.A — Fenix service-principal security foundation
 
+## B2.A2 remediation checkpoint — 2026-11-06
+
+[Remediation packet](../audit/dubbridge-fenix-b2a2-remediation-2026-11-06.md) records the current branch diff after the independent FAIL below. H1 and H2 are repaired in the local store; M1 is implemented as an embedded, reversible local migration with real modernc SQLite tests. B2.A2-specific H3 complexity and lint findings are cleared. Full repository QA remains FAIL on unrelated formatting and later A3/branch findings. The peer workflow code gate returned PASS through an independent local fallback after Claude Code was unavailable, while a critical-task advisory requested QA changes. Fresh independent security acceptance and full QA PASS remain pending; no deployment, real credential, route activation, or production migration has occurred.
+
 ## Independent security review — 2026-11-06
 
 [B2.A2 independent security and QA review](../audit/dubbridge-fenix-b2a2-independent-security-review-2026-11-06.md): **FAIL** on `376209e`. Blocking: non-atomic rotation (H1), revocation refused under clock skew (H2), `scripts/qa-go-prepush.sh` failing (H3). B2.A2 remains open; re-review required after fixes.
