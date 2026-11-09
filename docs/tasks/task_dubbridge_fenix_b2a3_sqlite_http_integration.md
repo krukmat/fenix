@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2.A3.T3
 title: "B2.A3.T3 real Fenix SQLite and httptest S2S authorization verification"
-status: owner_deferred_readiness_tests_in_progress
+status: tests_committed_local_qa_pending
 phase: B2.A3
 week: 2026-W46
 tags: [dubbridge, fenix, s2s, security, sqlite, integration-test]
@@ -27,6 +27,7 @@ completed: null
 **Prior task**: [B2.A3.T2 mandatory source guard](task_dubbridge_fenix_b2a3_mandatory_scope_guard.md); implemented on the feature branch at `755fc79eabb7a02ef3208d8e9e59d41688bdd38a`, owner-accepted for its scoped functional behavior. Global QA debt remains separately tracked in [#4](https://github.com/krukmat/fenix/issues/4).
 **Execution branch**: `feature/int-v2-dubbridge-consumes-fenix`; baseline `9c78515f556684741ab75f69ecb71a204f9a6a7e`.
 **RRI**: N/A (cloud, DB-FENIX-INT). Independent task readiness, owner HITL for any new security logic, post-code review, and scoped Go QA are still mandatory.
+**Test source commit**: `d938da521eb9a429ffba62b7c12dc52163deda0c`, `internal/api/middleware/dubbridge_service_auth_integration_test.go`. The tests use a real temporary Fenix modernc SQLite database/store, but no Go compilation, race, lint or post-code review has been executed against this commit. Code formatting is not yet certified. Test code is on the feature branch only, not production-ready.
 **Current execution choice**: Work can proceed on test-only implementation in the feature branch under owner-directed temporary readiness deferral. Claims must be marked as static/draft unless Go and independent review are actually executed; do not mark T3 passed/closed based on this deferral.
 **Peer readiness**: OWNER-DEFERRED for this feature branch (user instruction 2026-11-09). No reviewer executed, no PASS asserted, and no formal `WAIVER:` marker supplied. Must be restored for formal certification or a separately governed release. This is not an exception for credentials, production auth changes, migrations, or deployment.
 **HITL**: Owner has requested autonomous delivery of T3/T4 within the documented testing/verification scope. No authorization to alter the S2S auth boundary, write a new migration, activate routes, provision credentials, or deploy. Escalate any such need separately.
