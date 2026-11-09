@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2.A3.T2
 title: "B2.A3.T2 mandatory Fenix-owned source authorization before S2S handlers"
-status: implemented_branch_qa_blocked
+status: owner_accepted_scoped
 phase: B2.A3
 week: 2026-W45
 tags: [dubbridge, fenix, s2s, security, authorization, middleware]
@@ -19,7 +19,7 @@ files_affected:
 criticality: critical
 criticality_basis: "An optional organization/project check can permit cross-tenant S2S reads or dispatch. This change modifies an authentication/authorization boundary; RRI N/A under DB-FENIX-INT cloud policy, with independent readiness, explicit owner HITL, independent post-code review and real Go QA still mandatory."
 created: 2026-11-08
-completed: null
+completed: 2026-11-09
 ---
 
 # B2.A3.T2 mandatory Fenix-owned source authorization before S2S handlers
@@ -33,11 +33,11 @@ completed: null
 **Readiness gate**: PASS, independent local-gemma fallback after Claude Code unavailability; artifact `logs/peer-workflow-review/task-readiness_codex_by_local-gemma_20261109T175730Z.json`.
 **Implementation HITL**: Approved by the owner for bounded T2 auth-boundary changes in the live conversation.
 **Post-code review**: PASS, independent Claude Code primary reviewer; artifact `logs/peer-workflow-review/post-code-review_codex_by_claude_20261109T192440Z.json`.
-**QA status**: Go 1.25.13 T2 tests, race, vet and changed-code checks passed. Repository-wide fmt, complexity and lint still fail on existing debt tracked in issue #4; full prepush stopped at fmt. The owner directed temporary local pre-push hook removal and completion of the branch push. No global QA PASS is claimed.
+**QA status**: Go 1.25.13 T2 tests, race, vet and changed-code checks passed. Owner explicitly accepted the bounded functional task and directed branch publication without the failing global pre-push hook. Repository-wide fmt, complexity and lint still fail on pre-existing debt tracked in [issue #4](https://github.com/krukmat/fenix/issues/4); full prepush stopped at fmt. No global QA PASS, formal peer waiver, or production readiness is claimed.
 
 ## Current delivery state
 
-The mandatory source guard is committed on the feature branch. POST compares the bounded source assertion with Fenix-persisted identity before dispatch. GET/status denies without a persisted, fully scoped operation resolver; B2.C has not supplied one. The S2S route remains unmounted, and no credential, migration, capability or deployment was activated. See [issue #6's execution record](https://github.com/krukmat/fenix/issues/6#issuecomment-6749287326) for commands, exact reviewed diff and QA evidence. T2 remains open until the repository-wide QA debt is resolved or separately governed.
+The mandatory source guard is committed on the feature branch. POST compares the bounded source assertion with Fenix-persisted identity before dispatch. GET/status denies without a persisted, fully scoped operation resolver; B2.C has not supplied one. The S2S route remains unmounted, and no credential, migration, capability or deployment was activated. See [issue #6's execution record](https://github.com/krukmat/fenix/issues/6#issuecomment-6749287326) for commands, exact reviewed diff and QA evidence. T2 is owner-accepted and functionally closed within its bounded branch scope; repository-wide QA debt is managed separately in issue #4. B2.A3.T3 and B2.A3.T4 retain their own test/readiness/security gates.
 
 ## Problem and bounded implementation scope
 
