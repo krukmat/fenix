@@ -2,13 +2,13 @@
 doc_type: task
 id: DB-FENIX-B2.A3.T4
 title: "B2.A3.T4 independent security verification and B2.A4 handoff"
-status: preliminary_evidence_written_t3_qa_pending
+status: evidence_reconciled_independent_security_pending
 phase: B2.A3
 week: 2026-W46
 tags: [dubbridge, fenix, s2s, security, audit, handoff]
 fr_refs: []
 uc_refs: []
-blocked_by: [DB-FENIX-B2.A3.T3]
+blocked_by: []
 blocks: [DB-FENIX-B2.A4]
 files_affected:
   - docs/audit/dubbridge-fenix-b2a3-security-verification-2026-11-09.md
@@ -25,9 +25,15 @@ completed: null
 **Plan**: [DubBridge to Fenix S2S security foundation](../plans/dubbridge_fenix_s2s_security_plan.md#current-direction).
 **Coordination issue**: [B2.A3.T4 #8](https://github.com/krukmat/fenix/issues/8).
 **Dependencies**: [T2 source guard](task_dubbridge_fenix_b2a3_mandatory_scope_guard.md), [T3 real SQLite HTTP tests](task_dubbridge_fenix_b2a3_sqlite_http_integration.md), [QA debt #4](https://github.com/krukmat/fenix/issues/4).
-**Current status**: Preliminary security evidence inventory published at [B2.A3 audit](../audit/dubbridge-fenix-b2a3-security-verification-2026-11-09.md). Formal T4 security certification remains blocked until T3 actual Go 1.25.13 tests and independent findings exist. Readiness for T3 was temporarily deferred for this feature branch by owner instruction; not a PASS.
+**Current status**: [B2.A3 audit](../audit/dubbridge-fenix-b2a3-security-verification-2026-11-09.md) reconciles real T3 SQLite HTTP QA PASS, published branch SHA and additional out-of-T3 global gate repairs. The T3 code reviewer PASS is reported in [#7](https://github.com/krukmat/fenix/issues/7#issuecomment-6752968464). Formal **T4 independent security assessment and any production acceptance remain PENDING**. T3 readiness was temporarily deferred by owner for this branch only, not marked PASS.
 **RRI**: N/A (cloud, DB-FENIX-INT). Independent security reviewer and owner HITL for any actual security changes remain mandatory.
 **Owner of task**: ChatGPT Cloud (audit, evidence reconciliation, risk ledger, documented handoff). Local agent only executes verification or reviewer commands that require the Mac environment. Owner retains production and security acceptance authority.
+
+## Current A4 handoff checkpoint
+
+The real SQLite authentication and S2S guard integration matrix has Go 1.25.13 test/race/vet and new-lint PASS reported on published feature branch `acafa3d`. The full local Go prepush script also returned PASS after separate 26-file formatting and cross-cutting gate refactors; traceability and govulncheck were not exercised. These reports are linked in [#7](https://github.com/krukmat/fenix/issues/7#issuecomment-6752968464).
+
+Before signing off security: obtain T4-specific **independent** review of the current exact branch diff, including the non-T3 modifications under `43d935c` and `acafa3d`, confirm B2.C missing persisted operation resolver is intentionally default-deny, and preserve no production route/credential/deployment. No independent T4 verdict is claimed in this report. Readiness deferral for the feature branch is not a production-review exception.
 
 ## Scope
 
