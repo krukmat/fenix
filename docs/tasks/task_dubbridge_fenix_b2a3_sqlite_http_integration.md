@@ -22,6 +22,7 @@ completed: null
 # B2.A3.T3 real Fenix SQLite and httptest S2S authorization verification
 
 **Plan**: [DubBridge to Fenix S2S security foundation](../plans/dubbridge_fenix_s2s_security_plan.md#current-direction).
+**Coordination issue**: [B2.A3.T3 #7](https://github.com/krukmat/fenix/issues/7).
 **Parent A3 issue**: [#5](https://github.com/krukmat/fenix/issues/5).
 **Prior task**: [B2.A3.T2 mandatory source guard](task_dubbridge_fenix_b2a3_mandatory_scope_guard.md); implemented on the feature branch at `755fc79eabb7a02ef3208d8e9e59d41688bdd38a`, owner-accepted for its scoped functional behavior. Global QA debt remains separately tracked in [#4](https://github.com/krukmat/fenix/issues/4).
 **Execution branch**: `feature/int-v2-dubbridge-consumes-fenix`; baseline `9c78515f556684741ab75f69ecb71a204f9a6a7e`.
