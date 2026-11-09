@@ -2,13 +2,13 @@
 doc_type: task
 id: DB-FENIX-B2.A3.T2
 title: "B2.A3.T2 mandatory Fenix-owned source authorization before S2S handlers"
-status: ready_for_independent_readiness_review
+status: implemented_branch_qa_blocked
 phase: B2.A3
 week: 2026-W45
 tags: [dubbridge, fenix, s2s, security, authorization, middleware]
 fr_refs: []
 uc_refs: []
-blocked_by: [DB-FENIX-B2.A3.T1]
+blocked_by: []
 blocks: [DB-FENIX-B2.A3.T3, DB-FENIX-B2.A3.T4]
 files_affected:
   - internal/api/middleware/dubbridge_service_auth.go
@@ -26,11 +26,18 @@ completed: null
 
 **Plan**: [DubBridge to Fenix S2S security foundation](../plans/dubbridge_fenix_s2s_security_plan.md#current-direction).
 **Prior task**: [B2.A3.T1 readiness PASS](task_dubbridge_fenix_b2a3_middleware_readiness.md).
-**Coordination**: [GitHub B2.A3 issue #5](https://github.com/krukmat/fenix/issues/5).
+**Coordination**: [GitHub B2.A3.T2 issue #6](https://github.com/krukmat/fenix/issues/6).
 **Starting commit**: `69c464f0dea7fde4517199febe34ddf5177e2207` on `feature/int-v2-dubbridge-consumes-fenix`.
+**Implementation commit**: `755fc79eabb7a02ef3208d8e9e59d41688bdd38a` on `feature/int-v2-dubbridge-consumes-fenix`.
 **RRI**: N/A — DB-FENIX-INT/cloud. Do not run the RRI calculator or require Ollama delegation.
-**Readiness gate**: PENDING independent reviewer result for this exact T2 task; T1's reviewer PASS cannot be reused.
-**Implementation HITL**: PENDING explicit owner authorization for T2 auth-boundary source changes. This task document does not grant it.
+**Readiness gate**: PASS, independent local-gemma fallback after Claude Code unavailability; artifact `logs/peer-workflow-review/task-readiness_codex_by_local-gemma_20261109T175730Z.json`.
+**Implementation HITL**: Approved by the owner for bounded T2 auth-boundary changes in the live conversation.
+**Post-code review**: PASS, independent Claude Code primary reviewer; artifact `logs/peer-workflow-review/post-code-review_codex_by_claude_20261109T192440Z.json`.
+**QA status**: Go 1.25.13 T2 tests, race, vet and changed-code checks passed. Repository-wide fmt, complexity and lint still fail on existing debt tracked in issue #4; full prepush stopped at fmt. The owner directed temporary local pre-push hook removal and completion of the branch push. No global QA PASS is claimed.
+
+## Current delivery state
+
+The mandatory source guard is committed on the feature branch. POST compares the bounded source assertion with Fenix-persisted identity before dispatch. GET/status denies without a persisted, fully scoped operation resolver; B2.C has not supplied one. The S2S route remains unmounted, and no credential, migration, capability or deployment was activated. See [issue #6's execution record](https://github.com/krukmat/fenix/issues/6#issuecomment-6749287326) for commands, exact reviewed diff and QA evidence. T2 remains open until the repository-wide QA debt is resolved or separately governed.
 
 ## Problem and bounded implementation scope
 
@@ -130,4 +137,4 @@ Criticality basis: Cross-tenant authorization is a security boundary; RRI N/A fo
 Effort/reasoning: High - Requires safe composition for all methods without an existing B2.C operation store.
 Recommended model: OpenAI: gpt-5.4 | Anthropic: claude-sonnet-4-6
 Estimated tokens: ~8000
-Peer readiness review approval: reviewer=PENDING; artifact=PENDING; status=BLOCKED_UNTIL_ACTUAL_REVIEW
+Peer readiness review approval: reviewer=local-gemma; artifact=logs/peer-workflow-review/task-readiness_codex_by_local-gemma_20261109T175730Z.json; status=PASS
