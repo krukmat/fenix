@@ -1,0 +1,696 @@
+--- a/internal/api/middleware/dubbridge_service_auth.go
++++ b/internal/api/middleware/dubbridge_service_auth.go
+@@ -16,92 +16,137 @@
+ const DubBridgeS2SMaxRequestBytes = 64 << 10
+ 
+ type dubbridgeIdentityContextKey struct{}
++type dubbridgeAuthorizedScopeContextKey struct{}
+ 
+-// DubBridgeTokenAuthenticator validates Fenix-owned service tokens. Its
+-// implementation must authenticate against live SQLite revocation/expiry state.
++// DubBridgeTokenAuthenticator must authenticate against current Fenix SQLite
++// principal, credential, revocation, expiry and workspace binding state.
+ type DubBridgeTokenAuthenticator interface {
+ 	AuthenticateServiceToken(context.Context, string, time.Time) (*domainauth.ServiceIdentity, error)
+ }
+ 
+-// VerifiedDubBridgeIdentity returns only a principal authenticated by the
+-// dedicated S2S middleware. It never reads human UserID JWT context claims.
++// VerifiedDubBridgeIdentity is populated only after mandatory source authorization.
++// It is separate from all human JWT context keys.
+ func VerifiedDubBridgeIdentity(ctx context.Context) (domainauth.ServiceIdentity, bool) {
+ 	ident, ok := ctx.Value(dubbridgeIdentityContextKey{}).(domainauth.ServiceIdentity)
+ 	return ident, ok
+ }
+ 
+-// DubBridgeSourceScope is untrusted wire context. Domain authorization in
+-// DubBridge and this Fenix-side trusted-binding comparison are BOTH required.
+-type DubBridgeSourceScope struct{ Product, OrgID, ProjectID string }
+-
+-// AuthorizeDubBridgeSource enforces exact org/project binding from Fenix SQLite.
+-// A principal with no project binding can only access org-scoped requests.
+-func AuthorizeDubBridgeSource(ident domainauth.ServiceIdentity, source DubBridgeSourceScope) bool {
+-	if ident.Consumer != "dubbridge" || ident.ID == "" || ident.WorkspaceID == "" ||
+-		ident.DubBridgeOrgID == "" || source.Product != "dubbridge" ||
+-		source.OrgID == "" || source.OrgID != ident.DubBridgeOrgID {
+-		return false
+-	}
+-	return source.ProjectID == ident.DubBridgeProjectID
++// AuthorizedDubBridgeScope is the verified Fenix-owned authorization scope, never
++// the caller's untrusted source payload or operation ID.
++func AuthorizedDubBridgeScope(ctx context.Context) (DubBridgeOperationScope, bool) {
++	scope, ok := ctx.Value(dubbridgeAuthorizedScopeContextKey{}).(DubBridgeOperationScope)
++	return scope, ok
+ }
+ 
+-// DubBridgeServiceAuth is the isolated S2S boundary. It does NOT register a
+-// route and MUST NOT be installed inside the existing human /api/v1 subtree.
+-// Business capabilities remain unregistered and denied in B2.B.
+-func DubBridgeServiceAuth(verifier DubBridgeTokenAuthenticator, next http.Handler) http.Handler {
++// DubBridgeServiceAuth composes the only supported isolated S2S ingress.
++// Both authentication and authorization must succeed before next is called.
++// The resolver may be nil: POST can be authorized, but GET/status fails closed.
++// No route is registered here or in the production human API router.
++func DubBridgeServiceAuth(verifier DubBridgeTokenAuthenticator, resolver DubBridgeOperationResolver, next http.Handler) http.Handler {
+ 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+-		if verifier == nil || (reflect.ValueOf(verifier).Kind() == reflect.Ptr && reflect.ValueOf(verifier).IsNil()) || next == nil {
++		if isNilDubBridgeDependency(verifier) || isNilDubBridgeDependency(next) {
+ 			writeDubBridgeS2SError(w, http.StatusServiceUnavailable)
+ 			return
+ 		}
+-		if len(r.Header.Values("Authorization")) != 1 {
+-			writeDubBridgeS2SError(w, http.StatusUnauthorized)
++		ident, status := authenticatedDubBridgeIdentity(r, verifier)
++		if status != 0 {
++			writeDubBridgeS2SError(w, status)
+ 			return
+ 		}
+-		raw := r.Header.Get("Authorization")
+-		if !strings.HasPrefix(raw, "Bearer ") || strings.Count(raw, "Bearer ") != 1 {
+-			writeDubBridgeS2SError(w, http.StatusUnauthorized)
++		scope := scopeFromFenixIdentity(ident)
++		if status = authorizeDubBridgeRequest(w, r, ident, scope, resolver); status != 0 {
++			writeDubBridgeS2SError(w, status)
+ 			return
+ 		}
+-		bearer := strings.TrimPrefix(raw, "Bearer ")
+-		if domainauth.ParseServiceToken(bearer) != nil {
+-			writeDubBridgeS2SError(w, http.StatusUnauthorized)
+-			return
+-		}
+-		ident, err := verifier.AuthenticateServiceToken(r.Context(), bearer, time.Now().UTC())
+-		if err != nil || ident == nil {
+-			if errors.Is(err, domainauth.ErrServiceIdentityUnavailable) {
+-				writeDubBridgeS2SError(w, http.StatusServiceUnavailable)
+-			} else {
+-				writeDubBridgeS2SError(w, http.StatusUnauthorized)
+-			}
+-			return
+-		}
+-		if ident.Consumer != "dubbridge" || ident.ID == "" || ident.WorkspaceID == "" || ident.DubBridgeOrgID == "" {
+-			writeDubBridgeS2SError(w, http.StatusForbidden)
+-			return
+-		}
+-		if r.Method == http.MethodPost {
+-			if r.Header.Get("Content-Type") != "application/json" {
+-				writeDubBridgeS2SError(w, http.StatusUnsupportedMediaType)
+-				return
+-			}
+-			if r.Body == nil {
+-				writeDubBridgeS2SError(w, http.StatusBadRequest)
+-				return
+-			}
+-			payload, readErr := io.ReadAll(http.MaxBytesReader(w, r.Body, DubBridgeS2SMaxRequestBytes))
+-			_ = r.Body.Close()
+-			if readErr != nil {
+-				writeDubBridgeS2SError(w, http.StatusRequestEntityTooLarge)
+-				return
+-			}
+-			r.Body = io.NopCloser(bytes.NewReader(payload))
+-			r.ContentLength = int64(len(payload))
+-		}
+-		ctx := context.WithValue(r.Context(), dubbridgeIdentityContextKey{}, *ident)
++		ctx := context.WithValue(r.Context(), dubbridgeIdentityContextKey{}, ident)
++		ctx = context.WithValue(ctx, dubbridgeAuthorizedScopeContextKey{}, scope)
+ 		next.ServeHTTP(w, r.WithContext(ctx))
+ 	})
++}
++
++func authenticatedDubBridgeIdentity(r *http.Request, verifier DubBridgeTokenAuthenticator) (domainauth.ServiceIdentity, int) {
++	if !supportedDubBridgeMethod(r.Method) {
++		return domainauth.ServiceIdentity{}, http.StatusMethodNotAllowed
++	}
++	bearer, ok := dubbridgeBearer(r)
++	if !ok {
++		return domainauth.ServiceIdentity{}, http.StatusUnauthorized
++	}
++	ident, err := verifier.AuthenticateServiceToken(r.Context(), bearer, time.Now().UTC())
++	if errors.Is(err, domainauth.ErrServiceIdentityUnavailable) {
++		return domainauth.ServiceIdentity{}, http.StatusServiceUnavailable
++	}
++	if err != nil || ident == nil {
++		return domainauth.ServiceIdentity{}, http.StatusUnauthorized
++	}
++	if !validDubBridgeIdentity(*ident) {
++		return domainauth.ServiceIdentity{}, http.StatusForbidden
++	}
++	return *ident, 0
++}
++
++func supportedDubBridgeMethod(method string) bool {
++	switch method {
++	case http.MethodPost, http.MethodGet:
++		return true
++	default:
++		return false
++	}
++}
++
++func isNilDubBridgeDependency(value any) bool {
++	if value == nil {
++		return true
++	}
++	v := reflect.ValueOf(value)
++	switch v.Kind() {
++	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
++		return v.IsNil()
++	}
++	return false
++}
++
++func dubbridgeBearer(r *http.Request) (string, bool) {
++	if len(r.Header.Values("Authorization")) != 1 {
++		return "", false
++	}
++	raw := r.Header.Get("Authorization")
++	if !strings.HasPrefix(raw, "Bearer ") || strings.Count(raw, "Bearer ") != 1 {
++		return "", false
++	}
++	bearer := strings.TrimPrefix(raw, "Bearer ")
++	return bearer, domainauth.ParseServiceToken(bearer) == nil
++}
++
++func validDubBridgeIdentity(ident domainauth.ServiceIdentity) bool {
++	return ident.Consumer == "dubbridge" && ident.ID != "" && ident.WorkspaceID != "" && ident.DubBridgeOrgID != ""
++}
++
++func authorizeDubBridgeRequest(w http.ResponseWriter, r *http.Request, ident domainauth.ServiceIdentity, scope DubBridgeOperationScope, resolver DubBridgeOperationResolver) int {
++	if r.Method == http.MethodGet {
++		return authorizeDubBridgeStatus(r, scope, resolver)
++	}
++	if r.Header.Get("Content-Type") != "application/json" {
++		return http.StatusUnsupportedMediaType
++	}
++	if r.Body == nil {
++		return http.StatusBadRequest
++	}
++	payload, err := io.ReadAll(http.MaxBytesReader(w, r.Body, DubBridgeS2SMaxRequestBytes))
++	_ = r.Body.Close()
++	if err != nil {
++		return http.StatusRequestEntityTooLarge
++	}
++	source, err := parseDubBridgeEnvelopeSource(payload)
++	if err != nil {
++		return http.StatusBadRequest
++	}
++	if !AuthorizeDubBridgeSource(ident, source) {
++		return http.StatusForbidden
++	}
++	r.Body = io.NopCloser(bytes.NewReader(payload))
++	r.ContentLength = int64(len(payload))
++	return 0
+ }
+ 
+ func writeDubBridgeS2SError(w http.ResponseWriter, status int) {
+--- /dev/null
++++ b/internal/api/middleware/dubbridge_source_guard.go
+@@ -0,0 +1,196 @@
++package middleware
++
++import (
++	"bytes"
++	"context"
++	"encoding/json"
++	"errors"
++	"io"
++	"net/http"
++	"regexp"
++	"strings"
++
++	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
++)
++
++// DubBridgeSourceScope is an UNTRUSTED assertion from the request envelope.
++type DubBridgeSourceScope struct {
++	Product   string `json:"product"`
++	OrgID     string `json:"org_id"`
++	ProjectID string `json:"project_id,omitempty"`
++}
++
++// DubBridgeOperationScope is constructed exclusively from a Fenix-stored identity.
++type DubBridgeOperationScope struct {
++	PrincipalID string
++	WorkspaceID string
++	OrgID       string
++	ProjectID   string
++}
++
++// DubBridgeStoredOperation must be loaded by the operation repository from Fenix.
++// The guard compares all returned persisted ownership columns independently.
++type DubBridgeStoredOperation struct {
++	OperationID string
++	DubBridgeOperationScope
++}
++
++var ErrDubBridgeOperationUnavailable = errors.New("scoped operation store unavailable")
++
++// DubBridgeOperationResolver MUST query with all supplied scope predicates.
++// The guard rechecks the returned persisted record to reject faulty lookups.
++// B2.C has not implemented a real resolver; a nil resolver denies GET/status.
++type DubBridgeOperationResolver interface {
++	LookupDubBridgeOperation(context.Context, string, DubBridgeOperationScope) (DubBridgeStoredOperation, error)
++}
++
++func scopeFromFenixIdentity(ident domainauth.ServiceIdentity) DubBridgeOperationScope {
++	return DubBridgeOperationScope{PrincipalID: ident.ID, WorkspaceID: ident.WorkspaceID, OrgID: ident.DubBridgeOrgID, ProjectID: ident.DubBridgeProjectID}
++}
++
++// AuthorizeDubBridgeSource checks exact organization and project binding, with
++// an empty project authorized only for an org-only stored principal.
++func AuthorizeDubBridgeSource(ident domainauth.ServiceIdentity, source DubBridgeSourceScope) bool {
++	if !validDubBridgeIdentity(ident) || source.Product != "dubbridge" || source.OrgID == "" || source.OrgID != ident.DubBridgeOrgID {
++		return false
++	}
++	return source.ProjectID == ident.DubBridgeProjectID
++}
++
++type dubbridgeEnvelope struct {
++	ContractVersion    string               `json:"contract_version"`
++	OperationID        string               `json:"operation_id"`
++	CapabilityKey      string               `json:"capability_key"`
++	InputSchemaVersion string               `json:"input_schema_version"`
++	TraceID            string               `json:"trace_id"`
++	Source             DubBridgeSourceScope `json:"source"`
++	Input              json.RawMessage      `json:"input"`
++}
++
++// parseDubBridgeEnvelopeSource validates one bounded JSON object and never
++// treats untrusted source fields as authoritative service principal identity.
++func parseDubBridgeEnvelopeSource(payload []byte) (DubBridgeSourceScope, error) {
++	fields, err := decodeDubBridgeUniqueObject(payload)
++	if err != nil {
++		return DubBridgeSourceScope{}, err
++	}
++	if _, err := decodeDubBridgeUniqueObject(fields["source"]); err != nil {
++		return DubBridgeSourceScope{}, err
++	}
++	var envelope dubbridgeEnvelope
++	dec := json.NewDecoder(bytes.NewReader(payload))
++	dec.DisallowUnknownFields()
++	if err := dec.Decode(&envelope); err != nil {
++		return DubBridgeSourceScope{}, err
++	}
++	var extra any
++	if err := dec.Decode(&extra); err != io.EOF {
++		return DubBridgeSourceScope{}, errors.New("invalid trailing request")
++	}
++	if !validDubBridgeEnvelope(envelope) || !validDubBridgeInputObject(envelope.Input) {
++		return DubBridgeSourceScope{}, errors.New("incomplete request")
++	}
++	if envelope.Source.Product == "" || envelope.Source.OrgID == "" {
++		return DubBridgeSourceScope{}, errors.New("missing source")
++	}
++	return envelope.Source, nil
++}
++
++// decodeDubBridgeUniqueObject rejects duplicate top-level/source keys, avoiding
++// two consumers interpreting ambiguous source assertions differently.
++func decodeDubBridgeUniqueObject(raw []byte) (map[string]json.RawMessage, error) {
++	dec := json.NewDecoder(bytes.NewReader(raw))
++	token, err := dec.Token()
++	if err != nil || token != json.Delim('{') {
++		return nil, errors.New("expected JSON object")
++	}
++	fields, err := collectDubBridgeUniqueKeys(dec)
++	if err != nil {
++		return nil, err
++	}
++	token, err = dec.Token()
++	if err != nil || token != json.Delim('}') {
++		return nil, errors.New("invalid JSON object")
++	}
++	var extra any
++	if err := dec.Decode(&extra); err != io.EOF {
++		return nil, errors.New("invalid trailing JSON")
++	}
++	return fields, nil
++}
++
++func collectDubBridgeUniqueKeys(dec *json.Decoder) (map[string]json.RawMessage, error) {
++	fields := make(map[string]json.RawMessage)
++	for dec.More() {
++		token, err := dec.Token()
++		if err != nil {
++			return nil, err
++		}
++		key, ok := token.(string)
++		if !ok {
++			return nil, errors.New("invalid JSON key")
++		}
++		if _, duplicate := fields[key]; duplicate {
++			return nil, errors.New("duplicate JSON key")
++		}
++		var value json.RawMessage
++		if err := dec.Decode(&value); err != nil {
++			return nil, err
++		}
++		fields[key] = value
++	}
++	return fields, nil
++}
++
++func validDubBridgeEnvelope(e dubbridgeEnvelope) bool {
++	return e.ContractVersion == "1" && e.OperationID != "" && e.CapabilityKey != "" &&
++		e.InputSchemaVersion != "" && e.TraceID != "" && len(e.Input) != 0
++}
++
++func validDubBridgeInputObject(raw json.RawMessage) bool {
++	var obj map[string]json.RawMessage
++	if err := json.Unmarshal(raw, &obj); err != nil {
++		return false
++	}
++	return obj != nil
++}
++
++func authorizeDubBridgeStatus(r *http.Request, scope DubBridgeOperationScope, resolver DubBridgeOperationResolver) int {
++	if isNilDubBridgeDependency(resolver) {
++		return http.StatusForbidden
++	}
++	id, ok := dubbridgeStatusID(r)
++	if !ok {
++		return http.StatusForbidden
++	}
++	record, err := resolver.LookupDubBridgeOperation(r.Context(), id, scope)
++	if errors.Is(err, ErrDubBridgeOperationUnavailable) {
++		return http.StatusServiceUnavailable
++	}
++	if err != nil || !sameDubBridgeOperationScope(record, id, scope) {
++		return http.StatusForbidden
++	}
++	return 0
++}
++
++func sameDubBridgeOperationScope(op DubBridgeStoredOperation, id string, scope DubBridgeOperationScope) bool {
++	return id == op.OperationID && scope.PrincipalID == op.PrincipalID && scope.WorkspaceID == op.WorkspaceID && scope.OrgID == op.OrgID && scope.ProjectID == op.ProjectID
++}
++
++var dubbridgeOperationIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16,96}$`)
++
++func dubbridgeStatusID(r *http.Request) (string, bool) {
++	const prefix = "/integrations/dubbridge/operations/"
++	path := r.URL.Path
++	if !strings.HasPrefix(path, prefix) {
++		return "", false
++	}
++	id := strings.TrimPrefix(path, prefix)
++	if !dubbridgeOperationIDPattern.MatchString(id) {
++		return "", false
++	}
++	if r.URL.RawPath != "" && r.URL.EscapedPath() != r.URL.Path {
++		return "", false
++	}
++	return id, true
++}
+--- /dev/null
++++ b/internal/api/middleware/dubbridge_source_guard_test.go
+@@ -0,0 +1,254 @@
++package middleware
++
++import (
++	"context"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"net/http"
++	"net/http/httptest"
++	"strings"
++	"testing"
++	"time"
++
++	domainauth "github.com/matiasleandrokruk/fenix/internal/domain/auth"
++)
++
++const s2sTestToken = "fenix_s2s_v1_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
++const testOperationID = "operation_123456789"
++
++type s2sVerifierStub struct {
++	identity *domainauth.ServiceIdentity
++	err      error
++	calls    int
++}
++
++func (v *s2sVerifierStub) AuthenticateServiceToken(_ context.Context, _ string, _ time.Time) (*domainauth.ServiceIdentity, error) {
++	v.calls++
++	return v.identity, v.err
++}
++func s2sTestIdentity() *domainauth.ServiceIdentity {
++	return &domainauth.ServiceIdentity{ServicePrincipal: domainauth.ServicePrincipal{ID: "principal-1", Consumer: "dubbridge", WorkspaceID: "ws-1"}, DubBridgeOrgID: "org-1", DubBridgeProjectID: "project-1"}
++}
++func s2sEnvelope(source string, input string) string {
++	return fmt.Sprintf(`{"contract_version":"1","operation_id":"%s","capability_key":"integration.diagnostic","input_schema_version":"1","trace_id":"trace_12345678","source":%s,"input":%s}`, testOperationID, source, input)
++}
++func testSource(org, project string) string {
++	return fmt.Sprintf(`{"product":"dubbridge","org_id":%q,"project_id":%q}`, org, project)
++}
++func invokeS2S(method, path, body string, verifier DubBridgeTokenAuthenticator, resolver DubBridgeOperationResolver, handler http.Handler) *httptest.ResponseRecorder {
++	r := httptest.NewRequest(method, path, strings.NewReader(body))
++	r.Header.Set("Authorization", "Bearer "+s2sTestToken)
++	if method == http.MethodPost {
++		r.Header.Set("Content-Type", "application/json")
++	}
++	w := httptest.NewRecorder()
++	DubBridgeServiceAuth(verifier, resolver, handler).ServeHTTP(w, r)
++	return w
++}
++func TestMandatoryDubBridgePOSTAuthorization(t *testing.T) {
++	cases := []struct {
++		name, source   string
++		status, called int
++	}{
++		{"exact", testSource("org-1", "project-1"), 200, 1},
++		{"differentOrg", testSource("org-2", "project-1"), 403, 0},
++		{"differentProject", testSource("org-1", "project-2"), 403, 0},
++		{"projectOmitted", `{"product":"dubbridge","org_id":"org-1"}`, 403, 0},
++		{"differentProduct", `{"product":"other","org_id":"org-1","project_id":"project-1"}`, 403, 0},
++		{"missingOrg", `{"product":"dubbridge","project_id":"project-1"}`, 400, 0},
++		{"callerWorkspaceForged", `{"product":"dubbridge","org_id":"org-1","project_id":"project-1","workspace_id":"elsewhere"}`, 400, 0},
++		{"missingSource", `null`, 400, 0},
++	}
++	for _, tc := range cases {
++		t.Run(tc.name, func(t *testing.T) {
++			hits := 0
++			verifiedScope := false
++			verifier := &s2sVerifierStub{identity: s2sTestIdentity()}
++			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++				hits++
++				ident, ok := VerifiedDubBridgeIdentity(r.Context())
++				scope, scoped := AuthorizedDubBridgeScope(r.Context())
++				verifiedScope = ok && scoped && ident.WorkspaceID == "ws-1" && scope.PrincipalID == "principal-1" && scope.ProjectID == "project-1"
++				w.WriteHeader(200)
++			})
++			w := invokeS2S("POST", "/integrations/dubbridge/operations", s2sEnvelope(tc.source, `{}`), verifier, nil, handler)
++			if w.Code != tc.status || hits != tc.called {
++				t.Fatalf("status=%d hits=%d expected %d/%d", w.Code, hits, tc.status, tc.called)
++			}
++			if hits == 1 && !verifiedScope {
++				t.Fatal("authorized private scope not populated")
++			}
++			if hits == 0 && (strings.Contains(w.Body.String(), "org-1") || strings.Contains(w.Body.String(), "project-1")) {
++				t.Fatal("scope disclosed")
++			}
++		})
++	}
++}
++func TestMandatoryDubBridgeOrgOnly(t *testing.T) {
++	ident := s2sTestIdentity()
++	ident.DubBridgeProjectID = ""
++	calls := 0
++	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { calls++; w.WriteHeader(200) })
++	w := invokeS2S("POST", "/integrations/dubbridge/operations", s2sEnvelope(`{"product":"dubbridge","org_id":"org-1"}`, `{}`), &s2sVerifierStub{identity: ident}, nil, handler)
++	if w.Code != 200 || calls != 1 {
++		t.Fatalf("org-only: %d %d", w.Code, calls)
++	}
++	w = invokeS2S("POST", "/integrations/dubbridge/operations", s2sEnvelope(testSource("org-1", "project-1"), `{}`), &s2sVerifierStub{identity: ident}, nil, handler)
++	if w.Code != 403 || calls != 1 {
++		t.Fatalf("project escalation: %d %d", w.Code, calls)
++	}
++}
++
++type s2sResolverStub struct {
++	record   DubBridgeStoredOperation
++	err      error
++	calls    int
++	captured DubBridgeOperationScope
++}
++
++func (s *s2sResolverStub) LookupDubBridgeOperation(_ context.Context, _ string, scope DubBridgeOperationScope) (DubBridgeStoredOperation, error) {
++	s.calls++
++	s.captured = scope
++	return s.record, s.err
++}
++func persistedOp() DubBridgeStoredOperation {
++	return DubBridgeStoredOperation{OperationID: testOperationID, DubBridgeOperationScope: scopeFromFenixIdentity(*s2sTestIdentity())}
++}
++func TestMandatoryDubBridgeGETStatus(t *testing.T) {
++	cases := []struct {
++		name         string
++		resolver     *s2sResolverStub
++		status, hits int
++	}{
++		{"nilStore", nil, 403, 0},
++		{"exactPersisted", &s2sResolverStub{record: persistedOp()}, 200, 1},
++		{"missing", &s2sResolverStub{err: errors.New("not found")}, 403, 0},
++		{"storeUnavailable", &s2sResolverStub{err: ErrDubBridgeOperationUnavailable}, 503, 0},
++		{"wrongPrincipal", &s2sResolverStub{record: func() DubBridgeStoredOperation { x := persistedOp(); x.PrincipalID = "another"; return x }()}, 403, 0},
++		{"wrongWorkspace", &s2sResolverStub{record: func() DubBridgeStoredOperation { x := persistedOp(); x.WorkspaceID = "other"; return x }()}, 403, 0},
++		{"wrongOrg", &s2sResolverStub{record: func() DubBridgeStoredOperation { x := persistedOp(); x.OrgID = "other"; return x }()}, 403, 0},
++		{"wrongProject", &s2sResolverStub{record: func() DubBridgeStoredOperation { x := persistedOp(); x.ProjectID = "other"; return x }()}, 403, 0},
++		{"wrongOperation", &s2sResolverStub{record: func() DubBridgeStoredOperation { x := persistedOp(); x.OperationID = "other"; return x }()}, 403, 0},
++	}
++	for _, tc := range cases {
++		t.Run(tc.name, func(t *testing.T) {
++			calls := 0
++			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { calls++; w.WriteHeader(200) })
++			w := invokeS2S("GET", "/integrations/dubbridge/operations/"+testOperationID, "", &s2sVerifierStub{identity: s2sTestIdentity()}, tc.resolver, handler)
++			if w.Code != tc.status || calls != tc.hits {
++				t.Fatalf("status %d calls %d want %d/%d", w.Code, calls, tc.status, tc.hits)
++			}
++			if tc.resolver != nil && (tc.resolver.calls != 1 || tc.resolver.captured.WorkspaceID != "ws-1") {
++				t.Fatalf("unscoped lookup: %#v", tc.resolver)
++			}
++			if calls == 0 && strings.Contains(w.Body.String(), "ws-1") {
++				t.Fatal("tenant leak")
++			}
++		})
++	}
++}
++func TestMandatoryDubBridgeGETRejectsIDOnly(t *testing.T) {
++	resolver := &s2sResolverStub{record: persistedOp()}
++	calls := 0
++	handler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ })
++	for _, path := range []string{"/integrations/dubbridge/operations/short", "/integrations/dubbridge/operations/operation_123456789/extra", "/integrations/dubbridge/operations/operation%2F123456789"} {
++		w := invokeS2S("GET", path, "", &s2sVerifierStub{identity: s2sTestIdentity()}, resolver, handler)
++		if w.Code != 403 || calls != 0 {
++			t.Fatalf("path=%s code=%d calls=%d", path, w.Code, calls)
++		}
++	}
++	if resolver.calls != 0 {
++		t.Fatalf("unsafe resolver reached %d", resolver.calls)
++	}
++}
++func TestMandatoryDubBridgeMalformedPOST(t *testing.T) {
++	inputs := []string{
++		`invalid`,
++		`{"contract_version":"1","operation_id":"operation_123456789","capability_key":"integration.diagnostic","input_schema_version":"1","trace_id":"trace_12345678","source":{"product":"dubbridge","org_id":"org-evil","org_id":"org-1","project_id":"project-1"},"input":{}}`,
++		`{"contract_version":"1","operation_id":"operation_123456789","capability_key":"integration.diagnostic","input_schema_version":"1","trace_id":"trace_12345678","source":{"product":"dubbridge","org_id":"org-1","project_id":"project-1"},"source":{"product":"dubbridge","org_id":"org-1","project_id":"project-1"},"input":{}}`,
++		s2sEnvelope(testSource("org-1", "project-1"), `{}`) + ` {}`,
++		s2sEnvelope(testSource("org-1", "project-1"), `[]`),
++		s2sEnvelope(testSource("org-1", "project-1"), `null`),
++		`{"contract_version":"2","operation_id":"op","capability_key":"cap.x","input_schema_version":"1","trace_id":"trace123","source":{"product":"dubbridge","org_id":"org-1","project_id":"project-1"},"input":{}}`,
++	}
++	for _, body := range inputs {
++		calls := 0
++		h := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ })
++		w := invokeS2S("POST", "/integrations/dubbridge/operations", body, &s2sVerifierStub{identity: s2sTestIdentity()}, nil, h)
++		if w.Code != 400 || calls != 0 {
++			t.Fatalf("status=%d calls=%d for %.60s", w.Code, calls, body)
++		}
++	}
++}
++func TestMandatoryDubBridgeBodyLimit(t *testing.T) {
++	// Envelope function inserts the closing braces; create a validated request of exact size.
++	makeBody := func(size int) string {
++		base := s2sEnvelope(testSource("org-1", "project-1"), `{"padding":""}`)
++		closing := strings.LastIndex(base, `"}`)
++		if closing < 0 {
++			t.Fatal("invalid fixture")
++		}
++		if size < len(base) {
++			t.Fatal("fixture too large")
++		}
++		return base[:closing] + strings.Repeat("x", size-len(base)) + base[closing:]
++	}
++	calls := 0
++	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		calls++
++		var obj map[string]any
++		if err := json.NewDecoder(r.Body).Decode(&obj); err != nil {
++			t.Fatal(err)
++		}
++		w.WriteHeader(200)
++	})
++	for _, tc := range []struct{ size, status, hits int }{{DubBridgeS2SMaxRequestBytes, 200, 1}, {DubBridgeS2SMaxRequestBytes + 1, 413, 1}} {
++		w := invokeS2S("POST", "/integrations/dubbridge/operations", makeBody(tc.size), &s2sVerifierStub{identity: s2sTestIdentity()}, nil, handler)
++		if w.Code != tc.status || calls != tc.hits {
++			t.Fatalf("size %d: code %d calls %d", tc.size, w.Code, calls)
++		}
++	}
++}
++func TestMandatoryDubBridgeAuthFailures(t *testing.T) {
++	cases := []struct {
++		name     string
++		verifier DubBridgeTokenAuthenticator
++		status   int
++	}{
++		{"nilVerifier", nil, 503},
++		{"typedNilVerifier", (*s2sVerifierStub)(nil), 503},
++		{"unavailable", &s2sVerifierStub{err: domainauth.ErrServiceIdentityUnavailable}, 503},
++		{"denied", &s2sVerifierStub{err: domainauth.ErrServiceIdentityDenied}, 401},
++		{"missingScope", &s2sVerifierStub{identity: &domainauth.ServiceIdentity{ServicePrincipal: domainauth.ServicePrincipal{ID: "id", Consumer: "dubbridge"}}}, 403},
++	}
++	for _, tc := range cases {
++		t.Run(tc.name, func(t *testing.T) {
++			hits := 0
++			handler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits++ })
++			w := invokeS2S("POST", "/integrations/dubbridge/operations", s2sEnvelope(testSource("org-1", "project-1"), `{}`), tc.verifier, nil, handler)
++			if w.Code != tc.status || hits != 0 {
++				t.Fatalf("code %d hits %d", w.Code, hits)
++			}
++		})
++	}
++}
++func TestMandatoryDubBridgeBearerAndMethod(t *testing.T) {
++	for _, raw := range []string{"Bearer aaa.bbb.ccc", "Basic abc", "Bearer " + s2sTestToken + " ", "Bearer Bearer " + s2sTestToken} {
++		verifier := &s2sVerifierStub{identity: s2sTestIdentity()}
++		hits := 0
++		handler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits++ })
++		r := httptest.NewRequest("POST", "/integrations/dubbridge/operations", strings.NewReader(s2sEnvelope(testSource("org-1", "project-1"), `{}`)))
++		r.Header.Set("Authorization", raw)
++		r.Header.Set("Content-Type", "application/json")
++		w := httptest.NewRecorder()
++		DubBridgeServiceAuth(verifier, nil, handler).ServeHTTP(w, r)
++		if w.Code != 401 || verifier.calls != 0 || hits != 0 {
++			t.Fatalf("raw %s: code %d verifier %d hits %d", raw, w.Code, verifier.calls, hits)
++		}
++	}
++	w := invokeS2S("DELETE", "/integrations/dubbridge/operations/"+testOperationID, "", &s2sVerifierStub{identity: s2sTestIdentity()}, nil, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("handler invoked") }))
++	if w.Code != 405 {
++		t.Fatalf("unsupported method %d", w.Code)
++	}
++}
+--- /dev/null
++++ b/scripts/int_b2a3_t2_adapt_existing_tests.py
+@@ -0,0 +1,33 @@
++#!/usr/bin/env python3
++"""Only adjusts existing B2.A3 test harness assumptions to the mandatory scope guard.
++Run in the target repository with a clean, verified baseline checkout.
++"""
++from pathlib import Path
++p = Path('internal/api/middleware/dubbridge_service_auth_test.go')
++s = p.read_text()
++# Exactly five existing calls, all old two-argument form.
++assert s.count('DubBridgeServiceAuth(') == 5, f'Unexpected original test API usage: {s.count("DubBridgeServiceAuth(")}'
++s = s.replace('DubBridgeServiceAuth(verifier, http.HandlerFunc', 'DubBridgeServiceAuth(verifier, nil, http.HandlerFunc')
++s = s.replace('DubBridgeServiceAuth(v, http.HandlerFunc', 'DubBridgeServiceAuth(v, nil, http.HandlerFunc')
++s = s.replace('DubBridgeServiceAuth(tt.verifier, http.HandlerFunc', 'DubBridgeServiceAuth(tt.verifier, nil, http.HandlerFunc')
++s = s.replace('DubBridgeServiceAuth(&verifierStub{ident: defaultIdentity()}, http.HandlerFunc', 'DubBridgeServiceAuth(&verifierStub{ident: defaultIdentity()}, nil, http.HandlerFunc')
++s = s.replace('DubBridgeServiceAuth(&verifierStub{ident: defaultIdentity()}, nil)', 'DubBridgeServiceAuth(&verifierStub{ident: defaultIdentity()}, nil, nil)')
++# Existing GET happy path must now use an authorized POST envelope; GET without
++# a persisted scoped operation resolver must fail-closed. This is the first test.
++old = 'req := httptest.NewRequest(http.MethodGet, "/integrations/dubbridge/operations/op123", nil)'
++assert s.count(old) == 2
++s = s.replace(old, 'req := httptest.NewRequest(http.MethodPost, "/integrations/dubbridge/operations", strings.NewReader(s2sEnvelope(testSource("org", "project"), `{}`)))', 1)
++start = s.index('func TestDubBridgeServiceAuthIdentityAndScope')
++end = s.index('func TestDubBridgeServiceAuthRejectsHumanAndMalformed')
++section = s[start:end]
++needle = 'req.Header.Set("Authorization", "Bearer "+token)'
++assert section.count(needle) == 1
++section = section.replace(needle, needle+'\n\treq.Header.Set("Content-Type", "application/json")')
++s = s[:start]+section+s[end:]
++# The existing legacy body test supplied invalid repeated x bytes. Under strict
++# envelope decoding, an in-limit invalid body is rejected before the handler.
++needle = '{DubBridgeS2SMaxRequestBytes, "application/json", 202, true}'
++assert s.count(needle) == 1
++s = s.replace(needle, '{DubBridgeS2SMaxRequestBytes, "application/json", 400, false}')
++assert s.count('DubBridgeServiceAuth(') == 5
++p.write_text(s)
