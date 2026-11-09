@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2.A3.T3
 title: "B2.A3.T3 real Fenix SQLite and httptest S2S authorization verification"
-status: tests_committed_local_qa_pending
+status: branch_scoped_qa_pass_readiness_deferred
 phase: B2.A3
 week: 2026-W46
 tags: [dubbridge, fenix, s2s, security, sqlite, integration-test]
@@ -16,7 +16,7 @@ files_affected:
 criticality: critical
 criticality_basis: "Tests certify a cross-tenant authentication/authorization boundary using the real persisted Fenix service store; a misleading green test could conceal unauthorized dispatch. Tests-only scope; no production policy changes or migration."
 created: 2026-11-09
-completed: null
+completed: 2026-11-09
 ---
 
 # B2.A3.T3 real Fenix SQLite and httptest S2S authorization verification
@@ -26,9 +26,9 @@ completed: null
 **Parent A3 issue**: [#5](https://github.com/krukmat/fenix/issues/5).
 **Prior task**: [B2.A3.T2 mandatory source guard](task_dubbridge_fenix_b2a3_mandatory_scope_guard.md); implemented on the feature branch at `755fc79eabb7a02ef3208d8e9e59d41688bdd38a`, owner-accepted for its scoped functional behavior. Global QA debt remains separately tracked in [#4](https://github.com/krukmat/fenix/issues/4).
 **Execution branch**: `feature/int-v2-dubbridge-consumes-fenix`; baseline `9c78515f556684741ab75f69ecb71a204f9a6a7e`.
-**RRI**: N/A (cloud, DB-FENIX-INT). Independent task readiness, owner HITL for any new security logic, post-code review, and scoped Go QA are still mandatory.
-**Test source commits**: initial `d938da521eb9a429ffba62b7c12dc52163deda0c`, negative matrix expansion `4ea3be66ecfd36f7c896214f2ac9710e8455447f`; only `internal/api/middleware/dubbridge_service_auth_integration_test.go` changed. Static Git diff review confirmed no production routes, credentials, migrations or auth code affected. The tests use a real temporary Fenix modernc SQLite database/store, but no Go compilation, race, lint or post-code review has been executed against this commit. Code formatting is not yet certified. The newly added cases include missing/null source, duplicate top-level/source organization keys, wrong content type and a closed SQLite backend. Test code is on the feature branch only, not production-ready.
-**Current execution choice**: Work can proceed on test-only implementation in the feature branch under owner-directed temporary readiness deferral. Claims must be marked as static/draft unless Go and independent review are actually executed; do not mark T3 passed/closed based on this deferral.
+**RRI**: N/A (cloud, DB-FENIX-INT). Independent task-readiness was owner-deferred *for this branch only*; the distinct code-review/Go gates were executed locally and reported PASS.
+**Test source/QA**: Initial source `d938da5`, matrix expansion `4ea3be6`, format-only `367a70c` (final test SHA-256 `c0f75811b8a117cd166e131a424bc9928f8f392a2e9ce559f2bbf2f4b1bc723`). Local Go 1.25.13 tests/race/vet/new-code lint PASS and independent Claude post-code review PASS were reported with logs in [#7](https://github.com/krukmat/fenix/issues/7#issuecomment-6752968464). Published remote HEAD `acafa3d3b59f0539b7fbc5ec3114a43c332bce80` adds *separately scoped* repository QA cleanup, tracked in [#4](https://github.com/krukmat/fenix/issues/4). No route/migration/credential/deployment activation.
+**Branch disposition**: T3 functional verification PASS with real temporary Fenix SQLite and isolated HTTP handlers; branch-scoped completion only. The independent task-readiness stage was owner-deferred, not PASS. No formal release/security certification.
 **Peer readiness**: OWNER-DEFERRED for this feature branch (user instruction 2026-11-09). No reviewer executed, no PASS asserted, and no formal `WAIVER:` marker supplied. Must be restored for formal certification or a separately governed release. This is not an exception for credentials, production auth changes, migrations, or deployment.
 **HITL**: Owner has requested autonomous delivery of T3/T4 within the documented testing/verification scope. No authorization to alter the S2S auth boundary, write a new migration, activate routes, provision credentials, or deploy. Escalate any such need separately.
 
@@ -89,6 +89,15 @@ verify human JWT middleware boundary independently
 close temp DB; report test matrix and logs
 ```
 
+## Verified execution record (local agent report, 2026-11-09)
+
+- **SHA published**: `acafa3d3b59f0539b7fbc5ec3114a43c332bce80`. T3 test file was formatted and committed as `367a70c3f297a3d2ca5af6fd18e77e50dae98918`; the original test semantics were unchanged by formatting.
+- **Go 1.25.13**: [#7 QA record](https://github.com/krukmat/fenix/issues/7#issuecomment-6752202211) reports T3 focused tests, `go test ./...`, scoped `-race -count=3`, vet and new-code lint all PASS.
+- **Go pre-push**: [#7 final report](https://github.com/krukmat/fenix/issues/7#issuecomment-6752968464) reports RC 0, log SHA-256 `c91cd73ba86bece573dd292060b403842437321e5263afb15106b7d8ff5d6722`; traceability skipped (missing doorstop), govulncheck skipped (no module changes).
+- **Independent post-code reviewer**: Claude PASS and local advisory PASS reported; artifact `/tmp/b2a3-t3-qa-ef69918/post-code-review.json` SHA-256 `814325e1805213cde44c2cce42b559014cf5ca9ada99f8920cd8304895b8b168`. ChatGPT Cloud has verified the GitHub source/commits, but not rerun these Mac-only tools.
+- **Readiness**: owner-directed branch-only deferral, NOT a reviewer PASS or formal `WAIVER:`. No rollout authorization.
+- **Extra work**: `43d935c` formatted 26 prior files; `acafa3d` refactored lint, error-wrapping and S2S registry complexity. These are not T3's original tests-only scope; maintain separate review/traceability in #4.
+
 ## Execution and closure gates
 
 - Before writing Go tests, run `scripts/peer-workflow-review.py task-readiness` on this **exact** task file plus S2S plan, with an English task-card preview. Record reviewer, actual PASS/FAIL/BLOCKED, artifact SHA, criticality concurrence in the T3 coordination issue. Never reuse the T2 peer-review artifact.
@@ -110,4 +119,4 @@ Criticality basis: Real-store security-boundary assertions protect against false
 Effort/reasoning: High - Real SQLite fixture, secret lifecycle and negative security matrix.
 Recommended model: OpenAI: gpt-5.4 | Anthropic: claude-sonnet-4-6
 Estimated tokens: ~9000
-Peer readiness review approval: reviewer=PENDING; artifact=PENDING; status=BLOCKED_UNTIL_ACTUAL_REVIEW
+Peer readiness review approval: reviewer=OWNER_DEFERRED; artifact=NOT_RUN; status=DEFERRED_FEATURE_BRANCH_ONLY
