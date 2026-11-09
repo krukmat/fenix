@@ -2,8 +2,9 @@
 doc_type: audit
 id: DB-FENIX-B2.A3-T4-PRELIMINARY-AUDIT
 title: "B2.A3 security evidence ledger and B2.A4 preliminary handoff"
-status: branch_evidence_reconciled_t4_independent_security_pending
+status: cloud_static_review_complete_independent_security_pending
 date: 2026-11-09
+reviewed_at: 2026-11-10
 tags: [dubbridge, fenix, s2s, security, evidence, handoff]
 ---
 
@@ -41,6 +42,44 @@ T1 readiness and T2's mandatory guard previously passed their independent gates;
 The owner instructed a temporary **deferral of T3 independent task-readiness for this feature branch**, NOT a PASS and NOT a formal `WAIVER:` statement. This does **not** extend to deployment, credential lifecycle, schema migrations, or a production route.
 
 **T3 may be closed as feature-branch scoped QA verified. T4 evidence reconciliation and A4 planning can proceed, but T4 independent security certification remains pending**; neither the B2.C stored-operation resolver nor a live S2S route exists.
+
+## T4 Cloud static source audit — 2026-11-10
+
+**Assessment type:** ChatGPT Cloud *non-independent* source/security assessment. This is NOT a peer task-readiness or post-code-review independent verdict. The reviewed source checkpoint is acafa3d3b59f0539b7fbc5ec3114a43c332bce80; the immediately preceding documentation-only branch HEAD was 0613412155caf85a51a1d75eb55c81493c8c02ef. No Go code or local reviewer CLI was executed in this Cloud assessment.
+
+### Exact source review and diff attribution
+
+| Scope | Evidence inspected | Static conclusion |
+|---|---|---|
+| T2 authentication/authorization | internal/api/middleware/dubbridge_service_auth.go, dubbridge_source_guard.go, service_principal_store.go and service_token.go | Fenix-backed opaque credential and source org/project match precede POST handler; GET/status with no B2.C resolver denies |
+| T3 SQLite HTTP tests | internal/api/middleware/dubbridge_service_auth_integration_test.go at 367a70c | Four suites, migrated temporary SQLite/store, negative tenant/token/transport and no agent_run writes; local Go 1.25.13 QA reported PASS in #7 |
+| T3 formatting | 367a70c3f297a3d2ca5af6fd18e77e50dae98918 | Only formats the T3 test file per GitHub commit patch |
+| Global gofmt cleanup | 43d935c4288a565b6c4d202208ebef16cc35e012 | 26 previously failing Go files, mechanically formatted per agent evidence and commit patches, not part of T3 logic |
+| QA remediation | acafa3d3b59f0539b7fbc5ec3114a43c332bce80, 12 files | Two docs plus ten Go files: shared header constants, registry predicate extraction, fmt.Errorf with %w error wrappers; no router or migration changes |
+| Go QA | [#7 final report](https://github.com/krukmat/fenix/issues/7#issuecomment-6752968464) | Full Go prepush PASS reported with 83.0% coverage; traceability SKIPPED (doorstop absent), govulncheck SKIPPED (unchanged modules) |
+| Independent peer review | #7 reports Claude PASS and local advisor PASS, artifact /tmp/b2a3-t3-qa-ef69918/post-code-review.json SHA-256 814325e1805213cde44c2cce42b559014cf5ca9ada99f8920cd8304895b8b168 | The artifact itself and exact --base/file scope are not available to Cloud; cannot independently confirm that ALL ten modified production Go files were included |
+
+**Error-chain review:** The remediation adds fmt.Errorf with %w to S2S JSON parsing, VEL/evidence-outbox and Mermaid2SF error propagation. This structurally preserves errors.Is/errors.As. Existing tests TestExecutorExecuteMarksServerFailureRetryable and TestSinkRecordEvidenceMarksServerFailureIndeterminate check classifications, and the full Go suite reportedly passes. This is not exhaustive proof of downstream retry/redaction/consumer-visible error strings; targeted independent review is still required.
+
+### Findings and precise disposition
+
+| ID | Priority | Finding / current effect | Owner and gate |
+|---|---|---|---|
+| **T4-G1** | Critical for release | The independent review's exact diff coverage for the production refactors in acafa3d is unverified from GitHub issue prose. T3 Claude PASS alone cannot be treated as an independent T4 security verdict | Independent reviewer: inspect exact 43d935c..acafa3d diff, record artifact hash, base, changed file set, explicit PASS/FAIL in #8. Cloud reconciles |
+| **T4-R1** | Medium before activation | GET/status fails closed with nil resolver; no persisted operation lookup exists yet. No real operation-row idempotency proof is possible | B2.C: stored principal/workspace/org/project scoped lookup, no ID-only access; no GET route until PASS |
+| **T4-R2** | Medium before activation | POST parser has 64 KiB cap and strict source/top-level keys, but nested input is not capability-schema validated or explicitly depth bounded; canonical digest, duplicate nested fields and Idempotency-Key equality are not yet enforced | B2.C/B2.D/B6: canonical idempotency and bounded schema at the right layer before endpoint activation |
+| **T4-R3** | Medium before activation | No principal-bound rate/concurrency limit, guaranteed 32 KiB response projection, trusted-proxy decision or operator-provisioning runbook | B2.A4/B2.D: controls and negative tests before network exposure |
+| **T4-R4** | Medium before activation | S2S capability registry is isolated in-memory, default-deny; audited operator registration and durable allowlist are not implemented | B2.B4/B6: audited provisioning/disable semantics, no auto-registration |
+| **T4-R5** | Medium, requires independent semantics review | QA cleanup changes error-wrapping across VEL, evidence/outbox and Mermaid2SF. Typed error chains appear preserved, but complete retry/indeterminate and redaction semantics are not independently certified | Independent T4 reviewer on exact refactor diff; no confirmed regression in this static inspection |
+| **T4-E1** | Low evidence gap | T3 verifies zero handler calls and zero real agent_run writes on tested denied requests, but cannot count nonexistent B2.C operation rows | B2.C test suite: zero operation rows on rejection |
+| **T4-E2** | Medium evidence gap | Go prepush skipped traceability due to missing doorstop and skipped govulncheck with unchanged go.mod/go.sum | #4 and B5: restore/assess release-level security/traceability gates; don't claim skipped checks PASS |
+| **T4-P1** | Branch-only exception | T3 task-readiness was deferred by owner for this feature branch; no reviewer ran or literal WAIVER: was supplied | Keep DEFERRED, not PASS. No permission for production route, credentials, migrations or deployment |
+
+**Security disposition:** No proven exploitable auth bypass or active production regression was identified in this static audit of the dormant and unmounted S2S gateway. That is NOT proof of absence of vulnerabilities. T1–T3 feature-branch evidence is accepted in scope. T4 Cloud assessment and the B2.A4 handoff are prepared. **T4 independent security verdict: PENDING. Production GO/NO-GO: NO-GO.**
+
+### Exact-diff reviewer handoff
+
+The only non-executed verification requiring the local reviewer is inspection of acafa3d3b59f0539b7fbc5ec3114a43c332bce80 relative to 43d935c4288a565b6c4d202208ebef16cc35e012. This isolates the two QA docs and ten Go files from the mechanical 26-file formatting commit and the T3 integration test. Use existing T2/T3 source as context. Report the actual --base, source SHA, path set, reviewer/version, findings, verdict and artifact SHA in [#8](https://github.com/krukmat/fenix/issues/8). This Cloud report is not an independent PASS.
 
 ## B2.A4 handoff prerequisites
 
