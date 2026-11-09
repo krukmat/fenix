@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	defaultWorkerInterval  = 5 * time.Second
-	defaultRetryDelay      = 5 * time.Second
-	metricDelivery         = "delivery"
-	metricReconciliation   = "reconciliation"
+	defaultWorkerInterval = 5 * time.Second
+	defaultRetryDelay     = 5 * time.Second
+	metricDelivery        = "delivery"
+	metricReconciliation  = "reconciliation"
 )
 
 var (

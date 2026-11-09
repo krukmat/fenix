@@ -166,7 +166,6 @@ func durableVerificationProgress() evidence.VerificationProgress {
 	}
 }
 
-
 func newDurableTestRecorder(t *testing.T, sink *lifecycleSinkStub) *Recorder {
 	t.Helper()
 	db, err := sqlite.NewDB(":memory:")

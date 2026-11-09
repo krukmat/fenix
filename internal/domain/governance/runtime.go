@@ -62,10 +62,10 @@ func (p *RuntimePlanner) PlanCapability(
 		return tool.CapabilityRuntimeDecision{}, err
 	}
 	decision, err := Resolve(Input{
-		Profile:           profile,
-		PolicyAllowed:     selection.Allowed,
-		PolicyReference:   selection.PolicyReference,
-		ApprovalState:     runtimeApprovalState(facts),
+		Profile:          profile,
+		PolicyAllowed:    selection.Allowed,
+		PolicyReference:  selection.PolicyReference,
+		ApprovalState:    runtimeApprovalState(facts),
 		OptionalEvidence: selection.OptionalEvidence,
 	})
 	if err != nil {

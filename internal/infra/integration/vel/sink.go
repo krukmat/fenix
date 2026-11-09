@@ -19,13 +19,13 @@ import (
 )
 
 const (
-	maxResponseBytes        = 4 << 20
-	fieldStreamID           = "stream_id"
-	fieldIdempotencyKey     = "idempotency_key"
-	headerAuthorization     = "Authorization"
-	providerOutcomeSuccess  = "success"
-	providerOutcomeError    = "error"
-	providerNameVEL         = "vel"
+	maxResponseBytes       = 4 << 20
+	fieldStreamID          = "stream_id"
+	fieldIdempotencyKey    = "idempotency_key"
+	headerAuthorization    = "Authorization"
+	providerOutcomeSuccess = "success"
+	providerOutcomeError   = "error"
+	providerNameVEL        = "vel"
 )
 
 var errInvalidConfig = errors.New("invalid VEL integration configuration")
@@ -223,13 +223,13 @@ func validateLookupStatus(statusCode int, responseRaw []byte) error {
 }
 
 type externalEvent struct {
-	StreamID       string                       `json:"stream_id"`
-	Actor          externalActor                `json:"actor"`
-	Action         string                       `json:"action"`
-	Resource       string                       `json:"resource"`
-	Payload        map[string]any               `json:"payload"`
-	Authorization externalAuthorization         `json:"authorization"`
-	IdempotencyKey string                       `json:"idempotency_key"`
+	StreamID       string                `json:"stream_id"`
+	Actor          externalActor         `json:"actor"`
+	Action         string                `json:"action"`
+	Resource       string                `json:"resource"`
+	Payload        map[string]any        `json:"payload"`
+	Authorization  externalAuthorization `json:"authorization"`
+	IdempotencyKey string                `json:"idempotency_key"`
 }
 
 type externalActor struct {

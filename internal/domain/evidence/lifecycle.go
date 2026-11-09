@@ -6,12 +6,12 @@ import "strings"
 type DeliveryState string
 
 const (
-	DeliveryPendingRecord       DeliveryState = "pending_record"
-	DeliveryRecorded            DeliveryState = "recorded"
-	DeliveryPendingCheckpoint   DeliveryState = "pending_checkpoint"
-	DeliveryVerified            DeliveryState = "verified"
-	DeliveryVerificationFailed  DeliveryState = "verification_failed"
-	DeliveryIndeterminate       DeliveryState = "indeterminate"
+	DeliveryPendingRecord      DeliveryState = "pending_record"
+	DeliveryRecorded           DeliveryState = "recorded"
+	DeliveryPendingCheckpoint  DeliveryState = "pending_checkpoint"
+	DeliveryVerified           DeliveryState = "verified"
+	DeliveryVerificationFailed DeliveryState = "verification_failed"
+	DeliveryIndeterminate      DeliveryState = "indeterminate"
 )
 
 // ReconciliationAction describes the next safe evidence-only recovery step.
@@ -70,7 +70,6 @@ func reconciliationDecision(action ReconciliationAction, reason string) Reconcil
 		MayRepeatBusinessAction: false,
 	}
 }
-
 
 // DeliveryStateFromProof maps a proof reference into the corresponding evidence lifecycle state.
 func DeliveryStateFromProof(ref ProofReference) DeliveryState {

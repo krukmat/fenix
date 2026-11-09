@@ -23,10 +23,10 @@ func profile(class tool.SideEffectClass, approval bool, evidence EvidenceRequire
 
 func TestResolve_SeparatesApprovalAndEvidenceDimensions(t *testing.T) {
 	decision, err := Resolve(Input{
-		Profile:           profile(tool.SideEffectTransform, false, EvidenceOptional),
-		PolicyAllowed:     true,
-		PolicyReference:   "policy:v1",
-		ApprovalState:     ApprovalNotRequired,
+		Profile:          profile(tool.SideEffectTransform, false, EvidenceOptional),
+		PolicyAllowed:    true,
+		PolicyReference:  "policy:v1",
+		ApprovalState:    ApprovalNotRequired,
 		OptionalEvidence: true,
 	})
 	if err != nil {
@@ -84,17 +84,16 @@ func TestResolve_PolicyDenialWinsBeforeProviderExecution(t *testing.T) {
 
 func TestResolve_NoneEvidenceRejectsOptionalSelection(t *testing.T) {
 	_, err := Resolve(Input{
-		Profile:           profile(tool.SideEffectRead, false, EvidenceNone),
-		PolicyAllowed:     true,
-		PolicyReference:   "policy:v1",
-		ApprovalState:     ApprovalNotRequired,
+		Profile:          profile(tool.SideEffectRead, false, EvidenceNone),
+		PolicyAllowed:    true,
+		PolicyReference:  "policy:v1",
+		ApprovalState:    ApprovalNotRequired,
 		OptionalEvidence: true,
 	})
 	if !errors.Is(err, ErrDecisionInputInvalid) {
 		t.Fatalf("expected ErrDecisionInputInvalid, got %v", err)
 	}
 }
-
 
 func TestResolve_RejectsEvidenceRequirementWithoutReason(t *testing.T) {
 	p := profile(tool.SideEffectTransform, false, EvidenceOptional)

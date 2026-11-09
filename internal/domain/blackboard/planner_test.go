@@ -300,7 +300,6 @@ func TestPlannerBuildWorkspacePlan_PreservesArbitrationOrderAndPersistsResult(t 
 	}
 }
 
-
 func TestPlannerBuildWorkspacePlan_BindsConcreteActionSteps(t *testing.T) {
 	db, cwID := setupPlannerDB(t)
 	store := blackboard.NewMemoryStore(db)

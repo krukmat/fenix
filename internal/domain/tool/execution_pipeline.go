@@ -32,13 +32,13 @@ type AuditLogger interface {
 type ExecutionErrorCode string
 
 const (
-	ToolErrorInvalidInput        ExecutionErrorCode = "invalid_input"
-	ToolErrorPermissionDenied    ExecutionErrorCode = "permission_denied"
-	ToolErrorToolInactive        ExecutionErrorCode = "tool_inactive"
-	ToolErrorCapabilityContext       ExecutionErrorCode = "capability_context_missing"
-	ToolErrorGovernanceDenied        ExecutionErrorCode = "governance_denied"
-	ToolErrorCapabilityFailed        ExecutionErrorCode = "capability_failed"
-	ToolErrorCapabilityIndeterminate ExecutionErrorCode = "capability_indeterminate"
+	ToolErrorInvalidInput               ExecutionErrorCode = "invalid_input"
+	ToolErrorPermissionDenied           ExecutionErrorCode = "permission_denied"
+	ToolErrorToolInactive               ExecutionErrorCode = "tool_inactive"
+	ToolErrorCapabilityContext          ExecutionErrorCode = "capability_context_missing"
+	ToolErrorGovernanceDenied           ExecutionErrorCode = "governance_denied"
+	ToolErrorCapabilityFailed           ExecutionErrorCode = "capability_failed"
+	ToolErrorCapabilityIndeterminate    ExecutionErrorCode = "capability_indeterminate"
 	ToolErrorEvidenceIndeterminate      ExecutionErrorCode = "evidence_indeterminate"
 	ToolErrorEvidenceVerificationFailed ExecutionErrorCode = "evidence_verification_failed"
 	ToolErrorInternal                   ExecutionErrorCode = "internal_error"

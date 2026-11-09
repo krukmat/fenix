@@ -115,8 +115,6 @@ func TestCrossPlatformPolicySelectorPlansOnlyOptionalEvidence(t *testing.T) {
 	}
 }
 
-
-
 func TestConfigureCrossPlatformRuntimeRequiresDurableRuntimeForVEL(t *testing.T) {
 	clearIntegrationEnv(t)
 	t.Setenv(envVELURL, "http://127.0.0.1:4100")

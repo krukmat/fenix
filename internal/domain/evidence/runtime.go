@@ -249,7 +249,6 @@ func auditProjectionMetadata(projection AuditProjection) map[string]any {
 	}
 }
 
-
 func (r *RuntimeRecorder) reconcileIndeterminateRecord(
 	ctx context.Context,
 	envelope Envelope,

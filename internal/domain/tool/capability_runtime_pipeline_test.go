@@ -257,7 +257,6 @@ func TestRuntimeGovernance_VerificationFailureIsExplicit(t *testing.T) {
 	}
 }
 
-
 func TestRuntimeGovernance_DecisionIsResolvedOnceAcrossProviderRetry(t *testing.T) {
 	executor := &sequenceCapabilityExecutor{
 		errs: []error{NewRetryableCapabilityError(errors.New("temporary provider failure"))},

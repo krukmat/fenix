@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	evidenceStateNotPlanned       = "not_planned"
-	evidenceStateIndeterminate    = "indeterminate"
-	auditEvidenceErrorCodeKey     = "evidence_error_code"
+	evidenceStateNotPlanned    = "not_planned"
+	evidenceStateIndeterminate = "indeterminate"
+	auditEvidenceErrorCodeKey  = "evidence_error_code"
 )
 
 func (r *ToolRegistry) executeGovernedCapability(

@@ -11,7 +11,6 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
-
 // bucket tracks request count and the start of the current window for one IP.
 type bucket struct {
 	mu        sync.Mutex

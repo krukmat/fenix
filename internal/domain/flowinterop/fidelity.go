@@ -19,34 +19,34 @@ const (
 type FlowFamily string
 
 const (
-	FlowFamilyAutolaunched              FlowFamily = "autolaunched"
-	FlowFamilyScreen                    FlowFamily = "screen"
-	FlowFamilyRecordTriggeredAfterSave  FlowFamily = "record_triggered_after_save"
-	FlowFamilyRecordTriggeredBeforeSave FlowFamily = "record_triggered_before_save"
+	FlowFamilyAutolaunched                FlowFamily = "autolaunched"
+	FlowFamilyScreen                      FlowFamily = "screen"
+	FlowFamilyRecordTriggeredAfterSave    FlowFamily = "record_triggered_after_save"
+	FlowFamilyRecordTriggeredBeforeSave   FlowFamily = "record_triggered_before_save"
 	FlowFamilyRecordTriggeredBeforeDelete FlowFamily = "record_triggered_before_delete"
-	FlowFamilyScheduleTriggered         FlowFamily = "schedule_triggered"
-	FlowFamilyPlatformEventTriggered    FlowFamily = "platform_event_triggered"
-	FlowFamilyOrchestrated              FlowFamily = "orchestrated"
+	FlowFamilyScheduleTriggered           FlowFamily = "schedule_triggered"
+	FlowFamilyPlatformEventTriggered      FlowFamily = "platform_event_triggered"
+	FlowFamilyOrchestrated                FlowFamily = "orchestrated"
 )
 
 // VerificationScope distinguishes semantic guarantees from Salesforce-org evidence.
 type VerificationScope string
 
 const (
-	VerificationNone             VerificationScope = "none"
-	VerificationSemanticRoundTrip VerificationScope = "semantic_roundtrip"
+	VerificationNone               VerificationScope = "none"
+	VerificationSemanticRoundTrip  VerificationScope = "semantic_roundtrip"
 	VerificationCanonicalOrgDryRun VerificationScope = "canonical_fixture_org_dry_run"
 )
 
 // FidelityReport is returned for the concrete artifact examined by Mermaid2SF.
 // A family support ceiling must never be promoted automatically into Guaranteed.
 type FidelityReport struct {
-	ContractVersion     string            `json:"contract_version"`
-	Level               FidelityLevel     `json:"level"`
-	FlowFamily          FlowFamily        `json:"flow_family"`
-	SupportedFeatures   []string          `json:"supported_features,omitempty"`
-	UnsupportedFeatures []string          `json:"unsupported_features,omitempty"`
-	Warnings            []string          `json:"warnings,omitempty"`
+	ContractVersion     string              `json:"contract_version"`
+	Level               FidelityLevel       `json:"level"`
+	FlowFamily          FlowFamily          `json:"flow_family"`
+	SupportedFeatures   []string            `json:"supported_features,omitempty"`
+	UnsupportedFeatures []string            `json:"unsupported_features,omitempty"`
+	Warnings            []string            `json:"warnings,omitempty"`
 	VerificationScopes  []VerificationScope `json:"verification_scopes,omitempty"`
 }
 

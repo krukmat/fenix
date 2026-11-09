@@ -55,7 +55,6 @@ func TestSinkCheckpointAndVerifySupportsWorkspaceSlashStream(t *testing.T) {
 	}
 }
 
-
 func TestVerificationProgressCapturesFailureAndIssues(t *testing.T) {
 	treeSize := int64(2)
 	sequence := int64(2)

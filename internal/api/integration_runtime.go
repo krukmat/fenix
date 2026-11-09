@@ -242,8 +242,8 @@ func (s crossPlatformPolicySelector) SelectRuntimePolicy(
 	profile governance.Profile,
 ) (governance.RuntimePolicySelection, error) {
 	return governance.RuntimePolicySelection{
-		Allowed:          true,
-		PolicyReference:  "fenix:w1-policy-gate",
+		Allowed:         true,
+		PolicyReference: "fenix:w1-policy-gate",
 		OptionalEvidence: s.optionalM2SFEvidence &&
 			profile.EvidenceRequirement == governance.EvidenceOptional,
 	}, nil

@@ -6,9 +6,9 @@ import (
 )
 
 var (
-	ErrContractVersion = errors.New("unsupported flow interoperability contract version")
-	ErrOperation       = errors.New("unsupported flow interoperability operation")
-	ErrArtifact        = errors.New("invalid flow artifact")
+	ErrContractVersion    = errors.New("unsupported flow interoperability contract version")
+	ErrOperation          = errors.New("unsupported flow interoperability operation")
+	ErrArtifact           = errors.New("invalid flow artifact")
 	ErrArtifactFormat     = errors.New("artifact format is not supported for operation")
 	ErrComparisonArtifact = errors.New("comparison artifact is required for operation")
 )

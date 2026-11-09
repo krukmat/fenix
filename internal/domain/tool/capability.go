@@ -11,10 +11,10 @@ import (
 )
 
 var (
-	ErrCapabilityContextMissing     = errors.New("external capability execution context is incomplete")
-	ErrCapabilityGovernanceRequired = errors.New("external capability requires governance")
-	ErrCapabilityGovernanceDenied   = errors.New("external capability denied by governance decision")
-	ErrCapabilityEvidenceUnavailable = errors.New("planned capability evidence recorder is unavailable")
+	ErrCapabilityContextMissing             = errors.New("external capability execution context is incomplete")
+	ErrCapabilityGovernanceRequired         = errors.New("external capability requires governance")
+	ErrCapabilityGovernanceDenied           = errors.New("external capability denied by governance decision")
+	ErrCapabilityEvidenceUnavailable        = errors.New("planned capability evidence recorder is unavailable")
 	ErrCapabilityEvidenceVerificationFailed = errors.New("capability evidence verification failed")
 )
 

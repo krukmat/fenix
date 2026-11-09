@@ -1463,7 +1463,6 @@ func TestAuditHelpers_DecisionFromMapAndPointerField(t *testing.T) {
 	}
 }
 
-
 func TestLogWithDetails_PropagatesTraceIDFromContext(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()

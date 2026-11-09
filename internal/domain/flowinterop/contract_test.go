@@ -126,7 +126,6 @@ func TestFidelityReport_PartialCanExposeBoundary(t *testing.T) {
 	}
 }
 
-
 func TestRequestValidate_CompareRequiresSecondArtifact(t *testing.T) {
 	request := Request{
 		ContractVersion: ContractVersion,

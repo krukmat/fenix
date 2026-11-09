@@ -10,9 +10,9 @@ var ErrProofReferenceInvalid = errors.New("invalid evidence proof reference")
 type VerificationStatus string
 
 const (
-	VerificationRecorded         VerificationStatus = "recorded"
-	VerificationVerified         VerificationStatus = "verified"
-	VerificationFailed           VerificationStatus = "verification_failed"
+	VerificationRecorded          VerificationStatus = "recorded"
+	VerificationVerified          VerificationStatus = "verified"
+	VerificationFailed            VerificationStatus = "verification_failed"
 	VerificationPendingCheckpoint VerificationStatus = "pending_checkpoint"
 )
 

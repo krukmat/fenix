@@ -569,7 +569,6 @@ func TestExecutionError_Error_Format(t *testing.T) {
 	}
 }
 
-
 func TestToolRegistry_ExternalCapabilityRequiresTraceContext(t *testing.T) {
 	db := openToolTestDB(t)
 	wsID := createWorkspace(t, db)

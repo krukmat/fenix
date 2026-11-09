@@ -41,9 +41,9 @@ func validEnvelope() Envelope {
 			ApprovalID: "approval-1",
 			Decision:   "APPROVED",
 		},
-		Outcome:    ExecutionOutcome{Status: OutcomeSucceeded},
+		Outcome:     ExecutionOutcome{Status: OutcomeSucceeded},
 		InputDigest: &DigestRef{Algorithm: "sha256", Value: testDigest},
-		OccurredAt: time.Now().UTC(),
+		OccurredAt:  time.Now().UTC(),
 	}
 }
 

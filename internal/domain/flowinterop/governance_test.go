@@ -44,10 +44,10 @@ func TestGovernanceProfile_OptionalEvidenceIsDecidedByFenix(t *testing.T) {
 	}
 
 	withEvidence, err := governance.Resolve(governance.Input{
-		Profile:           profile,
-		PolicyAllowed:     true,
-		PolicyReference:   "fenix:test",
-		ApprovalState:     governance.ApprovalNotRequired,
+		Profile:          profile,
+		PolicyAllowed:    true,
+		PolicyReference:  "fenix:test",
+		ApprovalState:    governance.ApprovalNotRequired,
 		OptionalEvidence: true,
 	})
 	if err != nil {
