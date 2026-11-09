@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2.A3.T4
 title: "B2.A3.T4 independent security verification and B2.A4 handoff"
-status: planned_blocked_by_t3
+status: preliminary_evidence_written_t3_qa_pending
 phase: B2.A3
 week: 2026-W46
 tags: [dubbridge, fenix, s2s, security, audit, handoff]
@@ -25,7 +25,7 @@ completed: null
 **Plan**: [DubBridge to Fenix S2S security foundation](../plans/dubbridge_fenix_s2s_security_plan.md#current-direction).
 **Coordination issue**: [B2.A3.T4 #8](https://github.com/krukmat/fenix/issues/8).
 **Dependencies**: [T2 source guard](task_dubbridge_fenix_b2a3_mandatory_scope_guard.md), [T3 real SQLite HTTP tests](task_dubbridge_fenix_b2a3_sqlite_http_integration.md), [QA debt #4](https://github.com/krukmat/fenix/issues/4).
-**Current status**: PLANNED. Do not begin security acceptance or close B2.A3 while T3 tests and independent evidence are pending.
+**Current status**: Preliminary security evidence inventory published at [B2.A3 audit](../audit/dubbridge-fenix-b2a3-security-verification-2026-11-09.md). Formal T4 security certification remains blocked until T3 actual Go 1.25.13 tests and independent findings exist. Readiness for T3 was temporarily deferred for this feature branch by owner instruction; not a PASS.
 **RRI**: N/A (cloud, DB-FENIX-INT). Independent security reviewer and owner HITL for any actual security changes remain mandatory.
 **Owner of task**: ChatGPT Cloud (audit, evidence reconciliation, risk ledger, documented handoff). Local agent only executes verification or reviewer commands that require the Mac environment. Owner retains production and security acceptance authority.
 
