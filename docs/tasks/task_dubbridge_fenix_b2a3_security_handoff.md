@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2.A3.T4
 title: "B2.A3.T4 independent security verification and B2.A4 handoff"
-status: evidence_reconciled_independent_security_pending
+status: cloud_assessment_complete_independent_security_pending
 phase: B2.A3
 week: 2026-W46
 tags: [dubbridge, fenix, s2s, security, audit, handoff]
@@ -25,7 +25,7 @@ completed: null
 **Plan**: [DubBridge to Fenix S2S security foundation](../plans/dubbridge_fenix_s2s_security_plan.md#current-direction).
 **Coordination issue**: [B2.A3.T4 #8](https://github.com/krukmat/fenix/issues/8).
 **Dependencies**: [T2 source guard](task_dubbridge_fenix_b2a3_mandatory_scope_guard.md), [T3 real SQLite HTTP tests](task_dubbridge_fenix_b2a3_sqlite_http_integration.md), [QA debt #4](https://github.com/krukmat/fenix/issues/4).
-**Current status**: [B2.A3 audit](../audit/dubbridge-fenix-b2a3-security-verification-2026-11-09.md) reconciles real T3 SQLite HTTP QA PASS, published branch SHA and additional out-of-T3 global gate repairs. The T3 code reviewer PASS is reported in [#7](https://github.com/krukmat/fenix/issues/7#issuecomment-6752968464). Formal **T4 independent security assessment and any production acceptance remain PENDING**. T3 readiness was temporarily deferred by owner for this branch only, not marked PASS.
+**Current status**: Cloud static T4 review and risk ledger completed on 2026-11-10 (audit updated at commit `2c910689c0c4fd715a392b580955e6f4e52e89a5`). Genuine independent T4 security assessment remains PENDING; this task is not fully closed. [B2.A3 audit](../audit/dubbridge-fenix-b2a3-security-verification-2026-11-09.md) reconciles real T3 SQLite HTTP QA PASS, published branch SHA and additional out-of-T3 global gate repairs. The T3 code reviewer PASS is reported in [#7](https://github.com/krukmat/fenix/issues/7#issuecomment-6752968464). Formal **T4 independent security assessment and any production acceptance remain PENDING**. T3 readiness was temporarily deferred by owner for this branch only, not marked PASS.
 **RRI**: N/A (cloud, DB-FENIX-INT). Independent security reviewer and owner HITL for any actual security changes remain mandatory.
 **Owner of task**: ChatGPT Cloud (audit, evidence reconciliation, risk ledger, documented handoff). Local agent only executes verification or reviewer commands that require the Mac environment. Owner retains production and security acceptance authority.
 
@@ -34,6 +34,19 @@ completed: null
 The real SQLite authentication and S2S guard integration matrix has Go 1.25.13 test/race/vet and new-lint PASS reported on published feature branch `acafa3d`. The full local Go prepush script also returned PASS after separate 26-file formatting and cross-cutting gate refactors; traceability and govulncheck were not exercised. These reports are linked in [#7](https://github.com/krukmat/fenix/issues/7#issuecomment-6752968464).
 
 Before signing off security: obtain T4-specific **independent** review of the current exact branch diff, including the non-T3 modifications under `43d935c` and `acafa3d`, confirm B2.C missing persisted operation resolver is intentionally default-deny, and preserve no production route/credential/deployment. No independent T4 verdict is claimed in this report. Readiness deferral for the feature branch is not a production-review exception.
+
+## Cloud T4 delivery checkpoint (2026-11-10)
+
+Cloud-authored [source-backed T4 findings T4-G1, T4-R1..R5, E1/E2, P1](../audit/dubbridge-fenix-b2a3-security-verification-2026-11-09.md#t4-cloud-static-source-audit--2026-11-10) identify exact code changes and dependencies. Go source checkpoint acafa3d3b59f0539b7fbc5ec3114a43c332bce80; local QA/reviewer evidence originates in [T3 issue #7](https://github.com/krukmat/fenix/issues/7#issuecomment-6752968464). Source diff verified against 43d935c4288a565b6c4d202208ebef16cc35e012; ten production Go files changed in the QA remediation, with no new routes or embedded migrations.
+
+Cloud-owned tasks completed:
+1. Reviewed isolated S2S auth source, SQLite credential state, GET/status default-deny and actual T3 test code.
+2. Audited T3 reported Go 1.25.13 evidence and cross-cutting QA cleanup commit structure.
+3. Classified unimplemented controls by **B2.C**, **B2.D**, **B2.B4**, **B2.A4**, **B5/B6** ownership and acceptance gates.
+4. Recorded why reported peer PASS is not demonstrably a T4 independent exact-diff verdict.
+5. Prepared release-safe A4 handoff: no credential, migration, router activation, live capability or merge.
+
+**Only outstanding gate inside this T4 task:** real independent security reviewer on the isolated QA refactor diff, plus recording exact path scope/verdict/artifact in [#8](https://github.com/krukmat/fenix/issues/8). No Cloud self-review can replace it. No Go reimplementation or repeated T1–T3 work is needed. Explicit human approval for any future production security boundary remains separate.
 
 ## Scope
 
