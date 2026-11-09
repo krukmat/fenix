@@ -17,11 +17,26 @@ B2.A2 repairs the existing Fenix credential store on the feature branch before a
 
 B2.A3.T1 prepares the isolated middleware authorization contract and independent readiness review. The current middleware authenticates a service bearer but leaves organization/project authorization to a separate optional helper. Future implementation must place mandatory source authorization before every S2S handler and operation lookup, preserve default-deny, and obtain task-scoped auth HITL before code changes. This planning step does not activate a route.
 
+## B2.A3 ownership and follow-up (2026-11-09)
+
+**Owner decision:** ChatGPT Cloud is the primary author and coordinator for B2.A3 tasks. The local agent performs only independent reviewer commands, Go 1.25.13 QA and environmental checks unavailable to Cloud. The owner is consulted only for task-scoped security/migration/deployment HITL, not routine Go test authoring. GitHub remains the sole canonical artifact location.
+
+| Task | Accountable | Execution split | State | Evidence |
+|---|---|---|---|---|
+| B2.A3.T1 readiness | ChatGPT Cloud | Cloud contract; local independent readiness | COMPLETE | [T1 record](../tasks/task_dubbridge_fenix_b2a3_middleware_readiness.md), [#5](https://github.com/krukmat/fenix/issues/5) |
+| B2.A3.T2 compulsory source guard | ChatGPT Cloud | Cloud source design; local Go QA and independent post-code review | OWNER_ACCEPTED_SCOPED; repo-wide QA debt #4 | [T2 record](../tasks/task_dubbridge_fenix_b2a3_mandatory_scope_guard.md), [#6](https://github.com/krukmat/fenix/issues/6) |
+| B2.A3.T3 real SQLite/httptest verification | ChatGPT Cloud | Cloud tests and docs after peer readiness; local independent readiness/review and Go 1.25.13 QA | PEER_READINESS_PENDING | [T3 record](../tasks/task_dubbridge_fenix_b2a3_sqlite_http_integration.md), [#7](https://github.com/krukmat/fenix/issues/7) |
+| B2.A3.T4 security evidence and B2.A4 handoff | ChatGPT Cloud | Cloud audit and recommendations; local independent reviewer only | BLOCKED_BY_T3 | [T4 record](../tasks/task_dubbridge_fenix_b2a3_security_handoff.md), [#8](https://github.com/krukmat/fenix/issues/8) |
+
+**Sequence:** T3 must obtain an independent task-readiness PASS before any test implementation; T4 must wait for T3 actual real-store test evidence and its own readiness review. B2.C owns durable operation lookup, so B2.A3 may certify GET/status **fail-closed with no resolver**, not production operation status. Neither T3 nor T4 authorizes a production route, credential, migration, capability, CI reactivation, deployment or main merge. Global QA debt remains [#4](https://github.com/krukmat/fenix/issues/4) without being mislabeled as PASS.
+
 ## Executable task
 
 - [B2.A2 security remediation](../tasks/task_dubbridge_fenix_b2a2_security_remediation.md): fix H1 rotation, H2 revocation, M1 runtime SQLite integration and tests, and H3 issues attributable to B2.A2. Run Go 1.25.13 and repository QA, then request independent post-code review.
 - [B2.A3.T1 middleware readiness](../tasks/task_dubbridge_fenix_b2a3_middleware_readiness.md): record the mandatory organization/project guard, negative authorization matrix, dependencies, and independent readiness verdict before any B2.A3 implementation.
-- [B2.A3.T2 mandatory scope guard](../tasks/task_dubbridge_fenix_b2a3_mandatory_scope_guard.md): keep the committed guard and review evidence; resolve repository-wide QA debt before claiming full acceptance or rollout readiness.
+- [B2.A3.T2 mandatory scope guard](../tasks/task_dubbridge_fenix_b2a3_mandatory_scope_guard.md): owner-accepted scoped implementation; independent code review and changed-code QA PASS, repo-wide debt separately tracked in #4. Do not imply rollout readiness.
+- [B2.A3.T3 real SQLite/httptest](../tasks/task_dubbridge_fenix_b2a3_sqlite_http_integration.md): independent readiness and local Go QA required; isolated real credential lifecycle and negative S2S matrix; no production route.
+- [B2.A3.T4 security audit/handoff](../tasks/task_dubbridge_fenix_b2a3_security_handoff.md): blocked by T3; reconcile exact evidence and prepare B2.A4, leaving B2.C and #4 independent.
 
 ## Acceptance
 
