@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -55,7 +56,7 @@ func (r *ToolRegistry) resolveRuntimeGovernance(
 	if r.planner != nil {
 		decision, err = r.planner.PlanCapability(ctx, descriptor, facts)
 		if err != nil {
-			return CapabilityRuntimeDecision{}, err
+			return CapabilityRuntimeDecision{}, fmt.Errorf("plan capability governance: %w", err)
 		}
 	}
 	if validationErr := validateRuntimeDecision(decision, facts); validationErr != nil {
@@ -242,7 +243,7 @@ func (r *ToolRegistry) recordRuntimeEvidence(
 		if strings.TrimSpace(result.State) == "" {
 			result.State = evidenceStateIndeterminate
 		}
-		return result, err
+		return result, fmt.Errorf("record capability evidence: %w", err)
 	}
 	if result.State == "verification_failed" {
 		return result, ErrCapabilityEvidenceVerificationFailed

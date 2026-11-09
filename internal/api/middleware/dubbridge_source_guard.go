@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"regexp"
@@ -99,7 +100,7 @@ func decodeDubBridgeEnvelope(payload []byte) (dubbridgeEnvelope, error) {
 	dec := json.NewDecoder(bytes.NewReader(payload))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&envelope); err != nil {
-		return dubbridgeEnvelope{}, err
+		return dubbridgeEnvelope{}, fmt.Errorf("decode DubBridge envelope: %w", err)
 	}
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
@@ -144,7 +145,7 @@ func collectDubBridgeUniqueKeys(dec *json.Decoder) (map[string]json.RawMessage, 
 func appendDubBridgeUniqueKey(dec *json.Decoder, fields map[string]json.RawMessage) error {
 	token, err := dec.Token()
 	if err != nil {
-		return err
+		return fmt.Errorf("decode DubBridge key: %w", err)
 	}
 	key, ok := token.(string)
 	if !ok {
@@ -155,7 +156,7 @@ func appendDubBridgeUniqueKey(dec *json.Decoder, fields map[string]json.RawMessa
 	}
 	var value json.RawMessage
 	if decodeErr := dec.Decode(&value); decodeErr != nil {
-		return decodeErr
+		return fmt.Errorf("decode DubBridge value: %w", decodeErr)
 	}
 	fields[key] = value
 	return nil

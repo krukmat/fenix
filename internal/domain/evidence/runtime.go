@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -260,7 +261,7 @@ func (r *RuntimeRecorder) reconcileIndeterminateRecord(
 	}
 	ref, lookupErr := r.sink.LookupEvidence(ctx, envelope.StreamID, envelope.ExecutionID)
 	if lookupErr != nil {
-		return ProofReference{}, lookupErr
+		return ProofReference{}, fmt.Errorf("lookup indeterminate evidence: %w", lookupErr)
 	}
 	if ref == nil {
 		return ProofReference{}, recordErr

@@ -109,10 +109,10 @@ func isNilDubBridgeDependency(value any) bool {
 
 func dubbridgeBearer(r *http.Request) (string, bool) {
 	const bearerPrefix = "Bearer "
-	if len(r.Header.Values("Authorization")) != 1 {
+	if len(r.Header.Values(authorizationHeader)) != 1 {
 		return "", false
 	}
-	raw := r.Header.Get("Authorization")
+	raw := r.Header.Get(authorizationHeader)
 	if !strings.HasPrefix(raw, bearerPrefix) || strings.Count(raw, bearerPrefix) != 1 {
 		return "", false
 	}
@@ -128,7 +128,7 @@ func authorizeDubBridgeRequest(w http.ResponseWriter, r *http.Request, ident dom
 	if r.Method == http.MethodGet {
 		return authorizeDubBridgeStatus(r, scope, resolver)
 	}
-	if r.Header.Get("Content-Type") != "application/json" {
+	if r.Header.Get(contentTypeHeader) != jsonMediaType {
 		return http.StatusUnsupportedMediaType
 	}
 	if r.Body == nil {
@@ -161,7 +161,7 @@ func writeDubBridgeS2SError(w http.ResponseWriter, status int) {
 	case http.StatusServiceUnavailable:
 		code = "PROVIDER_UNAVAILABLE"
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentTypeHeader, jsonMediaType)
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	if _, err := w.Write([]byte(`{"contract_version":"1","error_code":"` + code + `","message":"Request rejected"}`)); err != nil {

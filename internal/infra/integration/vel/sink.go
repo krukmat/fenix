@@ -103,15 +103,13 @@ func (s *Sink) newAppendRequest(
 func (s *Sink) executeAppend(request *http.Request) ([]byte, error) {
 	response, err := s.client.Do(request)
 	if err != nil {
-		return nil, evidence.NewIndeterminateRecordError(
-			fmt.Errorf("append VEL evidence: %w", err),
-		)
+		return nil, fmt.Errorf("append VEL evidence: %w", evidence.NewIndeterminateRecordError(err))
 	}
 	defer response.Body.Close()
 
 	responseRaw, err := readResponse(response)
 	if err != nil {
-		return nil, evidence.NewIndeterminateRecordError(err)
+		return nil, fmt.Errorf("read VEL append response: %w", evidence.NewIndeterminateRecordError(err))
 	}
 	if statusErr := validateAppendStatus(response.StatusCode, responseRaw); statusErr != nil {
 		return nil, statusErr
@@ -121,9 +119,8 @@ func (s *Sink) executeAppend(request *http.Request) ([]byte, error) {
 
 func validateAppendStatus(statusCode int, responseRaw []byte) error {
 	if statusCode >= http.StatusInternalServerError {
-		return evidence.NewIndeterminateRecordError(
-			fmt.Errorf("VEL append status %d", statusCode),
-		)
+		return fmt.Errorf("VEL append status %d: %w", statusCode,
+			evidence.NewIndeterminateRecordError(fmt.Errorf("append status %d", statusCode)))
 	}
 	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf(

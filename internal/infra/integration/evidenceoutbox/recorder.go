@@ -97,7 +97,11 @@ func (r *Recorder) deliverInteractive(
 	row deliveryRow,
 ) (tool.CapabilityEvidenceResult, error) {
 	if row.Proof != nil && hasUsableProofState(row.State) {
-		return evidence.RuntimeResultFromProof(row.Envelope, *row.Proof)
+		result, err := evidence.RuntimeResultFromProof(row.Envelope, *row.Proof)
+		if err != nil {
+			return result, fmt.Errorf("restore recorded evidence result: %w", err)
+		}
+		return result, nil
 	}
 	if row.State == evidence.DeliveryIndeterminate {
 		return r.lookupInteractive(ctx, row, false)
@@ -152,7 +156,11 @@ func (r *Recorder) finishInteractiveRecord(
 	}
 	telemetry.Default.IncLifecycle(metricDelivery, "recorded")
 	r.refreshPendingMetric(ctx)
-	return evidence.RuntimeResultFromProof(row.Envelope, ref)
+	result, err := evidence.RuntimeResultFromProof(row.Envelope, ref)
+	if err != nil {
+		return result, fmt.Errorf("complete recorded evidence result: %w", err)
+	}
+	return result, nil
 }
 
 func (r *Recorder) scheduleRetry(

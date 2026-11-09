@@ -46,14 +46,25 @@ func validScopePart(s string) bool {
 	return s != "" && len(s) <= 128 && !strings.ContainsAny(s, "\x00\r\n\t ")
 }
 
+func validCapabilityBinding(b S2SCapabilityBinding) bool {
+	return validScopePart(b.PrincipalID) && validScopePart(b.WorkspaceID) &&
+		len(b.CapabilityKey) <= 96 && capabilityKeyPattern.MatchString(b.CapabilityKey) &&
+		schemaVersionPattern.MatchString(b.InputSchemaVersion) && validCapabilityHandler(b)
+}
+
+func validCapabilityHandler(b S2SCapabilityBinding) bool {
+	return (!b.Enabled || validScopePart(b.HandlerID)) &&
+		(b.HandlerID == "" || validScopePart(b.HandlerID))
+}
+
+func availableCapabilityBinding(b S2SCapabilityBinding, schemaVersion string) bool {
+	return b.Enabled && b.HandlerID != "" && b.InputSchemaVersion == schemaVersion
+}
+
 // Register is ONLY a future operator API, not an HTTP self-registration path.
 // It never permits an enabled capability without a nonempty approved handler.
 func (r *S2SCapabilityRegistry) Register(b S2SCapabilityBinding) error {
-	if r == nil || !validScopePart(b.PrincipalID) || !validScopePart(b.WorkspaceID) ||
-		len(b.CapabilityKey) > 96 || !capabilityKeyPattern.MatchString(b.CapabilityKey) ||
-		!schemaVersionPattern.MatchString(b.InputSchemaVersion) ||
-		(b.Enabled && !validScopePart(b.HandlerID)) ||
-		(b.HandlerID != "" && !validScopePart(b.HandlerID)) {
+	if r == nil || !validCapabilityBinding(b) {
 		return ErrCapabilityConfiguration
 	}
 	r.mu.Lock()
@@ -74,7 +85,7 @@ func (r *S2SCapabilityRegistry) Resolve(principal, workspace, key, schemaVersion
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	b, ok := r.bindings[capabilityTuple(principal, workspace, key)]
-	if !ok || !b.Enabled || b.HandlerID == "" || b.InputSchemaVersion != schemaVersion {
+	if !ok || !availableCapabilityBinding(b, schemaVersion) {
 		return S2SCapabilityBinding{}, ErrCapabilityUnavailable
 	}
 	return b, nil

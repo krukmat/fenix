@@ -107,17 +107,13 @@ func (e *Executor) executeHTTPRequest(request *http.Request) (responseRaw []byte
 
 	response, err := e.client.Do(request)
 	if err != nil {
-		return nil, tool.NewRetryableCapabilityError(
-			fmt.Errorf("call Mermaid2SF provider: %w", err),
-		)
+		return nil, fmt.Errorf("call Mermaid2SF provider: %w", tool.NewRetryableCapabilityError(err))
 	}
 	defer response.Body.Close()
 
 	responseRaw, err = io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
 	if err != nil {
-		return nil, tool.NewRetryableCapabilityError(
-			fmt.Errorf("read Mermaid2SF response: %w", err),
-		)
+		return nil, fmt.Errorf("read Mermaid2SF response: %w", tool.NewRetryableCapabilityError(err))
 	}
 	if statusErr := validateHTTPResponse(response.StatusCode, responseRaw); statusErr != nil {
 		return nil, statusErr
@@ -127,9 +123,8 @@ func (e *Executor) executeHTTPRequest(request *http.Request) (responseRaw []byte
 
 func validateHTTPResponse(statusCode int, responseRaw []byte) error {
 	if statusCode >= http.StatusInternalServerError {
-		return tool.NewRetryableCapabilityError(
-			fmt.Errorf("Mermaid2SF provider status %d", statusCode),
-		)
+		return fmt.Errorf("Mermaid2SF provider status %d: %w", statusCode,
+			tool.NewRetryableCapabilityError(fmt.Errorf("provider status %d", statusCode)))
 	}
 	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("Mermaid2SF provider status %d: %s", statusCode, bodySummary(responseRaw))

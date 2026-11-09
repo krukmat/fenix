@@ -11,6 +11,12 @@ import (
 	pkgauth "github.com/matiasleandrokruk/fenix/pkg/auth"
 )
 
+const (
+	authorizationHeader = "Authorization"
+	contentTypeHeader   = "Content-Type"
+	jsonMediaType       = "application/json"
+)
+
 // AuthMiddleware validates the Bearer JWT token and injects claims into context.
 // Task 1.6.10: Used on all /api/v1/* routes except /auth/register and /auth/login.
 //
@@ -47,7 +53,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 // Returns empty string if header is missing, wrong scheme, or token is empty.
 // Extracted for testability and to reduce cyclomatic complexity of AuthMiddleware.
 func extractBearerToken(r *http.Request) string {
-	header := r.Header.Get("Authorization")
+	header := r.Header.Get(authorizationHeader)
 	if header == "" {
 		return ""
 	}
@@ -66,7 +72,7 @@ func extractBearerToken(r *http.Request) string {
 // writeUnauthorized writes a 401 JSON response.
 // Uses consistent format with writeError in handlers package.
 func writeUnauthorized(w http.ResponseWriter, message string) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentTypeHeader, jsonMediaType)
 	w.WriteHeader(http.StatusUnauthorized)
 	json.NewEncoder(w).Encode(map[string]string{"error": message}) //nolint:errcheck
 }

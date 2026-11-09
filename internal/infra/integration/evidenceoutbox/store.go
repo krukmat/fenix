@@ -138,7 +138,7 @@ func scanDelivery(scanner rowScanner) (deliveryRow, error) {
 		&state,
 		&row.Attempts,
 	); err != nil {
-		return deliveryRow{}, err
+		return deliveryRow{}, fmt.Errorf("scan delivery row: %w", err)
 	}
 	if err := json.Unmarshal([]byte(row.EnvelopeRaw), &row.Envelope); err != nil {
 		return deliveryRow{}, fmt.Errorf("decode envelope: %w", err)
