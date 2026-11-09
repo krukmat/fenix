@@ -191,3 +191,63 @@ func TestB2A3T3SQLiteNegativeTokensAndWire(t *testing.T){
     middleware.AuthMiddleware(http.HandlerFunc(func(http.ResponseWriter,*http.Request){hits++})).ServeHTTP(w,t3Req("GET",token,""))
     if w.Code!=401||hits!=0{t.Fatal("service credential accepted by human JWT")}
 }
+
+func TestB2A3T3SQLiteMalformedSourceAndClosedStore(t *testing.T) {
+	db, store := t3RealStoreDB(t)
+	t3Identity(t, store, "p1", "w1", "org-one", "project-one")
+	now := time.Now().UTC()
+	bearer := t3Credential(t, store, "c1", "p1", now.Add(-time.Hour), now.Add(time.Hour))
+	body := t3JSON("org-one", "project-one", "")
+
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(body), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	delete(envelope, "source")
+	missingSource, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelope["source"] = json.RawMessage("null")
+	nullSource, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A duplicated top-level assertion must not be interpreted differently
+	// by the guard and its future downstream envelope consumer.
+	duplicateSource := strings.TrimSuffix(body, "}") +
+		`,"source":{"product":"dubbridge","org_id":"org-one","project_id":"project-one"}}`
+	duplicateOrg := `{"contract_version":"1","operation_id":"operation_123456789","capability_key":"integration.diagnostic","input_schema_version":"1","trace_id":"trace_12345678","source":{"product":"dubbridge","org_id":"org-one","org_id":"org-two","project_id":"project-one"},"input":{}}`
+
+	for _, payload := range []string{
+		string(missingSource),
+		string(nullSource),
+		duplicateSource,
+		duplicateOrg,
+		`{"source":true}`,
+	} {
+		t3Check(t, db, store, t3Req("POST", bearer, payload), 400, 0, bearer)
+	}
+
+	wrongType := t3Req("POST", bearer, body)
+	wrongType.Header.Set("Content-Type", "text/plain")
+	t3Check(t, db, store, wrongType, 415, 0, bearer)
+
+	// Closed storage must deny before the downstream handler, without a panic
+	// or leaking an opaque bearer into the response body.
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	spy := &t3Downstream{}
+	w := httptest.NewRecorder()
+	middleware.DubBridgeServiceAuth(store, nil, spy).ServeHTTP(
+		w, t3Req("POST", bearer, body),
+	)
+	if w.Code != http.StatusServiceUnavailable || spy.calls != 0 {
+		t.Fatalf("closed SQLite returned status=%d, calls=%d", w.Code, spy.calls)
+	}
+	if strings.Contains(w.Body.String(), bearer) {
+		t.Fatal("closed SQLite disclosed the service bearer")
+	}
+}
