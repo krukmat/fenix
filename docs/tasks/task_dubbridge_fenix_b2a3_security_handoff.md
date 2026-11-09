@@ -23,6 +23,7 @@ completed: null
 # B2.A3.T4 independent security verification and B2.A4 handoff
 
 **Plan**: [DubBridge to Fenix S2S security foundation](../plans/dubbridge_fenix_s2s_security_plan.md#current-direction).
+**Coordination issue**: [B2.A3.T4 #8](https://github.com/krukmat/fenix/issues/8).
 **Dependencies**: [T2 source guard](task_dubbridge_fenix_b2a3_mandatory_scope_guard.md), [T3 real SQLite HTTP tests](task_dubbridge_fenix_b2a3_sqlite_http_integration.md), [QA debt #4](https://github.com/krukmat/fenix/issues/4).
 **Current status**: PLANNED. Do not begin security acceptance or close B2.A3 while T3 tests and independent evidence are pending.
 **RRI**: N/A (cloud, DB-FENIX-INT). Independent security reviewer and owner HITL for any actual security changes remain mandatory.
