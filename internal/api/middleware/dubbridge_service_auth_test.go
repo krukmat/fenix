@@ -32,7 +32,7 @@ func TestDubBridgeServiceAuthIdentityAndScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	verifier := &verifierStub{ident: defaultIdentity()}
-	handler := DubBridgeServiceAuth(verifier, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := DubBridgeServiceAuth(verifier, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ident, ok := VerifiedDubBridgeIdentity(r.Context())
 		if !ok || ident.ID != "id" {
 			t.Fatal("no trusted identity")
@@ -52,8 +52,9 @@ func TestDubBridgeServiceAuthIdentityAndScope(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusAccepted)
 	}))
-	req := httptest.NewRequest(http.MethodGet, "/integrations/dubbridge/operations/op123", nil)
+	req := httptest.NewRequest(http.MethodPost, "/integrations/dubbridge/operations", strings.NewReader(s2sEnvelope(testSource("org", "project"), `{}`)))
 	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusAccepted || verifier.called != 1 {
@@ -82,7 +83,7 @@ func TestDubBridgeServiceAuthRejectsHumanAndMalformed(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			v := &verifierStub{ident: defaultIdentity()}
-			h := DubBridgeServiceAuth(v, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("handler invoked") }))
+			h := DubBridgeServiceAuth(v, nil, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("handler invoked") }))
 			req := httptest.NewRequest(http.MethodGet, "/integrations/dubbridge/operations/op123", nil)
 			if value != "" {
 				req.Header.Set("Authorization", value)
@@ -124,7 +125,7 @@ func TestDubBridgeServiceAuthUnavailableAndForbidden(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := DubBridgeServiceAuth(tt.verifier, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("called") }))
+			h := DubBridgeServiceAuth(tt.verifier, nil, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("called") }))
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.Header.Set("Authorization", "Bearer "+token)
 			rec := httptest.NewRecorder()
@@ -149,12 +150,12 @@ func TestDubBridgeServiceAuthPostBodyBounded(t *testing.T) {
 		want  int
 		hit   bool
 	}{
-		{DubBridgeS2SMaxRequestBytes, "application/json", 202, true},
+		{DubBridgeS2SMaxRequestBytes, "application/json", 400, false},
 		{DubBridgeS2SMaxRequestBytes + 1, "application/json", 413, false},
 		{10, "text/plain", 415, false},
 	} {
 		called := false
-		h := DubBridgeServiceAuth(&verifierStub{ident: defaultIdentity()}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := DubBridgeServiceAuth(&verifierStub{ident: defaultIdentity()}, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			called = true
 			body, err := io.ReadAll(r.Body)
 			if err != nil || len(body) != tc.size {
@@ -177,7 +178,7 @@ func TestDubBridgeServiceAuthNoHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := DubBridgeServiceAuth(&verifierStub{ident: defaultIdentity()}, nil)
+	h := DubBridgeServiceAuth(&verifierStub{ident: defaultIdentity()}, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
