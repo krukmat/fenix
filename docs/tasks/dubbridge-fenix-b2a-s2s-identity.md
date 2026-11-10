@@ -2,12 +2,18 @@
 doc_type: task
 id: DB-FENIX-B2A
 title: "B2.A — isolated S2S service identity, no workflow"
-status: readiness_proposed
+status: a2_owner_accepted_scoped_independent_security_pending
 date: 2026-10-31
 depends_on: DB-FENIX-B1
 ---
 
 # B2.A — Fenix service-principal security foundation
+
+## Current B2.A2 dependency checkpoint — 2026-11-10
+
+**Scoped technical baseline accepted, NOT security-certified.** The [2026-11-08 owner decision and Go 1.25.13 evidence in issue #3](https://github.com/krukmat/fenix/issues/3) explicitly accept B2.A2's feature-branch H1 atomic credential rotation/rollback, H2 revocation under clock skew and M1 real modernc SQLite migration **038** as technical inputs. At recorded source `87fd10d3e10658179d6f4ab626d33e2cf555539c`, focused `go test -race -count=3` and migration local rollback PASS were **reported by the local agent**; the broader QA failures were documented independently under [#4](https://github.com/krukmat/fenix/issues/4).
+
+**Scope distinction:** This supports branch-local B2.C1 migration 039 verification against the existing `service_principal` table. The [original independent 2026-11-06 FAIL](../audit/dubbridge-fenix-b2a2-independent-security-review-2026-11-06.md) is historical; remediation/owner acceptance do **not** constitute fresh independent B2.A2 security signoff, C1 readiness PASS or production authorization. [B2.A3.T4 #8](https://github.com/krukmat/fenix/issues/8) remains unreviewed independently; no live credentials, routes, deployment/CI or main merge.
 
 ## B2.A2 remediation checkpoint — 2026-11-06
 
