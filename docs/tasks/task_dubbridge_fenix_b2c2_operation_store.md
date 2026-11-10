@@ -90,6 +90,12 @@ commit; no agent execution, HTTP response or capability auto-registration
 - No production S2S gateway/route, credential, migration execution or real workflow.
 - Go 1.25.13 local tests/race/vet/lint and independent post-code review PENDING; never infer PASS from Cloud code publication.
 
+## C2 strict canonical digest input — 2026-11-10
+
+**Source candidate:** `CanonicalOperationDigest` now rejects byte sequences that are not valid UTF-8 before tokenizing JSON. `encoding/json` otherwise replaces invalid bytes with the Unicode replacement character, so distinct malformed byte streams can collapse onto an identical canonical digest. The existing normalized/duplicate-key/depth/node/size limits remain unchanged; this is not an RFC 8785 conversion.
+
+**Regression candidate:** `TestB2CCanonicalDigestLimitsAndDuplicateKeys` now feeds a malformed UTF-8 JSON string and requires `ErrServiceOperationInvalid`. No live ingress, capability registration or execution was added. Actual Go 1.25.13 and independent peer verdict are **NOT_RUN**.
+
 ## Task Card
 
 Task: DB-FENIX-B2.C2
