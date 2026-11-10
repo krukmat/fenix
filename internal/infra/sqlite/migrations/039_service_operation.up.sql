@@ -52,3 +52,11 @@ BEFORE UPDATE OF principal_id,operation_id,workspace_id,
     request_sha256,config_sha256,trace_id,created_at_unix
 ON service_operation
 BEGIN SELECT RAISE(ABORT,'service operation identity immutable'); END;
+
+-- A terminal outcome, including crash ambiguity, may not be silently reset
+-- to accepted. Future authorized recovery must create a distinct operation ID.
+CREATE TRIGGER service_operation_terminal_state
+BEFORE UPDATE OF status ON service_operation
+WHEN OLD.status IN ('succeeded','completed_with_warnings','abstained',
+                    'failed','denied','indeterminate') AND NEW.status<>OLD.status
+BEGIN SELECT RAISE(ABORT,'terminal service operation state immutable'); END;
