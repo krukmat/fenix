@@ -85,7 +85,7 @@ integration test migration version, constraints, wrong tenant, rollback
 
 **Reason**: the previous CHECK required a non-NULL run ID only after leaving `accepted` but allowed callers to fabricate one *while still accepted*, contrary to C1's inert/no-fake-run invariant. Only the existing feature-branch 039 up SQL and its test changed; no existing production migration was applied.
 
-**Verification**: static source change committed; real Go 1.25.13/modernc migration tests, independent readiness and peer review **NOT RUN** at this checkpoint. The reported prior C1 readiness `needs_changes` has not become a PASS.
+**Verification**: Static source change committed. An **isolated Python sqlite3 in-memory smoke** of the exact new CHECK-expression logic (not the embedded full 039 migration) exercised six state/run-id cases: **6/6 PASS** on ChatGPT's Linux environment. Real Go 1.25.13/modernc migration tests, independent readiness and peer review **NOT RUN** at this checkpoint. The reported prior C1 readiness `needs_changes` has not become a PASS.
 
 ## Acceptance
 
