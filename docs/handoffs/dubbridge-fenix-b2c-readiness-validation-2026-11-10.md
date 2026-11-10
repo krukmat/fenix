@@ -51,10 +51,11 @@ git branch --show-current
 git rev-parse HEAD
 git fetch origin feature/int-v2-dubbridge-consumes-fenix
 git rev-parse origin/feature/int-v2-dubbridge-consumes-fenix
-# Expected upstream: aa26ad747b167e2eea839745616c9fb6ae5f3b0b.
+# Confirm the upstream contains baseline aa26ad747b167e2eea839745616c9fb6ae5f3b0b.
 # Never reset/stash/stage the pre-existing .gitignore modification.
-# Only if a safe fast-forward leaves the local .gitignore untouched:
-git pull --ff-only origin feature/int-v2-dubbridge-consumes-fenix
+# Inspect divergence first; do not automatically pull on the owner's dirty worktree.
+git log --oneline -5 origin/feature/int-v2-dubbridge-consumes-fenix
+git diff -- .gitignore
 git status --short
 git rev-parse HEAD
 GOTOOLCHAIN=go1.25.13 go version
