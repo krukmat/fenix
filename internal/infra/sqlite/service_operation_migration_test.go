@@ -97,6 +97,36 @@ func TestB2CServiceOperationSchemaConstraints(t *testing.T) {
 			t.Fatalf("durable terminal record was modified: %s", mutation)
 		}
 	}
+	// Reproduce terminal run-id rewriting on a completed operation as well
+	// as on indeterminate rows, without changing the final row-count proof.
+	if _, err := db.Exec("SAVEPOINT b2c_terminal_completion"); err != nil {
+		t.Fatal(err)
+	}
+	completed := append([]any(nil), base...)
+	completed[1] = "operation_00000009"
+	if _, err := db.Exec(insert, completed...); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE service_operation
+        SET status='succeeded',run_id='real-run',updated_at_unix=2000000010
+        WHERE principal_id='b2c-p1' AND operation_id='operation_00000009'`); err != nil {
+		t.Fatal(err)
+	}
+	for _, mutation := range []string{
+		"UPDATE service_operation SET run_id='rewritten-run' WHERE operation_id='operation_00000009'",
+		"UPDATE service_operation SET updated_at_unix=2000000020 WHERE operation_id='operation_00000009'",
+		"DELETE FROM service_operation WHERE operation_id='operation_00000009'",
+	} {
+		if _, err := db.Exec(mutation); err == nil {
+			t.Fatalf("completed journal record was changed: %s", mutation)
+		}
+	}
+	if _, err := db.Exec("ROLLBACK TO b2c_terminal_completion"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("RELEASE b2c_terminal_completion"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.Exec(insert, []any{"b2c-p2", "operation_00000001", "b2c-w2", "org-2", "",
 		"integration.diagnostics", "1", bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32),
 		"trace_12345678", int64(2000000000), int64(2000000000)}...); err != nil {
