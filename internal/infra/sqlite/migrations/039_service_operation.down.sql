@@ -1,4 +1,6 @@
 -- LOCAL TEST ROLLBACK ONLY. Production rollback is destructive and needs HITL.
+DROP TRIGGER IF EXISTS service_operation_no_delete;
+DROP TRIGGER IF EXISTS service_operation_terminal_metadata_immutable;
 DROP TRIGGER IF EXISTS service_operation_terminal_state;
 DROP TRIGGER IF EXISTS service_operation_immutable_identity;
 DROP TRIGGER IF EXISTS service_operation_scope_insert;
