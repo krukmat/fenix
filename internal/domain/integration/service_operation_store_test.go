@@ -3,6 +3,7 @@ package integration_test
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,7 @@ import (
 )
 
 type b2cFixture struct {
-	db       interface{ Close() error }
+	db       *sql.DB
 	store    *integration.ServiceOperationStore
 	registry *integration.S2SCapabilityRegistry
 }
