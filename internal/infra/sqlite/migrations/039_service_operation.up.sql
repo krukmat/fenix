@@ -28,7 +28,8 @@ CREATE TABLE service_operation (
                          'succeeded','completed_with_warnings','abstained')
            OR (run_id IS NOT NULL AND length(run_id)>0)),
     CHECK ((lease_owner IS NULL AND lease_until_unix IS NULL)
-       OR (lease_owner IS NOT NULL AND length(lease_owner)>0 AND lease_until_unix>0)),
+       OR (lease_owner IS NOT NULL AND length(lease_owner)>0
+           AND lease_until_unix IS NOT NULL AND lease_until_unix>0)),
     -- A finalized/ambiguous outcome cannot retain or reacquire a worker lease.
     -- Inert C3 reconciliation always clears lease metadata before finalizing.
     CHECK (status NOT IN ('succeeded','completed_with_warnings','abstained',
@@ -67,3 +68,20 @@ BEFORE UPDATE OF status ON service_operation
 WHEN OLD.status IN ('succeeded','completed_with_warnings','abstained',
                     'failed','denied','indeterminate') AND NEW.status<>OLD.status
 BEGIN SELECT RAISE(ABORT,'terminal service operation state immutable'); END;
+
+-- Completed and ambiguous outcomes are immutable as an audit record.
+-- UPDATE of unrelated fields must not rewrite a terminal run/lease/timestamp.
+CREATE TRIGGER service_operation_terminal_metadata_immutable
+BEFORE UPDATE OF run_id,lease_owner,lease_until_unix,updated_at_unix ON service_operation
+WHEN OLD.status IN ('succeeded','completed_with_warnings','abstained',
+                    'failed','denied','indeterminate')
+ AND (NEW.run_id IS NOT OLD.run_id OR NEW.lease_owner IS NOT OLD.lease_owner
+      OR NEW.lease_until_unix IS NOT OLD.lease_until_unix
+      OR NEW.updated_at_unix IS NOT OLD.updated_at_unix)
+BEGIN SELECT RAISE(ABORT,'terminal service operation metadata immutable'); END;
+
+-- Until an explicit audited retention protocol is designed, deletion would
+-- break the principal/operation idempotency guarantee and permit re-reserve.
+CREATE TRIGGER service_operation_no_delete
+BEFORE DELETE ON service_operation
+BEGIN SELECT RAISE(ABORT,'service operation journal immutable'); END;
