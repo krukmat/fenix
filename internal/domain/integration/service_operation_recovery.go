@@ -105,7 +105,14 @@ func (s *ServiceOperationStore) MarkIndeterminate(
         SET status='indeterminate',lease_owner=NULL,lease_until_unix=NULL,updated_at_unix=?
         WHERE principal_id=? AND operation_id=? AND workspace_id=?
           AND dubbridge_org_id=? AND dubbridge_project_id=?
-          AND status='accepted' AND lease_owner=?`,
+          AND status='accepted' AND lease_owner=?
+          AND EXISTS (
+             SELECT 1 FROM service_principal p WHERE p.id=service_operation.principal_id
+               AND p.consumer='dubbridge' AND p.status='active'
+               AND p.revoked_at_unix IS NULL AND p.workspace_id=service_operation.workspace_id
+               AND p.dubbridge_org_id=service_operation.dubbridge_org_id
+               AND COALESCE(p.dubbridge_project_id,'')=service_operation.dubbridge_project_id
+          )`,
 		now.Unix(), scope.PrincipalID, operationID, scope.WorkspaceID,
 		scope.OrgID, scope.ProjectID, workerID)
 	if err != nil {
