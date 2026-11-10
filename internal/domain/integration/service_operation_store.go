@@ -171,7 +171,9 @@ func readServiceOperation(
         JOIN service_principal p ON o.principal_id=p.id
         WHERE o.principal_id=? AND o.operation_id=? AND o.workspace_id=?
           AND o.dubbridge_org_id=? AND o.dubbridge_project_id=?
-          AND p.status='active' AND p.revoked_at_unix IS NULL AND p.consumer='dubbridge'`,
+          AND p.status='active' AND p.revoked_at_unix IS NULL AND p.consumer='dubbridge'
+          AND p.workspace_id=o.workspace_id AND p.dubbridge_org_id=o.dubbridge_org_id
+          AND COALESCE(p.dubbridge_project_id,'')=o.dubbridge_project_id`,
 		scope.PrincipalID, operationID, scope.WorkspaceID, scope.OrgID, scope.ProjectID).Scan(
 		&record.Scope.PrincipalID, &record.OperationID, &record.Scope.WorkspaceID,
 		&record.Scope.OrgID, &record.Scope.ProjectID,
