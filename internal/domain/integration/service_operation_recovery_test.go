@@ -166,3 +166,41 @@ func TestB2CLeaseRejectsHandlerChange(t *testing.T) {
 		t.Fatalf("handler change accepted old operation: claimed=%v err=%v", claimed, err)
 	}
 }
+
+func TestB2CRevokedPrincipalExpiredLeaseReconciles(t *testing.T) {
+	f := newB2CFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	req := b2cRequest(t, "b2c-p1", "b2c-w1", "org1", "project1", "operation_00000015")
+	if _, _, err := f.store.Reserve(ctx, req, f.registry, now); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := f.store.AcquireLease(ctx, req.Scope, req.OperationID,
+		"worker-revoked", f.registry, now, time.Minute)
+	if err != nil || !claimed {
+		t.Fatalf("initial claim failed: claimed=%v err=%v", claimed, err)
+	}
+	if err := domainauth.NewServiceCredentialStore(f.db).RevokeServicePrincipal(
+		ctx, req.Scope.PrincipalID, now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.Lookup(ctx, req.Scope, req.OperationID); !errors.Is(err, integration.ErrServiceOperationDenied) {
+		t.Fatalf("revoked principal could read operation: %v", err)
+	}
+	changed, err := f.store.ReconcileExpiredLeases(ctx, now.Add(2*time.Minute))
+	if err != nil || changed != 1 {
+		t.Fatalf("revoked principal's expired lease not reconciled: rows=%d err=%v", changed, err)
+	}
+	// Reconciliation is a Fenix-owned audit action; it does not restore
+	// credential access to the operation or schedule another agent run.
+	var count int
+	if err := f.db.QueryRow(`SELECT COUNT(*) FROM service_operation
+		WHERE principal_id=? AND operation_id=? AND status='indeterminate'
+		  AND lease_owner IS NULL AND lease_until_unix IS NULL`,
+		req.Scope.PrincipalID, req.OperationID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("expired revoked lease not safely finalized: rows=%d err=%v", count, err)
+	}
+	if _, err := f.store.Lookup(ctx, req.Scope, req.OperationID); !errors.Is(err, integration.ErrServiceOperationDenied) {
+		t.Fatalf("reconciliation restored revoked principal access: %v", err)
+	}
+}
