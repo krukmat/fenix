@@ -18,6 +18,18 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## Current C1–C3 source work completed in Cloud — 2026-11-10
+
+**Scope:** Only C1–C3 were changed. This is an unvalidated feature-branch candidate and **not** a code/release PASS.
+
+| Task | Concrete Cloud change | Evidence still needed |
+|---|---|---|
+| C1 | Tightened embedded SQLite 039 checks so `accepted` cannot hold a fabricated `run_id`, and run-required states cannot store an empty `run_id`; added two negative migration assertions | Real Go 1.25.13 modernc, readiness and independent code review |
+| C2 | Corrected replay equality to compare immutable `trace_id`; added mismatched-trace conflict test even if the digest is incorrectly reused | Real Go 1.25.13 focused/race, readiness and independent code review |
+| C3 | Added revoked-principal/expired-lease reconciliation regression: `indeterminate`, cleared lease, lookup denied | Real Go 1.25.13 focused/race, readiness and independent code review |
+
+The new code/test diff is bounded to five paths: `internal/infra/sqlite/migrations/039_service_operation.up.sql`, `internal/infra/sqlite/service_operation_migration_test.go`, `internal/domain/integration/service_operation_store.go`, `internal/domain/integration/service_operation_store_test.go`, `internal/domain/integration/service_operation_recovery_test.go`. **No C4 source, production HTTP route, CI, credential, operator action or merge**. The existing C1 readiness `needs_changes` remains pending re-review; the work performed does not waive it.
+
 ## Current execution baseline — B2.C1–C3 only (2026-11-10)
 
 **Goal:** complete and independently verify the *inert*, Fenix-owned durable S2S operation foundation; no production integration, status endpoint or agent workflow is activated. The current block is **B2.C1–C3**. B2.C4 is deferred and never a prerequisite for bounded C1–C3 source acceptance. The independent security verification in [#8](https://github.com/krukmat/fenix/issues/8) is tracked separately for the auth/release boundary.
