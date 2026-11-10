@@ -65,6 +65,14 @@ for status lookup:
 no background goroutine, worker launch, real execution or active route
 ```
 
+## Cloud C3 bounded regression coverage — 2026-11-10
+
+**Candidate change**: `TestB2CRevokedPrincipalExpiredLeaseReconciles` now covers an accepted operation whose one-shot lease has been acquired, whose owning principal is subsequently revoked and whose lease expires. The test expects a Fenix-owned reconciliation to mark the row `indeterminate`, clear lease metadata and **not** restore principal lookup permission or create a real run.
+
+**Reason**: `ReconcileExpiredLeases` is an explicit audit/recovery primitive that may finalize an already-leased row after credential or principal revocation. Without this regression case the negative lookup test did not establish conservative crash cleanup after revocation. No production implementation change was required for C3.
+
+**Verification**: test candidate committed; real Go 1.25.13 modernc/race and independent review **NOT RUN**. Status and code remain source-candidate, not certified.
+
 ## Acceptance
 
 - Only one lease acquisition from a fresh accepted operation; concurrent attempts yield one winner.
