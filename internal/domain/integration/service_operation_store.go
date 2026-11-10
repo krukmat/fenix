@@ -125,8 +125,7 @@ func validOperationReservation(req ServiceOperationRequest, now time.Time) bool 
 		return false
 	}
 	var empty [sha256.Size]byte
-	return subtle.ConstantTimeCompare(req.RequestSHA256[:], empty[:]) != 1 &&
-		subtle.ConstantTimeCompare(req.ConfigSHA256[:], empty[:]) != 1
+	return subtle.ConstantTimeCompare(req.RequestSHA256[:], empty[:]) != 1
 }
 
 func reserveOperationRow(ctx context.Context, conn *sql.Conn, req ServiceOperationRequest, now time.Time) (bool, error) {
