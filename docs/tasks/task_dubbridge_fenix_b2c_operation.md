@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2C
 title: "B2.C — durable S2S operation idempotency proposal"
-status: c1_readiness_needs_changes_recheck_c1_c3_qa_pending
+status: source_published_scoped_qa_pass_reported_peer_provenance_pending
 phase: integration
 week: "2026-W45"
 tags: [dubbridge, fenix, s2s, sqlite, idempotency]
@@ -30,7 +30,12 @@ completed:
 
 **C1–C3 remain open/source-candidate.** Two independent local validations of the previous `e8c307c7` source returned `needs_changes` and QA FAIL. ChatGPT subsequently published bounded SQL/schema (F1, N2, N3), canonical JSON (N1) and Go lint/complexity/rollback-handling candidate fixes. None of the **new** Go 1.25.13/readiness/peer gates have been executed or passed. The execution artifact is [B2.C C1–C3 fixpack](../handoffs/dubbridge-fenix-b2c-fixpack-2026-11-10.md). **C4 deferred and non-blocking.** Keep #8 security and global documentation QA in separate workstreams; no production activation.
 
-# Task DB-FENIX-B2C
+# Task 
+**Latest Cloud evidence reconciliation (2026-11-10; supersedes historical PENDING notes below):**
+QA and scoped independent review were **reported PASS** for the effective local tree in [#9 final validation](https://github.com/krukmat/fenix/issues/9#issuecomment-6777960499): Go 1.25.13, focused/race/vet/full/prepush and C1–C3 peer verdicts, with traceability and govulncheck legitimately skipped. The originally uncommitted store/digest fixes and server race-test relaxation were subsequently **published** on the same branch as commit [`e53fad7`](https://github.com/krukmat/fenix/commit/e53fad7f54fba46af00d9f2b7e6e287b217479ad). This is no longer an unpublished-overlay task.
+
+**Remaining evidence caveat:** the recorded peer PASS used `peer-codex`, whereas the current reviewer routing normally uses a local critical primary; the final report does not establish an eligible fallback. The published HEAD has not been verified by an independent clean-clone rerun, so **formal gate-policy closure is not asserted**. ChatGPT Cloud can continue inert B2.D design independently. No extra local execution is requested or scheduled. Production approval and T4 remain separate.
+
 
 ### C2/C3 follow-up source work
 
