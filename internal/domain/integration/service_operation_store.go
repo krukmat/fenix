@@ -135,10 +135,8 @@ func validOperationScope(scope ServiceOperationScope) bool {
 }
 
 func validOperationReservation(req ServiceOperationRequest, now time.Time) bool {
-	if !validOperationScope(req.Scope) {
-		return false
-	}
-	if !b2cOperationIDPattern.MatchString(req.OperationID) ||
+	if !validOperationScope(req.Scope) ||
+		!b2cOperationIDPattern.MatchString(req.OperationID) ||
 		!b2cTraceIDPattern.MatchString(req.TraceID) ||
 		req.CapabilityKey == "" || req.SchemaVersion == "" || now.Unix() <= 0 {
 		return false
