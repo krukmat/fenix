@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2.C4
 title: "B2.C4 scoped operation GET/status resolver and isolated HTTP integration"
-status: planned_blocked_by_b2a3_t4_security_gate_and_c1_c3_qa
+status: deferred_out_of_current_scope_no_release_authorization
 phase: B2.C
 week: 2026-W46
 tags: [dubbridge, fenix, s2s, sqlite, status, authorization]
@@ -10,7 +10,7 @@ fr_refs: []
 uc_refs: []
 traceability_scope: integration_infrastructure_no_product_fr_uc
 blocked_by: [DB-FENIX-B2.A3.T4, DB-FENIX-B2.C1, DB-FENIX-B2.C2, DB-FENIX-B2.C3]
-blocks: [DB-FENIX-B2.D]
+blocks: []
 files_affected:
   - internal/api/middleware/dubbridge_operation_resolver.go
   - internal/api/middleware/dubbridge_operation_resolver_test.go
@@ -28,6 +28,7 @@ completed: null
 **Owner approval**: C1–C4 plan approved 2026-11-10; no public route, credential, production migration or deployment authorized.
 **Precondition**: [B2.A3.T4 independent security assessment](task_dubbridge_fenix_b2a3_security_handoff.md) + real C1–C3 Go tests/review. Until then GET/status must remain default-deny.
 **Owner**: ChatGPT Cloud; local agent only Go/race/reviewer CLI.
+**Scheduling decision (2026-11-10)**: The operator deferred C4 from the current execution scope. It is **NOT a prerequisite** for C1–C3 branch QA, independent review, bounded closure or non-status B2.D planning. Do not run C4 reviews/implementation now. Its existing T4/security + C1–C3 gates continue to apply **if C4 is resumed**; GET/status remains default-deny and full status-based interoperability/rollout cannot be claimed.
 
 ## Requirements traceability (2026-11-10)
 
