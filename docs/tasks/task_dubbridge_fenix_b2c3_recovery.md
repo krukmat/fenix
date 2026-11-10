@@ -65,6 +65,8 @@ for status lookup:
 no background goroutine, worker launch, real execution or active route
 ```
 
+**Additional capability-denial regression:** `TestB2CLeaseRejectsDisabledCapability` creates an accepted operation, disables its registry capability and confirms no worker can acquire a lease and no lease metadata changes. This is a source candidate with **Go 1.25.13 tests and independent peer review pending**; it does not add a runtime dispatcher or operator endpoint.
+
 ## C3 follow-up: revocation/update atomicity — 2026-11-10
 
 **Implementation candidate:** `MarkIndeterminate` now repeats the persisted active Fenix principal/consumer/workspace/org/project check **inside the conditional `UPDATE`**, in addition to the existing `Lookup` check. This narrows the time-of-check/time-of-use window if a principal is revoked after lookup but before its leasing worker records ambiguity. An explicit Fenix-owned `ReconcileExpiredLeases` remains able to mark expired operations of revoked principals `indeterminate` for audit, without restoring caller access.
