@@ -50,6 +50,8 @@ func TestB2CServiceOperationSchemaConstraints(t *testing.T) {
 		"UPDATE service_operation SET dubbridge_org_id='other'",
 		"UPDATE service_operation SET request_sha256=zeroblob(32)",
 		"UPDATE service_operation SET status='running'",
+		"UPDATE service_operation SET run_id='fabricated-run'",
+		"UPDATE service_operation SET status='running',run_id=''",
 		"UPDATE service_operation SET lease_owner='worker'",
 	} {
 		if _, err := db.Exec(change); err == nil {
