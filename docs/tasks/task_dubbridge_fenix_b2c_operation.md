@@ -32,14 +32,16 @@ completed:
 
 **Coordination**: [#9](https://github.com/krukmat/fenix/issues/9). **Branch**: `feature/int-v2-dubbridge-consumes-fenix`. Owner approved C1–C4 task plan; no production migration, credential, route, CI reactivation, agent/model execution or main merge.
 
+**Current operator scope (2026-11-10): C1–C3 ONLY.** C4 status adapter is explicitly **DEFERRED**, not a blocker for verifying/closing C1–C3 or starting independently scoped follow-on planning. Keep GET/status default-deny. Do not assert that deferral authorizes live status, B4 status E2E or production rollout; these need a later C4 or separately approved equivalent.
+
 | Task | Accountable | Implementation | State |
 |---|---|---|---|
 | [C1 schema](task_dubbridge_fenix_b2c1_sqlite_schema.md) | ChatGPT Cloud | Embedded reversible migration **039** with active-Fenix-scope trigger, immutable fields and real SQLite Go test authored. Synthetic Python sqlite schema/negative/rollback verification PASS, not real `go test` | BRANCH_CANDIDATE / Go 1.25.13 QA + peer PENDING |
 | [C2 store](task_dubbridge_fenix_b2c2_operation_store.md) | ChatGPT Cloud | Atomic `BEGIN IMMEDIATE`/INSERT SELECT from active principal, exact scope, typed replay/conflict, Fenix registry-owned config fingerprint, bounded duplicate-safe canonical JSON, concurrent tests authored | BRANCH_CANDIDATE / Go 1.25.13 QA + peer PENDING |
 | [C3 recovery](task_dubbridge_fenix_b2c3_recovery.md) | ChatGPT Cloud | One-shot lease, explicit indeterminate on ambiguity/expiry, scoped lookup and no auto-dispatch; real SQLite concurrency/revocation tests authored | BRANCH_CANDIDATE / Go 1.25.13 QA + peer PENDING |
-| [C4 status](task_dubbridge_fenix_b2c4_status_resolver.md) | ChatGPT Cloud | Adapter/HTTP test contract only. Real GET/status remains default-deny until B2.A3.T4 security verdict and C1–C3 QA | BLOCKED / NOT IMPLEMENTED |
+| [C4 status](task_dubbridge_fenix_b2c4_status_resolver.md) | ChatGPT Cloud, later | Documentation only; GET/status remains default-deny | **DEFERRED / NON-BLOCKING FOR C1–C3** |
 
-**Security and evidence limits**: Published B2.C code is unvalidated by local Go/reviewer; branch migrations are not production migrations, and task-readiness has not been independently executed or waived for B2.C. Do not mark C1–C3 PASS or closed. The old docs/contracts SQLite schema remains historical proposal-only: source of truth for **candidate implementation** is embedded `039`. Production operation acceptance must also await B2.B4 operator capability policy, B2.C4 scoped status and B2.D transport/rate/response controls.
+**Security and evidence limits**: Published B2.C code is unvalidated by local Go/reviewer; branch migrations are not production migrations, and task-readiness has not been independently executed or waived for B2.C. Do not mark C1–C3 PASS or closed. The old docs/contracts SQLite schema remains historical proposal-only: source of truth for **candidate implementation** is embedded `039`. Any later production status-enabled integration must still satisfy B2.B4 operator capability policy, C4 (or a separately accepted equivalent), B2.D transport/rate/response controls and rollout/security HITL. **These are not exit gates for the inert C1–C3 source-only block.**
 
 ## Readiness reconciliation and evidence handoff — 2026-11-10
 
@@ -55,13 +57,11 @@ At `6772905649d8390b4943273f4e52416696194087`, the owner reported C1 readiness `
 |---|---|---|---|
 | CF1 | ChatGPT Cloud | Review C1–C3 source, schema transitions, scope, immutable request identity, lease/revoke and tests; classify findings without claiming Go PASS | Source-backed static audit and bounded patch list |
 | CF2 | ChatGPT Cloud | Correct source/test issues identified by CF1 when authorized by task-readiness governance; extend negative fixtures; do not enable routes or runtime | Published feature-branch code candidates and exact changed-file inventory |
-| CF3 | ChatGPT Cloud | Finish C4 design, interface mapping and real-SQLite test matrix only; do not implement or wire C4 while security/QA dependency is open | Ready-to-execute C4 task, default-deny retained |
-| CF4 | ChatGPT Cloud | Freeze candidate SHA, reconcile task/plan/#9 and produce a single exact validation packet for the local agent | Minimal local handoff |
-| LG1 | Local agent | After CF1–CF4, run actual Go 1.25.13 fmt, focused tests, race, vet, full prepush and independent C1–C3 task-readiness/post-code-review | Command logs, SHA, real reviewer verdict and path list |
-| LG2 | Independent local security reviewer | Verify B2.A3.T4 exact security diff in #8, independently of C1–C3 review | Real T4 security verdict/artifact |
-| CF5 | ChatGPT Cloud | Remedy LG1/LG2 findings; repeat local gates only for affected scope | Updated candidate SHA and evidence reconciliation |
-| CF6 | ChatGPT Cloud, conditionally | Implement unmounted C4 adapter/status projection **only after** C1–C3 QA and T4 security acceptance | C4 source candidate; no production route |
-| LG3 | Local agent + reviewer | Run focused C4 tests/review on CF6 final SHA, with one necessary rerun after any patch | C4 certification packet; B2.C closure decision |
+| CF3 | ChatGPT Cloud | Freeze C1–C3 candidate SHA and reconcile task/plan/#9 for local verification | Minimal local handoff; C4 excluded |
+| LG1 | Local agent | Run C1–C3 Go 1.25.13 fmt/tests/race/vet/prepush, independent readiness and code review | Genuine verdict/logs; no C4 gate |
+| LG2 | Independent security reviewer | Separately review B2.A3.T4 exact diff in #8 (remains pending) | Security evidence, not a prerequisite for inert C1–C3 source-only closure |
+| CF4 | ChatGPT Cloud | Remedy actual C1–C3 findings and document bounded closure when their gates PASS | C1–C3 complete or still pending; C4 stays deferred |
+| NEXT | ChatGPT Cloud | Prepare only non-status B2.D follow-on tasks, subject to independent gates | No GET/status handler or production integration |
 
 **Gate policy**: Sequence is about minimizing local agent implementation, not bypassing independent peer task-readiness, post-code review or owner HITL. If a mandatory readiness gate is not available, CF2 may only prepare a patch/design; it cannot claim a completed task or bypass the gate. Existing Go source is a candidate, not a validated baseline. RRI remains N/A for this cloud integration.
 
@@ -69,9 +69,9 @@ At `6772905649d8390b4943273f4e52416696194087`, the owner reported C1 readiness `
 - The service store receives a precomputed request digest; HTTP B2.D must enforce digest-to-approved-envelope binding before calling Reserve, rather than trusting caller-supplied digests.
 - Current config fingerprint covers the registry binding tuple/handler, not future B2.B4 approved schema/policy/budget version. No dispatch until B2.B4.
 - Migration 039's local rollback test executes down SQL directly and does not establish an operational migrate-down/reapply procedure or production recovery. No destructive rollout.
-- C4 needs a thin adapter from `DubBridgeOperationResolver.LookupDubBridgeOperation` to scoped `ServiceOperationStore.Lookup` and a separate allowlisted status projection. It must not expose internal digests or mount a route.
+- C4 is deferred by owner; its previously outlined adapter remains only future design reference. Do not spend current QA/review cycles on it.
 
-**Next operational step**: complete CF1–CF4 and only then send LG1/LG2 with frozen SHAs and actual remaining findings.
+**Next operational step**: rerun independent C1 readiness, then C1–C3 Go QA and exact-scope independent code review. T4 security review is tracked separately. C4 must not appear as a dependency in this local validation packet.
 
 ## Historical checkpoint — 2026-11-05 (superseded by 2026-11-10 above)
 
@@ -93,7 +93,7 @@ Authorized DubBridge S2S principal -> authorized capability (B2.B) -> B2.C opera
 - B2.C1: principal-scoped idempotency key, unique SQLite operation row, exact digest equality on replay; same key/different request gives conflict.
 - B2.C2: run ID nullable during accepted state, required when running and on success. No fake workflow or agent runs.
 - B2.C3: crash/lease uncertainty must enter indeterminate; no automatic duplication of side effects.
-- B2.C4: complete real Go integration + testable deployment migration **only after** A2/A3 security, full QA and independent peer review.
+- B2.C4: **deferred at operator request**; it is not part of the present C1–C3 closure. If revived, separate security/QA/HITL are mandatory before any status functionality.
 
 At the historical 2026-11-05 checkpoint the schema lived only under docs/contracts. As of 2026-11-10, embedded migration 039 and Go source candidates exist on the feature branch, still without a live route or certified production reconciler.
 Do not claim exact-once side effects or a real integrated E2E test.
