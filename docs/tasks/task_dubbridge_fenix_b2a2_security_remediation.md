@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2A2-SECURITY-REMEDIATION
 title: "B2.A2 S2S credential store security remediation"
-status: pending_independent_security_review_pipeline_paused
+status: owner_accepted_scoped_independent_security_pending
 phase: B2.A
 week: 2026-W45
 tags: [dubbridge, fenix, s2s, security, sqlite]
@@ -74,6 +74,18 @@ test(): use migrated modernc SQLite; verify FK/scope, concurrent rotation, rollb
 - Go 1.25.13: focused unit and real SQLite tests, race/concurrency repetition, and rollback checks.
 - `scripts/qa-go-prepush.sh` plus focused H3 format/complexity/lint checks.
 - Independent post-code security review with a scoped diff. Report PASS/FAIL for every gate and pending blockers.
+
+## Owner-accepted scoped dependency evidence — 2026-11-08
+
+**Source of acceptance:** [B2.A2 evidence and owner decision, issue #3](https://github.com/krukmat/fenix/issues/3). The owner's comment on 2026-11-08 expressly **accepted the scoped B2.A2 security implementation** as the feature-branch technical baseline, not as an independent security verdict or a formal `WAIVER:` under ADR-037.
+
+- H1 atomic rotation and rollback: **PASS reported** under local Go 1.25.13 / modernc / race x3 at `87fd10d3e10658179d6f4ab626d33e2cf555539c`.
+- H2 clock-skew-safe revocation: **PASS reported** at the same checkpoint.
+- M1 embedded migration **038**, service principal and credential schema, isolated local rollback: **PASS reported**.
+- H3 attributable to B2.A2: no remaining source-specific fmt/complexity/lint/wrapcheck errors in the recorded matrix; aggregate QA and govulncheck remained non-PASS with separate issue [#4](https://github.com/krukmat/fenix/issues/4).
+- Original independent security review [FAIL at `376209e`](../audit/dubbridge-fenix-b2a2-independent-security-review-2026-11-06.md) remains historical and was not converted to PASS. A fresh independent B2.A2/T4 security acceptance and production authorization are **still pending**.
+
+**Dependency use by B2.C1:** the branch-scoped B2.A2 SQLite/identity *source prerequisite* exists and was accepted by the owner, permitting review and local QA of inert operation migration 039. This does **not** satisfy C1's own independent readiness/Go/post-code gates, and does not authorize any production schema activation, credential, route, CI or merge. Record this distinction rather than labeling B2.A2 either wholly absent or fully security-certified.
 
 ## Current checkpoint
 
