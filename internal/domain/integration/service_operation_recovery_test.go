@@ -203,4 +203,8 @@ func TestB2CRevokedPrincipalExpiredLeaseReconciles(t *testing.T) {
 	if _, err := f.store.Lookup(ctx, req.Scope, req.OperationID); !errors.Is(err, integration.ErrServiceOperationDenied) {
 		t.Fatalf("reconciliation restored revoked principal access: %v", err)
 	}
+	var runCount int
+	if err := f.db.QueryRow("SELECT COUNT(*) FROM agent_run").Scan(&runCount); err != nil || runCount != 0 {
+		t.Fatalf("reconciliation created agent run: count=%d err=%v", runCount, err)
+	}
 }
