@@ -85,10 +85,7 @@ status: active
     verdict, also record `Waiver: "<verbatim WAIVER: ... text>"`,
     `Waiver scope: <gate name + task/action identifier>`,
     `Waived verdict: <artifact path/status overridden>`, and
-    `Waiver timestamp: <ISO 8601>` in the same report. For `critical` tasks,
-    the primary cross-agent reviewer still governs the exit code; the
-    additional local advisory review described below is additive and never
-    substitutes for the primary reviewer's blocking verdict. Peer review does
+    `Waiver timestamp: <ISO 8601>` in the same report. The assigned independent local reviewer governs the verdict. Peer review does
     not replace RRI/HITL human approval, and neither does a waiver.
 11. **Sync status** - update materially affected task, plan, ADR, dashboard,
     handoff, or audit artifacts before reporting completion.
@@ -203,48 +200,29 @@ Agent entrypoints should stay thin:
 
 ## Peer review
 
-Provider-aware reviewer resolution. The caller is the agent or CLI that is
-executing the task. The reviewer is the independent peer that checks the work.
+The assigned independent local reviewer is primary for callers identified as
+`codex`, `claude-code`, or `remote-provider`. Standard tasks use
+`FENIX_REVIEW_MODEL` (default `gemma4:26b-a4b-it-qat`); critical tasks use
+`FENIX_REVIEW_CRITICAL_MODEL` (default `qwen3.6:35b-a3b`). Readiness uses the
+criticality declared in task frontmatter; post-code review uses `--criticality`.
+A local or unknown author is blocked until independence can be established;
+the current interface cannot identify the local author model. This is a security
+control: the gate cannot prove that the reviewer differs from the author, so it
+must not issue a PASS for a `local-provider` or `unknown` caller.
 
-| Caller provider | Reviewer |
-|---|---|
-| `claude-code` | Codex |
-| `codex` | Claude Code |
-| `local-provider` (any local model) | Claude Code |
-| `remote-provider` (any remote model except Claude Code) | Claude Code |
-| `unknown` | Claude Code |
+For critical tasks Qwen is now the blocking primary reviewer; the previous
+additional, non-blocking Qwen advisory attempt is removed. Its verdict now
+directly determines the gate unless an allowed infrastructure fallback occurs.
 
-**Fallback reviewer policy:**
-
-- The primary reviewer must always run first. A local-model fallback reviewer is
-  permitted only after the primary reviewer returns a blocked condition caused by
-  timeout or reviewer unavailability.
-- The fallback reviewer is a backup path, not a normal reviewer selection. It
-  must be recorded explicitly in the review artifact together with the primary
-  reviewer failure that triggered it.
-- A fallback verdict does not relax the fail-closed contract. Invalid fallback
-  output, missing fallback infrastructure, or another blocked fallback attempt
-  still produce a blocked artifact, and a blocked artifact is a hard stop (see
-  Failure modes below) — it is never an acceptable terminal state to present or
-  close against.
-
-**Critical-task advisory reviewer policy:**
-
-- The fallback reviewer policy above is unchanged for normal blocking review.
-- For `post-code-review` runs with `--criticality critical`, run the primary
-  cross-agent reviewer first exactly as usual and keep its verdict as the only
-  exit-code-governing result.
-- After the primary reviewer completes, run one additional advisory-only local
-  reviewer attempt (`local-qwen`) and record it in the same artifact as an
-  `advisory-local` attempt.
-- The advisory reviewer never changes the process exit code. This advisory
-  attempt is strictly additive to the primary reviewer's blocking verdict, not a
-  substitute path around it: the primary reviewer's verdict remains the sole
-  gate on presentation or closure. If the advisory attempt times out or hits a
-  runtime failure, retry exactly once, unload the model after every attempt,
-  and record a non-blocking advisory-blocked result if both attempts fail —
-  this recorded advisory outcome has no bearing on whether the primary gate
-  passes.
+The local attempt and exact configured model are recorded. Only local timeout
+or unavailability permits an independent external fallback: Codex for a
+Claude Code caller, Claude Code for Codex or remote-provider callers. A
+substantive non-pass, invalid verdict, oversized packet, or unknown author
+never triggers fallback. Invalid, blocked or missing final verdicts fail closed.
+For code review the entire diff must fit the local prompt budget; split an
+oversized scope into independently reviewed tasks rather than silently omitting
+changes. Supporting context is compacted and the full redacted packet is saved.
+A PASS never substitutes for human approval.
 
 **Failure modes:**
 
@@ -312,7 +290,7 @@ python3 scripts/peer-workflow-review.py post-code-review \
   --verification-log <verification-log-path>
 ```
 
-The script resolves the reviewer from `--caller-kind`, writes a redacted artifact
+The script resolves the reviewer from caller and criticality, writes a redacted artifact
 under `logs/peer-workflow-review/`, and exits 0 only on a `pass` verdict.
 
 **Reviewer CLI overrides.**
@@ -336,9 +314,8 @@ under `logs/peer-workflow-review/`, and exits 0 only on a `pass` verdict.
    `which codex`, `which claude`, or the resolved absolute path.
 3. Confirm the reviewer CLI is authenticated and usable outside the workflow
    gate: `codex login` / `codex doctor` or `claude` in non-mutating print mode.
-4. Re-run `scripts/peer-workflow-review.py`. If the primary reviewer still
-   returns `reviewer_unavailable` or `reviewer_timeout`, rely on the documented
-   local fallback path and report the resulting artifact instead of self-review.
+4. Confirm the configured local model and Ollama service are available, then
+   re-run the gate. Record any permitted external fallback and its verdict.
 
 **Artifact:** the review script writes a JSON artifact at a path determined by
 the script. Include the artifact path in the task card or closure report field.

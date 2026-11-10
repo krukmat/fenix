@@ -116,17 +116,16 @@ and it does not replace HITL approval.
 
 ## Peer review and HITL
 
-Provider-aware peer review (Phase F) is a complementary workflow gate, not a
+Independent peer review is a complementary workflow gate, not a
 substitute for HITL approval. A PASS verdict from the peer reviewer does not
 unlock any task that would otherwise require explicit human approval under this
 policy. The two gates are independent and both must be satisfied when both
 apply. See `docs/playbooks/AGENT_WORKFLOW_GUIDE.md` — `## Peer review` for the
 full provider resolution rules and failure modes.
 
-When the workflow allows a local-model fallback reviewer, that fallback remains
-part of the peer-review gate only. It does not replace HITL approval, does not
-authorize self-review, and must still fail closed if the fallback verdict is
-missing, invalid, or blocked.
+Local primary review and any permitted external fallback remain part of the
+peer-review gate only. Neither replaces HITL approval or authorizes self-review;
+missing, invalid, or blocked final verdicts fail closed.
 
 A human waiver (see `## Human waiver` below) on one gate never implies a waiver
 on the other. Overriding a peer-review non-pass verdict with a waiver does not

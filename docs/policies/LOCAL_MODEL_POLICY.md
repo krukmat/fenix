@@ -57,7 +57,8 @@ the task shape is not a valid reason to bypass it.
 | Developer (delegation) | `gemma4:26b-a4b-it-qat` | `gemma4:12b-it-qat` | `FENIX_LOW_RRI_MODEL` |
 | Reviewer (code review) | `gemma4:26b-a4b-it-qat` | `gemma4:12b-it-qat` | `FENIX_REVIEW_MODEL` |
 | Push reviewer | `gemma4:26b-a4b-it-qat` | `gemma4:12b-it-qat` | `FENIX_REVIEW_MODEL` (or `FENIX_PUSH_REVIEW_MODEL` for a push-specific override) |
-| Peer-review fallback reviewer | `gemma4:26b-a4b-it-qat` | `gemma4:12b-it-qat` | `FENIX_REVIEW_MODEL` |
+| Peer reviewer, standard | `gemma4:26b-a4b-it-qat` | independent external reviewer on timeout/unavailability | `FENIX_REVIEW_MODEL` |
+| Peer reviewer, critical | `qwen3.6:35b-a3b` | independent external reviewer on timeout/unavailability | `FENIX_REVIEW_CRITICAL_MODEL` |
 
 Use the fallback model when GPU VRAM is insufficient for the 26B model. The
 fallback reduces quality but preserves the delegation workflow. Document the
@@ -78,23 +79,16 @@ Push review uses a larger context window (32 768 tokens) because CI logs are
 included in the packet. It honors `FENIX_REVIEW_*` defaults and may use
 `FENIX_PUSH_REVIEW_*` overrides for push-review-specific tuning.
 
-## Peer-review fallback role
+## Independent peer-review role
 
-The local model may act as a backup peer reviewer only when the primary Phase F
-reviewer has already been attempted and the result is blocked by timeout or
-reviewer unavailability. It is never the default reviewer and may not replace
-the primary reviewer for convenience, cost, or speed.
-
-The fallback peer reviewer must:
-
-- review the same packet shape as the primary reviewer;
-- write an artifact that identifies both the failed primary reviewer attempt and
-  the fallback reviewer verdict;
-- fail closed when the fallback output is invalid, missing, or blocked.
-
-This fallback role remains subordinate to `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`
-and `docs/policies/HITL_AUTONOMY_POLICY.md`. A fallback PASS does not waive HITL
-approval or any explicit human approval gate.
+The assigned local model is the primary peer reviewer for an independently
+identified external author. The workflow guide defines selection, independence,
+packet limits, external fallback and fail-closed behavior. A reviewer PASS does
+not waive HITL or any explicit human approval. Local author identity is not
+currently supplied to the gate, so such requests fail closed.
+This protects reviewer independence: the gate cannot establish that an
+unidentified local author and reviewer are different models. Qwen's former
+advisory-only role is replaced by its blocking primary role on critical tasks.
 
 ## Pre-delegation budget gate
 
@@ -166,8 +160,8 @@ before writing. Never log raw secrets.
   that stops the agent — it is a signal to escalate to the standard HITL path.
 - `disposition_divergence` must be recorded in the audit log when an adjudicator
   (D14) is spawned (see `adjudicator-packet.py`).
-- A local fallback peer review is allowed only after a blocked primary peer
-  review attempt and must leave a traceable artifact chain.
+- An external fallback peer review is allowed only after a local primary
+  timeout or unavailability and must leave a traceable artifact chain.
 
 ## Related
 

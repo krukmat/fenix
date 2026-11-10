@@ -7,14 +7,9 @@ independent peer review of a task, in one of two modes:
   * task-readiness   — before presenting a task card (reviews task + plan + card)
   * post-code-review — before closing a development task (reviews the diff)
 
-Reviewer resolution follows the Phase F contract
-(docs/playbooks/AGENT_WORKFLOW_GUIDE.md#peer-review):
-
-    claude-code      -> codex
-    codex            -> claude
-    local-provider   -> claude
-    remote-provider  -> claude
-    unknown          -> claude
+Assigned local models are the primary reviewers for independently identified
+external authors. A different provider is used if a local author cannot be
+distinguished from the assigned model.
 
 The gate FAILS CLOSED: it exits 0 only for a `pass` verdict. Any other verdict,
 an invalid/unparseable verdict, an unavailable/unauthenticated peer CLI, or a
@@ -555,12 +550,7 @@ def _shrink_local_section(packet, section, limit):
 
 def compact_packet_for_local_review(mode, packet):
     # type: (str, dict) -> dict
-    """Compact the local-review packet to preserve high-signal context.
-
-    The primary Claude/Codex reviewers still receive the full packet. This
-    compaction is applied only to the local fallback/advisory reviewers, where
-    prompt budget and narrative dominance are the main failure modes.
-    """
+    """Compact supporting context for a local reviewer."""
     compacted = dict(packet)
     for section in LOCAL_REVIEW_SECTION_ORDER:
         if compacted.get(section):
@@ -728,10 +718,10 @@ def invoke_reviewer(reviewer, mode, packet, base, timeout):
     raise ReviewerUnavailable("unknown reviewer: %s" % reviewer)
 
 
-def invoke_local_fallback_reviewer(mode, packet, timeout):
+def invoke_local_fallback_reviewer(mode, packet, timeout, model_override=None):
     # type: (str, dict, int) -> str
     host = _env_first("FENIX_OLLAMA_HOST", "OLLAMA_HOST", default=gemma_local.DEFAULT_HOST)
-    model = _env_first(
+    model = model_override or _env_first(
         "FENIX_REVIEW_MODEL",
         "FENIX_LOW_RRI_MODEL",
         default=gemma_local.DEFAULT_MODEL,
@@ -785,10 +775,13 @@ def invoke_local_fallback_reviewer(mode, packet, timeout):
 
     try:
         gemma_local.ensure_model_available(host, model, idle_timeout)
+        local_packet = compact_packet_for_local_review(mode, packet)
+        if mode == "post-code-review":
+            local_packet["diff"] = packet["diff"]
         payload = gemma_local.build_chat_payload(
             model=model,
-            system_prompt=build_local_fallback_system_prompt(),
-            packet=build_prompt(mode, compact_packet_for_local_review(mode, packet)),
+            system_prompt=REVIEW_INSTRUCTIONS,
+            packet=build_prompt(mode, local_packet),
             num_ctx=num_ctx,
             num_predict=num_predict,
             temperature=temperature,
@@ -1033,6 +1026,36 @@ def _attempt_record(role, reviewer, verdict):
     }
 
 
+def task_criticality(args, packet):
+    if args.mode == "post-code-review":
+        return args.criticality
+    task = str(packet.get("task", ""))
+    frontmatter = task.split("---", 2)
+    if len(frontmatter) < 3 or frontmatter[0].strip():
+        raise InvalidVerdict("task must declare criticality in YAML frontmatter")
+    matches = re.findall(r"(?m)^criticality:\s*['\"]?(critical|standard)['\"]?\s*$", frontmatter[1])
+    if len(matches) != 1:
+        raise InvalidVerdict("task must declare exactly one valid criticality")
+    return matches[0]
+
+
+def local_model(reviewer):
+    if reviewer == "local-qwen":
+        return _env_first("FENIX_REVIEW_CRITICAL_MODEL", default=DEFAULT_CRITICAL_REVIEW_MODEL)
+    return _env_first("FENIX_REVIEW_MODEL", "FENIX_LOW_RRI_MODEL", default=gemma_local.DEFAULT_MODEL)
+
+
+def attempt_local_review(reviewer, mode, packet, timeout):
+    compacted = compact_packet_for_local_review(mode, packet)
+    if mode == "post-code-review" and not packet.get("diff"):
+        raise InvalidVerdict("diff is empty or could not be read")
+    if mode == "post-code-review":
+        compacted["diff"] = packet["diff"]
+        if len(build_prompt(mode, compacted)) > 48000:
+            raise InvalidVerdict("local review packet exceeds budget; split the review scope")
+    return invoke_local_fallback_reviewer(mode, packet, timeout, local_model(reviewer))
+
+
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
@@ -1079,32 +1102,36 @@ def main(argv=None):
     # type: (Optional[List[str]]) -> int
     args = parse_args(sys.argv[1:] if argv is None else argv)
     caller_kind = normalize_caller_kind(args.caller_kind, args.caller_provider)
-    primary_reviewer = resolve_reviewer(caller_kind)
-    packet = build_packet(args, caller_kind, primary_reviewer)
+    packet = build_packet(args, caller_kind, "pending")
     base = getattr(args, "base", None)
     attempts = []
-    reviewer = primary_reviewer
-
     try:
-        raw = invoke_reviewer(primary_reviewer, args.mode, packet, base, args.timeout)
+        criticality = task_criticality(args, packet)
+        if caller_kind == "unknown":
+            raise InvalidVerdict("caller identity is required for independent review")
+        primary_reviewer = "local-qwen" if criticality == "critical" else "local-gemma"
+        if caller_kind == "local-provider":
+            raise InvalidVerdict("local author model identity is not available; independent review cannot be verified")
+        reviewer = primary_reviewer
+        packet["reviewer"] = reviewer
+        raw = attempt_local_review(reviewer, args.mode, packet, args.timeout)
         verdict = parse_verdict(raw)
     except ReviewerError as err:
+        reviewer = locals().get("reviewer", "unresolved")
         verdict = blocked_verdict(err.reason, str(err))
-    attempts.append(_attempt_record("primary", primary_reviewer, verdict))
+    attempt = _attempt_record("primary", reviewer, verdict)
+    if reviewer in ("local-gemma", "local-qwen"):
+        attempt["model"] = local_model(reviewer)
+    attempts.append(attempt)
 
     if should_attempt_fallback(verdict):
-        reviewer = resolve_fallback_reviewer()
+        reviewer = resolve_reviewer(caller_kind)
         try:
-            raw = invoke_local_fallback_reviewer(args.mode, packet, args.timeout)
+            raw = invoke_reviewer(reviewer, args.mode, packet, base, args.timeout)
             verdict = parse_verdict(raw)
         except ReviewerError as err:
             verdict = blocked_verdict(err.reason, str(err))
         attempts.append(_attempt_record("fallback", reviewer, verdict))
-
-    if args.mode == "post-code-review" and getattr(args, "criticality", "standard") == "critical":
-        attempts.append(
-            invoke_advisory_qwen_reviewer(args.mode, packet, args.timeout)
-        )
 
     artifact = write_artifact(
         args.out_dir, args.mode, caller_kind, reviewer, packet, verdict, attempts

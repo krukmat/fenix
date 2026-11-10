@@ -2,14 +2,16 @@
 doc_type: plan
 id: portable-agent-workflow-port-plan
 title: "Portable Agent Workflow Port Plan"
-status: completed
+status: active
 created: 2026-06-28
 updated: 2026-07-01
 ---
 
 # Portable Agent Workflow Port Plan
 
-> **Status**: Complete (all listed tasks complete as of 2026-07-01)
+> **Current direction (2026-11-10):** Prioritize assigned local independent reviewers while preserving fail-closed gates and human approvals. The executable continuation is [LOCAL-PRIMARY-PEER-REVIEW](../tasks/task_local_primary_peer_review.md); earlier completed phases remain historical records.
+
+> **Historical milestone**: Original listed tasks completed as of 2026-07-01.
 > **Date**: 2026-06-28
 > **Owner**: Workflow / DevEx
 > **Source**: `/Users/matias/dubbridge/docs/proposals/portable-agent-workflow.md` (DubBridge "Portable Agent Workflow Extraction")

@@ -386,7 +386,7 @@ class MainTest(unittest.TestCase):
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".md", delete=False, dir=out_dir
         ) as t:
-            t.write("task body\n")
+            t.write("---\ncriticality: standard\n---\ntask body\n")
             task = t.name
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".md", delete=False, dir=out_dir
@@ -410,166 +410,84 @@ class MainTest(unittest.TestCase):
             argv += extra
         return argv
 
-    def test_pass_verdict_exits_zero(self):
+    def test_standard_uses_local_gemma(self):
         with tempfile.TemporaryDirectory() as d:
-            argv = self._args("task-readiness", d)
-            with patch.object(
-                _mod.subprocess,
-                "run",
-                return_value=_completed(stdout=_verdict_json("pass")),
-            ):
-                self.assertEqual(_mod.main(argv), 0)
+            with patch.object(_mod, "attempt_local_review", return_value=_verdict_json()) as local:
+                self.assertEqual(_mod.main(self._args("task-readiness", d)), 0)
+            self.assertEqual(local.call_args[0][0], "local-gemma")
+            data = self._artifact(d)
+            self.assertEqual(data["attempts"][0]["model"], _mod.local_model("local-gemma"))
 
-    def test_needs_changes_exits_nonzero(self):
-        with tempfile.TemporaryDirectory() as d:
-            argv = self._args("task-readiness", d)
-            with patch.object(
-                _mod.subprocess,
-                "run",
-                return_value=_completed(stdout=_verdict_json("needs_changes")),
-            ):
-                self.assertEqual(_mod.main(argv), 1)
+    def _artifact(self, d):
+        directory = os.path.join(d, "artifacts")
+        with open(os.path.join(directory, os.listdir(directory)[0]), encoding="utf-8") as fh:
+            return json.load(fh)
 
-    def test_unavailable_cli_writes_blocked_and_exits_nonzero(self):
+    def test_critical_uses_qwen_and_its_verdict_blocks(self):
         with tempfile.TemporaryDirectory() as d:
-            argv = self._args("task-readiness", d)
-            exc = _mod.ReviewerUnavailable("reviewer CLI not found: codex")
-            with patch.object(_mod, "invoke_reviewer", side_effect=exc), \
-                 patch.object(
-                     _mod,
-                     "invoke_local_fallback_reviewer",
-                     side_effect=_mod.ReviewerUnavailable("local fallback unavailable"),
-                 ):
-                self.assertEqual(_mod.main(argv), 1)
-            artifacts = os.listdir(os.path.join(d, "artifacts"))
-            self.assertEqual(len(artifacts), 1)
-            with open(
-                os.path.join(d, "artifacts", artifacts[0]), "r", encoding="utf-8"
-            ) as fh:
-                data = json.load(fh)
-            self.assertEqual(data["verdict"]["status"], "blocked")
+            args = self._args("post-code-review", d, ["--base", "main", "--criticality", "critical"])
+            with patch.object(_mod, "read_diff", return_value="diff"), patch.object(_mod, "attempt_local_review", return_value=_verdict_json("needs_changes")) as local, patch.object(_mod, "invoke_reviewer") as external:
+                self.assertEqual(_mod.main(args), 1)
+            self.assertEqual(local.call_args[0][0], "local-qwen")
+            external.assert_not_called()
+            self.assertEqual(self._artifact(d)["attempts"][0]["model"], _mod.local_model("local-qwen"))
+
+    def test_readiness_criticality_selects_qwen(self):
+        with tempfile.TemporaryDirectory() as d:
+            args = self._args("task-readiness", d)
+            task = args[args.index("--task") + 1]
+            with open(task, "w", encoding="utf-8") as fh:
+                fh.write("---\ncriticality: critical\n---\n")
+            with patch.object(_mod, "attempt_local_review", return_value=_verdict_json()) as local:
+                self.assertEqual(_mod.main(args), 0)
+            self.assertEqual(local.call_args[0][0], "local-qwen")
+
+    def test_timeout_falls_back_to_independent_external_reviewer(self):
+        with tempfile.TemporaryDirectory() as d:
+            with patch.object(_mod, "attempt_local_review", side_effect=_mod.ReviewerTimeout("timeout")), patch.object(_mod, "invoke_reviewer", return_value=_verdict_json()) as external:
+                self.assertEqual(_mod.main(self._args("task-readiness", d)), 0)
+            self.assertEqual(external.call_args[0][0], "codex")
+            attempts = self._artifact(d)["attempts"]
+            self.assertEqual([a["reviewer"] for a in attempts], ["local-gemma", "codex"])
+            self.assertEqual(attempts[0]["verdict"]["reason"], "reviewer_timeout")
+
+    def test_invalid_verdict_never_triggers_fallback(self):
+        with tempfile.TemporaryDirectory() as d:
+            with patch.object(_mod, "attempt_local_review", return_value="bad"), patch.object(_mod, "invoke_reviewer") as external:
+                self.assertEqual(_mod.main(self._args("task-readiness", d)), 1)
+            external.assert_not_called()
+            self.assertEqual(self._artifact(d)["verdict"]["reason"], "invalid_verdict")
+
+    def test_unavailable_local_and_external_block(self):
+        with tempfile.TemporaryDirectory() as d:
+            with patch.object(_mod, "attempt_local_review", side_effect=_mod.ReviewerUnavailable("local unavailable")), patch.object(_mod, "invoke_reviewer", side_effect=_mod.ReviewerUnavailable("external unavailable")):
+                self.assertEqual(_mod.main(self._args("task-readiness", d)), 1)
+            data = self._artifact(d)
             self.assertEqual(data["verdict"]["reason"], "reviewer_unavailable")
-            self.assertEqual(data["reviewer"], "local-gemma")
-            self.assertEqual(data["attempts"][0]["reviewer"], "codex")
-            self.assertEqual(data["attempts"][1]["reviewer"], "local-gemma")
-
-    def test_invalid_json_writes_blocked_and_exits_nonzero(self):
-        with tempfile.TemporaryDirectory() as d:
-            argv = self._args("task-readiness", d)
-            with patch.object(
-                _mod.subprocess,
-                "run",
-                return_value=_completed(stdout="garbage not json"),
-            ):
-                self.assertEqual(_mod.main(argv), 1)
-            artifacts = os.listdir(os.path.join(d, "artifacts"))
-            with open(
-                os.path.join(d, "artifacts", artifacts[0]), "r", encoding="utf-8"
-            ) as fh:
-                data = json.load(fh)
-            self.assertEqual(data["verdict"]["reason"], "invalid_verdict")
-
-    def test_primary_timeout_falls_back_to_local_and_passes(self):
-        with tempfile.TemporaryDirectory() as d:
-            argv = self._args("task-readiness", d, extra=["--caller-kind", "codex"])
-            exc = _mod.ReviewerTimeout("reviewer timed out after 5s")
-            with patch.object(_mod, "invoke_reviewer", side_effect=exc), \
-                 patch.object(_mod, "invoke_local_fallback_reviewer", return_value=_verdict_json("pass", "fallback ok")):
-                self.assertEqual(_mod.main(argv), 0)
-            artifacts = os.listdir(os.path.join(d, "artifacts"))
-            with open(
-                os.path.join(d, "artifacts", artifacts[0]), "r", encoding="utf-8"
-            ) as fh:
-                data = json.load(fh)
-            self.assertEqual(data["reviewer"], "local-gemma")
-            self.assertEqual(data["verdict"]["status"], "pass")
             self.assertEqual(len(data["attempts"]), 2)
-            self.assertEqual(data["attempts"][0]["verdict"]["reason"], "reviewer_timeout")
-            self.assertEqual(data["attempts"][1]["reviewer"], "local-gemma")
 
-    def test_primary_unavailable_and_invalid_fallback_blocks(self):
+    def test_missing_criticality_blocks(self):
         with tempfile.TemporaryDirectory() as d:
-            argv = self._args("task-readiness", d, extra=["--caller-kind", "codex"])
-            exc = _mod.ReviewerUnavailable("reviewer CLI not found: claude")
-            with patch.object(_mod, "invoke_reviewer", side_effect=exc), \
-                 patch.object(_mod, "invoke_local_fallback_reviewer", return_value="not json"):
-                self.assertEqual(_mod.main(argv), 1)
-            artifacts = os.listdir(os.path.join(d, "artifacts"))
-            with open(
-                os.path.join(d, "artifacts", artifacts[0]), "r", encoding="utf-8"
-            ) as fh:
-                data = json.load(fh)
-            self.assertEqual(data["reviewer"], "local-gemma")
-            self.assertEqual(data["verdict"]["status"], "blocked")
-            self.assertEqual(data["verdict"]["reason"], "invalid_verdict")
-            self.assertEqual(data["attempts"][0]["verdict"]["reason"], "reviewer_unavailable")
-            self.assertEqual(data["attempts"][1]["reviewer"], "local-gemma")
+            args = self._args("task-readiness", d)
+            with open(args[args.index("--task") + 1], "w", encoding="utf-8") as fh:
+                fh.write("task without criticality")
+            with patch.object(_mod, "attempt_local_review") as local:
+                self.assertEqual(_mod.main(args), 1)
+            local.assert_not_called()
 
-    def test_post_code_review_reads_base_and_passes(self):
-        with tempfile.TemporaryDirectory() as d:
-            argv = self._args("post-code-review", d, extra=["--base", "main"])
-            with patch.object(_mod, "read_diff", return_value="diff --git ..."):
-                with patch.object(
-                    _mod.subprocess,
-                    "run",
-                    return_value=_completed(stdout=_verdict_json("pass")),
-                ):
-                    self.assertEqual(_mod.main(argv), 0)
+    def test_unknown_or_local_author_blocks_without_review(self):
+        for kind in ("unknown", "local-provider"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as d:
+                args = self._args("task-readiness", d, ["--caller-kind", kind])
+                with patch.object(_mod, "attempt_local_review") as local:
+                    self.assertEqual(_mod.main(args), 1)
+                local.assert_not_called()
 
-    def test_standard_post_code_review_does_not_add_advisory_attempt(self):
-        with tempfile.TemporaryDirectory() as d:
-            argv = self._args("post-code-review", d, extra=["--base", "main"])
-            with patch.object(_mod, "read_diff", return_value="diff --git ..."), \
-                 patch.object(
-                     _mod.subprocess,
-                     "run",
-                     return_value=_completed(stdout=_verdict_json("pass")),
-                 ), \
-                 patch.object(_mod, "invoke_advisory_qwen_reviewer") as advisory:
-                self.assertEqual(_mod.main(argv), 0)
-            advisory.assert_not_called()
-            artifacts = os.listdir(os.path.join(d, "artifacts"))
-            with open(
-                os.path.join(d, "artifacts", artifacts[0]), "r", encoding="utf-8"
-            ) as fh:
-                data = json.load(fh)
-            self.assertEqual(len(data["attempts"]), 1)
-            self.assertEqual(data["attempts"][0]["role"], "primary")
-
-    def test_critical_post_code_review_adds_advisory_attempt_without_changing_pass(self):
-        with tempfile.TemporaryDirectory() as d:
-            argv = self._args(
-                "post-code-review",
-                d,
-                extra=["--base", "main", "--criticality", "critical"],
-            )
-            advisory_attempt = {
-                "role": "advisory-local",
-                "reviewer": "local-qwen",
-                "verdict": {"status": "blocked", "reason": "advisory_blocked"},
-            }
-            with patch.object(_mod, "read_diff", return_value="diff --git ..."), \
-                 patch.object(
-                     _mod.subprocess,
-                     "run",
-                     return_value=_completed(stdout=_verdict_json("pass")),
-                 ), \
-                 patch.object(
-                     _mod,
-                     "invoke_advisory_qwen_reviewer",
-                     return_value=advisory_attempt,
-                 ) as advisory:
-                self.assertEqual(_mod.main(argv), 0)
-            advisory.assert_called_once()
-            artifacts = os.listdir(os.path.join(d, "artifacts"))
-            with open(
-                os.path.join(d, "artifacts", artifacts[0]), "r", encoding="utf-8"
-            ) as fh:
-                data = json.load(fh)
-            self.assertEqual(data["verdict"]["status"], "pass")
-            self.assertEqual(len(data["attempts"]), 2)
-            self.assertEqual(data["attempts"][1]["role"], "advisory-local")
-            self.assertEqual(data["attempts"][1]["reviewer"], "local-qwen")
+    def test_large_or_empty_diff_never_gets_local_pass(self):
+        for diff in ("", "x" * 50000):
+            with self.subTest(size=len(diff)):
+                with self.assertRaises(_mod.InvalidVerdict):
+                    _mod.attempt_local_review("local-gemma", "post-code-review", {"diff": diff}, 5)
 
 
 class ReadDiffTest(unittest.TestCase):
