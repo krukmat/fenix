@@ -53,6 +53,31 @@ cross-workspace and same-ID collisions, invalid ID, unavailable store
 do NOT mount any route before independent T4 security verdict and separate HITL
 ```
 
+## Cloud-first implementation blueprint (design only, 2026-11-10)
+
+Verified current source interfaces:
+- `middleware.DubBridgeOperationResolver.LookupDubBridgeOperation(ctx, operationID, middleware.DubBridgeOperationScope)` currently provides the narrow guard contract in `internal/api/middleware/dubbridge_source_guard.go`.
+- `integration.ServiceOperationStore.Lookup(ctx, integration.ServiceOperationScope, operationID)` already enforces an active persisted Fenix principal plus exact principal/workspace/org/project membership, returning a wider internal `ServiceOperationRecord`.
+- `middleware.authorizeDubBridgeStatus` compares every returned scope field a second time and rejects nil resolver; no HTTP route is mounted.
+
+**C4 adapter boundary** (no code until T4 independent security verdict and C1–C3 QA):
+1. Convert ONLY `DubBridgeOperationScope` from verified middleware to `ServiceOperationScope`; never infer tenant membership from operation ID, path, body or raw JSON.
+2. Delegate to `ServiceOperationStore.Lookup`; map storage-unavailable to `ErrDubBridgeOperationUnavailable`; map denied/missing/cross-tenant consistently to a generic denial, without operation existence leakage.
+3. Return `DubBridgeStoredOperation` with exact operation ID and verified persisted scope for middleware's independent double-check.
+4. If status projection is required in isolated httptest, make a distinct explicit allowlist of `operation_id`, `status` and approved trace/run references; do not serialize the internal record or expose SHA-256 digests, arbitrary inputs, tools, prompts or model outputs.
+5. Preserve the nil resolver as the default, no production router registration, no public status endpoint, no credential issuance and no actual agent dispatch.
+
+**Negative test matrix** for final C4 reviewer:
+- Two independent real SQLite service principals sharing an operation ID cannot read one another's record.
+- Exact workspace/org/project disagreement denies both repository lookup and middleware guard, even when IDs coincide.
+- Revoked or inactive persisted principals cannot read a formerly accepted operation.
+- Nil resolver, invalid operation ID, malformed/encoded path and unavailable SQLite fail closed without scope or existence disclosure.
+- Valid scoped record passes `DubBridgeServiceAuth` to an isolated `httptest` next handler once; denied requests never invoke it.
+- Public output allowlist omits request/config digests, internal records, raw input, model content and tools.
+- No production router or workflow registration changed by tests.
+
+**Stop conditions**: any C1–C3 Go QA failure or missing T4 independent verdict keeps code work at design-only. Any future C4 source must pass its own readiness and independent code review; B2.D owns full HTTP response/error contract and operational transport controls.
+
 ## Acceptance
 
 - Implement interface `DubBridgeOperationResolver` from existing middleware with a thin adapter to the real C2 store; no synthetic persisted operation.
