@@ -18,6 +18,19 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## B2.C feature-branch checkpoint — 2026-11-10
+
+**Owner approved C1–C4**. ChatGPT Cloud implemented **C1–C3 code candidates** in `feature/int-v2-dubbridge-consumes-fenix`, not a production integration; coordinate through [B2.C #9](https://github.com/krukmat/fenix/issues/9) and [parent task](../tasks/task_dubbridge_fenix_b2c_operation.md).
+
+| Task | Accountable | Deliverable | Verified state |
+|---|---|---|---|
+| [C1 SQLite](../tasks/task_dubbridge_fenix_b2c1_sqlite_schema.md) | ChatGPT Cloud | Embedded reversible migration 039, exact active Fenix scope insert trigger, immutable identity and terminal-state no-rewind constraints, Go test candidate | Cloud synthetic SQLite negative/rollback smoke PASS; real Go 1.25.13 and independent review PENDING |
+| [C2 Reservation](../tasks/task_dubbridge_fenix_b2c2_operation_store.md) | ChatGPT Cloud | Real-store atomic INSERT SELECT with principal-scoped replay/conflict, bounded canonical JSON digest, Fenix registry-derived handler fingerprint, Go tests | SOURCE PUBLISHED; Go/race/peer PENDING |
+| [C3 Recovery](../tasks/task_dubbridge_fenix_b2c3_recovery.md) | ChatGPT Cloud | Single lease, capability fingerprint fencing, scoped lookup, explicit indeterminate recovery without automatic retries or synthetic agent runs, Go tests | SOURCE PUBLISHED; Go/race/peer PENDING |
+| [C4 GET/status](../tasks/task_dubbridge_fenix_b2c4_status_resolver.md) | ChatGPT Cloud | Contract and test matrix for real scoped resolver; HTTP adaptation not implemented | BLOCKED by B2.A3.T4 independent security verdict and C1–C3 QA |
+
+The prior `docs/contracts/dubbridge-fenix-b2c-operation-proposal.*.sql` is a historical **proposal**; embedded `039_service_operation` is the current feature-branch implementation candidate. Independent task-readiness has **not been run or waived for B2.C**, and local Go 1.25.13 full test/race/vet/lint/review is unverified. Do not claim code PASS, operation execution, exactly-once external effects, a live S2S endpoint, production migration or `main` merge. Fenix capability registry remains empty/default-deny outside isolated tests; C4 cannot be activated until T4's separate review.
+
 ## Architecture and interface boundary
 
 ```text
