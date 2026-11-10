@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"unicode/utf8"
 )
 
 const (
@@ -22,7 +23,7 @@ var ErrServiceOperationInvalid = errors.New("invalid service operation request")
 // Numeric lexical forms (1 vs 1.0) are intentionally distinct: this is not RFC 8785.
 func CanonicalOperationDigest(raw []byte) ([sha256.Size]byte, error) {
 	var zero [sha256.Size]byte
-	if len(raw) == 0 || len(raw) > b2cMaxCanonicalJSONBytes {
+	if len(raw) == 0 || len(raw) > b2cMaxCanonicalJSONBytes || !utf8.Valid(raw) {
 		return zero, ErrServiceOperationInvalid
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
