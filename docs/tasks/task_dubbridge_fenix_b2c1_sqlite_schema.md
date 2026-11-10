@@ -2,12 +2,13 @@
 doc_type: task
 id: DB-FENIX-B2.C1
 title: "B2.C1 Fenix SQLite durable service operation schema"
-status: owner_approved_local_migration_candidate_peer_readiness_pending
+status: readiness_needs_changes_doc_revision_peer_rerun_pending
 phase: B2.C
 week: 2026-W46
 tags: [dubbridge, fenix, sqlite, idempotency, security]
 fr_refs: []
 uc_refs: []
+traceability_scope: integration_infrastructure_no_product_fr_uc
 blocked_by: [DB-FENIX-B2.A2]
 blocks: [DB-FENIX-B2.C2]
 files_affected:
@@ -26,9 +27,21 @@ completed: null
 **Parent**: [B2.C operation task](task_dubbridge_fenix_b2c_operation.md).
 **RRI**: N/A (DB-FENIX-INT cloud).
 **Owner approval**: User approved C1–C4 plan in this conversation on 2026-11-10, bounded to local/feature-branch implementation; production migration, destructive rollback, credentials, public routes, CI and main merge remain forbidden.
-**Peer task-readiness**: NOT RUN in Cloud; must be independently evaluated before formal closure/production certification. The earlier branch-specific T3 readiness deferral is not automatically a C1 waiver.
+**Peer task-readiness**: At source HEAD `6772905649d8390b4943273f4e52416696194087`, the owner reports a local `needs_changes` verdict citing B2.A2 dependency evidence and empty FR/UC without rationale; the local reviewer artifact was not supplied to Cloud. This document corrects those documentation gaps but **does not turn the verdict into PASS**. Re-run an independent readiness review on the new document SHA before any task closure. The earlier T3 readiness deferral is not a C1 waiver.
 **Accountable**: ChatGPT Cloud. Local agent limited to Go 1.25.13 integration tests and independent reviewer.
 **Source baseline**: feature/int-v2-dubbridge-consumes-fenix at b17162743ed8ee4f3e99be09e910e3b3d1c01fb6.
+
+## Dependency and requirements traceability (readiness remediation, 2026-11-10)
+
+**Dependency is not absent:** [B2.A2 remediation task](task_dubbridge_fenix_b2a2_security_remediation.md), [remediation audit](../audit/dubbridge-fenix-b2a2-remediation-2026-11-06.md), and [issue #3](https://github.com/krukmat/fenix/issues/3) show owner-accepted **scoped** B2.A2 source and Go/SQLite evidence on commit `87fd10d3e10658179d6f4ab626d33e2cf555539c`: H1 atomic credential rotation/rollback, H2 skew-safe revoke, M1 embedded SQLite **038** and locally tested down, focused race x3. Migration 039's foreign-key principal table therefore has an existing **feature-branch** predecessor. Historical [independent B2.A2 FAIL](../audit/dubbridge-fenix-b2a2-independent-security-review-2026-11-06.md) was remediated in source, but a fresh independent security acceptance is **not documented**; [B2.A3.T4 #8](https://github.com/krukmat/fenix/issues/8) also remains independently unreviewed. Thus `blocked_by: [DB-FENIX-B2.A2]` is **satisfied only for source prerequisite / branch-local QA**, not for formal security closure or rollout. Readiness reviewer must evaluate this precise scope and cannot infer global PASS or a policy waiver.
+
+**Why `fr_refs: []` / `uc_refs: []` is intentional:** B2.C1 is a capability-neutral infrastructure migration providing a durable principal-scoped operation journal; it does **not** implement a CRM product requirement, business use case or actual agent workflow. The current `docs/requirements.md` FR/UC inventory is product-facing; assigning a convenient `UC-G1` or fabricated FR would falsely claim a delivered governance scenario. Direct contractual traceability is:
+- [DB-FENIX-INT canonical block B2.C](../plans/dubbridge-consumes-fenix-integration.md#blocktask-plan-two-levels-only) and [parent B2.C acceptance](task_dubbridge_fenix_b2c_operation.md).
+- [Neutral S2S operation envelope](../contracts/dubbridge-fenix-v1-envelope-request.schema.json), especially `operation_id`, `source`, `capability_key`, schema and trace identity.
+- [B2.A2 persisted identity](task_dubbridge_fenix_b2a2_security_remediation.md), [B2.C2 reservation](task_dubbridge_fenix_b2c2_operation_store.md) and [B2.C3 recovery](task_dubbridge_fenix_b2c3_recovery.md).
+- The C1 acceptance criteria below are the testable requirements. Product FR/UC links will be added only if a genuine product-level capability is later specified; they are **not mandatory for an inert S2S foundation task**.
+
+**Readiness state**: local `needs_changes` reported at `67729056`; this is a document-remediation candidate awaiting an actual new independent verdict and Go 1.25.13 QA. No implementation activation or independent reviewer PASS is claimed.
 
 ## System Context
 
@@ -87,7 +100,7 @@ Code affected: migrations/039_service_operation.{up,down}.sql and service_operat
 Criticality: critical
 Criticality basis: Tenant isolation, immutable idempotency and recovery constraints.
 Effort/reasoning: High — migration, triggers, FK, reversible rollback and tests.
-Recommended model: GPT-6 Cloud; independent Claude Code review.
+Recommended model: GPT-6 Cloud; independent reviewer via the local workflow (Gemma fallback/Qwen advisory if invoked by policy).
 Estimated tokens: ~7000
 Pseudocode: Persist authority from active Fenix principal, restrict writes, reject cross-tenant mutations, verify local rollback.
-Peer readiness review approval: reviewer=PENDING; artifact=NOT_RUN; status=PENDING
+Peer readiness review approval: reviewer=LOCAL_REVIEWER_UNSPECIFIED; artifact=NOT_PROVIDED_TO_CLOUD; status=NEEDS_CHANGES_AT_67729056_RECHECK_PENDING
