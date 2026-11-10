@@ -28,6 +28,13 @@ completed:
 ---
 # Task DB-FENIX-B2C
 
+## C1–C3 Cloud correction checkpoint — 2026-11-10
+
+- **C1:** Migration 039 `run_id` invariants tightened (`accepted` must have NULL; required states cannot have an empty run ID); negative SQLite integration assertions authored.
+- **C2:** Trace ID added to immutable reservation replay comparison; mismatch conflict test authored.
+- **C3:** Real SQLite test authored for revoked principal + expired lease reconciling into `indeterminate` without restored access.
+- Five source/test files changed; **no code was executed with Go 1.25.13 by Cloud**. Treat all as source candidates pending real fmt/Go/modernc/race/vet/prepush and independent readiness/code review; do not mark as PASS/COMPLETE. C4 remains deferred and non-blocking. Independent T4 security remains a separate issue.
+
 ## Active task plan — B2.C1–C3 (2026-11-10)
 
 The current approved implementation scope is **C1 embedded SQLite 039**, **C2 atomic scoped reservation/idempotency**, and **C3 one-shot lease/ambiguous recovery**. These are the sole bounded deliverables of the current B2.C task. Dependency sequence: B2.A2 scoped persisted identity → C1 → C2 (plus B2.B default-deny registry) → C3 → independent readiness + Go 1.25.13 QA + exact-source code review → Cloud remediation and source-only closure record. See [canonical plan](../plans/dubbridge-consumes-fenix-integration.md#current-execution-baseline--b2c1c3-only-2026-11-10).
