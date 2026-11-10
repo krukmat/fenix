@@ -66,6 +66,11 @@ func TestB2CServiceOperationSchemaConstraints(t *testing.T) {
         WHERE principal_id='b2c-p1'`); err == nil {
 		t.Fatal("ambiguous terminal operation reaccepted")
 	}
+	if _, err := db.Exec(`UPDATE service_operation
+        SET lease_owner='worker-restarted',lease_until_unix=2000000030
+        WHERE principal_id='b2c-p1' AND status='indeterminate'`); err == nil {
+		t.Fatal("terminal operation reacquired a worker lease")
+	}
 	if _, err := db.Exec(insert, append([]any{"b2c-p2", "operation_00000001", "b2c-w2", "org-2", "",
 		"integration.diagnostics", "1", bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32),
 		"trace_12345678", int64(2000000000), int64(2000000000)})...); err != nil {
