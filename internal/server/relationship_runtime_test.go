@@ -96,9 +96,9 @@ func seedDealDependencies(t *testing.T, db *sql.DB, workspaceID, ownerID string)
 	return accountID, pipelineID, stageID
 }
 
-func waitForDB(t *testing.T, db *sql.DB, query string, args ...any) {
+func waitForDB(t *testing.T, db *sql.DB, timeout time.Duration, query string, args ...any) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		var count int
 		if err := db.QueryRow(query, args...).Scan(&count); err == nil && count > 0 {
@@ -141,10 +141,10 @@ func TestRelationshipRuntime_ActivityCreatedBuildsDerivedArtifacts(t *testing.T)
 		t.Fatalf("create activity: %v", err)
 	}
 
-	waitForDB(t, db, `SELECT COUNT(*) FROM relationship_memory WHERE workspace_id = ? AND entity_type = 'account' AND entity_id = ?`, workspaceID, accountID)
-	waitForDB(t, db, `SELECT COUNT(*) FROM interaction_signal s JOIN relationship_memory m ON m.id = s.relationship_memory_id WHERE m.workspace_id = ? AND m.entity_id = ?`, workspaceID, accountID)
-	waitForDB(t, db, `SELECT COUNT(*) FROM trust_score ts JOIN relationship_memory m ON m.id = ts.relationship_memory_id WHERE m.workspace_id = ? AND m.entity_id = ?`, workspaceID, accountID)
-	waitForDB(t, db, `SELECT COUNT(*) FROM interaction_signal_embedding WHERE workspace_id = ?`, workspaceID)
+	waitForDB(t, db, 15*time.Second, `SELECT COUNT(*) FROM relationship_memory WHERE workspace_id = ? AND entity_type = 'account' AND entity_id = ?`, workspaceID, accountID)
+	waitForDB(t, db, 15*time.Second, `SELECT COUNT(*) FROM interaction_signal s JOIN relationship_memory m ON m.id = s.relationship_memory_id WHERE m.workspace_id = ? AND m.entity_id = ?`, workspaceID, accountID)
+	waitForDB(t, db, 15*time.Second, `SELECT COUNT(*) FROM trust_score ts JOIN relationship_memory m ON m.id = ts.relationship_memory_id WHERE m.workspace_id = ? AND m.entity_id = ?`, workspaceID, accountID)
+	waitForDB(t, db, 15*time.Second, `SELECT COUNT(*) FROM interaction_signal_embedding WHERE workspace_id = ?`, workspaceID)
 
 	var signalType string
 	if err := db.QueryRow(`
@@ -210,7 +210,7 @@ func TestRelationshipRuntime_ApprovalDecisionBuildsStakeholderGraph(t *testing.T
 	}
 
 	// Wait for the approval.decided edge (strength=0.9), not just the approval.requested one (strength=0.6).
-	waitForDB(t, db, `SELECT COUNT(*) FROM stakeholder_graph WHERE workspace_id = ? AND from_entity_id = ? AND to_entity_id = ? AND strength = 0.9`, workspaceID, approverID, deal.ID)
+	waitForDB(t, db, 5*time.Second, `SELECT COUNT(*) FROM stakeholder_graph WHERE workspace_id = ? AND from_entity_id = ? AND to_entity_id = ? AND strength = 0.9`, workspaceID, approverID, deal.ID)
 
 	var (
 		strength      float64

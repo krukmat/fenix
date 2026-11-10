@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2.C3
 title: "B2.C3 lease fencing and indeterminate recovery without redispatch"
-status: owner_approved_candidate_peer_readiness_pending
+status: readiness_pass_qa_pending
 phase: B2.C
 week: 2026-W46
 tags: [dubbridge, fenix, sqlite, crash-recovery, idempotency]
@@ -25,14 +25,14 @@ completed: null
 **Plan**: [Canonical DubBridge → Fenix](../plans/dubbridge-consumes-fenix-integration.md#blocktask-plan-two-levels-only).
 **Parent**: [B2.C operation task](task_dubbridge_fenix_b2c_operation.md).
 **RRI**: N/A for cloud DB-FENIX-INT. Owner approved local C1–C4 design 2026-11-10.
-**Peer readiness**: PENDING independent review; no T3 waiver or PASS applies here.
+**Peer readiness**: PASS by independent peer at the current validation checkpoint; no T3 waiver applies and post-code QA/review remain separate.
 **Owner**: ChatGPT Cloud for code, tests, docs; local agent for true Go/race/reviewer gates.
 
 ## Requirements traceability and security dependencies (2026-11-10)
 
 **FR/UC rationale:** `fr_refs: []` / `uc_refs: []` reflect an internal S2S lease and crash-ambiguity primitive, not a specific CRM agent workflow or product scenario. Trace instead to the [canonical B2.C integration plan](../plans/dubbridge-consumes-fenix-integration.md#blocktask-plan-two-levels-only), [parent B2.C task](task_dubbridge_fenix_b2c_operation.md), [C2 reservation](task_dubbridge_fenix_b2c2_operation_store.md) and this task's one-shot lease/no-redispatch acceptance. Do not attribute agent execution or `UC-G1` to this inert recovery code.
 
-**Dependencies:** B2.A2 scoped principal source was accepted by the owner in [#3](https://github.com/krukmat/fenix/issues/3), not independently certified for release; C1/C2 are unverified Go candidates. No C3 readiness, race or independent post-code PASS has been supplied. **RRI: N/A — DB-FENIX-INT/cloud**.
+**Dependencies:** B2.A2 scoped principal source was accepted by the owner in [#3](https://github.com/krukmat/fenix/issues/3), not independently certified for release; C1/C2 source prerequisites exist. C3 readiness is independently PASS, while race and independent post-code review remain separate closure gates. **RRI: N/A — DB-FENIX-INT/cloud**.
 
 ## System Context
 
@@ -105,4 +105,4 @@ Effort/reasoning: High — atomic lease and recovery state machine.
 Recommended model: Cloud author; independent peer review assigned by docs/playbooks/AGENT_WORKFLOW_GUIDE.md (no model-specific integration dependency).
 Estimated tokens: ~5000
 Pseudocode: Claim accepted once; do not regrant expired leases; mark ambiguous indeterminate without execution.
-Peer readiness review approval: reviewer=PENDING; artifact=NOT_RUN; status=PENDING
+Peer readiness review approval: reviewer=peer-codex; artifact=logs/peer-workflow-review/task-readiness_codex_by_peer-codex_20261110T194523Z_c3.json; status=PASS

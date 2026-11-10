@@ -56,7 +56,7 @@ func decodeCanonicalOperationObject(raw []byte) (map[string]any, error) {
 		return nil, ErrServiceOperationInvalid
 	}
 	_, err = dec.Token()
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		return nil, ErrServiceOperationInvalid
 	}
 	return object, nil
@@ -153,19 +153,18 @@ func decodeServiceOperationArray(dec *json.Decoder, depth int, nodes *int) ([]an
 func validJSONUnicodeEscapes(raw []byte) bool {
 	inString := false
 	for i := 0; i < len(raw); i++ {
-		switch raw[i] {
-		case '"':
+		if raw[i] == '"' {
 			inString = !inString
-		case '\\':
-			if !inString {
-				continue
-			}
-			next, ok := scanJSONUnicodeEscape(raw, i)
-			if !ok {
-				return false
-			}
-			i = next
+			continue
 		}
+		if raw[i] != '\\' || !inString {
+			continue
+		}
+		next, ok := scanJSONUnicodeEscape(raw, i)
+		if !ok {
+			return false
+		}
+		i = next
 	}
 	return true
 }
@@ -188,13 +187,14 @@ func scanJSONUnicodeEscape(raw []byte, i int) (int, bool) {
 }
 
 func scanJSONSurrogateContinuation(raw []byte, i int, first uint64) (int, bool) {
-	if isLowJSONSurrogate(first) {
+	switch {
+	case isLowJSONSurrogate(first):
 		return i, false
-	}
-	if !isHighJSONSurrogate(first) {
+	case isHighJSONSurrogate(first):
+		return scanJSONSurrogatePair(raw, i)
+	default:
 		return i + 5, true
 	}
-	return scanJSONSurrogatePair(raw, i)
 }
 
 func scanJSONSurrogatePair(raw []byte, i int) (int, bool) {

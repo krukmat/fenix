@@ -80,9 +80,18 @@ REVIEW_INSTRUCTIONS = (
 TASK_READINESS_CRITICALITY_INSTRUCTIONS = (
     "For task-readiness review, explicitly assess the declared task "
     "`criticality` label and `criticality_basis`. Concur when the declared "
-    "label is justified by the task materials. If the label or basis appears "
-    "incorrect or under-justified, record that dispute as a reviewer finding "
-    "for human resolution rather than silently relabeling the task."
+    "label matches the potential impact of a failure. Criticality sets risk "
+    "and review rigor; it does not certify the current implementation or "
+    "require post-code tests, QA, or review to have run. Readiness occurs "
+    "before implementation: "
+    "decide whether the scope, start-time dependencies, risks, acceptance "
+    "criteria, pseudocode, and planned verification are sufficient to begin. "
+    "Do not dispute a critical label solely because post-code verification is "
+    "pending. Require stronger planned checks or flag unresolved start-time "
+    "dependencies when needed. If the impact-based label "
+    "or basis appears incorrect or under-justified, record that dispute as a "
+    "reviewer finding for human resolution rather than silently relabeling "
+    "the task."
 )
 
 

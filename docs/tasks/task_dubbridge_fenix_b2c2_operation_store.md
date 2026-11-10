@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2.C2
 title: "B2.C2 atomic Go SQLite service operation reservation and canonical request fingerprint"
-status: owner_approved_code_candidate_readiness_pending
+status: readiness_pass_qa_pending
 phase: B2.C
 week: 2026-W46
 tags: [dubbridge, fenix, sqlite, idempotency, go]
@@ -27,14 +27,14 @@ completed: null
 **Parent**: [B2.C](task_dubbridge_fenix_b2c_operation.md).
 **RRI**: N/A (DB-FENIX-INT Cloud).
 **Approval**: Owner approved C1–C4 proposal in conversation 2026-11-10. No production credentials, gateway/route, deployment, or main merge authorized.
-**Readiness**: Independent task-readiness PENDING; source is an unverified branch candidate until local Go 1.25.13 and reviewer gates.
+**Readiness**: Independent task-readiness PASS at the current validation checkpoint; source remains a branch candidate until local Go 1.25.13 and exact-source reviewer gates complete.
 **Accountable**: ChatGPT Cloud; local agent Go and independent peer gate only.
 
 ## Requirements traceability and security dependencies (2026-11-10)
 
 **FR/UC rationale:** `fr_refs: []` and `uc_refs: []` intentionally do not claim any CRM product use case. B2.C2 is a capability-neutral S2S storage primitive, not a configured agent, workflow or business operation. Its executable contract is the [DB-FENIX-INT B2.C plan](../plans/dubbridge-consumes-fenix-integration.md#blocktask-plan-two-levels-only), the [neutral S2S envelope](../contracts/dubbridge-fenix-v1-envelope-request.schema.json), the [B2.C parent task](task_dubbridge_fenix_b2c_operation.md) and the acceptance matrix below. Do not map `UC-G1` simply because it mentions replay/audit: no agent-run business use case is executed here.
 
-**Dependencies:** C1's migration 039 is a published candidate, not certified. B2.B's registry is default-deny and its durable operator policy B2.B4 is outstanding. [B2.A2 issue #3](https://github.com/krukmat/fenix/issues/3) confirms owner-accepted, feature-branch persisted principal baseline at `87fd10d`; independent security certification remains pending. C2 cannot claim QA/readiness PASS until genuine local evidence. **RRI: N/A — DB-FENIX-INT/cloud**.
+**Dependencies:** C1's migration 039 exists as the branch source prerequisite; B2.B's registry is default-deny and its durable operator policy B2.B4 remains a separate rollout concern. [B2.A2 issue #3](https://github.com/krukmat/fenix/issues/3) confirms the owner-accepted feature-branch persisted principal baseline at `87fd10d`; independent security certification remains pending. C2 readiness is independently PASS, while QA and exact-source review remain separate. **RRI: N/A — DB-FENIX-INT/cloud**.
 
 ## System Context
 
@@ -88,7 +88,7 @@ commit; no agent execution, HTTP response or capability auto-registration
 - Replays after principal revoke denied; cross-principal operation IDs independent.
 - Canonical JSON excludes formatting and key order variation, rejects duplicate nested keys/trailing JSON and >64KiB or >32 levels. This is **not RFC 8785 numeric canonicalization**, so e.g. `1` and `1.0` intentionally have different fingerprints.
 - No production S2S gateway/route, credential, migration execution or real workflow.
-- Go 1.25.13 local tests/race/vet/lint and independent post-code review PENDING; never infer PASS from Cloud code publication.
+- Go 1.25.13 QA and independent post-code review are separate closure gates; never infer their result from Cloud code publication or readiness.
 
 **Additional security regression:** `TestB2CReserveRejectsRevokedPrincipal` covers both replay of an existing operation and reservation of a new operation ID after the persisted Fenix principal is revoked. Both must return the same generic denial, and the operation journal row count must not change. The prior C2 test only covered a disabled registry binding, so principal revocation was not tested directly at the reservation boundary. This test is **authored, NOT_RUN with Go**.
 
@@ -111,4 +111,4 @@ Effort/reasoning: High — concurrent writer, canonical input and failure paths.
 Recommended model: Cloud author; independent peer review assigned by docs/playbooks/AGENT_WORKFLOW_GUIDE.md (no model-specific integration dependency).
 Estimated tokens: ~9000
 Pseudocode: Verify capability, derive Fenix principal scope, insert under transaction, compare fingerprints, return record/replay/conflict without running any agent.
-Peer readiness review approval: reviewer=PENDING; artifact=NOT_RUN; status=PENDING
+Peer readiness review approval: reviewer=peer-codex; artifact=logs/peer-workflow-review/task-readiness_codex_by_peer-codex_20261110T194523Z_c2.json; status=PASS

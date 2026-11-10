@@ -56,7 +56,13 @@ status: active
    `Waived verdict: <artifact path/status overridden>`, and
    `Waiver timestamp: <ISO 8601>` in the same card. For tasks that declare
    `criticality`, the readiness reviewer must explicitly concur with or
-   dispute that label and its stated basis. Peer review does not replace
+   dispute that label and its stated basis. Criticality describes the potential
+   impact of failure and the required review rigor; it does not assert that the
+   implementation is complete or that post-code QA has already run. Readiness
+   evaluates whether the scope, start-time dependencies, acceptance criteria
+   and planned verification are sufficient to begin. A reviewer must not reject
+   a critical classification solely because closure evidence is still pending.
+   Peer review does not replace
    RRI/HITL human approval, and neither does a waiver.
 7. **Present or execute** - for RRI 0-25, execute directly within the bounded
    low-band rules. For RRI 26+, present the task card and wait for explicit human

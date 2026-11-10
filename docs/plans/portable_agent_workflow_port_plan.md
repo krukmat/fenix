@@ -9,7 +9,7 @@ updated: 2026-07-01
 
 # Portable Agent Workflow Port Plan
 
-> **Current direction (2026-11-10):** Prioritize assigned local independent reviewers while preserving fail-closed gates and human approvals. The executable continuation is [LOCAL-PRIMARY-PEER-REVIEW](../tasks/task_local_primary_peer_review.md); earlier completed phases remain historical records.
+> **Current direction (2026-11-10):** PAW-F18 removed the circular requirement that post-code QA precede task readiness while preserving assigned independent reviewers and fail-closed gates. The prompt, workflow guide, 60-test regression suite and independent code review are complete; earlier phases remain historical records.
 
 > **Historical milestone**: Original listed tasks completed as of 2026-07-01.
 > **Date**: 2026-06-28

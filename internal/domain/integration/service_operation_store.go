@@ -104,12 +104,7 @@ func reserveOperationOnConnection(
 	}
 	committed := false
 	defer func() {
-		if !committed {
-			if _, rollbackErr := conn.ExecContext(context.Background(), "ROLLBACK"); rollbackErr != nil {
-				resultErr = errors.Join(resultErr, ErrServiceOperationUnavailable,
-					fmt.Errorf("rollback service operation transaction: %w", rollbackErr))
-			}
-		}
+		rollbackServiceOperationTransaction(conn, committed, &resultErr)
 	}()
 	created, rowErr := reserveOperationRow(ctx, conn, req, now)
 	if rowErr != nil {
@@ -127,6 +122,16 @@ func reserveOperationOnConnection(
 	}
 	committed = true
 	return record, !created, nil
+}
+
+func rollbackServiceOperationTransaction(conn *sql.Conn, committed bool, resultErr *error) {
+	if committed {
+		return
+	}
+	if _, rollbackErr := conn.ExecContext(context.Background(), "ROLLBACK"); rollbackErr != nil {
+		*resultErr = errors.Join(*resultErr, ErrServiceOperationUnavailable,
+			fmt.Errorf("rollback service operation transaction: %w", rollbackErr))
+	}
 }
 
 func validOperationScope(scope ServiceOperationScope) bool {

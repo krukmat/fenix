@@ -233,6 +233,14 @@ class PromptBuildingTest(unittest.TestCase):
             {"task": "criticality: standard\ncriticality_basis: docs-only"},
         )
         self.assertIn("explicitly assess the declared task `criticality` label", prompt)
+        self.assertIn("potential impact of a failure", prompt)
+        self.assertIn("does not certify the current implementation", prompt)
+        self.assertIn("Readiness occurs before implementation", prompt)
+        self.assertIn(
+            "Do not dispute a critical label solely because post-code verification is pending",
+            prompt,
+        )
+        self.assertIn("planned verification are sufficient to begin", prompt)
         self.assertIn("record that dispute as a reviewer finding", prompt)
 
     def test_post_code_review_prompt_does_not_include_criticality_concurrence_instruction(self):
