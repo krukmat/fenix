@@ -28,7 +28,12 @@ CREATE TABLE service_operation (
                          'succeeded','completed_with_warnings','abstained')
            OR (run_id IS NOT NULL AND length(run_id)>0)),
     CHECK ((lease_owner IS NULL AND lease_until_unix IS NULL)
-       OR (lease_owner IS NOT NULL AND length(lease_owner)>0 AND lease_until_unix>0))
+       OR (lease_owner IS NOT NULL AND length(lease_owner)>0 AND lease_until_unix>0)),
+    -- A finalized/ambiguous outcome cannot retain or reacquire a worker lease.
+    -- Inert C3 reconciliation always clears lease metadata before finalizing.
+    CHECK (status NOT IN ('succeeded','completed_with_warnings','abstained',
+                          'failed','denied','indeterminate')
+       OR (lease_owner IS NULL AND lease_until_unix IS NULL))
 );
 CREATE INDEX idx_service_operation_workspace_created
     ON service_operation(workspace_id,created_at_unix);
