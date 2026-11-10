@@ -31,6 +31,13 @@ DubBridge is the consumer/product and owns user/project permissions, media, revi
 
 The prior `docs/contracts/dubbridge-fenix-b2c-operation-proposal.*.sql` is a historical **proposal**; embedded `039_service_operation` is the current feature-branch implementation candidate. Independent task-readiness has **not been run or waived for B2.C**, and local Go 1.25.13 full test/race/vet/lint/review is unverified. Do not claim code PASS, operation execution, exactly-once external effects, a live S2S endpoint, production migration or `main` merge. Fenix capability registry remains empty/default-deny outside isolated tests; C4 cannot be activated until T4's separate review.
 
+## B2.C readiness checkpoint — 2026-11-10 (documentation only)
+
+- C1 readiness at `67729056` was reported `needs_changes` because the B2.A2 dependency evidence and FR/UC non-applicability rationale were absent from its packet; **no C1 PASS yet**.
+- B2.A2: [owner accepted scoped source and H1/H2/M1 QA evidence, issue #3](https://github.com/krukmat/fenix/issues/3), on `87fd10d`. Embedded migration 038 and principal store exist for branch-local C1 SQL 039 verification. Fresh independent security acceptance is **not** reported; original independent FAIL is not overwritten.
+- B2.C is S2S **infrastructure**, not a delivered CRM product feature. Empty FR/UC references on C1–C4 are intentional and individually explained; canonical traceability is this integration plan, neutral S2S envelope and task-specific acceptance. No product UC, agent run or configured capability should be inferred.
+- C1–C3 Go QA, C1 renewed readiness, C1–C3 independent code reviews and B2.A3.T4 exact-diff security review are **NOT RUN on this revised documentation**. [Executable handoff](../handoffs/dubbridge-fenix-b2c-readiness-validation-2026-11-10.md) is the next local action; C4 stays blocked/default-deny. RRI N/A DB-FENIX-INT/cloud.
+
 ## B2.C continuation sequencing — Cloud-first (2026-11-10)
 
 **Scheduling decision:** Exhaust Cloud-side static source review, bounded remediation preparation, C4 design and documentation before requesting local Go/reviewer execution. Avoid parallel local implementations that would invalidate the reviewed SHA. Source changes in CF2 remain subject to the repository's independent task-readiness requirements; a plan approval is not a peer-review waiver.
