@@ -8,6 +8,7 @@ week: 2026-W46
 tags: [dubbridge, fenix, s2s, sqlite, status, authorization]
 fr_refs: []
 uc_refs: []
+traceability_scope: integration_infrastructure_no_product_fr_uc
 blocked_by: [DB-FENIX-B2.A3.T4, DB-FENIX-B2.C1, DB-FENIX-B2.C2, DB-FENIX-B2.C3]
 blocks: [DB-FENIX-B2.D]
 files_affected:
@@ -27,6 +28,12 @@ completed: null
 **Owner approval**: C1–C4 plan approved 2026-11-10; no public route, credential, production migration or deployment authorized.
 **Precondition**: [B2.A3.T4 independent security assessment](task_dubbridge_fenix_b2a3_security_handoff.md) + real C1–C3 Go tests/review. Until then GET/status must remain default-deny.
 **Owner**: ChatGPT Cloud; local agent only Go/race/reviewer CLI.
+
+## Requirements traceability (2026-11-10)
+
+**FR/UC rationale:** `fr_refs: []` / `uc_refs: []` are deliberate because C4 is an isolated S2S status-adapter security boundary, **not** a product-facing CRM use case or activated agent operation. Primary requirements are the [B2.C integration plan](../plans/dubbridge-consumes-fenix-integration.md#blocktask-plan-two-levels-only), [neutral response contract](../contracts/dubbridge-fenix-v1-envelope-response.schema.json), [B2.A3.T4 security gate](task_dubbridge_fenix_b2a3_security_handoff.md), and the acceptance criteria below. A product FR/UC relationship must be evidenced by an actual later capability before linking it.
+
+**Hard gate:** C4 remains design-only until both C1–C3 actual Go/peer evidence and independent T4 security acceptance are recorded. The existing nil resolver stays default-deny. **RRI: N/A — DB-FENIX-INT/cloud**.
 
 ## System Context
 
