@@ -104,7 +104,7 @@ Code affected: internal/api/middleware/dubbridge_operation_resolver.go and isola
 Criticality: critical
 Criticality basis: Prevent operation-existence enumeration and cross-tenant status exposure.
 Effort/reasoning: High — B2.A3 auth middleware and real SQLite integration.
-Recommended model: GPT-6 Cloud with independent reviewer.
+Recommended model: GPT-6 Cloud author; critical independent reviewer Qwen primary via current workflow (`FENIX_REVIEW_CRITICAL_MODEL`); external fallback only after local timeout/unavailability.
 Estimated tokens: ~6000
 Pseudocode: Verified scope -> scoped store lookup -> sanitized projection -> no route activation.
 Peer readiness review approval: reviewer=PENDING; artifact=NOT_RUN; status=BLOCKED_BY_T4
