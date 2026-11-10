@@ -31,6 +31,24 @@ DubBridge is the consumer/product and owns user/project permissions, media, revi
 
 The prior `docs/contracts/dubbridge-fenix-b2c-operation-proposal.*.sql` is a historical **proposal**; embedded `039_service_operation` is the current feature-branch implementation candidate. Independent task-readiness has **not been run or waived for B2.C**, and local Go 1.25.13 full test/race/vet/lint/review is unverified. Do not claim code PASS, operation execution, exactly-once external effects, a live S2S endpoint, production migration or `main` merge. Fenix capability registry remains empty/default-deny outside isolated tests; C4 cannot be activated until T4's separate review.
 
+## B2.C continuation sequencing — Cloud-first (2026-11-10)
+
+**Scheduling decision:** Exhaust Cloud-side static source review, bounded remediation preparation, C4 design and documentation before requesting local Go/reviewer execution. Avoid parallel local implementations that would invalidate the reviewed SHA. Source changes in CF2 remain subject to the repository's independent task-readiness requirements; a plan approval is not a peer-review waiver.
+
+| Sequence | Responsibility | Work package | Dependency / result |
+|---|---|---|---|
+| CF1 | ChatGPT Cloud | C1/C2/C3 source audit and tests/contract inspection | Current feature-branch source |
+| CF2 | ChatGPT Cloud | Narrow implementation/test fixes; only if required readiness permits | CF1 findings; compile/review not claimed |
+| CF3 | ChatGPT Cloud | C4 adapter/status design and negative test specifications, no implementation | B2.A3.T4 and C1–C3 pending |
+| CF4 | ChatGPT Cloud | Freeze SHA, update audit/task/#9 and tailor local QA commands to actual diff | Cloud candidate |
+| LG1 | Local | Go1.25.13 fmt/test/race/vet/prepush plus independent C1–C3 readiness/code review | CF4 frozen SHA |
+| LG2 | Independent local security reviewer | B2.A3.T4 exact-diff verdict in issue #8 | Independent of C1–C3 |
+| CF5 | ChatGPT Cloud | Repair only actual LG1/LG2 findings, reconcile evidence | Local results |
+| CF6 | ChatGPT Cloud | Implement unmounted C4 source only after C1–C3 QA and T4 security verdict | Both gates PASS |
+| LG3 | Local reviewer | Verify C4 final Go tests/review; report B2.C GO/NO-GO | CF6 final SHA |
+
+**External-gate split:** C1–C3 code remains SOURCE_CANDIDATE until authentic local evidence; C4 remains NOT_IMPLEMENTED/default-deny until its prerequisites pass. Operator capability policy B2.B4, B2.D transport/response controls and production HITL remain separately gated. A local reviewer should never be asked to implement Cloud-owned code unless a documented environment-only fix is indispensable.
+
 ## Architecture and interface boundary
 
 ```text
