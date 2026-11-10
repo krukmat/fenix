@@ -23,8 +23,10 @@ CREATE TABLE service_operation (
     created_at_unix       INTEGER NOT NULL CHECK (created_at_unix>0),
     updated_at_unix       INTEGER NOT NULL CHECK (updated_at_unix>=created_at_unix),
     PRIMARY KEY(principal_id,operation_id),
+    CHECK (status<>'accepted' OR run_id IS NULL),
     CHECK (status NOT IN ('running','awaiting_approval','handed_off',
-                         'succeeded','completed_with_warnings','abstained') OR run_id IS NOT NULL),
+                         'succeeded','completed_with_warnings','abstained')
+           OR (run_id IS NOT NULL AND length(run_id)>0)),
     CHECK ((lease_owner IS NULL AND lease_until_unix IS NULL)
        OR (lease_owner IS NOT NULL AND length(lease_owner)>0 AND lease_until_unix>0))
 );
