@@ -26,6 +26,10 @@ criticality_basis: "Cross-service idempotency, crash recovery and multi-tenant c
 created: 2026-11-05
 completed:
 ---
+## Latest authoritative remediation status — 2026-11-10
+
+**C1–C3 remain open/source-candidate.** Two independent local validations of the previous `e8c307c7` source returned `needs_changes` and QA FAIL. ChatGPT subsequently published bounded SQL/schema (F1, N2, N3), canonical JSON (N1) and Go lint/complexity/rollback-handling candidate fixes. None of the **new** Go 1.25.13/readiness/peer gates have been executed or passed. The execution artifact is [B2.C C1–C3 fixpack](../handoffs/dubbridge-fenix-b2c-fixpack-2026-11-10.md). **C4 deferred and non-blocking.** Keep #8 security and global documentation QA in separate workstreams; no production activation.
+
 # Task DB-FENIX-B2C
 
 ### C2/C3 follow-up source work
