@@ -90,6 +90,14 @@ func TestB2CReserveNewReplayConflictAndScope(t *testing.T) {
 	if err != nil || !replay || same.CreatedAtUnix != first.CreatedAtUnix {
 		t.Fatalf("replay changed record: %+v replay=%v err=%v", same, replay, err)
 	}
+	// Registry-owned configuration identity must win over any caller-supplied
+	// fingerprint; a forged value cannot mutate or redefine a replay.
+	forgedConfig := request
+	forgedConfig.ConfigSHA256 = sha256.Sum256([]byte("caller-forged-configuration"))
+	forged, replay, err := f.store.Reserve(ctx, forgedConfig, f.registry, now.Add(time.Minute))
+	if err != nil || !replay || forged.ConfigSHA256 != first.ConfigSHA256 {
+		t.Fatalf("caller config influenced reservation: replay=%v err=%v", replay, err)
+	}
 	different := request
 	different.RequestSHA256 = sha256.Sum256([]byte("different"))
 	if _, _, err := f.store.Reserve(ctx, different, f.registry, now); !errors.Is(err, integration.ErrServiceOperationConflict) {
