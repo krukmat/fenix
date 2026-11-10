@@ -66,6 +66,12 @@ different hash/config/contract => typed conflict, no overwrite
 commit; no agent execution, HTTP response or capability auto-registration
 ```
 
+## C2 follow-up: caller-supplied configuration isolation — 2026-11-10
+
+**Additional regression candidate:** `TestB2CReserveNewReplayConflictAndScope` now provides a forged caller-side `ConfigSHA256` and demands an unchanged idempotent replay with the stored Fenix-derived fingerprint. Existing `Reserve` code always recomputes the fingerprint from an enabled registry binding and does not require a production code change for this case.
+
+**Verification limits:** published test source only. Real Go 1.25.13, race and peer review remain `NOT_RUN`.
+
 ## Cloud C2 bounded source correction — 2026-11-10
 
 **Candidate change**: `sameOperationRequest` now compares immutable `trace_id` in addition to scope, operation/capability/schema, request SHA and capability configuration SHA. `TestB2CReserveNewReplayConflictAndScope` now asserts conflict when the same operation ID/request digest is replayed with a different trace ID.
