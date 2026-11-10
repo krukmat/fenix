@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2.C3
 title: "B2.C3 lease fencing and indeterminate recovery without redispatch"
-status: readiness_pass_qa_pending
+status: scoped_qa_pass_reported_peer_provenance_pending
 phase: B2.C
 week: 2026-W46
 tags: [dubbridge, fenix, sqlite, crash-recovery, idempotency]
@@ -20,7 +20,12 @@ created: 2026-11-10
 completed: null
 ---
 
-# B2.C3 — Lease and crash ambiguity without redispatch
+# B2.C3 — Lease and crash ambigui
+**Latest Cloud evidence reconciliation (2026-11-10; supersedes historical PENDING notes below):**
+QA and scoped independent review were **reported PASS** for the effective local tree in [#9 final validation](https://github.com/krukmat/fenix/issues/9#issuecomment-6777960499): Go 1.25.13, focused/race/vet/full/prepush and C1–C3 peer verdicts, with traceability and govulncheck legitimately skipped. The originally uncommitted store/digest fixes and server race-test relaxation were subsequently **published** on the same branch as commit [`e53fad7`](https://github.com/krukmat/fenix/commit/e53fad7f54fba46af00d9f2b7e6e287b217479ad). This is no longer an unpublished-overlay task.
+
+**Remaining evidence caveat:** the recorded peer PASS used `peer-codex`, whereas the current reviewer routing normally uses a local critical primary; the final report does not establish an eligible fallback. The published HEAD has not been verified by an independent clean-clone rerun, so **formal gate-policy closure is not asserted**. ChatGPT Cloud can continue inert B2.D design independently. No extra local execution is requested or scheduled. Production approval and T4 remain separate.
+
 
 **Plan**: [Canonical DubBridge → Fenix](../plans/dubbridge-consumes-fenix-integration.md#blocktask-plan-two-levels-only).
 **Parent**: [B2.C operation task](task_dubbridge_fenix_b2c_operation.md).
