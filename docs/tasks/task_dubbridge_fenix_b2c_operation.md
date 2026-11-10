@@ -28,6 +28,10 @@ completed:
 ---
 # Task DB-FENIX-B2C
 
+### C2/C3 follow-up source work
+
+C2 added a test that caller-forged configuration hashes do not influence registry-owned replay identity. C3 tightened the `MarkIndeterminate` UPDATE to atomically validate an active persisted principal against the exact operation scope and expanded revoked-principal regression coverage. These are source/test candidates only. Current change set includes six Go/SQL/test paths; Go 1.25.13 QA/readiness/independent code review remain pending. C4 is still deferred.
+
 ## C1–C3 Cloud correction checkpoint — 2026-11-10
 
 - **C1:** Migration 039 `run_id` invariants tightened (`accepted` must have NULL; required states cannot have an empty run ID); negative SQLite integration assertions authored.
