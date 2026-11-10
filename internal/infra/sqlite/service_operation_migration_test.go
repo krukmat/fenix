@@ -85,9 +85,18 @@ func TestB2CServiceOperationSchemaConstraints(t *testing.T) {
         WHERE principal_id='b2c-p1' AND status='indeterminate'`); err == nil {
 		t.Fatal("terminal operation reacquired a worker lease")
 	}
-	if _, err := db.Exec(insert, append([]any{"b2c-p2", "operation_00000001", "b2c-w2", "org-2", "",
+	for _, mutation := range []string{
+		"UPDATE service_operation SET run_id='forged-terminal-run' WHERE principal_id='b2c-p1'",
+		"UPDATE service_operation SET updated_at_unix=2000000020 WHERE principal_id='b2c-p1'",
+		"DELETE FROM service_operation WHERE principal_id='b2c-p1'",
+	} {
+		if _, err := db.Exec(mutation); err == nil {
+			t.Fatalf("durable terminal record was modified: %s", mutation)
+		}
+	}
+	if _, err := db.Exec(insert, []any{"b2c-p2", "operation_00000001", "b2c-w2", "org-2", "",
 		"integration.diagnostics", "1", bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32),
-		"trace_12345678", int64(2000000000), int64(2000000000)})...); err != nil {
+		"trace_12345678", int64(2000000000), int64(2000000000)}...); err != nil {
 		t.Fatal(err)
 	}
 	var count int
