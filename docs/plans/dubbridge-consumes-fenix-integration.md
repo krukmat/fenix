@@ -18,6 +18,12 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## Operator scope change — 2026-11-10: C4 deferred, non-blocking
+
+The operator removed **B2.C4 (scoped GET/status)** from the current execution/closure gates. The bounded target is now **B2.C1 migration 039 + C2 reservation/idempotency + C3 lease/ambiguity recovery**. C1–C3 may advance to independent readiness, actual Go 1.25.13 QA and independent code review and **close as an inert source-only block without C4** when those gates PASS. C4's future implementation/security gates remain in its own deferred task; GET/status stays default-deny and no production route, status-based E2E, capability activation or deployment is authorized.
+
+B2.A3.T4 independent security review is a **separate pending security gate** for the S2S security boundary and rollout, not a dependency on C1–C3 source-only verification. Follow-on B2.D work may be *planned* for transport/error/trace controls without status functionality, but any real GET/status, polling, B4 status E2E or release acceptance must be separately scoped and reviewed later. No gate is being waived; irrelevant future work is removed from this phase.
+
 ## B2.C feature-branch checkpoint — 2026-11-10
 
 **Owner approved C1–C4**. ChatGPT Cloud implemented **C1–C3 code candidates** in `feature/int-v2-dubbridge-consumes-fenix`, not a production integration; coordinate through [B2.C #9](https://github.com/krukmat/fenix/issues/9) and [parent task](../tasks/task_dubbridge_fenix_b2c_operation.md).
@@ -27,16 +33,16 @@ DubBridge is the consumer/product and owns user/project permissions, media, revi
 | [C1 SQLite](../tasks/task_dubbridge_fenix_b2c1_sqlite_schema.md) | ChatGPT Cloud | Embedded reversible migration 039, exact active Fenix scope insert trigger, immutable identity and terminal-state no-rewind constraints, Go test candidate | Cloud synthetic SQLite negative/rollback smoke PASS; real Go 1.25.13 and independent review PENDING |
 | [C2 Reservation](../tasks/task_dubbridge_fenix_b2c2_operation_store.md) | ChatGPT Cloud | Real-store atomic INSERT SELECT with principal-scoped replay/conflict, bounded canonical JSON digest, Fenix registry-derived handler fingerprint, Go tests | SOURCE PUBLISHED; Go/race/peer PENDING |
 | [C3 Recovery](../tasks/task_dubbridge_fenix_b2c3_recovery.md) | ChatGPT Cloud | Single lease, capability fingerprint fencing, scoped lookup, explicit indeterminate recovery without automatic retries or synthetic agent runs, Go tests | SOURCE PUBLISHED; Go/race/peer PENDING |
-| [C4 GET/status](../tasks/task_dubbridge_fenix_b2c4_status_resolver.md) | ChatGPT Cloud | Contract and test matrix for real scoped resolver; HTTP adaptation not implemented | BLOCKED by B2.A3.T4 independent security verdict and C1–C3 QA |
+| [C4 GET/status](../tasks/task_dubbridge_fenix_b2c4_status_resolver.md) | ChatGPT Cloud (later) | Historical contract and test matrix; no HTTP adapter | **DEFERRED / NOT A C1–C3 BLOCKER** |
 
-The prior `docs/contracts/dubbridge-fenix-b2c-operation-proposal.*.sql` is a historical **proposal**; embedded `039_service_operation` is the current feature-branch implementation candidate. Independent task-readiness has **not been run or waived for B2.C**, and local Go 1.25.13 full test/race/vet/lint/review is unverified. Do not claim code PASS, operation execution, exactly-once external effects, a live S2S endpoint, production migration or `main` merge. Fenix capability registry remains empty/default-deny outside isolated tests; C4 cannot be activated until T4's separate review.
+The prior `docs/contracts/dubbridge-fenix-b2c-operation-proposal.*.sql` is a historical **proposal**; embedded `039_service_operation` is the current feature-branch implementation candidate. Independent task-readiness has **not been run or waived for B2.C**, and local Go 1.25.13 full test/race/vet/lint/review is unverified. Do not claim code PASS, operation execution, exactly-once external effects, a live S2S endpoint, production migration or `main` merge. Fenix capability registry remains empty/default-deny outside isolated tests; C4 cannot be activated until T4's separate review **if the deferred work is resumed**; it is not required to verify or close inert C1–C3.
 
 ## B2.C readiness checkpoint — 2026-11-10 (documentation only)
 
 - C1 readiness at `67729056` was reported `needs_changes` because the B2.A2 dependency evidence and FR/UC non-applicability rationale were absent from its packet; **no C1 PASS yet**.
 - B2.A2: [owner accepted scoped source and H1/H2/M1 QA evidence, issue #3](https://github.com/krukmat/fenix/issues/3), on `87fd10d`. Embedded migration 038 and principal store exist for branch-local C1 SQL 039 verification. Fresh independent security acceptance is **not** reported; original independent FAIL is not overwritten.
 - B2.C is S2S **infrastructure**, not a delivered CRM product feature. Empty FR/UC references on C1–C4 are intentional and individually explained; canonical traceability is this integration plan, neutral S2S envelope and task-specific acceptance. No product UC, agent run or configured capability should be inferred.
-- C1–C3 Go QA, C1 renewed readiness, C1–C3 independent code reviews and B2.A3.T4 exact-diff security review are **NOT RUN on this revised documentation**. [Executable handoff](../handoffs/dubbridge-fenix-b2c-readiness-validation-2026-11-10.md) is the next local action; C4 stays blocked/default-deny. RRI N/A DB-FENIX-INT/cloud.
+- C1–C3 Go QA, C1 renewed readiness, C1–C3 independent code reviews and B2.A3.T4 exact-diff security review are **NOT RUN on this revised documentation**. [Executable handoff](../handoffs/dubbridge-fenix-b2c-readiness-validation-2026-11-10.md) is the next local action; C4 stays deferred/default-deny and does not block C1–C3. RRI N/A DB-FENIX-INT/cloud.
 
 ## Local peer workflow published, integration still unverified — 2026-11-10
 
@@ -46,21 +52,19 @@ Owner-verified upstream `aa26ad747b167e2eea839745616c9fb6ae5f3b0b` consolidated 
 
 ## B2.C continuation sequencing — Cloud-first (2026-11-10)
 
-**Scheduling decision:** Exhaust Cloud-side static source review, bounded remediation preparation, C4 design and documentation before requesting local Go/reviewer execution. Avoid parallel local implementations that would invalidate the reviewed SHA. Source changes in CF2 remain subject to the repository's independent task-readiness requirements; a plan approval is not a peer-review waiver.
+**Scheduling decision:** Complete C1–C3 source review, bounded remediation preparation and documentation before local Go/reviewer execution. C4 is deferred and is not on this critical path. Avoid parallel local implementations that would invalidate the reviewed SHA. Source changes in CF2 remain subject to the repository's independent task-readiness requirements; a plan approval is not a peer-review waiver.
 
 | Sequence | Responsibility | Work package | Dependency / result |
 |---|---|---|---|
 | CF1 | ChatGPT Cloud | C1/C2/C3 source audit and tests/contract inspection | Current feature-branch source |
 | CF2 | ChatGPT Cloud | Narrow implementation/test fixes; only if required readiness permits | CF1 findings; compile/review not claimed |
-| CF3 | ChatGPT Cloud | C4 adapter/status design and negative test specifications, no implementation | B2.A3.T4 and C1–C3 pending |
-| CF4 | ChatGPT Cloud | Freeze SHA, update audit/task/#9 and tailor local QA commands to actual diff | Cloud candidate |
-| LG1 | Local | Go1.25.13 fmt/test/race/vet/prepush plus independent C1–C3 readiness/code review | CF4 frozen SHA |
-| LG2 | Independent local security reviewer | B2.A3.T4 exact-diff verdict in issue #8 | Independent of C1–C3 |
-| CF5 | ChatGPT Cloud | Repair only actual LG1/LG2 findings, reconcile evidence | Local results |
-| CF6 | ChatGPT Cloud | Implement unmounted C4 source only after C1–C3 QA and T4 security verdict | Both gates PASS |
-| LG3 | Local reviewer | Verify C4 final Go tests/review; report B2.C GO/NO-GO | CF6 final SHA |
+| CF3 | ChatGPT Cloud | Freeze only C1–C3 source candidate SHA and update local QA handoff | C4 excluded |
+| LG1 | Local | C1–C3 independent readiness, Go 1.25.13 focused/full/race/vet/prepush, exact-scope independent code review | C1–C3 source-only gate |
+| LG2 | Independent local security reviewer | T4 exact-diff review in #8, tracked separately for security release | Not a C4-derived blocker for inert C1–C3 |
+| CF4 | ChatGPT Cloud | Address C1–C3 findings, reconcile reviewed SHA, close scoped code only on real PASS | No C4 implementation |
+| NEXT | ChatGPT Cloud | Propose non-status B2.D follow-on analysis and tasks | No live GET/status or integration activation |
 
-**External-gate split:** C1–C3 code remains SOURCE_CANDIDATE until authentic local evidence; C4 remains NOT_IMPLEMENTED/default-deny until its prerequisites pass. Operator capability policy B2.B4, B2.D transport/response controls and production HITL remain separately gated. A local reviewer should never be asked to implement Cloud-owned code unless a documented environment-only fix is indispensable.
+**External-gate split:** C1–C3 code remains SOURCE_CANDIDATE until authentic local evidence; C4 remains NOT_IMPLEMENTED/default-deny and deferred; it is **not** a gate for C1–C3 bounded closure. Operator capability policy B2.B4, B2.D transport/response controls and production HITL remain separately gated. A local reviewer should never be asked to implement Cloud-owned code unless a documented environment-only fix is indispensable.
 
 ## Architecture and interface boundary
 
