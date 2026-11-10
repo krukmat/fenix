@@ -18,6 +18,24 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## Current execution baseline — B2.C1–C3 only (2026-11-10)
+
+**Goal:** complete and independently verify the *inert*, Fenix-owned durable S2S operation foundation; no production integration, status endpoint or agent workflow is activated. The current block is **B2.C1–C3**. B2.C4 is deferred and never a prerequisite for bounded C1–C3 source acceptance. The independent security verification in [#8](https://github.com/krukmat/fenix/issues/8) is tracked separately for the auth/release boundary.
+
+| Order | Task | Concrete deliverable | Dependency | Current acceptance state |
+|---|---|---|---|---|
+| 1 | [B2.C1](../tasks/task_dubbridge_fenix_b2c1_sqlite_schema.md) | Embedded SQLite 039 up/down with immutable principal/workspace/org/project operation identity, constraints and migration tests | B2.A2 scoped persisted-principal baseline [#3](https://github.com/krukmat/fenix/issues/3) | Source candidate; prior readiness `needs_changes`; documentary gaps corrected; renewed independent readiness + Go 1.25.13 QA still required |
+| 2 | [B2.C2](../tasks/task_dubbridge_fenix_b2c2_operation_store.md) | Atomic reservation, Fenix-derived scope and request digest replay/conflict, deterministic bounded input, concurrency tests | C1 and default-deny B2.B capability registry | Source candidate; local Go QA/readiness/code review not completed |
+| 3 | [B2.C3](../tasks/task_dubbridge_fenix_b2c3_recovery.md) | One-shot lease, no automatic redispatch, revoked-principal handling and conservative `indeterminate` recovery with tests | C2 | Source candidate; local Go QA/readiness/code review not completed |
+| 4 | Verification | Actual Go 1.25.13 focused/full tests, race, vet, repository QA with honest failure attribution; genuine independent task readiness and exact-source code review | C1–C3 documentary/code candidates frozen | NOT RUN for the B2.C candidate |
+| 5 | Reconciliation | Fix attributable findings, repeat affected verification, publish final source SHA and proof; record bounded C1–C3 GO/NO-GO | Verified task and QA results | Pending |
+
+**Definition of done for this block:** C1–C3 acceptance assertions verified on real SQLite/Go, independent readiness and post-code review recorded on the correct code/document SHA, tests/QA and any exceptions reported with actual artifacts, no unresolved attributable blocking findings. A scoped source-only completion is distinct from **production readiness**. Overall integration rollout, live capability registration, B2.B4 policy, B2.D network/response controls and T4 security remain their own future gates.
+
+**Responsibility boundary:** ChatGPT Cloud owns source, targeted remediation, task/plan reconciliation and source-only closure record; local agent owns actual environment-bound verification and independent-review evidence. Reviewer implementation/model selection is governed by [AGENT_WORKFLOW_GUIDE](../playbooks/AGENT_WORKFLOW_GUIDE.md) and must **not** become a dependency or requirement in this integration plan.
+
+**Immediate action:** rerun C1 readiness on the corrected task, then perform C1–C3 Go QA and independent code review; return evidence in [#9](https://github.com/krukmat/fenix/issues/9). [Validation handoff](../handoffs/dubbridge-fenix-b2c-readiness-validation-2026-11-10.md). Historical/global documentation QA debt remains separately tracked and must not be represented as PASS.
+
 ## Operator scope change — 2026-11-10: C4 deferred, non-blocking
 
 The operator removed **B2.C4 (scoped GET/status)** from the current execution/closure gates. The bounded target is now **B2.C1 migration 039 + C2 reservation/idempotency + C3 lease/ambiguity recovery**. C1–C3 may advance to independent readiness, actual Go 1.25.13 QA and independent code review and **close as an inert source-only block without C4** when those gates PASS. C4's future implementation/security gates remain in its own deferred task; GET/status stays default-deny and no production route, status-based E2E, capability activation or deployment is authorized.
@@ -44,13 +62,7 @@ The prior `docs/contracts/dubbridge-fenix-b2c-operation-proposal.*.sql` is a his
 - B2.C is S2S **infrastructure**, not a delivered CRM product feature. Empty FR/UC references on C1–C4 are intentional and individually explained; canonical traceability is this integration plan, neutral S2S envelope and task-specific acceptance. No product UC, agent run or configured capability should be inferred.
 - C1–C3 Go QA, C1 renewed readiness, C1–C3 independent code reviews and B2.A3.T4 exact-diff security review are **NOT RUN on this revised documentation**. [Executable handoff](../handoffs/dubbridge-fenix-b2c-readiness-validation-2026-11-10.md) is the next local action; C4 stays deferred/default-deny and does not block C1–C3. RRI N/A DB-FENIX-INT/cloud.
 
-## Local peer workflow published, integration still unverified — 2026-11-10
-
-Owner-verified upstream `aa26ad747b167e2eea839745616c9fb6ae5f3b0b` consolidated the ten B2.C documentation commits and changed the independent reviewer routing. [Workflow task](../tasks/task_local_primary_peer_review.md) records **60 PASS** for the peer-review workflow tests, not B2.C integration acceptance. The current workflow guide assigns **Gemma as blocking primary for standard tasks** and **Qwen as blocking primary for critical tasks** (`FENIX_REVIEW_CRITICAL_MODEL`), including C1–C3 and B2.A3.T4. An external independent reviewer may be used only after local timeout/unavailability; substantive `needs_changes`, unknown/local author, invalid/oversized packet or other non-pass results fail closed. The prior Qwen-advisory/Gemma-fallback instructions are superseded.
-
-**Outstanding:** renewed C1 readiness, Go 1.25.13 B2.C focused/full/race/vet/prepush QA, C1–C3 independent code reviews, and T4 security review on exact `43d935c..acafa3d` diff remain **NOT RUN**. Global documentation gate failures (legacy plan frontmatter, ADR status/index, dangling ADR-036 references) are **NOT FIXED**; separate from B2.C and do not become PASS from the workflow push. No production S2S route, CI reactivation, credential, migration deployment, merge or scope waiver. **Local `.gitignore` rule for `scripts/__pycache__/*` is uncommitted and must be preserved**. Follow the [updated B2.C local handoff](../handoffs/dubbridge-fenix-b2c-readiness-validation-2026-11-10.md).
-
-## B2.C continuation sequencing — Cloud-first (2026-11-10)
+## Prior B2.C cloud-first sequencing — superseded by current execution baseline
 
 **Scheduling decision:** Complete C1–C3 source review, bounded remediation preparation and documentation before local Go/reviewer execution. C4 is deferred and is not on this critical path. Avoid parallel local implementations that would invalidate the reviewed SHA. Source changes in CF2 remain subject to the repository's independent task-readiness requirements; a plan approval is not a peer-review waiver.
 
