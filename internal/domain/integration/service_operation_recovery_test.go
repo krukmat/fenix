@@ -214,3 +214,25 @@ func TestB2CRevokedPrincipalExpiredLeaseReconciles(t *testing.T) {
 		t.Fatalf("reconciliation created agent run: count=%d err=%v", runCount, err)
 	}
 }
+
+func TestB2CLeaseRejectsDisabledCapability(t *testing.T) {
+	f := newB2CFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	req := b2cRequest(t, "b2c-p1", "b2c-w1", "org1", "project1", "operation_00000019")
+	if _, _, err := f.store.Reserve(ctx, req, f.registry, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.registry.Disable(req.Scope.PrincipalID, req.Scope.WorkspaceID, req.CapabilityKey); err != nil {
+		t.Fatal(err)
+	}
+	if claimed, err := f.store.AcquireLease(ctx, req.Scope, req.OperationID,
+		"worker-disabled", f.registry, now.Add(time.Second), time.Minute); claimed ||
+		!errors.Is(err, integration.ErrServiceOperationDenied) {
+		t.Fatalf("disabled capability leased operation: claimed=%v err=%v", claimed, err)
+	}
+	record, err := f.store.Lookup(ctx, req.Scope, req.OperationID)
+	if err != nil || record.Status != "accepted" || record.LeaseOwner != "" || record.LeaseUntilUnix != 0 {
+		t.Fatalf("disabled lease mutated accepted record: record=%+v err=%v", record, err)
+	}
+}
