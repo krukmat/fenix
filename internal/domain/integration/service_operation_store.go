@@ -25,7 +25,8 @@ type ServiceOperationScope struct {
 
 // ServiceOperationRequest is a verified, bounded request for durable reservation.
 // RequestSHA256 must come from CanonicalOperationDigest over the approved envelope.
-// ConfigSHA256 binds the immutable approved handler/configuration version.
+// ConfigSHA256 is populated by Reserve from the resolved Fenix capability binding;
+// any caller-supplied value is ignored. Full policy fingerprinting belongs to B2.B4.
 type ServiceOperationRequest struct {
 	Scope         ServiceOperationScope
 	OperationID   string
@@ -72,10 +73,11 @@ func (s *ServiceOperationStore) Reserve(
 	if registry == nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationDenied
 	}
-	_, capErr := registry.Resolve(req.Scope.PrincipalID, req.Scope.WorkspaceID, req.CapabilityKey, req.SchemaVersion)
+	binding, capErr := registry.Resolve(req.Scope.PrincipalID, req.Scope.WorkspaceID, req.CapabilityKey, req.SchemaVersion)
 	if capErr != nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationDenied
 	}
+	req.ConfigSHA256 = serviceCapabilityFingerprint(binding)
 	if s == nil || s.db == nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationUnavailable
 	}
@@ -199,6 +201,15 @@ func readServiceOperation(
 		record.LeaseUntilUnix = leaseUntil.Int64
 	}
 	return record, nil
+}
+
+
+func serviceCapabilityFingerprint(binding S2SCapabilityBinding) [sha256.Size]byte {
+	// Delimited, fixed-order immutable binding fields. Registry Resolve only
+	// returns enabled entries with a concrete handler and exact schema version.
+	identity := binding.PrincipalID + "\x00" + binding.WorkspaceID + "\x00" +
+		binding.CapabilityKey + "\x00" + binding.InputSchemaVersion + "\x00" + binding.HandlerID
+	return sha256.Sum256([]byte(identity))
 }
 
 func sameOperationRequest(a, b ServiceOperationRequest) bool {
