@@ -8,6 +8,7 @@ week: 2026-W46
 tags: [dubbridge, fenix, sqlite, idempotency, go]
 fr_refs: []
 uc_refs: []
+traceability_scope: integration_infrastructure_no_product_fr_uc
 blocked_by: [DB-FENIX-B2.C1, DB-FENIX-B2.B]
 blocks: [DB-FENIX-B2.C3]
 files_affected:
@@ -28,6 +29,12 @@ completed: null
 **Approval**: Owner approved C1–C4 proposal in conversation 2026-11-10. No production credentials, gateway/route, deployment, or main merge authorized.
 **Readiness**: Independent task-readiness PENDING; source is an unverified branch candidate until local Go 1.25.13 and reviewer gates.
 **Accountable**: ChatGPT Cloud; local agent Go and independent peer gate only.
+
+## Requirements traceability and security dependencies (2026-11-10)
+
+**FR/UC rationale:** `fr_refs: []` and `uc_refs: []` intentionally do not claim any CRM product use case. B2.C2 is a capability-neutral S2S storage primitive, not a configured agent, workflow or business operation. Its executable contract is the [DB-FENIX-INT B2.C plan](../plans/dubbridge-consumes-fenix-integration.md#blocktask-plan-two-levels-only), the [neutral S2S envelope](../contracts/dubbridge-fenix-v1-envelope-request.schema.json), the [B2.C parent task](task_dubbridge_fenix_b2c_operation.md) and the acceptance matrix below. Do not map `UC-G1` simply because it mentions replay/audit: no agent-run business use case is executed here.
+
+**Dependencies:** C1's migration 039 is a published candidate, not certified. B2.B's registry is default-deny and its durable operator policy B2.B4 is outstanding. [B2.A2 issue #3](https://github.com/krukmat/fenix/issues/3) confirms owner-accepted, feature-branch persisted principal baseline at `87fd10d`; independent security certification remains pending. C2 cannot claim QA/readiness PASS until genuine local evidence. **RRI: N/A — DB-FENIX-INT/cloud**.
 
 ## System Context
 
