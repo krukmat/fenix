@@ -56,6 +56,7 @@ func TestB2CServiceOperationSchemaConstraints(t *testing.T) {
 		"UPDATE service_operation SET run_id='fabricated-run'",
 		"UPDATE service_operation SET status='running',run_id=''",
 		"UPDATE service_operation SET lease_owner='worker'",
+		"DELETE FROM service_operation WHERE status='accepted'",
 	} {
 		if _, err := db.Exec(change); err == nil {
 			t.Fatalf("invalid mutation accepted: %s", change)
