@@ -28,6 +28,14 @@ completed:
 ---
 # Task DB-FENIX-B2C
 
+## Active task plan — B2.C1–C3 (2026-11-10)
+
+The current approved implementation scope is **C1 embedded SQLite 039**, **C2 atomic scoped reservation/idempotency**, and **C3 one-shot lease/ambiguous recovery**. These are the sole bounded deliverables of the current B2.C task. Dependency sequence: B2.A2 scoped persisted identity → C1 → C2 (plus B2.B default-deny registry) → C3 → independent readiness + Go 1.25.13 QA + exact-source code review → Cloud remediation and source-only closure record. See [canonical plan](../plans/dubbridge-consumes-fenix-integration.md#current-execution-baseline--b2c1c3-only-2026-11-10).
+
+**Status:** C1 previous readiness `needs_changes` (documentary findings corrected, new verdict pending); C1–C3 Go and independent code review have not been completed. No reviewer model constitutes a dependency: independent-review procedures belong to [AGENT_WORKFLOW_GUIDE](../playbooks/AGENT_WORKFLOW_GUIDE.md), not this task plan.
+
+**Out of scope of this source-only exit:** deferred C4, status GET/polling, B2.A3.T4 independent security/production approval, B2.B4 production operator policy, B2.D transport/rate/response activation, credentials, CI, rollout or merge. They remain separate workstreams, **not** requirements to certify the inert C1–C3 code. No historical QA debt is silently marked PASS.
+
 ## Current branch checkpoint — 2026-11-10
 
 **Coordination**: [#9](https://github.com/krukmat/fenix/issues/9). **Branch**: `feature/int-v2-dubbridge-consumes-fenix`. Owner approved C1–C4 task plan; no production migration, credential, route, CI reactivation, agent/model execution or main merge.
