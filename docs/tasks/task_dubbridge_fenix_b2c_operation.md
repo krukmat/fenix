@@ -2,12 +2,13 @@
 doc_type: task
 id: DB-FENIX-B2C
 title: "B2.C — durable S2S operation idempotency proposal"
-status: c1_c3_branch_candidates_go_qa_pending
+status: c1_readiness_needs_changes_recheck_c1_c3_qa_pending
 phase: integration
 week: "2026-W45"
 tags: [dubbridge, fenix, s2s, sqlite, idempotency]
 fr_refs: []
 uc_refs: []
+traceability_scope: integration_infrastructure_no_product_fr_uc
 blocked_by: [DB-FENIX-B2A, DB-FENIX-B2B]
 blocks: [DB-FENIX-B2D]
 files_affected:
@@ -39,6 +40,14 @@ completed:
 | [C4 status](task_dubbridge_fenix_b2c4_status_resolver.md) | ChatGPT Cloud | Adapter/HTTP test contract only. Real GET/status remains default-deny until B2.A3.T4 security verdict and C1–C3 QA | BLOCKED / NOT IMPLEMENTED |
 
 **Security and evidence limits**: Published B2.C code is unvalidated by local Go/reviewer; branch migrations are not production migrations, and task-readiness has not been independently executed or waived for B2.C. Do not mark C1–C3 PASS or closed. The old docs/contracts SQLite schema remains historical proposal-only: source of truth for **candidate implementation** is embedded `039`. Production operation acceptance must also await B2.B4 operator capability policy, B2.C4 scoped status and B2.D transport/rate/response controls.
+
+## Readiness reconciliation and evidence handoff — 2026-11-10
+
+At `6772905649d8390b4943273f4e52416696194087`, the owner reported C1 readiness `needs_changes` (B2.A2 prerequisite evidence not supplied and empty FR/UC lacking a rationale). No independent review artifact is available to Cloud. The [C1 task](task_dubbridge_fenix_b2c1_sqlite_schema.md) now carries [B2.A2 issue #3](https://github.com/krukmat/fenix/issues/3) owner-accepted scoped evidence: H1/H2/M1 Go/modernc/race x3 PASS **reported at `87fd10d`**, while independent B2.A2/T4 security acceptance is outstanding. The technical principal/migration 038 prerequisite exists on this feature branch; formal C1 readiness and security closure remain blocked on authentic reviewer outcomes. No result is transferred from B2.A2 into C1's separate Go tests.
+
+**FR/UC note:** Empty `fr_refs` and `uc_refs` are intentional for this **capability-neutral integration foundation**. B2.C does not deliver a CRM business UC, configured agent or workflow. Requirements trace via [canonical B2.C plan](../plans/dubbridge-consumes-fenix-integration.md#blocktask-plan-two-levels-only), [S2S envelope](../contracts/dubbridge-fenix-v1-envelope-request.schema.json) and each C1–C4 task's acceptance criteria; no invented FR/UC IDs. Reviewers should evaluate this explicit scope rather than infer missing product traceability.
+
+**Follow-up:** rerun C1 independent task-readiness on the revised task before certification; run actual B2.C Go 1.25.13 QA and independent post-code review only on frozen source; separately review T4 exact `43d935c..acafa3d`. See [local validation handoff](../handoffs/dubbridge-fenix-b2c-readiness-validation-2026-11-10.md). RRI: N/A — DB-FENIX-INT/cloud. No Go implementation, router, CI, migration activation, deployment or main merge.
 
 ## Execution order — Cloud first, local gates last (owner direction 2026-11-10)
 
