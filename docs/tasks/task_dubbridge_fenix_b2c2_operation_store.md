@@ -66,6 +66,14 @@ different hash/config/contract => typed conflict, no overwrite
 commit; no agent execution, HTTP response or capability auto-registration
 ```
 
+## Cloud C2 bounded source correction — 2026-11-10
+
+**Candidate change**: `sameOperationRequest` now compares immutable `trace_id` in addition to scope, operation/capability/schema, request SHA and capability configuration SHA. `TestB2CReserveNewReplayConflictAndScope` now asserts conflict when the same operation ID/request digest is replayed with a different trace ID.
+
+**Reason**: the stored trace ID is declared immutable by migration 039. The prior replay comparator omitted it, so a caller passing an unchanged digest with a different trace could receive a replay success without detecting the mismatch. This is defense in depth; the future ingress still must bind digest to the actual approved envelope (B2.D), and no ingress is active today.
+
+**Verification**: code/test candidate committed; Go 1.25.13 focused/full/race QA and independent task-readiness/post-code review **NOT RUN**. The change does not claim real agent dispatch, an enabled production registry or rollout.
+
 ## Acceptance and limitations
 
 - Registry starts empty; no operation accepted until explicit test-only/operator registration.
