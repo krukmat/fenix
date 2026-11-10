@@ -31,14 +31,11 @@ related:
 
 **Traceability reconciliation:** Each C1–C4 task now explicitly explains empty `fr_refs: []` and `uc_refs: []`: S2S infrastructure without a CRM business use case. The normative references are the [integration plan](../plans/dubbridge-consumes-fenix-integration.md), [neutral S2S envelope](../contracts/dubbridge-fenix-v1-envelope-request.schema.json), B2.A2 persisted identity and individual C1–C4 acceptance criteria. No FR/UC invented. B2.A2 technical source prerequisite is **available for branch QA**, while independent security/production closure remains **pending**; keep the C1 dependency visible.
 
-## Workflow synchronization checkpoint — 2026-11-10
+## Execution governance (not a task dependency)
 
-- Verified remote source baseline before this handoff update: `aa26ad747b167e2eea839745616c9fb6ae5f3b0b`; workflow changes in [LOCAL-PRIMARY-PEER-REVIEW](../tasks/task_local_primary_peer_review.md), [workflow guide](../playbooks/AGENT_WORKFLOW_GUIDE.md) and `scripts/peer-workflow-review.py`.
-- New reviewer route: standard = `FENIX_REVIEW_MODEL` (default `gemma4:26b-a4b-it-qat`); critical = `FENIX_REVIEW_CRITICAL_MODEL` (default `qwen3.6:35b-a3b`), both **blocking primary**. The previous Qwen advisory mode is superseded. Only local timeout/unavailability permits independent external fallback; unknown/local authors remain blocked.
-- Local workflow task records `make qa-peer-workflow-review` **60 PASS** at the published SHA; this is **not** B2.C Go QA, C1 readiness, C1–C3 post-code review or B2.A3.T4 independent security acceptance.
-- Repository-wide documentation gate is still reported failing on legacy plan frontmatter, ADR status/index mismatches and dangling ADR-036 references. This remains separate from B2.C and should be recorded, not silently waived.
-- Owner's local `/Users/matias/fenix/.gitignore` contains pre-existing uncommitted ignore rule `scripts/__pycache__/*`; do not touch or stage it. Neither the workflow commit nor this handoff includes that local modification.
-- RRI: N/A — DB-FENIX-INT/cloud. No routes, CI, migration activation, credentials, runtime dispatch, deployment or main merge.
+Read the active [agent workflow guide](../playbooks/AGENT_WORKFLOW_GUIDE.md) when invoking independent readiness or post-code review. Its provider/model routing is an **implementation detail of the review gate**, not an acceptance criterion or dependency in the DubBridge–Fenix plan. Preserve reviewer independence, actual artifacts, explicit PASS/FAIL/NOT_RUN and scope/criticality rules.
+
+The published peer-review workflow's 60 unit tests do **not** certify C1–C3. Repository-wide documentation QA debt remains unresolved and must not be reported as PASS. Preserve the owner's uncommitted `/Users/matias/fenix/.gitignore` entry `scripts/__pycache__/*` verbatim. RRI: N/A — DB-FENIX-INT/cloud.
 
 ## Operator scope update — 2026-11-10
 
@@ -65,7 +62,7 @@ git rev-parse HEAD
 GOTOOLCHAIN=go1.25.13 go version
 ```
 
-**1. Re-run independent task-readiness FIRST on the updated C1 task + plan.** Inspect the prior local `needs_changes` artifact if available; report its real path/hash and actual reviewer. The documentation is revised, **not approved**. Follow the **published** workflow at `aa26ad7`, not the previous fallback/advisory policy. For independently identified `codex`, `claude-code`, or `remote-provider` authors, **standard** readiness/code review uses local Gemma as the blocking primary; **critical** readiness/code review uses local Qwen as the blocking primary. C1–C3 and T4 declare `criticality: critical`, so **Qwen is primary** unless the independently reviewed task is formally reclassified. External reviewers are permitted only if the assigned local primary times out or is unavailable; a substantive `needs_changes`, invalid verdict or oversized packet blocks without fallback. `local-provider` and `unknown` callers fail closed because author independence cannot be established. This B2.C source is Cloud-authored, so use `--caller-kind codex` when Codex/ChatGPT is the actual author, rather than incorrectly identifying the local validation runner as the author. Capture the actual local model, primary/fallback, verdict and artifact SHA. Example:
+**1. Re-run independent task-readiness FIRST on the revised C1 task and canonical plan.** The prior `needs_changes` is not a PASS. Confirm the actual task author kind and independent reviewer from the active workflow guide, and capture reviewer, criticality concurrence, verdict, artifact path/hash and source SHA. If C1 PASS, repeat readiness independently for C2 and C3; do not reuse C1's verdict. The reviewer workflow handles provider/model selection internally, **not the integration plan**. Example for code authored by ChatGPT/Codex (only if truthful):
 
 ```bash
 CALLER_KIND=codex  # Only if Codex/ChatGPT authored the reviewed task; do not misrepresent authorship.
@@ -91,7 +88,7 @@ git diff --check
 
 Record each exact command, RC, toolchain, output log location and sha256, and first redacted failure. `gofmt -l` is listing only; do **not** run `gofmt -w`. Disaggregate changed-code B2.C failures from [global QA debt #4](https://github.com/krukmat/fenix/issues/4); skipped traceability/govulncheck are **SKIPPED**, not PASS. Preserve the actual changed-code reviewer baseline.
 
-**3. Independent C1–C3 post-code review of the frozen Go/SQLite source**, with **Qwen primary for critical tasks** under the published `aa26ad7` policy, findings and verdict **per task** (or explicit broader B2.C packet scope, never falsely labeled isolated). A useful bounded code inventory is:
+**3. Independent C1–C3 post-code review of the frozen Go/SQLite source**, using the active independent-review workflow, with findings and verdict **per task** (or explicit broader B2.C packet scope, never falsely labeled isolated). A useful bounded code inventory is:
 
 ```bash
 git diff --name-only b17162743ed8ee4f3e99be09e910e3b3d1c01fb6 dc7354738dfc9633230f9b31f31b5bf625c73b3d -- internal/infra/sqlite/migrations/039_service_operation.up.sql internal/infra/sqlite/migrations/039_service_operation.down.sql internal/infra/sqlite/service_operation_migration_test.go 'internal/domain/integration/service_operation_*.go'
@@ -107,7 +104,7 @@ git diff --name-only 43d935c4288a565b6c4d202208ebef16cc35e012 acafa3d3b59f0539b7
 git diff --no-color 43d935c4288a565b6c4d202208ebef16cc35e012 acafa3d3b59f0539b7fbc5ec3114a43c332bce80
 ```
 
-Use the published critical-task Qwen-primary independent security-review flow; only timeout/unavailability enables external fallback. If running the script, point it at a temporary detached worktree with HEAD exactly `acafa3d`, not the current branch HEAD, and verify the diff path set. Inspect S2S auth scope, revocation/rotation, capability registry, error wrapping and redaction/retry semantics. Publish independent reviewer, exact paths and artifact SHA on [#8](https://github.com/krukmat/fenix/issues/8); do **not** treat T3's reviewer as T4 certification.
+Use the active independent security-review workflow. If running the script, point it at a temporary detached worktree with HEAD exactly `acafa3d`, not the current branch HEAD, and verify the diff path set. Inspect S2S auth scope, revocation/rotation, capability registry, error wrapping and redaction/retry semantics. Publish independent reviewer, exact paths and artifact SHA on [#8](https://github.com/krukmat/fenix/issues/8); do **not** treat T3's reviewer as T4 certification.
 
 **5. Return C1–C3 artifacts only.** On [#9](https://github.com/krukmat/fenix/issues/9), report a compact matrix `[C1/C2/C3 readiness, focused Go, race, vet, full test, prepush, post-code peer | PASS/FAIL/NEEDS_CHANGES/NOT_RUN | RC | SHA | artifact path/hash | relevant finding]`; include B2.A2 dependency assessment distinguishing scoped owner acceptance from independent security PASS. On #8 report T4 separately. If local GitHub publication is unavailable, return the complete redacted reports to the owner for ChatGPT publication. Keep changed source and docs untouched in the local agent session.
 
