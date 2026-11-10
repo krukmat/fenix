@@ -65,6 +65,14 @@ for status lookup:
 no background goroutine, worker launch, real execution or active route
 ```
 
+## C3 follow-up: revocation/update atomicity — 2026-11-10
+
+**Implementation candidate:** `MarkIndeterminate` now repeats the persisted active Fenix principal/consumer/workspace/org/project check **inside the conditional `UPDATE`**, in addition to the existing `Lookup` check. This narrows the time-of-check/time-of-use window if a principal is revoked after lookup but before its leasing worker records ambiguity. An explicit Fenix-owned `ReconcileExpiredLeases` remains able to mark expired operations of revoked principals `indeterminate` for audit, without restoring caller access.
+
+**Regression:** the revoked-principal/expired-lease test now first asserts the scoped worker API rejects `MarkIndeterminate`, then checks that operator reconciliation still succeeds and creates no `agent_run`. This is not a status resolver, dispatcher or route.
+
+**Verification limits:** a standalone in-memory SQLite reproduction of the *conditional predicate* passed for active principal (row updated) and revoked principal (zero rows). It did **not** execute Fenix's real Go/modernc suite, full migration or independent review; those remain `NOT_RUN`.
+
 ## Cloud C3 bounded regression coverage — 2026-11-10
 
 **Candidate change**: `TestB2CRevokedPrincipalExpiredLeaseReconciles` now covers an accepted operation whose one-shot lease has been acquired, whose owning principal is subsequently revoked and whose lease expires. The test expects a Fenix-owned reconciliation to mark the row `indeterminate`, clear lease metadata and **not** restore principal lookup permission or create a real run.
