@@ -69,7 +69,7 @@ func b2cRequest(t *testing.T, principal, workspace, org, project, operationID st
 		t.Fatal(err)
 	}
 	return integration.ServiceOperationRequest{
-		Scope: integration.ServiceOperationScope{PrincipalID: principal, WorkspaceID: workspace, OrgID: org, ProjectID: project},
+		Scope:       integration.ServiceOperationScope{PrincipalID: principal, WorkspaceID: workspace, OrgID: org, ProjectID: project},
 		OperationID: operationID, CapabilityKey: "integration.diagnostics", SchemaVersion: "1",
 		TraceID: "trace_b2c_test", RequestSHA256: digest,
 		// ConfigSHA256 is deliberately left zero: Reserve must derive it
