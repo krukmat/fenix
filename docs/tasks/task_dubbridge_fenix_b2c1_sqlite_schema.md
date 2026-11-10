@@ -100,7 +100,7 @@ Code affected: migrations/039_service_operation.{up,down}.sql and service_operat
 Criticality: critical
 Criticality basis: Tenant isolation, immutable idempotency and recovery constraints.
 Effort/reasoning: High — migration, triggers, FK, reversible rollback and tests.
-Recommended model: GPT-6 Cloud author; independent peer review via the current workflow: Qwen critical primary (`FENIX_REVIEW_CRITICAL_MODEL`), external fallback only on local timeout/unavailability; no self-review.
+Recommended model: Cloud author; independent peer review assigned by docs/playbooks/AGENT_WORKFLOW_GUIDE.md (no model-specific integration dependency).
 Estimated tokens: ~7000
 Pseudocode: Persist authority from active Fenix principal, restrict writes, reject cross-tenant mutations, verify local rollback.
 Peer readiness review approval: reviewer=LOCAL_REVIEWER_UNSPECIFIED; artifact=NOT_PROVIDED_TO_CLOUD; status=NEEDS_CHANGES_AT_67729056_RECHECK_PENDING
