@@ -182,6 +182,13 @@ func TestB2CCanonicalDigestLimitsAndDuplicateKeys(t *testing.T) {
 	if err != nil || a != b {
 		t.Fatalf("canonical map order differs: %v", err)
 	}
+	// encoding/json otherwise replaces malformed UTF-8 with U+FFFD, which
+	// could alias distinct inbound payload bytes to the same request digest.
+	invalidUTF8 := append([]byte(`{"message":"`), byte(0xff))
+	invalidUTF8 = append(invalidUTF8, []byte(`"}`)...)
+	if _, err := integration.CanonicalOperationDigest(invalidUTF8); !errors.Is(err, integration.ErrServiceOperationInvalid) {
+		t.Fatalf("malformed UTF-8 accepted as canonical request: %v", err)
+	}
 	for _, raw := range []string{
 		`{"a":1,"a":2}`, `{"nested":{"a":1,"a":2}}`,
 		`{"a":1} {"b":2}`, `[1,2]`, `{"a":null} trailing`,
