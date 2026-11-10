@@ -145,3 +145,24 @@ func TestB2CRevokedPrincipalCannotLookupOrLease(t *testing.T) {
 		t.Fatalf("revoked principal claimed: %v %v", ok, err)
 	}
 }
+
+func TestB2CLeaseRejectsHandlerChange(t *testing.T) {
+	f := newB2CFixture(t)
+	now := time.Now().UTC()
+	req := b2cRequest(t, "b2c-p1", "b2c-w1", "org1", "project1", "operation_00000014")
+	if _, _, err := f.store.Reserve(context.Background(), req, f.registry, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.registry.Register(integration.S2SCapabilityBinding{
+		PrincipalID: "b2c-p1", WorkspaceID: "b2c-w1",
+		CapabilityKey: "integration.diagnostics", InputSchemaVersion: "1",
+		HandlerID: "changed-handler", Enabled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := f.store.AcquireLease(context.Background(), req.Scope, req.OperationID,
+		"worker1", f.registry, now, time.Minute)
+	if claimed || !errors.Is(err, integration.ErrServiceOperationDenied) {
+		t.Fatalf("handler change accepted old operation: claimed=%v err=%v", claimed, err)
+	}
+}
