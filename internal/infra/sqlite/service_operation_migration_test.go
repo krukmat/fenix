@@ -35,7 +35,10 @@ func TestB2CServiceOperationSchemaConstraints(t *testing.T) {
 	if _, err := db.Exec(insert, base...); err != nil {
 		t.Fatal(err)
 	}
-	for _, change := range []struct{ index int; value any }{
+	for _, change := range []struct {
+		index int
+		value any
+	}{
 		{0, "b2c-p3"}, {2, "b2c-w2"}, {3, "org-2"}, {4, ""},
 		{7, []byte{1}}, {1, "short"},
 	} {
