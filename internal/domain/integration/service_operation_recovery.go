@@ -13,9 +13,7 @@ func (s *ServiceOperationStore) Lookup(
 	if s == nil || s.db == nil {
 		return ServiceOperationRecord{}, ErrServiceOperationUnavailable
 	}
-	if !validScopePart(scope.PrincipalID) || !validScopePart(scope.WorkspaceID) ||
-		!validScopePart(scope.OrgID) || (scope.ProjectID != "" && !validScopePart(scope.ProjectID)) ||
-		!b2cOperationIDPattern.MatchString(operationID) {
+	if !validOperationScope(scope) || !b2cOperationIDPattern.MatchString(operationID) {
 		return ServiceOperationRecord{}, ErrServiceOperationInvalid
 	}
 	conn, err := s.db.Conn(ctx)
@@ -41,12 +39,26 @@ func (s *ServiceOperationStore) AcquireLease(
 	if err != nil {
 		return false, err
 	}
+	if !leaseCapabilityAllowed(registry, scope, record) {
+		return false, ErrServiceOperationDenied
+	}
+	return s.claimLease(ctx, scope, operationID, workerID, now, ttl)
+}
+
+func leaseCapabilityAllowed(
+	registry *S2SCapabilityRegistry, scope ServiceOperationScope, record ServiceOperationRecord,
+) bool {
 	if registry == nil {
-		return false, ErrServiceOperationDenied
+		return false
 	}
-	if _, err = registry.Resolve(scope.PrincipalID, scope.WorkspaceID, record.CapabilityKey, record.SchemaVersion); err != nil {
-		return false, ErrServiceOperationDenied
-	}
+	_, err := registry.Resolve(scope.PrincipalID, scope.WorkspaceID, record.CapabilityKey, record.SchemaVersion)
+	return err == nil
+}
+
+func (s *ServiceOperationStore) claimLease(
+	ctx context.Context, scope ServiceOperationScope, operationID, workerID string,
+	now time.Time, ttl time.Duration,
+) (bool, error) {
 	until := now.Add(ttl).Unix()
 	if until <= now.Unix() {
 		return false, ErrServiceOperationInvalid
