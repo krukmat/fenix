@@ -16,12 +16,17 @@ files_affected:
   - internal/infra/sqlite/migrations/039_service_operation.down.sql
   - internal/infra/sqlite/service_operation_migration_test.go
 criticality: critical
-criticality_basis: "Immutable tenant-scoped operation reservations and reversible schema constraints protect cross-tenant isolation and crash consistency."
+criticality_basis: "Incorrect scope, leases or journal identity could compromise cross-tenant isolation and idempotency; critical independent verification is required, not yet achieved."
 created: 2026-11-10
 completed: null
 ---
 
 # B2.C1 — Embedded SQLite operation schema
+
+**Readiness dependency, visible without packet compaction:** B2.A2 persisted identity/migration 038 is **owner-accepted for branch-source QA**, with H1/H2/M1 Go evidence at `87fd10d` in [issue #3](https://github.com/krukmat/fenix/issues/3). This is **not** an independent B2.A2 security PASS or rollout approval. B2.C1 is an inert S2S infrastructure task; `fr_refs: []` and `uc_refs: []` are intentional because no product CRM use case is delivered. Technical requirements are the integration plan, S2S envelope and acceptance criteria below.
+
+**Separate gates:** task-readiness evaluates whether C1 scope, dependencies and acceptance checks are sufficient to execute; Go 1.25.13 tests, vet, race, prepush and independent *post-code* review are required for **closure**, not evidence of a test execution already achieved at task-readiness. The earlier `needs_changes` verdict remains in force until a genuine new review. No waiver is implied.
+
 
 **Plan**: [DubBridge consumes Fenix](../plans/dubbridge-consumes-fenix-integration.md#blocktask-plan-two-levels-only).
 **Parent**: [B2.C operation task](task_dubbridge_fenix_b2c_operation.md).
