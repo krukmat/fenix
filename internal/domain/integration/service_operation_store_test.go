@@ -95,6 +95,13 @@ func TestB2CReserveNewReplayConflictAndScope(t *testing.T) {
 	if _, _, err := f.store.Reserve(ctx, different, f.registry, now); !errors.Is(err, integration.ErrServiceOperationConflict) {
 		t.Fatalf("expected conflict: %v", err)
 	}
+	// A replay cannot silently replace the immutable trace identity even if an
+	// upstream caller incorrectly supplies the original request fingerprint.
+	changedTrace := request
+	changedTrace.TraceID = "trace_b2c_other"
+	if _, _, err := f.store.Reserve(ctx, changedTrace, f.registry, now); !errors.Is(err, integration.ErrServiceOperationConflict) {
+		t.Fatalf("replayed operation with different trace identity: %v", err)
+	}
 	// An operator-updated handler binding changes the authoritative fingerprint,
 	// even if the caller repeats the identical JSON request and operation ID.
 	if err := f.registry.Register(integration.S2SCapabilityBinding{
