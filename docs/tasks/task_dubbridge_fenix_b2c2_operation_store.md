@@ -86,7 +86,7 @@ Code affected: internal/domain/integration/service_operation_store.go, service_o
 Criticality: critical
 Criticality basis: Durable idempotency and tenant authorization before any dispatcher.
 Effort/reasoning: High — concurrent writer, canonical input and failure paths.
-Recommended model: GPT-6 Cloud author; critical independent reviewer Qwen primary via current workflow (`FENIX_REVIEW_CRITICAL_MODEL`); external fallback only after local timeout/unavailability.
+Recommended model: Cloud author; independent peer review assigned by docs/playbooks/AGENT_WORKFLOW_GUIDE.md (no model-specific integration dependency).
 Estimated tokens: ~9000
 Pseudocode: Verify capability, derive Fenix principal scope, insert under transaction, compare fingerprints, return record/replay/conflict without running any agent.
 Peer readiness review approval: reviewer=PENDING; artifact=NOT_RUN; status=PENDING
