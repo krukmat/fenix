@@ -187,6 +187,12 @@ func TestB2CRevokedPrincipalExpiredLeaseReconciles(t *testing.T) {
 	if _, err := f.store.Lookup(ctx, req.Scope, req.OperationID); !errors.Is(err, integration.ErrServiceOperationDenied) {
 		t.Fatalf("revoked principal could read operation: %v", err)
 	}
+	// A worker cannot finalize a revoked principal's operation through the
+	// scoped API. Fenix-owned audit reconciliation remains possible below.
+	if changed, err := f.store.MarkIndeterminate(ctx, req.Scope, req.OperationID,
+		"worker-revoked", now.Add(2*time.Minute)); changed || !errors.Is(err, integration.ErrServiceOperationDenied) {
+		t.Fatalf("revoked worker finalized operation: changed=%v err=%v", changed, err)
+	}
 	changed, err := f.store.ReconcileExpiredLeases(ctx, now.Add(2*time.Minute))
 	if err != nil || changed != 1 {
 		t.Fatalf("revoked principal's expired lease not reconciled: rows=%d err=%v", changed, err)
