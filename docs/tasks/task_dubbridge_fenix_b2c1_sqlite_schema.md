@@ -79,6 +79,14 @@ on local rollback remove triggers/indexes/table, leaving principal/store intact
 integration test migration version, constraints, wrong tenant, rollback
 ```
 
+## Cloud C1 bounded source correction — 2026-11-10
+
+**Candidate change**: Embedded migration 039 now enforces `status='accepted' => run_id IS NULL`, and a running/approval/handoff/success state requiring a run ID cannot use an empty string. `TestB2CServiceOperationSchemaConstraints` was extended to reject an accepted operation with a synthetic `run_id` and an empty running `run_id`.
+
+**Reason**: the previous CHECK required a non-NULL run ID only after leaving `accepted` but allowed callers to fabricate one *while still accepted*, contrary to C1's inert/no-fake-run invariant. Only the existing feature-branch 039 up SQL and its test changed; no existing production migration was applied.
+
+**Verification**: static source change committed; real Go 1.25.13/modernc migration tests, independent readiness and peer review **NOT RUN** at this checkpoint. The reported prior C1 readiness `needs_changes` has not become a PASS.
+
 ## Acceptance
 
 - Migration 039 is loaded by Fenix embed.FS, not a copied proposal under docs/contracts.
