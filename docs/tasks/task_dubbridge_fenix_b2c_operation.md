@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2C
 title: "B2.C — durable S2S operation idempotency proposal"
-status: sqlite_proposal_only
+status: c1_c3_branch_candidates_go_qa_pending
 phase: integration
 week: "2026-W45"
 tags: [dubbridge, fenix, s2s, sqlite, idempotency]
@@ -14,12 +14,31 @@ files_affected:
   - docs/contracts/dubbridge-fenix-b2c-operation-proposal.up.sql
   - docs/contracts/dubbridge-fenix-b2c-operation-proposal.down.sql
   - scripts/int_b2c_operation_sqlite_smoke.py
+  - internal/infra/sqlite/migrations/039_service_operation.up.sql
+  - internal/infra/sqlite/migrations/039_service_operation.down.sql
+  - internal/infra/sqlite/service_operation_migration_test.go
+  - internal/domain/integration/service_operation_store.go
+  - internal/domain/integration/service_operation_digest.go
+  - internal/domain/integration/service_operation_recovery.go
 criticality: critical
 criticality_basis: "Cross-service idempotency, crash recovery and multi-tenant consistency"
 created: 2026-11-05
 completed:
 ---
 # Task DB-FENIX-B2C
+
+## Current branch checkpoint — 2026-11-10
+
+**Coordination**: [#9](https://github.com/krukmat/fenix/issues/9). **Branch**: `feature/int-v2-dubbridge-consumes-fenix`. Owner approved C1–C4 task plan; no production migration, credential, route, CI reactivation, agent/model execution or main merge.
+
+| Task | Accountable | Implementation | State |
+|---|---|---|---|
+| [C1 schema](task_dubbridge_fenix_b2c1_sqlite_schema.md) | ChatGPT Cloud | Embedded reversible migration **039** with active-Fenix-scope trigger, immutable fields and real SQLite Go test authored. Synthetic Python sqlite schema/negative/rollback verification PASS, not real `go test` | BRANCH_CANDIDATE / Go 1.25.13 QA + peer PENDING |
+| [C2 store](task_dubbridge_fenix_b2c2_operation_store.md) | ChatGPT Cloud | Atomic `BEGIN IMMEDIATE`/INSERT SELECT from active principal, exact scope, typed replay/conflict, Fenix registry-owned config fingerprint, bounded duplicate-safe canonical JSON, concurrent tests authored | BRANCH_CANDIDATE / Go 1.25.13 QA + peer PENDING |
+| [C3 recovery](task_dubbridge_fenix_b2c3_recovery.md) | ChatGPT Cloud | One-shot lease, explicit indeterminate on ambiguity/expiry, scoped lookup and no auto-dispatch; real SQLite concurrency/revocation tests authored | BRANCH_CANDIDATE / Go 1.25.13 QA + peer PENDING |
+| [C4 status](task_dubbridge_fenix_b2c4_status_resolver.md) | ChatGPT Cloud | Adapter/HTTP test contract only. Real GET/status remains default-deny until B2.A3.T4 security verdict and C1–C3 QA | BLOCKED / NOT IMPLEMENTED |
+
+**Security and evidence limits**: Published B2.C code is unvalidated by local Go/reviewer; branch migrations are not production migrations, and task-readiness has not been independently executed or waived for B2.C. Do not mark C1–C3 PASS or closed. The old docs/contracts SQLite schema remains historical proposal-only: source of truth for **candidate implementation** is embedded `039`. Production operation acceptance must also await B2.B4 operator capability policy, B2.C4 scoped status and B2.D transport/rate/response controls.
 
 ## Current authoritative cloud status — 2026-11-05
 
