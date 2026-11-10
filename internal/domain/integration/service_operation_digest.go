@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"unicode/utf8"
 )
 
@@ -23,7 +24,8 @@ var ErrServiceOperationInvalid = errors.New("invalid service operation request")
 // Numeric lexical forms (1 vs 1.0) are intentionally distinct: this is not RFC 8785.
 func CanonicalOperationDigest(raw []byte) ([sha256.Size]byte, error) {
 	var zero [sha256.Size]byte
-	if len(raw) == 0 || len(raw) > b2cMaxCanonicalJSONBytes || !utf8.Valid(raw) {
+	if len(raw) == 0 || len(raw) > b2cMaxCanonicalJSONBytes ||
+		!utf8.Valid(raw) || !validJSONUnicodeEscapes(raw) {
 		return zero, ErrServiceOperationInvalid
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -108,4 +110,59 @@ func decodeServiceOperationArray(dec *json.Decoder, depth int, nodes *int) ([]an
 		return nil, ErrServiceOperationInvalid
 	}
 	return values, nil
+}
+
+// validJSONUnicodeEscapes rejects escaped lone UTF-16 surrogates before
+// encoding/json can normalize them into U+FFFD and alias distinct requests.
+// Ordinary escaped backslashes are skipped and valid surrogate pairs survive.
+func validJSONUnicodeEscapes(raw []byte) bool {
+	inString := false
+	for i := 0; i < len(raw); i++ {
+		switch raw[i] {
+		case '"':
+			inString = !inString
+		case '\\':
+			if !inString {
+				continue
+			}
+			next, ok := scanJSONUnicodeEscape(raw, i)
+			if !ok {
+				return false
+			}
+			i = next
+		}
+	}
+	return true
+}
+
+func scanJSONUnicodeEscape(raw []byte, i int) (int, bool) {
+	if i+1 >= len(raw) {
+		return i, false
+	}
+	if raw[i+1] != 'u' {
+		return i + 1, true
+	}
+	if i+5 >= len(raw) {
+		return i, false
+	}
+	first, ok := jsonHexCodeUnit(raw[i+2 : i+6])
+	if !ok || (first >= 0xdc00 && first <= 0xdfff) {
+		return i, false
+	}
+	if first < 0xd800 || first > 0xdbff {
+		return i + 5, true
+	}
+	if i+11 >= len(raw) || raw[i+6] != '\\' || raw[i+7] != 'u' {
+		return i, false
+	}
+	second, ok := jsonHexCodeUnit(raw[i+8 : i+12])
+	if !ok || second < 0xdc00 || second > 0xdfff {
+		return i, false
+	}
+	return i + 11, true
+}
+
+func jsonHexCodeUnit(raw []byte) (uint64, bool) {
+	value, err := strconv.ParseUint(string(raw), 16, 16)
+	return value, err == nil
 }
