@@ -37,6 +37,18 @@ Read the active [agent workflow guide](../playbooks/AGENT_WORKFLOW_GUIDE.md) whe
 
 The published peer-review workflow's 60 unit tests do **not** certify C1–C3. Repository-wide documentation QA debt remains unresolved and must not be reported as PASS. Preserve the owner's uncommitted `/Users/matias/fenix/.gitignore` entry `scripts/__pycache__/*` verbatim. RRI: N/A — DB-FENIX-INT/cloud.
 
+## Latest C1–C3 candidate changes to include in local QA
+
+The prior frozen C1–C3 candidate was amended on this feature branch. **Do not certify against the older source SHA.** Capture the actual new HEAD and review this exact five-file source/test delta in addition to the original C1–C3 implementation; reviewer packets must include the full relevant C1–C3 source state, not just the added tests:
+
+- `internal/infra/sqlite/migrations/039_service_operation.up.sql`: `accepted` no run ID, nonempty run ID in required states.
+- `internal/infra/sqlite/service_operation_migration_test.go`: rejects fake accepted run IDs and empty running run IDs.
+- `internal/domain/integration/service_operation_store.go`: replay requires equal immutable trace identity.
+- `internal/domain/integration/service_operation_store_test.go`: mismatch trace with same request digest is a conflict.
+- `internal/domain/integration/service_operation_recovery_test.go`: revoked principal's expired lease is reconciled safely and stays unreadable.
+
+**Execution order:** independent readiness C1–C3 → actual Go 1.25.13 focused/full/race/vet/prepush QA → independent exact-source post-code review → return redacted logs and findings to [#9](https://github.com/krukmat/fenix/issues/9). If the readiness gate remains non-PASS, do not infer acceptance from tests. Preserve uncommitted root `.gitignore` content (`scripts/__pycache__/*`). C4 is deferred; do not run C4 QA or introduce routes/CI/credentials/deployment. T4 security review stays separately tracked in #8 and does not block C1–C3 source-only closure.
+
 ## Operator scope update — 2026-11-10
 
 **Execute only C1–C3 validation**. B2.C4 GET/status was expressly deferred by the owner and is **not a blocker** for C1–C3 source-only QA, independent review or scoped completion. Do not execute C4 readiness/code-review/test work, implement a resolver, or require C4 PASS in the #9 closure matrix. GET/status remains default-deny, so do not claim production integration, status polling or B4 status E2E. The T4 exact security diff in #8 remains separately pending for the auth boundary/release and can be reviewed independently; it is not a C4-driven prerequisite for inert C1–C3 code verification.
