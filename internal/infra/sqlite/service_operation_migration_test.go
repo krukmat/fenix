@@ -58,6 +58,20 @@ func TestB2CServiceOperationSchemaConstraints(t *testing.T) {
 			t.Fatalf("invalid mutation accepted: %s", change)
 		}
 	}
+	for _, terminal := range []string{
+		"succeeded", "completed_with_warnings", "abstained",
+		"failed", "denied", "indeterminate",
+	} {
+		var runID any
+		if terminal == "succeeded" || terminal == "completed_with_warnings" || terminal == "abstained" {
+			runID = "real-run-only-for-test"
+		}
+		if _, err := db.Exec(`UPDATE service_operation
+            SET status=?,run_id=?,lease_owner='worker-stale',lease_until_unix=2000000020
+            WHERE principal_id='b2c-p1'`, terminal, runID); err == nil {
+			t.Fatalf("terminal status %s retained active worker lease", terminal)
+		}
+	}
 	if _, err := db.Exec(`UPDATE service_operation SET status='indeterminate',
         updated_at_unix=2000000010 WHERE principal_id='b2c-p1'`); err != nil {
 		t.Fatal(err)
