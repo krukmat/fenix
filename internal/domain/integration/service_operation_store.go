@@ -73,11 +73,17 @@ func (s *ServiceOperationStore) Reserve(
 	if registry == nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationDenied
 	}
-	binding, capErr := registry.Resolve(req.Scope.PrincipalID, req.Scope.WorkspaceID, req.CapabilityKey, req.SchemaVersion)
-	if capErr != nil {
+	binding, err := registry.Resolve(req.Scope.PrincipalID, req.Scope.WorkspaceID, req.CapabilityKey, req.SchemaVersion)
+	if err != nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationDenied
 	}
 	req.ConfigSHA256 = serviceCapabilityFingerprint(binding)
+	return s.reserveOperationTransaction(ctx, req, now)
+}
+
+func (s *ServiceOperationStore) reserveOperationTransaction(
+	ctx context.Context, req ServiceOperationRequest, now time.Time,
+) (ServiceOperationRecord, bool, error) {
 	if s == nil || s.db == nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationUnavailable
 	}
@@ -86,7 +92,13 @@ func (s *ServiceOperationStore) Reserve(
 		return ServiceOperationRecord{}, false, ErrServiceOperationUnavailable
 	}
 	defer func() { _ = conn.Close() }()
-	if _, err = conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+	return reserveOperationOnConnection(ctx, conn, req, now)
+}
+
+func reserveOperationOnConnection(
+	ctx context.Context, conn *sql.Conn, req ServiceOperationRequest, now time.Time,
+) (ServiceOperationRecord, bool, error) {
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationUnavailable
 	}
 	committed := false
@@ -106,17 +118,20 @@ func (s *ServiceOperationStore) Reserve(
 	if !sameOperationRequest(record.ServiceOperationRequest, req) {
 		return ServiceOperationRecord{}, false, ErrServiceOperationConflict
 	}
-	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
+	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationUnavailable
 	}
 	committed = true
 	return record, !created, nil
 }
 
+func validOperationScope(scope ServiceOperationScope) bool {
+	return validScopePart(scope.PrincipalID) && validScopePart(scope.WorkspaceID) &&
+		validScopePart(scope.OrgID) && (scope.ProjectID == "" || validScopePart(scope.ProjectID))
+}
+
 func validOperationReservation(req ServiceOperationRequest, now time.Time) bool {
-	scope := req.Scope
-	if !validScopePart(scope.PrincipalID) || !validScopePart(scope.WorkspaceID) ||
-		!validScopePart(scope.OrgID) || (scope.ProjectID != "" && !validScopePart(scope.ProjectID)) {
+	if !validOperationScope(req.Scope) {
 		return false
 	}
 	if !b2cOperationIDPattern.MatchString(req.OperationID) ||
