@@ -189,6 +189,27 @@ func TestB2CCanonicalDigestLimitsAndDuplicateKeys(t *testing.T) {
 	if _, err := integration.CanonicalOperationDigest(invalidUTF8); !errors.Is(err, integration.ErrServiceOperationInvalid) {
 		t.Fatalf("malformed UTF-8 accepted as canonical request: %v", err)
 	}
+	for _, malformedSurrogate := range []string{
+		`{"key":"\ud800"}`,
+		`{"key":"\udfff"}`,
+		`{"key":"\ud800\u0041"}`,
+		`{"\udfff":"value"}`,
+	} {
+		if _, err := integration.CanonicalOperationDigest([]byte(malformedSurrogate)); !errors.Is(err, integration.ErrServiceOperationInvalid) {
+			t.Fatalf("lone Unicode surrogate accepted: %q err=%v", malformedSurrogate, err)
+		}
+	}
+	paired, err := integration.CanonicalOperationDigest([]byte(`{"key":"\ud83d\ude00"}`))
+	if err != nil {
+		t.Fatalf("valid UTF-16 surrogate pair rejected: %v", err)
+	}
+	literal, err := integration.CanonicalOperationDigest([]byte(`{"key":"😀"}`))
+	if err != nil || paired != literal {
+		t.Fatalf("valid Unicode surrogate pair did not normalize: %v", err)
+	}
+	if _, err := integration.CanonicalOperationDigest([]byte(`{"key":"\\ud800"}`)); err != nil {
+		t.Fatalf("escaped literal backslash rejected: %v", err)
+	}
 	for _, raw := range []string{
 		`{"a":1,"a":2}`, `{"nested":{"a":1,"a":2}}`,
 		`{"a":1} {"b":2}`, `[1,2]`, `{"a":null} trailing`,
