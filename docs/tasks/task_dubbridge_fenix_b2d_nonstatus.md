@@ -46,6 +46,8 @@ The operator has deferred C4 GET/status. Therefore the current B2.D block exclud
 6. **Terminal ambiguity:** expired or revoked leased records may be marked `indeterminate` only through the explicitly documented conservative reconciliation. No automatic side-effect replay.
 7. **Future boundary:** B2.E needs separately approved transport/security implementation planning; operator-policy B2.B4 and independent T4 security acceptance are release-stage gates, not a reason to stop this Cloud design.
 
+**Cloud source audit:** [B2.D source-backed consistency ledger](../audit/dubbridge-fenix-b2d-nonstatus-source-audit-2026-11-10.md) checked B1 request/response schemas, C2 typed errors/reservation/digest and C3 no-redispatch semantics: **12/12 static source assertions PASS**. The audit lists D-G1..D-G7 with future owner and scope; this does not imply Go/HTTP/security QA.
+
 ## Acceptance for this Cloud block
 
 - D1–D3 cover denied/invalid/replay/conflict/unavailable/ambiguous cases with negative leakage expectations.
