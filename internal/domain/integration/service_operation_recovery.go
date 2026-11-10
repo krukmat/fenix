@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"crypto/subtle"
 	"time"
 )
 
@@ -51,8 +52,12 @@ func leaseCapabilityAllowed(
 	if registry == nil {
 		return false
 	}
-	_, err := registry.Resolve(scope.PrincipalID, scope.WorkspaceID, record.CapabilityKey, record.SchemaVersion)
-	return err == nil
+	binding, err := registry.Resolve(scope.PrincipalID, scope.WorkspaceID, record.CapabilityKey, record.SchemaVersion)
+	if err != nil {
+		return false
+	}
+	approvedFingerprint := serviceCapabilityFingerprint(binding)
+	return subtle.ConstantTimeCompare(record.ConfigSHA256[:], approvedFingerprint[:]) == 1
 }
 
 func (s *ServiceOperationStore) claimLease(
