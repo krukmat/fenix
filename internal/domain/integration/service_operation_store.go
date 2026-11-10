@@ -229,6 +229,7 @@ func serviceCapabilityFingerprint(binding S2SCapabilityBinding) [sha256.Size]byt
 func sameOperationRequest(a, b ServiceOperationRequest) bool {
 	return a.Scope == b.Scope &&
 		a.OperationID == b.OperationID &&
+		a.TraceID == b.TraceID &&
 		a.CapabilityKey == b.CapabilityKey &&
 		a.SchemaVersion == b.SchemaVersion &&
 		subtle.ConstantTimeCompare(a.RequestSHA256[:], b.RequestSHA256[:]) == 1 &&
