@@ -217,7 +217,6 @@ func readServiceOperation(
 	return record, nil
 }
 
-
 func serviceCapabilityFingerprint(binding S2SCapabilityBinding) [sha256.Size]byte {
 	// Delimited, fixed-order immutable binding fields. Registry Resolve only
 	// returns enabled entries with a concrete handler and exact schema version.
