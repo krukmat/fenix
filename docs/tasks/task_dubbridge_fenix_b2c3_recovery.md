@@ -8,6 +8,7 @@ week: 2026-W46
 tags: [dubbridge, fenix, sqlite, crash-recovery, idempotency]
 fr_refs: []
 uc_refs: []
+traceability_scope: integration_infrastructure_no_product_fr_uc
 blocked_by: [DB-FENIX-B2.C2]
 blocks: [DB-FENIX-B2.C4]
 files_affected:
@@ -26,6 +27,12 @@ completed: null
 **RRI**: N/A for cloud DB-FENIX-INT. Owner approved local C1–C4 design 2026-11-10.
 **Peer readiness**: PENDING independent review; no T3 waiver or PASS applies here.
 **Owner**: ChatGPT Cloud for code, tests, docs; local agent for true Go/race/reviewer gates.
+
+## Requirements traceability and security dependencies (2026-11-10)
+
+**FR/UC rationale:** `fr_refs: []` / `uc_refs: []` reflect an internal S2S lease and crash-ambiguity primitive, not a specific CRM agent workflow or product scenario. Trace instead to the [canonical B2.C integration plan](../plans/dubbridge-consumes-fenix-integration.md#blocktask-plan-two-levels-only), [parent B2.C task](task_dubbridge_fenix_b2c_operation.md), [C2 reservation](task_dubbridge_fenix_b2c2_operation_store.md) and this task's one-shot lease/no-redispatch acceptance. Do not attribute agent execution or `UC-G1` to this inert recovery code.
+
+**Dependencies:** B2.A2 scoped principal source was accepted by the owner in [#3](https://github.com/krukmat/fenix/issues/3), not independently certified for release; C1/C2 are unverified Go candidates. No C3 readiness, race or independent post-code PASS has been supplied. **RRI: N/A — DB-FENIX-INT/cloud**.
 
 ## System Context
 
