@@ -17,6 +17,10 @@ B2.A2 repairs the existing Fenix credential store on the feature branch before a
 
 B2.A3.T1 prepares the isolated middleware authorization contract and independent readiness review. The current middleware authenticates a service bearer but leaves organization/project authorization to a separate optional helper. Future implementation must place mandatory source authorization before every S2S handler and operation lookup, preserve default-deny, and obtain task-scoped auth HITL before code changes. This planning step does not activate a route.
 
+## B2.A2 scope clarified for B2.C readiness — 2026-11-10
+
+[Issue #3](https://github.com/krukmat/fenix/issues/3) documents the 2026-11-08 **owner acceptance of the scoped B2.A2 implementation**, including locally reported Go 1.25.13 H1/H2/M1 and SQLite/race x3 evidence on `87fd10d`. Embedded migration 038 supplies the technical branch predecessor for B2.C migration 039. The historical independent B2.A2 security FAIL was remediated but was **not superseded by a new independent security PASS**; global QA debt is tracked in #4. This acceptance allows analysis and diagnostic testing of inert B2.C1 source, not C1 task closure or production rollout. [C1 task](../tasks/task_dubbridge_fenix_b2c1_sqlite_schema.md) records its own reported `needs_changes` readiness at `67729056`, now pending re-review after documentation changes. RRI N/A DB-FENIX-INT/cloud.
+
 ## B2.A3 ownership and follow-up (2026-11-09)
 
 **Owner decision:** ChatGPT Cloud is the primary author and coordinator for B2.A3 tasks. The local agent performs only independent reviewer commands, Go 1.25.13 QA and environmental checks unavailable to Cloud. The owner is consulted only for task-scoped security/migration/deployment HITL, not routine Go test authoring. GitHub remains the sole canonical artifact location.
