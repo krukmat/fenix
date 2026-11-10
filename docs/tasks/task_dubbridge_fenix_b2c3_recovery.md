@@ -84,7 +84,7 @@ Code affected: internal/domain/integration/service_operation_recovery.go and tes
 Criticality: critical
 Criticality basis: Ambiguous external effects cannot be safely retried by default.
 Effort/reasoning: High — atomic lease and recovery state machine.
-Recommended model: GPT-6 Cloud author; critical independent reviewer Qwen primary via current workflow (`FENIX_REVIEW_CRITICAL_MODEL`); external fallback only after local timeout/unavailability.
+Recommended model: Cloud author; independent peer review assigned by docs/playbooks/AGENT_WORKFLOW_GUIDE.md (no model-specific integration dependency).
 Estimated tokens: ~5000
 Pseudocode: Claim accepted once; do not regrant expired leases; mark ambiguous indeterminate without execution.
 Peer readiness review approval: reviewer=PENDING; artifact=NOT_RUN; status=PENDING
