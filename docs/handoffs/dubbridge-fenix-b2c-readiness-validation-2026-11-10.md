@@ -39,13 +39,16 @@ The published peer-review workflow's 60 unit tests do **not** certify C1–C3. R
 
 ## Latest C1–C3 candidate changes to include in local QA
 
-The prior frozen C1–C3 candidate was amended on this feature branch. **Do not certify against the older source SHA.** Capture the actual new HEAD and review this exact five-file source/test delta in addition to the original C1–C3 implementation; reviewer packets must include the full relevant C1–C3 source state, not just the added tests:
+The prior frozen C1–C3 candidate was amended on this feature branch. **Do not certify against the older source SHA.** Capture the actual new HEAD and review this exact six-file source/test delta in addition to the original C1–C3 implementation; reviewer packets must include the full relevant C1–C3 source state, not just the added tests:
 
 - `internal/infra/sqlite/migrations/039_service_operation.up.sql`: `accepted` no run ID, nonempty run ID in required states.
 - `internal/infra/sqlite/service_operation_migration_test.go`: rejects fake accepted run IDs and empty running run IDs.
 - `internal/domain/integration/service_operation_store.go`: replay requires equal immutable trace identity.
 - `internal/domain/integration/service_operation_store_test.go`: mismatch trace with same request digest is a conflict.
 - `internal/domain/integration/service_operation_recovery_test.go`: revoked principal's expired lease is reconciled safely and stays unreadable.
+- `internal/domain/integration/service_operation_recovery.go`: `MarkIndeterminate` rechecks persisted active principal inside the atomic scoped UPDATE; a revocation after Lookup cannot authorize the write.
+- `internal/domain/integration/service_operation_recovery_test.go`: worker mark is denied after revocation; operator reconciliation remains possible, with no `agent_run`.
+- `internal/domain/integration/service_operation_store_test.go`: caller-forged ConfigSHA256 is ignored; the stored registry-derived fingerprint remains authoritative.
 
 **Execution order:** independent readiness C1–C3 → actual Go 1.25.13 focused/full/race/vet/prepush QA → independent exact-source post-code review → return redacted logs and findings to [#9](https://github.com/krukmat/fenix/issues/9). If the readiness gate remains non-PASS, do not infer acceptance from tests. Preserve uncommitted root `.gitignore` content (`scripts/__pycache__/*`). C4 is deferred; do not run C4 QA or introduce routes/CI/credentials/deployment. T4 security review stays separately tracked in #8 and does not block C1–C3 source-only closure.
 
