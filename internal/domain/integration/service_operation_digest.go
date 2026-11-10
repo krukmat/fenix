@@ -181,20 +181,39 @@ func scanJSONUnicodeEscape(raw []byte, i int) (int, bool) {
 		return i, false
 	}
 	first, ok := jsonHexCodeUnit(raw[i+2 : i+6])
-	if !ok || (first >= 0xdc00 && first <= 0xdfff) {
+	if !ok {
 		return i, false
 	}
-	if first < 0xd800 || first > 0xdbff {
+	return scanJSONSurrogateContinuation(raw, i, first)
+}
+
+func scanJSONSurrogateContinuation(raw []byte, i int, first uint64) (int, bool) {
+	if isLowJSONSurrogate(first) {
+		return i, false
+	}
+	if !isHighJSONSurrogate(first) {
 		return i + 5, true
 	}
-	if i+11 >= len(raw) || raw[i+6] != '\\' || raw[i+7] != 'u' {
+	return scanJSONSurrogatePair(raw, i)
+}
+
+func scanJSONSurrogatePair(raw []byte, i int) (int, bool) {
+	if i+11 >= len(raw) {
+		return i, false
+	}
+	if raw[i+6] != '\\' || raw[i+7] != 'u' {
 		return i, false
 	}
 	second, ok := jsonHexCodeUnit(raw[i+8 : i+12])
-	if !ok || second < 0xdc00 || second > 0xdfff {
-		return i, false
-	}
-	return i + 11, true
+	return i + 11, ok && isLowJSONSurrogate(second)
+}
+
+func isHighJSONSurrogate(code uint64) bool {
+	return code >= 0xd800 && code <= 0xdbff
+}
+
+func isLowJSONSurrogate(code uint64) bool {
+	return code >= 0xdc00 && code <= 0xdfff
 }
 
 func jsonHexCodeUnit(raw []byte) (uint64, bool) {
