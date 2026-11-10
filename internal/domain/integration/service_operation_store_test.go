@@ -72,7 +72,8 @@ func b2cRequest(t *testing.T, principal, workspace, org, project, operationID st
 		Scope: integration.ServiceOperationScope{PrincipalID: principal, WorkspaceID: workspace, OrgID: org, ProjectID: project},
 		OperationID: operationID, CapabilityKey: "integration.diagnostics", SchemaVersion: "1",
 		TraceID: "trace_b2c_test", RequestSHA256: digest,
-		ConfigSHA256: sha256.Sum256([]byte("test-approved-binding-v1")),
+		// ConfigSHA256 is deliberately left zero: Reserve must derive it
+		// from the active Fenix registry, never from caller-controlled input.
 	}
 }
 
@@ -94,10 +95,17 @@ func TestB2CReserveNewReplayConflictAndScope(t *testing.T) {
 	if _, _, err := f.store.Reserve(ctx, different, f.registry, now); !errors.Is(err, integration.ErrServiceOperationConflict) {
 		t.Fatalf("expected conflict: %v", err)
 	}
-	changedConfig := request
-	changedConfig.ConfigSHA256 = sha256.Sum256([]byte("changed-config"))
-	if _, _, err := f.store.Reserve(ctx, changedConfig, f.registry, now); !errors.Is(err, integration.ErrServiceOperationConflict) {
-		t.Fatalf("config fingerprint conflict: %v", err)
+	// An operator-updated handler binding changes the authoritative fingerprint,
+	// even if the caller repeats the identical JSON request and operation ID.
+	if err := f.registry.Register(integration.S2SCapabilityBinding{
+		PrincipalID: "b2c-p1", WorkspaceID: "b2c-w1",
+		CapabilityKey: "integration.diagnostics", InputSchemaVersion: "1",
+		HandlerID: "new-test-handler", Enabled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := f.store.Reserve(ctx, request, f.registry, now); !errors.Is(err, integration.ErrServiceOperationConflict) {
+		t.Fatalf("registered config fingerprint conflict: %v", err)
 	}
 	for _, bad := range []integration.ServiceOperationScope{
 		{PrincipalID: "b2c-p1", WorkspaceID: "b2c-w2", OrgID: "org1", ProjectID: "project1"},
