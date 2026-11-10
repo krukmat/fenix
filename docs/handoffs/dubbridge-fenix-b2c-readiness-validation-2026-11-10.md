@@ -40,6 +40,10 @@ related:
 - Owner's local `/Users/matias/fenix/.gitignore` contains pre-existing uncommitted ignore rule `scripts/__pycache__/*`; do not touch or stage it. Neither the workflow commit nor this handoff includes that local modification.
 - RRI: N/A — DB-FENIX-INT/cloud. No routes, CI, migration activation, credentials, runtime dispatch, deployment or main merge.
 
+## Operator scope update — 2026-11-10
+
+**Execute only C1–C3 validation**. B2.C4 GET/status was expressly deferred by the owner and is **not a blocker** for C1–C3 source-only QA, independent review or scoped completion. Do not execute C4 readiness/code-review/test work, implement a resolver, or require C4 PASS in the #9 closure matrix. GET/status remains default-deny, so do not claim production integration, status polling or B4 status E2E. The T4 exact security diff in #8 remains separately pending for the auth boundary/release and can be reviewed independently; it is not a C4-driven prerequisite for inert C1–C3 code verification.
+
 ## Local procedure — follow this order; do not implement
 
 **0. Guarded checkout / context.** The authoritative remote baseline is `aa26ad747b167e2eea839745616c9fb6ae5f3b0b` (workflow change rebased onto 10 Cloud documentation commits). Read `CLAUDE.md`, `AGENTS.md`, `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`, `docs/policies/HITL_AUTONOMY_POLICY.md`, this handoff, C1–C3 tasks, [#3](https://github.com/krukmat/fenix/issues/3), [#8](https://github.com/krukmat/fenix/issues/8), [#9](https://github.com/krukmat/fenix/issues/9). **Known local pre-existing change**: uncommitted `.gitignore` addition for `scripts/__pycache__/*`. Preserve it verbatim; do not stage, discard, stash, overwrite, or include it in any B2.C reviewer packet. Fetching is safe; fast-forward only when the worktree can be preserved and no unrelated changes will be overwritten. When in doubt, use a temporary detached read-only worktree without switching the owner's working directory.
@@ -105,11 +109,11 @@ git diff --no-color 43d935c4288a565b6c4d202208ebef16cc35e012 acafa3d3b59f0539b7f
 
 Use the published critical-task Qwen-primary independent security-review flow; only timeout/unavailability enables external fallback. If running the script, point it at a temporary detached worktree with HEAD exactly `acafa3d`, not the current branch HEAD, and verify the diff path set. Inspect S2S auth scope, revocation/rotation, capability registry, error wrapping and redaction/retry semantics. Publish independent reviewer, exact paths and artifact SHA on [#8](https://github.com/krukmat/fenix/issues/8); do **not** treat T3's reviewer as T4 certification.
 
-**5. Return artifacts only.** On [#9](https://github.com/krukmat/fenix/issues/9), report a compact matrix `[C1/C2/C3 readiness, focused Go, race, vet, full test, prepush, post-code peer | PASS/FAIL/NEEDS_CHANGES/NOT_RUN | RC | SHA | artifact path/hash | relevant finding]`; include B2.A2 dependency assessment distinguishing scoped owner acceptance from independent security PASS. On #8 report T4 separately. If local GitHub publication is unavailable, return the complete redacted reports to the owner for ChatGPT publication. Keep changed source and docs untouched in the local agent session.
+**5. Return C1–C3 artifacts only.** On [#9](https://github.com/krukmat/fenix/issues/9), report a compact matrix `[C1/C2/C3 readiness, focused Go, race, vet, full test, prepush, post-code peer | PASS/FAIL/NEEDS_CHANGES/NOT_RUN | RC | SHA | artifact path/hash | relevant finding]`; include B2.A2 dependency assessment distinguishing scoped owner acceptance from independent security PASS. On #8 report T4 separately. If local GitHub publication is unavailable, return the complete redacted reports to the owner for ChatGPT publication. Keep changed source and docs untouched in the local agent session.
 
 ## Exit decision (Cloud-owned)
 
 - **C1–C3 stay SOURCE_CANDIDATE** until authentic readiness, Go QA and independent post-code review; `needs_changes` is not a waived gate.
-- **C4 remains DESIGN_ONLY/BLOCKED** until C1–C3 and T4 independent acceptance are explicit. There is no GET status production route.
-- ChatGPT Cloud owns source remediation and status reconciliation on reported failures, and will prepare any later C4 implementation separately behind its security gate.
+- **C4 is DEFERRED / NON-BLOCKING FOR C1–C3** by operator direction. The prior technical prerequisites apply only if it is revived; GET/status remains default-deny. Do not include C4 in the C1–C3 gate table.
+- ChatGPT Cloud owns C1–C3 remediation and reconciliation. Future C4 implementation is a separate, not-currently-scheduled task; no new C4 handoff.
 - This document certifies **only the existence of prior evidence and documentary corrections**. It does not certify any current Go or security verification.
