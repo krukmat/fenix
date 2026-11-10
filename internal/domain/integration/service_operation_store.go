@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"errors"
+	"fmt"
 	"regexp"
 	"time"
 )
@@ -97,28 +98,31 @@ func (s *ServiceOperationStore) reserveOperationTransaction(
 
 func reserveOperationOnConnection(
 	ctx context.Context, conn *sql.Conn, req ServiceOperationRequest, now time.Time,
-) (ServiceOperationRecord, bool, error) {
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+) (result ServiceOperationRecord, replay bool, resultErr error) {
+	if _, beginErr := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); beginErr != nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationUnavailable
 	}
 	committed := false
 	defer func() {
 		if !committed {
-			_, _ = conn.ExecContext(context.Background(), "ROLLBACK")
+			if _, rollbackErr := conn.ExecContext(context.Background(), "ROLLBACK"); rollbackErr != nil {
+				resultErr = errors.Join(resultErr, ErrServiceOperationUnavailable,
+					fmt.Errorf("rollback service operation transaction: %w", rollbackErr))
+			}
 		}
 	}()
-	created, err := reserveOperationRow(ctx, conn, req, now)
-	if err != nil {
-		return ServiceOperationRecord{}, false, err
+	created, rowErr := reserveOperationRow(ctx, conn, req, now)
+	if rowErr != nil {
+		return ServiceOperationRecord{}, false, rowErr
 	}
-	record, err := readServiceOperation(ctx, conn, req.Scope, req.OperationID)
-	if err != nil {
-		return ServiceOperationRecord{}, false, err
+	record, readErr := readServiceOperation(ctx, conn, req.Scope, req.OperationID)
+	if readErr != nil {
+		return ServiceOperationRecord{}, false, readErr
 	}
 	if !sameOperationRequest(record.ServiceOperationRequest, req) {
 		return ServiceOperationRecord{}, false, ErrServiceOperationConflict
 	}
-	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
+	if _, commitErr := conn.ExecContext(ctx, "COMMIT"); commitErr != nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationUnavailable
 	}
 	committed = true
@@ -200,8 +204,21 @@ func readServiceOperation(
 	if errors.Is(err, sql.ErrNoRows) {
 		return ServiceOperationRecord{}, ErrServiceOperationDenied
 	}
-	if err != nil || len(requestHash) != sha256.Size || len(configHash) != sha256.Size {
+	if err != nil {
 		return ServiceOperationRecord{}, ErrServiceOperationUnavailable
+	}
+	if !hydrateServiceOperationRecord(&record, requestHash, configHash, runID, leaseOwner, leaseUntil) {
+		return ServiceOperationRecord{}, ErrServiceOperationUnavailable
+	}
+	return record, nil
+}
+
+func hydrateServiceOperationRecord(
+	record *ServiceOperationRecord, requestHash, configHash []byte,
+	runID, leaseOwner sql.NullString, leaseUntil sql.NullInt64,
+) bool {
+	if len(requestHash) != sha256.Size || len(configHash) != sha256.Size {
+		return false
 	}
 	copy(record.RequestSHA256[:], requestHash)
 	copy(record.ConfigSHA256[:], configHash)
@@ -214,7 +231,7 @@ func readServiceOperation(
 	if leaseUntil.Valid {
 		record.LeaseUntilUnix = leaseUntil.Int64
 	}
-	return record, nil
+	return true
 }
 
 func serviceCapabilityFingerprint(binding S2SCapabilityBinding) [sha256.Size]byte {
