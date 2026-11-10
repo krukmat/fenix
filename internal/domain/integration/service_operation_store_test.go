@@ -220,3 +220,31 @@ func TestB2CReserveDefaultDenyAndRevoked(t *testing.T) {
 		t.Fatalf("disabled capability allowed replay: %v", err)
 	}
 }
+
+func TestB2CReserveRejectsRevokedPrincipal(t *testing.T) {
+	f := newB2CFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	req := b2cRequest(t, "b2c-p1", "b2c-w1", "org1", "project1", "operation_00000017")
+	if _, _, err := f.store.Reserve(ctx, req, f.registry, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := domainauth.NewServiceCredentialStore(f.db).RevokeServicePrincipal(
+		ctx, req.Scope.PrincipalID, now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	// Even an exact pre-revocation replay may no longer read the stored row.
+	if _, _, err := f.store.Reserve(ctx, req, f.registry, now.Add(2*time.Second)); !errors.Is(err, integration.ErrServiceOperationDenied) {
+		t.Fatalf("revoked principal replay succeeded: %v", err)
+	}
+	newOperation := req
+	newOperation.OperationID = "operation_00000018"
+	if _, _, err := f.store.Reserve(ctx, newOperation, f.registry, now.Add(2*time.Second)); !errors.Is(err, integration.ErrServiceOperationDenied) {
+		t.Fatalf("revoked principal accepted new operation: %v", err)
+	}
+	var count int
+	if err := f.db.QueryRow("SELECT COUNT(*) FROM service_operation WHERE principal_id=?",
+		req.Scope.PrincipalID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("revoked reservation changed journal: count=%d err=%v", count, err)
+	}
+}
