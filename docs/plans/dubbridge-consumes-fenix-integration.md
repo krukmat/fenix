@@ -26,6 +26,8 @@ DubBridge is the consumer/product and owns user/project permissions, media, revi
 
 **Next Cloud block: [B2.D non-status](../tasks/task_dubbridge_fenix_b2d_nonstatus.md)**. Three two-level leaves have been created: [D1 admission-denial/error contract](../tasks/task_dubbridge_fenix_b2d1_denial_contract.md), [D2 trace/audit/redaction](../tasks/task_dubbridge_fenix_b2d2_trace_audit.md), [D3 future ingress preflight and negative cases](../tasks/task_dubbridge_fenix_b2d3_admission_preflight.md). These are **Cloud design deliverables**, not active HTTP implementations, GET/status work, new credentials or runtime QA. C4 remains deferred; T4 security review stays separate for release.
 
+**B2.D Cloud design verification:** [source-backed gap audit](../audit/dubbridge-fenix-b2d-nonstatus-source-audit-2026-11-10.md) completed **12/12 static source-contract checks**, identifying seven documented boundaries D-G1..D-G7, with no HTTP/Go execution claim. Contract-only D1–D3 tasks are delivered; future transport implementation remains separately scoped. No local agents requested.
+
 ## Current C1–C3 source work completed in Cloud — 2026-11-10
 
 **Scope:** Only C1–C3 were changed. This is an unvalidated feature-branch candidate and **not** a code/release PASS.
