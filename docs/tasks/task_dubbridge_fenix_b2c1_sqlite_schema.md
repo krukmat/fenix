@@ -98,6 +98,12 @@ integration test migration version, constraints, wrong tenant, rollback
 - This creates an **inert local schema only**; no live credentials, production migration, route or capability.
 - If peer/readiness or Go QA cannot run in Cloud, leave PENDING instead of asserting PASS.
 
+## C1 terminal lease integrity hardening — 2026-11-10
+
+**Source candidate:** Embedded migration 039 adds a CHECK rejecting worker leases on all terminal outcomes (`succeeded`, `completed_with_warnings`, `abstained`, `failed`, `denied`, `indeterminate`). This prevents a SQL write from leaving/reintroducing lease metadata after the outcome is final. Existing C3 `MarkIndeterminate` and `ReconcileExpiredLeases` already clear lease fields before recording ambiguity.
+
+**Regression candidate:** the Go/modernc migration test now attempts to transition to every terminal state while retaining a worker lease, and checks that adding a lease to an already-indeterminate operation is denied. An **isolated, reduced Python sqlite3 reproduction** of the CHECK matrix covered 14 cases with 14 PASS (SQLite 3.46.1). This is *not* the full embedded 039 migration nor Go 1.25.13 execution; readiness, Go tests/race/vet/prepush, independent code review and production rollout remain PENDING.
+
 ## Task Card
 
 Task: DB-FENIX-B2.C1
