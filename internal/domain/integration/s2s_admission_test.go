@@ -96,7 +96,15 @@ func TestB2EAdmissionReservesAndReplaysWithoutExecution(t *testing.T) {
 	if err != nil || first.Replayed || first.OperationID != "operation_00000001" {
 		t.Fatalf("first receipt: %+v err=%v", first, err)
 	}
-	second, err := admit.Admit(ctx, f.token, []byte(b2eEnvelope()), now.Add(time.Second))
+	var canonicalMap map[string]any
+	if err := json.Unmarshal([]byte(b2eEnvelope()), &canonicalMap); err != nil {
+		t.Fatal(err)
+	}
+	reordered, err := json.Marshal(canonicalMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := admit.Admit(ctx, f.token, reordered, now.Add(time.Second))
 	if err != nil || !second.Replayed || second.OperationID != first.OperationID {
 		t.Fatalf("replay receipt: %+v err=%v", second, err)
 	}
@@ -114,6 +122,10 @@ func TestB2EAdmissionReservesAndReplaysWithoutExecution(t *testing.T) {
 
 func TestB2EAdmissionRejectsMalformedAndForgedEnvelope(t *testing.T) {
 	base := b2eEnvelope()
+	tooManyInputFields := make([]string, 0, 65)
+	for i := 0; i < 65; i++ {
+		tooManyInputFields = append(tooManyInputFields, fmt.Sprintf("\"k%d\":%d", i, i))
+	}
 	cases := []struct {
 		name string
 		raw string
@@ -135,6 +147,8 @@ func TestB2EAdmissionRejectsMalformedAndForgedEnvelope(t *testing.T) {
 		{"unregistered version", strings.Replace(base, `"input_schema_version":"1"`, `"input_schema_version":"2"`, 1), integration.ErrS2SAdmissionDenied},
 		{"unregistered capability", strings.Replace(base, `"capability_key":"integration.diagnostics"`, `"capability_key":"integration.unknown"`, 1), integration.ErrS2SAdmissionDenied},
 		{"input schema denied", strings.Replace(base, `"input":{"v":1}`, `"input":{"v":2}`, 1), integration.ErrS2SAdmissionDenied},
+		{"too many input fields", strings.Replace(base, `"input":{"v":1}`, `"input":{`+strings.Join(tooManyInputFields, ",")+"}", 1), integration.ErrS2SAdmissionInvalid},
+		{"invalid UTF-8", strings.Replace(base, `"input":{"v":1}`, `"input":{"v":"`+string([]byte{0xff})+`"}`, 1), integration.ErrS2SAdmissionInvalid},
 		{"oversized JSON", base + strings.Repeat(" ", 64<<10), integration.ErrS2SAdmissionInvalid},
 	}
 	for _, tc := range cases {
