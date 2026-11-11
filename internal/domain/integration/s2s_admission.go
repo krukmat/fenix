@@ -45,7 +45,7 @@ type S2SAdmissionReceipt struct {
 func (a *S2SAdmission) Admit(
 	ctx context.Context, bearer string, raw []byte, now time.Time,
 ) (S2SAdmissionReceipt, error) {
-	return a.admit(ctx, bearer, raw, "", now)
+	return a.admit(ctx, bearer, raw, "", false, now)
 }
 
 // AdmitWithIdempotencyKey is the HTTP-facing variant of Admit. The header key
@@ -54,14 +54,12 @@ func (a *S2SAdmission) Admit(
 func (a *S2SAdmission) AdmitWithIdempotencyKey(
 	ctx context.Context, bearer string, raw []byte, operationID string, now time.Time,
 ) (S2SAdmissionReceipt, error) {
-	if !validS2SOperationID(operationID) {
-		return S2SAdmissionReceipt{}, ErrS2SAdmissionInvalid
-	}
-	return a.admit(ctx, bearer, raw, operationID, now)
+	return a.admit(ctx, bearer, raw, operationID, true, now)
 }
 
 func (a *S2SAdmission) admit(
-	ctx context.Context, bearer string, raw []byte, requiredOperationID string, now time.Time,
+	ctx context.Context, bearer string, raw []byte, requiredOperationID string,
+	requireOperationID bool, now time.Time,
 ) (S2SAdmissionReceipt, error) {
 	if !a.configured() {
 		return S2SAdmissionReceipt{}, ErrS2SAdmissionDenied
@@ -72,6 +70,9 @@ func (a *S2SAdmission) admit(
 	principal, err := a.Credentials.AuthenticateServiceToken(ctx, bearer, now)
 	if err != nil {
 		return S2SAdmissionReceipt{}, classifyS2SIdentityError(err)
+	}
+	if requireOperationID && !validS2SOperationID(requiredOperationID) {
+		return S2SAdmissionReceipt{}, ErrS2SAdmissionInvalid
 	}
 	return a.admitAuthenticated(ctx, principal, raw, requiredOperationID, now)
 }
