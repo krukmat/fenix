@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.fenix.local/integrations/dubbridge/v1/admission/error",
+  "title": "Fenix -> DubBridge pre-reservation denial (PROPOSED transport adapter; not routed)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "error_code",
+    "message"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1"
+    },
+    "error_code": {
+      "enum": [
+        "INVALID_REQUEST",
+        "REQUEST_DENIED",
+        "OPERATION_CONFLICT",
+        "PROVIDER_UNAVAILABLE"
+      ]
+    },
+    "message": {
+      "const": "Request could not be accepted"
+    }
+  }
+}
