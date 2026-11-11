@@ -279,3 +279,51 @@ func TestB2B4ManagedRegistryNilStoreCannotFallbackToMemory(t *testing.T) {
 		t.Fatalf("managed registry incorrectly accepted direct disable: %v", err)
 	}
 }
+
+func TestB2B4C2RejectsUnboundOrForgedManagedPolicy(t *testing.T) {
+	f := newB2EFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	policies := b2b4AuthorizedPolicyStore(f.db)
+	if err := policies.Provision(ctx,b2b4Registration("1",b2b4SchemaV1),now);err!=nil {t.Fatal(err)}
+	if err := policies.SetEnabled(ctx,"b2e-principal","b2c-w1",
+		"integration.diagnostics","1",true,"operator",now.Add(time.Second));err!=nil {t.Fatal(err)}
+	reg := integration.NewS2SCapabilityRegistryFromPolicies(policies)
+	binding,err:=reg.ResolveContext(ctx,"b2e-principal","b2c-w1","integration.diagnostics","1")
+	if err!=nil {t.Fatal(err)}
+	digest,err:=integration.CanonicalOperationDigest([]byte(b2eEnvelope()))
+	if err!=nil {t.Fatal(err)}
+	req:=integration.ServiceOperationRequest{
+		Scope:integration.ServiceOperationScope{
+			PrincipalID:"b2e-principal",WorkspaceID:"b2c-w1",
+			OrgID:b2eOrgID,ProjectID:b2eProjectID,
+		},
+		OperationID:"operation_00000005",TraceID:"trace_b2b4_managed",
+		CapabilityKey:"integration.diagnostics",SchemaVersion:"1",
+		RequestSHA256:digest,
+	}
+	if _,_,err:=f.store.Reserve(ctx,req,reg,now.Add(2*time.Second));
+		!errors.Is(err,integration.ErrServiceOperationDenied) {
+		t.Fatalf("managed policy accepted missing binding digest: %v",err)
+	}
+	req.ManagedSchemaSHA256=binding.SchemaSHA256
+	req.ManagedHandlerID="forged-handler"
+	if _,_,err:=f.store.Reserve(ctx,req,reg,now.Add(2*time.Second));
+		!errors.Is(err,integration.ErrServiceOperationDenied) {
+		t.Fatalf("managed policy accepted wrong handler: %v",err)
+	}
+	req.ManagedHandlerID=binding.HandlerID
+	first,replayed,err:=f.store.Reserve(ctx,req,reg,now.Add(2*time.Second))
+	if err!=nil||replayed||first.Status!="accepted" {
+		t.Fatalf("correct managed policy did not reserve: %+v replay=%v err=%v",first,replayed,err)
+	}
+	if err:=policies.SetEnabled(ctx,"b2e-principal","b2c-w1",
+		"integration.diagnostics","1",false,"operator",now.Add(3*time.Second));err!=nil {t.Fatal(err)}
+	if _,_,err:=f.store.Reserve(ctx,req,reg,now.Add(4*time.Second));
+		!errors.Is(err,integration.ErrServiceOperationDenied) {
+		t.Fatalf("disabled managed policy replayed existing operation: %v",err)
+	}
+	if b2eCount(t,f)!=1 {
+		t.Fatal("unauthorized retry created or removed policy-bound operation")
+	}
+}
