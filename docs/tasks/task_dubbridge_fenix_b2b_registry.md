@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2B-REGISTRY
 title: "B2.B — capability-neutral default-deny S2S registry"
-status: candidate_no_runtime
+status: b2b4_cloud_source_candidate_qa_peer_pending
 phase: integration
 week: "2026-W45"
 tags: [dubbridge, fenix, s2s, capability, security]
@@ -19,6 +19,22 @@ created: 2026-11-05
 completed:
 ---
 # Task DB-FENIX-B2B-REGISTRY
+
+## B2.B4 — ChatGPT Cloud implementation checkpoint (2026-11-11)
+
+**Owner:** ChatGPT Cloud, **RRI:** N/A. Existing branch `feature/int-v2-dubbridge-consumes-fenix`. **Result:** B2.B4.1–B2.B4.5 authored and published as an **inert source/test candidate**, not Go QA or security PASS. The feature-branch migration 040 is **not deployed to production** and can only be rolled back with separate HITL approval outside local test use.
+
+| Subtask | Actual Cloud code | Status |
+|---|---|---|
+| **B2.B4.1 — Fenix governance boundary** | Explicit `S2SPolicyOperatorAuthorizer` checks operator's active Fenix `user_account` workspace and existing `PolicyEngine.CheckActionPermission("s2s_capabilities","manage")`. No role grant or endpoint is added. ToolRegistry's execution/runtime governor remains independent; admission grants **never** bypass tool/execution approvals | Authored |
+| **B2.B4.2 — Durable policy** | Migration `040_s2s_capability_policy`: versioned disabled-by-default capability+schema, active-principal constraints, at most one enabled version, immutable identity, revision increments, SQLite-triggered append-only operator audit, no deletion. Read-only policy store is default; `Provision/SetEnabled` require explicit authorized operator | Authored |
+| **B2.B4.3 — Capability input schema** | Strict bounded JSON-schema subset, reject unknown keywords, unknown fields, duplicate keys, bad Unicode, invalid type/depth/length; schema hash checked against SQLite. Managed S2S registry reads fresh SQLite policy, no direct `Register/Disable` bypass. C2 hash binds schema and policy; **revalidates current enabled policy under the SAME `BEGIN IMMEDIATE` SQLite transaction** before new reservations **or replays** | Authored |
+| **B2.B4.4 — Negative QA source** | Migration constraints/audit/version tests; persisted policy scope, roles, revoked principal, disabled capability, version change, schema rejection, forged binding, nil managed-store and mid-request policy disable; detached HTTP + real migrated SQLite tests | Tests authored; **NOT_RUN** |
+| **B2.B4.5 — Cloud source consistency** | **46/46 read-only structural source assertions PASS** (schema, migration, auditable policy, Fenix RBAC/ABAC bridge, pre-insert policy guard, HTTP default-deny, test presence). No compilation/SQL execution evidence is implied | Source audit complete |
+
+**API composition:** `NewDormantS2SAdmissionFromPolicies(db)` is the safe default detached handler backed by the read-only durable store; an empty policy table denies everything. No registry seeding, JWT/credential creation, HTTP route mount, worker/model, C4 GET/status, CI or deployment.
+
+**Important gates remaining:** Fenix Go 1.25.13 compile, gofmt, focused/full/race/vet/prepush, SQLite execution, independent code/security review **NOT_RUN** (Cloud lacks full toolchain/private checkout; no local tokens). Operator authorization and schema management have no live management route; policy grants are **not** provisioned. T4 security #8 and explicit activation/real B4 E2E remain separate.
 
 ## Current authoritative cloud status — 2026-11-05
 
