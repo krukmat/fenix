@@ -11,8 +11,17 @@ import (
 // S2SCapabilityPolicyStore persists operator-provisioned ADMISSION policy.
 // It does not register a ToolRegistry executor, grant tool permissions,
 // provision secrets, enable HTTP routes or bypass runtime approval policy.
+// S2SCapabilityOperatorAuthorizer delegates operator permission to the
+// existing Fenix policy engine. It must verify the operator's own workspace
+// matches the target, and CheckActionPermission("s2s_capabilities","manage").
+// No operator identity is ever derived from DubBridge's bearer or JSON.
+type S2SCapabilityOperatorAuthorizer interface {
+	AuthorizeS2SPolicyChange(context.Context, string, string) error
+}
+
 type S2SCapabilityPolicyStore struct {
 	db *sql.DB
+	operator S2SCapabilityOperatorAuthorizer // nil = read-only/default deny
 }
 
 type S2SCapabilityPolicyRegistration struct {
@@ -25,15 +34,27 @@ func NewS2SCapabilityPolicyStore(db *sql.DB) *S2SCapabilityPolicyStore {
 	return &S2SCapabilityPolicyStore{db: db}
 }
 
+// NewS2SCapabilityPolicyStoreWithOperator is for trusted management code
+// after Fenix RBAC/ABAC operator authorization has been wired.
+// The normal S2S HTTP composition uses the READ-ONLY constructor above.
+func NewS2SCapabilityPolicyStoreWithOperator(
+	db *sql.DB, authorizer S2SCapabilityOperatorAuthorizer,
+) *S2SCapabilityPolicyStore {
+	return &S2SCapabilityPolicyStore{db: db, operator: authorizer}
+}
+
 // Provision only INSERTs a DISABLED version; schema/handler identity is
 // immutable. Changing schema creates a separate version, never an overwrite.
 func (s *S2SCapabilityPolicyStore) Provision(
 	ctx context.Context, input S2SCapabilityPolicyRegistration, now time.Time,
 ) error {
 	b := input.Binding
-	if s == nil || s.db == nil || b.Enabled ||
+	if s == nil || s.db == nil || s.operator == nil || b.Enabled ||
 		!validCapabilityBinding(b) || b.HandlerID == "" ||
 		!validScopePart(input.OperatorID) || now.Unix() <= 0 {
+		return ErrCapabilityConfiguration
+	}
+	if err := s.operator.AuthorizeS2SPolicyChange(ctx, input.OperatorID, b.WorkspaceID); err != nil {
 		return ErrCapabilityConfiguration
 	}
 	canonical, digest, err := normalizeS2SCapabilitySchema(input.SchemaJSON)
@@ -61,10 +82,13 @@ func (s *S2SCapabilityPolicyStore) SetEnabled(
 	ctx context.Context, principal, workspace, key, version string,
 	enabled bool, operatorID string, now time.Time,
 ) error {
-	if s == nil || s.db == nil || !validScopePart(principal) ||
+	if s == nil || s.db == nil || s.operator == nil || !validScopePart(principal) ||
 		!validScopePart(workspace) || !validScopePart(operatorID) ||
 		!capabilityKeyPattern.MatchString(key) ||
 		!schemaVersionPattern.MatchString(version) || now.Unix() <= 0 {
+		return ErrCapabilityConfiguration
+	}
+	if err := s.operator.AuthorizeS2SPolicyChange(ctx, operatorID, workspace); err != nil {
 		return ErrCapabilityConfiguration
 	}
 	value := 0
