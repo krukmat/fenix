@@ -15,6 +15,17 @@ import (
 	"github.com/matiasleandrokruk/fenix/internal/domain/integration"
 )
 
+type b4HTTPTestOperatorAuthorization struct{}
+
+func (b4HTTPTestOperatorAuthorization) AuthorizeS2SPolicyChange(
+	_ context.Context, actorID, workspaceID string,
+) error {
+	if actorID == "operator-api-test" && workspaceID == "b4-http-w1" {
+		return nil
+	}
+	return integration.ErrCapabilityConfiguration
+}
+
 const b4HTTPEnvelope = `{"contract_version":"1","operation_id":"operation_00000001","capability_key":"integration.diagnostics","input_schema_version":"1","trace_id":"trace_b4_http","source":{"product":"dubbridge","org_id":"123e4567-e89b-42d3-a456-426614174000","project_id":"123e4567-e89b-42d3-a456-426614174001"},"input":{"v":1}}`
 
 type b4HTTPInputSchema struct{}
@@ -205,7 +216,9 @@ func TestB2B4HTTPManagedPolicyCompositionDefaultDenyThenEnable(t *testing.T) {
 		t.Fatalf("unconfigured managed policy accepted HTTP: %d %s",
 			first.Code, first.Body.String())
 	}
-	policies := integration.NewS2SCapabilityPolicyStore(f.db)
+	policies := integration.NewS2SCapabilityPolicyStoreWithOperator(
+		f.db, b4HTTPTestOperatorAuthorization{},
+	)
 	if err := policies.Provision(ctx, integration.S2SCapabilityPolicyRegistration{
 		Binding: integration.S2SCapabilityBinding{
 			PrincipalID: "b4-http-principal", WorkspaceID: "b4-http-w1",
