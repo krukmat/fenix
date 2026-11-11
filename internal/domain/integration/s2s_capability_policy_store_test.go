@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -10,6 +11,24 @@ import (
 
 	"github.com/matiasleandrokruk/fenix/internal/domain/integration"
 )
+
+type b2b4TestOperatorAuthorization struct{}
+
+func (b2b4TestOperatorAuthorization) AuthorizeS2SPolicyChange(
+	_ context.Context, actorID, workspaceID string,
+) error {
+	if workspaceID != "b2c-w1" ||
+		(actorID != "b2b4-operator" && actorID != "operator") {
+		return integration.ErrCapabilityConfiguration
+	}
+	return nil
+}
+
+func b2b4AuthorizedPolicyStore(db *sql.DB) *integration.S2SCapabilityPolicyStore {
+	return integration.NewS2SCapabilityPolicyStoreWithOperator(
+		db, b2b4TestOperatorAuthorization{},
+	)
+}
 
 const b2b4SchemaV1 = `{
   "type":"object",
@@ -40,7 +59,7 @@ func TestB2B4PersistedPolicyStartsDisabledAndValidatesSchema(t *testing.T) {
 	f := newB2EFixture(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
-	policies := integration.NewS2SCapabilityPolicyStore(f.db)
+	policies := b2b4AuthorizedPolicyStore(f.db)
 	registry := integration.NewS2SCapabilityRegistryFromPolicies(policies)
 	validator := integration.NewPersistedS2SInputValidator(policies)
 
@@ -92,7 +111,7 @@ func TestB2B4OperatorPolicyRejectsUnknownOrPermissiveSchemas(t *testing.T) {
 	f := newB2EFixture(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
-	store := integration.NewS2SCapabilityPolicyStore(f.db)
+	store := b2b4AuthorizedPolicyStore(f.db)
 	for _, raw := range []string{
 		`{}`,
 		`{"type":"object","properties":{"v":{"type":"string"}},"additionalProperties":false}`,
@@ -126,7 +145,7 @@ func TestB2B4VersionSwitchAndRevocation(t *testing.T) {
 	f:=newB2EFixture(t)
 	ctx:=context.Background()
 	now:=time.Now().UTC()
-	store:=integration.NewS2SCapabilityPolicyStore(f.db)
+	store:=b2b4AuthorizedPolicyStore(f.db)
 	reg:=integration.NewS2SCapabilityRegistryFromPolicies(store)
 	for _,v:=range []string{"1","2"} {
 		if err:=store.Provision(ctx,b2b4Registration(v,b2b4SchemaV1),now);err!=nil {t.Fatal(err)}
@@ -197,7 +216,7 @@ func TestB2B4PolicyDisableBetweenValidateAndReserveDenies(t *testing.T) {
 	f:=newB2EFixture(t)
 	ctx:=context.Background()
 	now:=time.Now().UTC()
-	store:=integration.NewS2SCapabilityPolicyStore(f.db)
+	store:=b2b4AuthorizedPolicyStore(f.db)
 	if err:=store.Provision(ctx,b2b4Registration("1",b2b4SchemaV1),now);err!=nil {t.Fatal(err)}
 	if err:=store.SetEnabled(ctx,"b2e-principal","b2c-w1",
 		"integration.diagnostics","1",true,"operator",now.Add(time.Second));err!=nil {t.Fatal(err)}
@@ -218,7 +237,7 @@ func TestB2B4PersistedAdmissionCreatesOneInertRecord(t *testing.T) {
 	f:=newB2EFixture(t)
 	ctx:=context.Background()
 	now:=time.Now().UTC()
-	store:=integration.NewS2SCapabilityPolicyStore(f.db)
+	store:=b2b4AuthorizedPolicyStore(f.db)
 	if err:=store.Provision(ctx,b2b4Registration("1",b2b4SchemaV1),now);err!=nil {t.Fatal(err)}
 	reg:=integration.NewS2SCapabilityRegistryFromPolicies(store)
 	admit:=&integration.S2SAdmission{
