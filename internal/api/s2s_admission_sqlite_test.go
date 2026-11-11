@@ -194,3 +194,50 @@ func TestB4S2SHTTPCompositionFailClosedWithoutRequirements(t *testing.T) {
 		}
 	}
 }
+
+func TestB2B4HTTPManagedPolicyCompositionDefaultDenyThenEnable(t *testing.T) {
+	f := b4NewHTTPDatabaseFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	f.handler = NewDormantS2SAdmissionFromPolicies(f.db)
+	first := f.send(t, "operation_00000001", b4HTTPEnvelope)
+	if first.Code != http.StatusForbidden || f.count(t) != 0 {
+		t.Fatalf("unconfigured managed policy accepted HTTP: %d %s",
+			first.Code, first.Body.String())
+	}
+	policies := integration.NewS2SCapabilityPolicyStore(f.db)
+	if err := policies.Provision(ctx, integration.S2SCapabilityPolicyRegistration{
+		Binding: integration.S2SCapabilityBinding{
+			PrincipalID: "b4-http-principal", WorkspaceID: "b4-http-w1",
+			CapabilityKey: "integration.diagnostics", InputSchemaVersion: "1",
+			HandlerID: "test-diagnostic-only",
+		},
+		SchemaJSON: []byte(`{"type":"object","properties":{"v":{"type":"integer"}},"required":["v"],"additionalProperties":false}`),
+		OperatorID: "operator-api-test",
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+	second := f.send(t, "operation_00000001", b4HTTPEnvelope)
+	if second.Code != http.StatusForbidden || f.count(t) != 0 {
+		t.Fatalf("disabled policy accepted HTTP: %d %s", second.Code, second.Body.String())
+	}
+	if err := policies.SetEnabled(ctx, "b4-http-principal", "b4-http-w1",
+		"integration.diagnostics", "1", true, "operator-api-test", now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	accepted := f.send(t, "operation_00000001", b4HTTPEnvelope)
+	replayed := f.send(t, "operation_00000001", b4HTTPEnvelope)
+	if accepted.Code != http.StatusAccepted || replayed.Code != http.StatusOK ||
+		f.count(t) != 1 {
+		t.Fatalf("managed policy admission/replay failed: %d %d %d",
+			accepted.Code, replayed.Code, f.count(t))
+	}
+	if err := policies.SetEnabled(ctx, "b4-http-principal", "b4-http-w1",
+		"integration.diagnostics", "1", false, "operator-api-test", now.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	denied := f.send(t, "operation_00000001", b4HTTPEnvelope)
+	if denied.Code != http.StatusForbidden || f.count(t) != 1 {
+		t.Fatalf("disabled policy allowed replay: %d %s", denied.Code, denied.Body.String())
+	}
+}
