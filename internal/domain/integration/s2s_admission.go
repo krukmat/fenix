@@ -93,7 +93,7 @@ func (a *S2SAdmission) admitAuthenticated(
 	if requiredOperationID != "" && envelope.request.OperationID != requiredOperationID {
 		return S2SAdmissionReceipt{}, ErrS2SAdmissionInvalid
 	}
-	binding, err := a.Registry.Resolve(envelope.request.Scope.PrincipalID,
+	binding, err := a.Registry.ResolveContext(ctx, envelope.request.Scope.PrincipalID,
 		envelope.request.Scope.WorkspaceID, envelope.request.CapabilityKey,
 		envelope.request.SchemaVersion)
 	if err != nil {
@@ -101,6 +101,11 @@ func (a *S2SAdmission) admitAuthenticated(
 	}
 	if err := a.InputSchema.ValidateS2SInput(ctx, binding, envelope.input); err != nil {
 		return S2SAdmissionReceipt{}, ErrS2SAdmissionDenied
+	}
+	// A subsequent operator disable/version change must not silently swap
+	// policy between input validation and C2 atomic reservation.
+	if binding.SchemaSHA256 != [32]byte{} {
+		envelope.request.ExpectedConfigSHA256 = serviceCapabilityFingerprint(binding)
 	}
 	return a.reserve(ctx, envelope.request, now)
 }
