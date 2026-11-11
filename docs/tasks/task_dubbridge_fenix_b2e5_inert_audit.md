@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2.E5
 title: "source audit, gate ledger and Cloud closure checkpoint"
-status: cloud_source_candidate_audit_pending
+status: cloud_static_source_review_complete_go_peer_pending
 phase: B2.E
 week: 2026-W46
 tags: [dubbridge, fenix, s2s, admission, cloud]
@@ -59,6 +59,8 @@ B2.C2 atomic SQLite reservation  ---> safe receipt only (no status)
     |
     X  NO HTTP route / NO agent dispatch / NO credentials generated
 ```
+
+**Cloud audit completed:** [docs/audit/dubbridge-fenix-b2e-cloud-source-review-2026-11-11.md](../audit/dubbridge-fenix-b2e-cloud-source-review-2026-11-11.md), 21/21 source-level assertions PASS; final Go 1.25.13 QA and independent peer gates remain NOT_RUN. Source snapshot `b9549ca6ad05f602a49457ae23292cc3f1a7ef2c`.
 
 ## Implementation and acceptance
 
