@@ -29,3 +29,19 @@ func NewDormantS2SAdmissionFromStore(
 		Operations: integration.NewServiceOperationStore(db),
 	})
 }
+
+// NewDormantS2SAdmissionFromPolicies is the preferred B2.B4 composition.
+// The policy store and input schema are both read through SQLite, rather
+// than relying on an unrelated in-memory registry or a permissive validator.
+// An empty policy table denies everything. The handler is never mounted.
+func NewDormantS2SAdmissionFromPolicies(db *sql.DB) http.Handler {
+	if db == nil {
+		return NewDormantS2SAdmissionHandler(nil)
+	}
+	policies := integration.NewS2SCapabilityPolicyStore(db)
+	return NewDormantS2SAdmissionFromStore(
+		db,
+		integration.NewS2SCapabilityRegistryFromPolicies(policies),
+		integration.NewPersistedS2SInputValidator(policies),
+	)
+}
