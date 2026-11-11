@@ -36,6 +36,9 @@ type ServiceOperationRequest struct {
 	TraceID       string
 	RequestSHA256 [sha256.Size]byte
 	ConfigSHA256  [sha256.Size]byte
+	// ExpectedConfigSHA256 is a transient operator-policy snapshot guard;
+	// it is NEVER accepted from the external B1 JSON and is not persisted.
+	ExpectedConfigSHA256 [sha256.Size]byte
 }
 
 type ServiceOperationRecord struct {
@@ -74,11 +77,18 @@ func (s *ServiceOperationStore) Reserve(
 	if registry == nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationDenied
 	}
-	binding, err := registry.Resolve(req.Scope.PrincipalID, req.Scope.WorkspaceID, req.CapabilityKey, req.SchemaVersion)
+	binding, err := registry.ResolveContext(ctx, req.Scope.PrincipalID, req.Scope.WorkspaceID,
+		req.CapabilityKey, req.SchemaVersion)
 	if err != nil {
 		return ServiceOperationRecord{}, false, ErrServiceOperationDenied
 	}
-	req.ConfigSHA256 = serviceCapabilityFingerprint(binding)
+	fingerprint := serviceCapabilityFingerprint(binding)
+	var zero [sha256.Size]byte
+	if req.ExpectedConfigSHA256 != zero &&
+		subtle.ConstantTimeCompare(req.ExpectedConfigSHA256[:], fingerprint[:]) != 1 {
+		return ServiceOperationRecord{}, false, ErrServiceOperationDenied
+	}
+	req.ConfigSHA256 = fingerprint
 	return s.reserveOperationTransaction(ctx, req, now)
 }
 
@@ -238,11 +248,17 @@ func hydrateServiceOperationRecord(
 }
 
 func serviceCapabilityFingerprint(binding S2SCapabilityBinding) [sha256.Size]byte {
-	// Delimited, fixed-order immutable binding fields. Registry Resolve only
-	// returns enabled entries with a concrete handler and exact schema version.
+	// Preserve B2.C legacy in-memory hash while binding persisted B2.B4
+	// reservations to the immutable versioned schema digest.
 	identity := binding.PrincipalID + "\x00" + binding.WorkspaceID + "\x00" +
 		binding.CapabilityKey + "\x00" + binding.InputSchemaVersion + "\x00" + binding.HandlerID
-	return sha256.Sum256([]byte(identity))
+	raw := []byte(identity)
+	var zero [sha256.Size]byte
+	if binding.SchemaSHA256 != zero {
+		raw = append(raw, 0)
+		raw = append(raw, binding.SchemaSHA256[:]...)
+	}
+	return sha256.Sum256(raw)
 }
 
 func sameOperationRequest(a, b ServiceOperationRequest) bool {
