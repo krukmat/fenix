@@ -35,7 +35,8 @@ type S2SCapabilityBinding struct {
 type S2SCapabilityRegistry struct {
 	mu       sync.RWMutex
 	bindings map[string]S2SCapabilityBinding
-	policies  *S2SCapabilityPolicyStore // nil preserves isolated B2.B in-memory tests
+	policies  *S2SCapabilityPolicyStore // source of managed registrations
+	durable   bool // remains fail-closed even when the store is nil
 }
 
 func NewS2SCapabilityRegistry() *S2SCapabilityRegistry {
@@ -46,7 +47,7 @@ func NewS2SCapabilityRegistry() *S2SCapabilityRegistry {
 // from SQLite on every admission/reservation, not from a stale cached copy.
 // It neither registers a capability nor exposes an operator HTTP API.
 func NewS2SCapabilityRegistryFromPolicies(store *S2SCapabilityPolicyStore) *S2SCapabilityRegistry {
-	return &S2SCapabilityRegistry{policies: store}
+	return &S2SCapabilityRegistry{policies: store, durable: true}
 }
 
 func capabilityTuple(principal, workspace, capability string) string {
@@ -75,7 +76,7 @@ func availableCapabilityBinding(b S2SCapabilityBinding, schemaVersion string) bo
 // Register is ONLY a future operator API, not an HTTP self-registration path.
 // It never permits an enabled capability without a nonempty approved handler.
 func (r *S2SCapabilityRegistry) Register(b S2SCapabilityBinding) error {
-	if r == nil || r.policies != nil || !validCapabilityBinding(b) {
+	if r == nil || r.durable || !validCapabilityBinding(b) {
 		return ErrCapabilityConfiguration
 	}
 	r.mu.Lock()
@@ -101,7 +102,10 @@ func (r *S2SCapabilityRegistry) ResolveContext(
 	if r == nil || !validScopePart(principal) || !validScopePart(workspace) {
 		return S2SCapabilityBinding{}, ErrCapabilityUnavailable
 	}
-	if r.policies != nil {
+	if r.durable {
+		if r.policies == nil {
+			return S2SCapabilityBinding{}, ErrCapabilityUnavailable
+		}
 		binding, _, err := r.policies.ResolveEnabled(ctx, principal, workspace, key, schemaVersion)
 		if err != nil {
 			return S2SCapabilityBinding{}, ErrCapabilityUnavailable
@@ -119,7 +123,7 @@ func (r *S2SCapabilityRegistry) ResolveContext(
 
 // Disable is a protective operator action and never starts an agent.
 func (r *S2SCapabilityRegistry) Disable(principal, workspace, key string) error {
-	if r == nil || r.policies != nil {
+	if r == nil || r.durable {
 		return ErrCapabilityUnavailable
 	}
 	r.mu.Lock()
