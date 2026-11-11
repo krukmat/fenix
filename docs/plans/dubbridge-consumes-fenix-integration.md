@@ -18,6 +18,14 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## B4.T1.1–T1.3 detached HTTP adapter — Cloud source checkpoint, 2026-11-11
+
+**ChatGPT-owned delivery:** [B4.T1 task](../tasks/task_dubbridge_fenix_b4_t1_detached_http_admission.md) now contains the unmounted HTTP handler `internal/api/s2s_admission_http.go`, persisted-store constructor `s2s_admission_composition.go`, and negative `httptest` and SQLite test sources. `S2SAdmission.AdmitWithIdempotencyKey` authenticates persisted Fenix identity first, validates B1 JSON and enforces equality between the `Idempotency-Key` header and the B1 operation ID before C2's atomic reservation. Success and error responses reuse the existing B4 wire projectors, with no principal/config/hash/status leakage.
+
+**Source-level checks:** 27/27 read-only cross-repo assertions PASS, including matching DubBridge path/header/bounds, canonical token, single headers, opaque failure projection, timeout, and complete absence of registration in `internal/api/routes.go`, `internal/server/server.go` and `cmd/fenix/main.go`. Authored tests exercise real migrated SQLite credentials/reservation/replay/conflict/denial, plus malformed HTTP framing, oversize chunked body and no agent dispatch. **No Go 1.25.13 compilation, gofmt, race, vet, prepush or independent security/code review was executed in Cloud**. Source candidate only; not an approved or operational endpoint.
+
+**Activation remains prohibited:** detached constructor is never invoked by the normal production router. No S2S URL, public HTTP request, operator token/capability, default input validator, GET/status C4, CI, new migration, deployment or merge. B2.B4 operator authorization, T4 security, Go/Rust QA and explicit owner activation remain separate.
+
 ## B4 cloud-only admission-wire interoperability — 2026-11-11
 
 **Actual provider-side source:** `docs/contracts/dubbridge-fenix-v1-admission-{ack,error}.schema.json` (two **new proposed transport** schemas, separate from the historical B1 lifecycle/preacceptance error proposals); `internal/domain/integration/s2s_admission_wire.go` (typed 202=new/200=replayed acknowledgement, static 400 invalid / 403 denied / 409 conflict / 503 unavailable rejection); `s2s_admission_wire_test.go` and `s2s_b4_inert_interop_test.go` (source-authored serialization, SQLite reservation/replay/denial/no-run negative checks). Last code/test SHA `7998231fb606e9dd92a22f7ceba9792dcc734675`.
