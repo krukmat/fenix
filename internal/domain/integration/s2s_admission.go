@@ -106,6 +106,8 @@ func (a *S2SAdmission) admitAuthenticated(
 	// policy between input validation and C2 atomic reservation.
 	if binding.SchemaSHA256 != [32]byte{} {
 		envelope.request.ExpectedConfigSHA256 = serviceCapabilityFingerprint(binding)
+		envelope.request.ManagedSchemaSHA256 = binding.SchemaSHA256
+		envelope.request.ManagedHandlerID = binding.HandlerID
 	}
 	return a.reserve(ctx, envelope.request, now)
 }
