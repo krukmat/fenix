@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.fenix.local/integrations/dubbridge/v1/admission/ack",
+  "title": "Fenix -> DubBridge in-process reservation acknowledgement (PROPOSED transport adapter; not routed)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "operation_id",
+    "trace_id",
+    "replayed"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1"
+    },
+    "operation_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{16,96}$"
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{8,96}$"
+    },
+    "replayed": {
+      "type": "boolean"
+    }
+  }
+}
