@@ -85,16 +85,35 @@ func validS2SEnvelopeFields(root map[string]any) bool {
 	if len(root) != 7 || root["contract_version"] != "1" {
 		return false
 	}
-	id, okID := root["operation_id"].(string)
-	trace, okTrace := root["trace_id"].(string)
-	key, okKey := root["capability_key"].(string)
-	version, okVersion := root["input_schema_version"].(string)
-	input, okInput := root["input"].(map[string]any)
-	return okID && b2cOperationIDPattern.MatchString(id) &&
-		okTrace && b2cTraceIDPattern.MatchString(trace) &&
-		okKey && len(key) <= 96 && capabilityKeyPattern.MatchString(key) &&
-		okVersion && schemaVersionPattern.MatchString(version) &&
-		okInput && len(input) <= 64
+	input, ok := root["input"].(map[string]any)
+	return ok && len(input) <= 64 && validS2SEnvelopeIdentifiers(root)
+}
+
+func validS2SEnvelopeIdentifiers(root map[string]any) bool {
+	return validS2SOperationID(root["operation_id"]) &&
+		validS2STraceID(root["trace_id"]) &&
+		validS2SCapabilityKey(root["capability_key"]) &&
+		validS2SSchemaVersion(root["input_schema_version"])
+}
+
+func validS2SOperationID(v any) bool {
+	id, ok := v.(string)
+	return ok && b2cOperationIDPattern.MatchString(id)
+}
+
+func validS2STraceID(v any) bool {
+	trace, ok := v.(string)
+	return ok && b2cTraceIDPattern.MatchString(trace)
+}
+
+func validS2SCapabilityKey(v any) bool {
+	key, ok := v.(string)
+	return ok && len(key) <= 96 && capabilityKeyPattern.MatchString(key)
+}
+
+func validS2SSchemaVersion(v any) bool {
+	version, ok := v.(string)
+	return ok && schemaVersionPattern.MatchString(version)
 }
 
 func validS2SSourceFields(source map[string]any) bool {
