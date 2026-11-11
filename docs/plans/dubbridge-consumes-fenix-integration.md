@@ -18,6 +18,14 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## B2.B4 durable operator capability policy — Cloud candidate (2026-11-11)
+
+**Approved block delivered by ChatGPT:** [B2.B4.1–B2.B4.5 task ledger](../tasks/task_dubbridge_fenix_b2b_registry.md). Inert source in `internal/domain/integration/s2s_capability_{policy_store,schema,registry}.go`, new migration `040_s2s_capability_policy.up.sql` and Go tests. `internal/api/s2s_policy_operator.go` reuses existing `PolicyEngine.CheckActionPermission` under an **active same-workspace Fenix operator** for `s2s_capabilities:manage`, with **no default grant or management route**. No independent ToolRegistry/executor/approval bypass is created: admission policies control eligibility, not runtime execution rights.
+
+Policies are durable, audited, **disabled at provision**, immutable per schema version, and prevent multiple simultaneously enabled versions for one principal/workspace/capability. Operator changes require explicit policy authorization. Managed admission uses a read-only policy store and a strict bounded input-schema validator, not a permissive stub. C2 now binds the schema digest to its config fingerprint and **rechecks enabled principal/capability/version/schema under its SQLite `BEGIN IMMEDIATE` reservation transaction**, including replay. Missing/disabled/changed policies fail closed.
+
+**Cloud check:** 46/46 read-only source assertions PASS. **Actual Go1.25.13/migrations/SQLite tests/race/vet/prepush/independent security review NOT_RUN**; B2.B4 is **published source candidate only**, not production-approved or even Go QA certified. Migration 040 is committed only in feature branch, **not applied to production**. No operator token, role grant, real capability, HTTP route, CI, deploy or main merge. C4 GET/status deferred; T4 #8 release-security separate. User local-agent tokens remain unavailable and none are requested.
+
 ## B4.T1.1–T1.3 detached HTTP adapter — Cloud source checkpoint, 2026-11-11
 
 **ChatGPT-owned delivery:** [B4.T1 task](../tasks/task_dubbridge_fenix_b4_t1_detached_http_admission.md) now contains the unmounted HTTP handler `internal/api/s2s_admission_http.go`, persisted-store constructor `s2s_admission_composition.go`, and negative `httptest` and SQLite test sources. `S2SAdmission.AdmitWithIdempotencyKey` authenticates persisted Fenix identity first, validates B1 JSON and enforces equality between the `Idempotency-Key` header and the B1 operation ID before C2's atomic reservation. Success and error responses reuse the existing B4 wire projectors, with no principal/config/hash/status leakage.
