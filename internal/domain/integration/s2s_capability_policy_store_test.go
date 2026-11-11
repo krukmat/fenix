@@ -243,3 +243,20 @@ func TestB2B4PersistedAdmissionCreatesOneInertRecord(t *testing.T) {
 		t.Fatalf("admission executed agent: runs=%d err=%v",agentRuns,err)
 	}
 }
+
+func TestB2B4ManagedRegistryNilStoreCannotFallbackToMemory(t *testing.T) {
+	reg := integration.NewS2SCapabilityRegistryFromPolicies(nil)
+	binding := b2b4Registration("1", b2b4SchemaV1).Binding
+	binding.Enabled = true
+	if err := reg.Register(binding); !errors.Is(err, integration.ErrCapabilityConfiguration) {
+		t.Fatalf("nil managed store accepted in-memory policy registration: %v", err)
+	}
+	if _, err := reg.Resolve(binding.PrincipalID, binding.WorkspaceID,
+		binding.CapabilityKey, binding.InputSchemaVersion); !errors.Is(err, integration.ErrCapabilityUnavailable) {
+		t.Fatalf("nil managed store resolved capability: %v", err)
+	}
+	if err := reg.Disable(binding.PrincipalID, binding.WorkspaceID, binding.CapabilityKey);
+		!errors.Is(err, integration.ErrCapabilityUnavailable) {
+		t.Fatalf("managed registry incorrectly accepted direct disable: %v", err)
+	}
+}
