@@ -227,3 +227,39 @@ func TestB2EPublicErrorProjectionNeverLeaksDetails(t *testing.T) {
 		}
 	}
 }
+
+func TestB2EHTTPIdempotencyKeyBoundBeforeReservation(t *testing.T) {
+	f := newB2EFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	admission := f.admission()
+	for _, tc := range []struct {
+		name  string
+		key   string
+		token string
+		want  error
+	}{
+		{"wrong header", "operation_00000009", f.token, integration.ErrS2SAdmissionInvalid},
+		{"missing header", "", f.token, integration.ErrS2SAdmissionInvalid},
+		{"malformed header", "bad", f.token, integration.ErrS2SAdmissionInvalid},
+		{"invalid bearer precedes key rejection", "bad", "human.jwt", integration.ErrS2SAdmissionDenied},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			receipt, err := admission.AdmitWithIdempotencyKey(ctx, tc.token,
+				[]byte(b2eEnvelope()), tc.key, now)
+			if !errors.Is(err, tc.want) || receipt.OperationID != "" || b2eCount(t, f) != 0 {
+				t.Fatalf("forged idempotency key reserved an operation: %+v err=%v", receipt, err)
+			}
+		})
+	}
+	first, err := admission.AdmitWithIdempotencyKey(ctx, f.token, []byte(b2eEnvelope()),
+		"operation_00000001", now)
+	if err != nil || first.Replayed || first.OperationID != "operation_00000001" {
+		t.Fatalf("correct key rejected: %+v err=%v", first, err)
+	}
+	second, err := admission.AdmitWithIdempotencyKey(ctx, f.token, []byte(b2eEnvelope()),
+		"operation_00000001", now.Add(time.Second))
+	if err != nil || !second.Replayed || second.OperationID != first.OperationID || b2eCount(t, f) != 1 {
+		t.Fatalf("idempotency replay mutated journal: %+v err=%v", second, err)
+	}
+}
