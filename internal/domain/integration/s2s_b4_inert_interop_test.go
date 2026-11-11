@@ -57,6 +57,48 @@ func TestB4InertAdmissionWireReservationReplayAndConflict(t *testing.T) {
 	}
 }
 
+func TestB4InertAdmissionWireWrongTenantUnknownCapabilityAndBearer(t *testing.T) {
+	raw := b2eEnvelope()
+	cases := []struct {
+		name string
+		bearerOverride string
+		request string
+		expected error
+	}{
+		{"wrong org", "", strings.Replace(raw, b2eOrgID,
+			"123e4567-e89b-42d3-a456-426614174022", 1), integration.ErrS2SAdmissionDenied},
+		{"wrong project", "", strings.Replace(raw, b2eProjectID,
+			"123e4567-e89b-42d3-a456-426614174023", 1), integration.ErrS2SAdmissionDenied},
+		{"unknown capability", "", strings.Replace(raw, "integration.diagnostics",
+			"integration.unknown", 1), integration.ErrS2SAdmissionDenied},
+		{"forged workspace", "", strings.Replace(raw, `"input":{}`,
+			`"workspace_id":"another-workspace","input":{}`, 1), integration.ErrS2SAdmissionInvalid},
+		{"invalid credential", "bad-token", raw, integration.ErrS2SAdmissionDenied},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newB2EFixture(t)
+			bearer := f.token
+			if tc.bearerOverride != "" {
+				bearer = tc.bearerOverride
+			}
+			_, err := f.admission().Admit(
+				context.Background(), bearer, []byte(tc.request), time.Now().UTC(),
+			)
+			if !errors.Is(err, tc.expected) {
+				t.Fatalf("unexpected denial: got=%v want=%v", err, tc.expected)
+			}
+			status, wire := integration.ProjectS2SAdmissionWireFailure(err)
+			if status != 400 && status != 403 {
+				t.Fatalf("unexpected public refusal HTTP class: %d %+v", status, wire)
+			}
+			if wire.Message != "Request could not be accepted" || b2eCount(t, f) != 0 {
+				t.Fatalf("denied request persisted or exposed internals: %+v", wire)
+			}
+		})
+	}
+}
+
 func TestB4InertAdmissionWireRevokedOrDisabledDeniesWithoutRun(t *testing.T) {
 	for _, tc := range []struct {
 		name string
