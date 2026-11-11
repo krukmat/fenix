@@ -18,6 +18,14 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## B4 cloud-only admission-wire interoperability — 2026-11-11
+
+**Actual provider-side source:** `docs/contracts/dubbridge-fenix-v1-admission-{ack,error}.schema.json` (two **new proposed transport** schemas, separate from the historical B1 lifecycle/preacceptance error proposals); `internal/domain/integration/s2s_admission_wire.go` (typed 202=new/200=replayed acknowledgement, static 400 invalid / 403 denied / 409 conflict / 503 unavailable rejection); `s2s_admission_wire_test.go` and `s2s_b4_inert_interop_test.go` (source-authored serialization, SQLite reservation/replay/denial/no-run negative checks). Last code/test SHA `7998231fb606e9dd92a22f7ceba9792dcc734675`.
+
+**Cross-repo verification:** DubBridge [B4 audit](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/audit/dubbridge-fenix-b4-offline-interop-2026-11-11.md) records **28/28 executed offline JS contract checks** against exact Fenix schema blobs and **24/24 static Go/Rust/contract predicates**, not genuine HTTP interop. DubBridge Rust now validates the proposed denial status/code and 200/replayed vs 202/new consistency. **Actual Go1.25 QA, Rust QA, Node CLI script and independent security review NOT_RUN.**
+
+**No mounted Fenix S2S route or operator credential/capability; B4.T1 real authenticated E2E remains BLOCKED.** No GET/status C4, agent/worker, generated run ID, CI, deployment or production migration. B2.B4 audited operator capability and T4 independent security review still separate. No local-agent execution is requested.
+
 ## B2.E1–E5 Cloud implementation checkpoint — 2026-11-11
 
 **Implementation scope:** ChatGPT Cloud authored an **inert**, in-process S2S admission path in `internal/domain/integration` on `feature/int-v2-dubbridge-consumes-fenix`: strict versioned B1 request validation (E1); verified Fenix principal + active registry + mandatory capability-input validator + C2 reserve-only adaptor (E2); public-safe error projection without HTTP (E3); real credential/SQLite test cases authored (E4); and a [21/21 source-only consistency audit](../audit/dubbridge-fenix-b2e-cloud-source-review-2026-11-11.md) (E5). Task tracker: [B2.E parent](../tasks/task_dubbridge_fenix_b2e_inert_admission.md); [GitHub issue #10](https://github.com/krukmat/fenix/issues/10).
