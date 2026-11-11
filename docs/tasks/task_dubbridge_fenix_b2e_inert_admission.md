@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B2.E
 title: "B2.E — Cloud-built inert authenticated admission and sanitized denial"
-status: cloud_code_candidate_qa_peer_pending
+status: cloud_source_audit_complete_go_peer_pending
 phase: B2.E
 week: 2026-W46
 tags: [dubbridge, fenix, s2s, admission, cloud]
@@ -59,6 +59,8 @@ B2.C2 ServiceOperationStore.Reserve (atomic SQLite INSERT SELECT)
 | [B2.E3](task_dubbridge_fenix_b2e3_inert_errors.md) | Allowlisted invalid/denied/conflict/unavailable public codes without HTTP | D1/D2 | Authored |
 | [B2.E4](task_dubbridge_fenix_b2e4_inert_tests.md) | Persisted-credential SQLite acceptance/denial/replay tests | E1–E3 | Authored, not executed in project Go |
 | [B2.E5](task_dubbridge_fenix_b2e5_inert_audit.md) | Source cross-check, hardening ledger and scoped release restrictions | E1–E4 | Cloud static review only |
+
+**Latest Cloud source checkpoint:** [B2.E Cloud audit](../audit/dubbridge-fenix-b2e-cloud-source-review-2026-11-11.md) reports **21/21 static checks PASS** over E1–E4. Source snapshot `b9549ca6ad05f602a49457ae23292cc3f1a7ef2c`; this is *not* Go/race/vet/prepush PASS. Tracking [issue #10](https://github.com/krukmat/fenix/issues/10). No local work has been requested.
 
 ## Definition of done by boundary
 
