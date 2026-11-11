@@ -18,6 +18,14 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## B4.Q1–Q3 — Executed Cloud verification checkpoint (2026-11-11)
+
+**Execution and evidence:** [B4.Q audit](../audit/dubbridge-fenix-b4q-cloud-validation-2026-11-11.md). Q1: 21/21 static cross-repo Go/Rust checks PASS; isolated Go1.23.2 stdlib service-token parser regression PASS. Q2: actual SQLite 3.46.1 **migration 040** constraints **22/22 PASS** against minimal parent tables and two-connection transaction/disable ordering **2/2 PASS**; migration exact Git blob `ad31aa7239243c350fd43da02771a8c8637cd1c7`. Q3: exact DubBridge Node script and pinned Fenix schemas actually executed **29/29 PASS**, with provider schema blobs still matching current Fenix GitHub source.
+
+**Corrections:** DubBridge Rust S2S token input now enforces Fenix's canonical 32-byte unpadded Base64URL final bits; Node contract checker now rejects unsupported future schema keywords/types rather than ignoring them. The new Fenix stdlib [SQLite smoke wrapper](../../scripts/int_b2b4_capability_sqlite_smoke.py) is committed but **not executed itself** in this Cloud run; the 24 SQLite checks above were executed with separate isolated harnesses. No local agents/tokens.
+
+**Remaining formal gates:** full Go1.25.13 project compile/fmt/race/vet/prepush, full Fenix 001–040 migrations/modernc test, Rust cargo suite/clippy, independent code/security review, reviewed operator provisioning and authenticated two-service HTTP E2E are **NOT_RUN**. No route/credential/capability activation, CI, deployment, GET/status C4 or merge. B4.Q4/Q5 are pending; B4 is not production-certified.
+
 ## B2.B4 durable operator capability policy — Cloud candidate (2026-11-11)
 
 **Approved block delivered by ChatGPT:** [B2.B4.1–B2.B4.5 task ledger](../tasks/task_dubbridge_fenix_b2b_registry.md). Inert source in `internal/domain/integration/s2s_capability_{policy_store,schema,registry}.go`, new migration `040_s2s_capability_policy.up.sql` and Go tests. `internal/api/s2s_policy_operator.go` reuses existing `PolicyEngine.CheckActionPermission` under an **active same-workspace Fenix operator** for `s2s_capabilities:manage`, with **no default grant or management route**. No independent ToolRegistry/executor/approval bypass is created: admission policies control eligibility, not runtime execution rights.
