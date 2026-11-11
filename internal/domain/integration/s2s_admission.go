@@ -45,6 +45,24 @@ type S2SAdmissionReceipt struct {
 func (a *S2SAdmission) Admit(
 	ctx context.Context, bearer string, raw []byte, now time.Time,
 ) (S2SAdmissionReceipt, error) {
+	return a.admit(ctx, bearer, raw, "", now)
+}
+
+// AdmitWithIdempotencyKey is the HTTP-facing variant of Admit. The header key
+// must match the validated B1 operation_id BEFORE any SQLite reservation.
+// The existing in-process Admit method remains available for non-HTTP callers.
+func (a *S2SAdmission) AdmitWithIdempotencyKey(
+	ctx context.Context, bearer string, raw []byte, operationID string, now time.Time,
+) (S2SAdmissionReceipt, error) {
+	if !validS2SOperationID(operationID) {
+		return S2SAdmissionReceipt{}, ErrS2SAdmissionInvalid
+	}
+	return a.admit(ctx, bearer, raw, operationID, now)
+}
+
+func (a *S2SAdmission) admit(
+	ctx context.Context, bearer string, raw []byte, requiredOperationID string, now time.Time,
+) (S2SAdmissionReceipt, error) {
 	if !a.configured() {
 		return S2SAdmissionReceipt{}, ErrS2SAdmissionDenied
 	}
@@ -55,7 +73,7 @@ func (a *S2SAdmission) Admit(
 	if err != nil {
 		return S2SAdmissionReceipt{}, classifyS2SIdentityError(err)
 	}
-	return a.admitAuthenticated(ctx, principal, raw, now)
+	return a.admitAuthenticated(ctx, principal, raw, requiredOperationID, now)
 }
 
 func (a *S2SAdmission) configured() bool {
@@ -64,11 +82,15 @@ func (a *S2SAdmission) configured() bool {
 }
 
 func (a *S2SAdmission) admitAuthenticated(
-	ctx context.Context, principal *domainauth.ServiceIdentity, raw []byte, now time.Time,
+	ctx context.Context, principal *domainauth.ServiceIdentity, raw []byte,
+	requiredOperationID string, now time.Time,
 ) (S2SAdmissionReceipt, error) {
 	envelope, err := parseVerifiedS2SEnvelope(raw, principal)
 	if err != nil {
 		return S2SAdmissionReceipt{}, err
+	}
+	if requiredOperationID != "" && envelope.request.OperationID != requiredOperationID {
+		return S2SAdmissionReceipt{}, ErrS2SAdmissionInvalid
 	}
 	binding, err := a.Registry.Resolve(envelope.request.Scope.PrincipalID,
 		envelope.request.Scope.WorkspaceID, envelope.request.CapabilityKey,
