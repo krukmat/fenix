@@ -37,7 +37,7 @@ func (a *S2SPolicyOperatorAuthorizer) AuthorizeS2SPolicyChange(
 	}
 	var actualWorkspace string
 	err := a.db.QueryRowContext(ctx,
-		"SELECT workspace_id FROM user_account WHERE id = ? LIMIT 1",
+		"SELECT workspace_id FROM user_account WHERE id = ? AND status = 'active' LIMIT 1",
 		operatorID).Scan(&actualWorkspace)
 	if err != nil || actualWorkspace != workspaceID {
 		return integration.ErrCapabilityConfiguration
