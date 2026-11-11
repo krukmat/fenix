@@ -39,6 +39,11 @@ type ServiceOperationRequest struct {
 	// ExpectedConfigSHA256 is a transient operator-policy snapshot guard;
 	// it is NEVER accepted from the external B1 JSON and is not persisted.
 	ExpectedConfigSHA256 [sha256.Size]byte
+	// Managed policy snapshot is internal-only, never accepted from B1 JSON.
+	// Used to recheck the enabled policy inside the SAME SQLite transaction
+	// as the operation reservation, eliminating disable/replay TOCTOU.
+	ManagedSchemaSHA256 [sha256.Size]byte
+	ManagedHandlerID    string
 }
 
 type ServiceOperationRecord struct {
@@ -84,6 +89,12 @@ func (s *ServiceOperationStore) Reserve(
 	}
 	fingerprint := serviceCapabilityFingerprint(binding)
 	var zero [sha256.Size]byte
+	if registry.durable &&
+		(req.ManagedSchemaSHA256 == zero || req.ManagedHandlerID == "" ||
+			req.ManagedSchemaSHA256 != binding.SchemaSHA256 ||
+			req.ManagedHandlerID != binding.HandlerID) {
+		return ServiceOperationRecord{}, false, ErrServiceOperationDenied
+	}
 	if req.ExpectedConfigSHA256 != zero &&
 		subtle.ConstantTimeCompare(req.ExpectedConfigSHA256[:], fingerprint[:]) != 1 {
 		return ServiceOperationRecord{}, false, ErrServiceOperationDenied
@@ -116,6 +127,9 @@ func reserveOperationOnConnection(
 	defer func() {
 		rollbackServiceOperationTransaction(conn, committed, &resultErr)
 	}()
+	if policyErr := validateManagedPolicyInTransaction(ctx, conn, req); policyErr != nil {
+		return ServiceOperationRecord{}, false, policyErr
+	}
 	created, rowErr := reserveOperationRow(ctx, conn, req, now)
 	if rowErr != nil {
 		return ServiceOperationRecord{}, false, rowErr
@@ -132,6 +146,38 @@ func reserveOperationOnConnection(
 	}
 	committed = true
 	return record, !created, nil
+}
+
+// validateManagedPolicyInTransaction reads active operator policy from the
+// exact SQLite transaction/connection that reserves or replays the operation.
+// BEGIN IMMEDIATE serializes policy updates, so disabling the capability
+// cannot race between this check and the row INSERT/lookup.
+func validateManagedPolicyInTransaction(
+	ctx context.Context, conn *sql.Conn, req ServiceOperationRequest,
+) error {
+	var empty [sha256.Size]byte
+	if req.ManagedSchemaSHA256 == empty {
+		return nil // legacy C2 inert in-memory registry mode only
+	}
+	var active int
+	err := conn.QueryRowContext(ctx, `SELECT COUNT(*)
+        FROM service_s2s_capability_policy c
+        JOIN service_principal p ON p.id=c.principal_id
+        WHERE c.principal_id=? AND c.workspace_id=?
+          AND c.capability_key=? AND c.schema_version=?
+          AND c.handler_id=? AND c.schema_sha256=?
+          AND c.enabled=1 AND p.consumer='dubbridge' AND p.status='active'
+          AND p.revoked_at_unix IS NULL AND p.workspace_id=c.workspace_id`,
+		req.Scope.PrincipalID, req.Scope.WorkspaceID,
+		req.CapabilityKey, req.SchemaVersion,
+		req.ManagedHandlerID, req.ManagedSchemaSHA256[:]).Scan(&active)
+	if err != nil {
+		return ErrServiceOperationUnavailable
+	}
+	if active != 1 {
+		return ErrServiceOperationDenied
+	}
+	return nil
 }
 
 func rollbackServiceOperationTransaction(conn *sql.Conn, committed bool, resultErr *error) {
