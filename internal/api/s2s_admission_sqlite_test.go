@@ -71,13 +71,9 @@ func b4NewHTTPDatabaseFixture(t *testing.T) b4HTTPDatabaseFixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	admission := &integration.S2SAdmission{
-		Credentials: creds, Registry: registry, InputSchema: b4HTTPInputSchema{},
-		Operations: integration.NewServiceOperationStore(db),
-	}
 	return b4HTTPDatabaseFixture{
-		db: db, handler: NewDormantS2SAdmissionHandler(admission), token: token,
-		creds: creds, registry: registry,
+		db: db, handler: NewDormantS2SAdmissionFromStore(db, registry, b4HTTPInputSchema{}),
+		token: token, creds: creds, registry: registry,
 	}
 }
 
@@ -176,5 +172,25 @@ func TestB4S2SHTTPForgedScopeAndCapabilityInputDeny(t *testing.T) {
 				t.Fatalf("unsafe HTTP envelope accepted: %d %s", w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestB4S2SHTTPCompositionFailClosedWithoutRequirements(t *testing.T) {
+	f := b4NewHTTPDatabaseFixture(t)
+	for _, handler := range []http.Handler{
+		NewDormantS2SAdmissionFromStore(nil, f.registry, b4HTTPInputSchema{}),
+		NewDormantS2SAdmissionFromStore(f.db, nil, b4HTTPInputSchema{}),
+		NewDormantS2SAdmissionFromStore(f.db, f.registry, nil),
+	} {
+		req := httptest.NewRequest(http.MethodPost, DormantS2SAdmissionPath,
+			strings.NewReader(b4HTTPEnvelope))
+		req.Header.Set("Authorization", "Bearer "+f.token)
+		req.Header.Set("Idempotency-Key", "operation_00000001")
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code != http.StatusForbidden || f.count(t) != 0 {
+			t.Fatalf("incomplete S2S composition admitted request: %d %s", w.Code, w.Body.String())
+		}
 	}
 }
