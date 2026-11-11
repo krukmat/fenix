@@ -45,7 +45,7 @@ type S2SAdmissionReceipt struct {
 func (a *S2SAdmission) Admit(
 	ctx context.Context, bearer string, raw []byte, now time.Time,
 ) (S2SAdmissionReceipt, error) {
-	if a == nil || a.Credentials == nil || a.Registry == nil || a.InputSchema == nil || a.Operations == nil {
+	if !a.configured() {
 		return S2SAdmissionReceipt{}, ErrS2SAdmissionDenied
 	}
 	if now.Unix() <= 0 {
@@ -55,6 +55,17 @@ func (a *S2SAdmission) Admit(
 	if err != nil {
 		return S2SAdmissionReceipt{}, classifyS2SIdentityError(err)
 	}
+	return a.admitAuthenticated(ctx, principal, raw, now)
+}
+
+func (a *S2SAdmission) configured() bool {
+	return a != nil && a.Credentials != nil && a.Registry != nil &&
+		a.InputSchema != nil && a.Operations != nil
+}
+
+func (a *S2SAdmission) admitAuthenticated(
+	ctx context.Context, principal *domainauth.ServiceIdentity, raw []byte, now time.Time,
+) (S2SAdmissionReceipt, error) {
 	envelope, err := parseVerifiedS2SEnvelope(raw, principal)
 	if err != nil {
 		return S2SAdmissionReceipt{}, err
