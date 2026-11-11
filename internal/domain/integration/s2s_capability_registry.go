@@ -1,6 +1,8 @@
 package integration
 
 import (
+	"context"
+	"crypto/sha256"
 	"errors"
 	"regexp"
 	"strings"
@@ -23,6 +25,7 @@ type S2SCapabilityBinding struct {
 	CapabilityKey      string
 	InputSchemaVersion string
 	HandlerID          string
+	SchemaSHA256       [sha256.Size]byte // nonzero only for operator-persisted schema
 	Enabled            bool
 }
 
@@ -32,10 +35,18 @@ type S2SCapabilityBinding struct {
 type S2SCapabilityRegistry struct {
 	mu       sync.RWMutex
 	bindings map[string]S2SCapabilityBinding
+	policies  *S2SCapabilityPolicyStore // nil preserves isolated B2.B in-memory tests
 }
 
 func NewS2SCapabilityRegistry() *S2SCapabilityRegistry {
 	return &S2SCapabilityRegistry{bindings: make(map[string]S2SCapabilityBinding)}
+}
+
+// NewS2SCapabilityRegistryFromPolicies resolves current enabled policies
+// from SQLite on every admission/reservation, not from a stale cached copy.
+// It neither registers a capability nor exposes an operator HTTP API.
+func NewS2SCapabilityRegistryFromPolicies(store *S2SCapabilityPolicyStore) *S2SCapabilityRegistry {
+	return &S2SCapabilityRegistry{policies: store}
 }
 
 func capabilityTuple(principal, workspace, capability string) string {
@@ -64,7 +75,7 @@ func availableCapabilityBinding(b S2SCapabilityBinding, schemaVersion string) bo
 // Register is ONLY a future operator API, not an HTTP self-registration path.
 // It never permits an enabled capability without a nonempty approved handler.
 func (r *S2SCapabilityRegistry) Register(b S2SCapabilityBinding) error {
-	if r == nil || !validCapabilityBinding(b) {
+	if r == nil || r.policies != nil || !validCapabilityBinding(b) {
 		return ErrCapabilityConfiguration
 	}
 	r.mu.Lock()
@@ -79,8 +90,23 @@ func (r *S2SCapabilityRegistry) Register(b S2SCapabilityBinding) error {
 // Resolve checks exact principal/workspace/key/version with a single generic
 // error for missing, disabled and mismatched entries to prevent enumeration.
 func (r *S2SCapabilityRegistry) Resolve(principal, workspace, key, schemaVersion string) (S2SCapabilityBinding, error) {
+	return r.ResolveContext(context.Background(), principal, workspace, key, schemaVersion)
+}
+
+// ResolveContext is the policy admission boundary used by B2.E and C2.
+// Durable registries re-read enabled policy AND the active service principal.
+func (r *S2SCapabilityRegistry) ResolveContext(
+	ctx context.Context, principal, workspace, key, schemaVersion string,
+) (S2SCapabilityBinding, error) {
 	if r == nil || !validScopePart(principal) || !validScopePart(workspace) {
 		return S2SCapabilityBinding{}, ErrCapabilityUnavailable
+	}
+	if r.policies != nil {
+		binding, _, err := r.policies.ResolveEnabled(ctx, principal, workspace, key, schemaVersion)
+		if err != nil {
+			return S2SCapabilityBinding{}, ErrCapabilityUnavailable
+		}
+		return binding, nil
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -93,7 +119,7 @@ func (r *S2SCapabilityRegistry) Resolve(principal, workspace, key, schemaVersion
 
 // Disable is a protective operator action and never starts an agent.
 func (r *S2SCapabilityRegistry) Disable(principal, workspace, key string) error {
-	if r == nil {
+	if r == nil || r.policies != nil {
 		return ErrCapabilityUnavailable
 	}
 	r.mu.Lock()
