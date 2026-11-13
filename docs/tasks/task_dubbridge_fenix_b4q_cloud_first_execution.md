@@ -15,6 +15,26 @@ tags: [dubbridge, fenix, s2s, cloud, qa]
 
 **Repositories:** `krukmat/fenix` and `krukmat/dubbridge`, existing branch `feature/int-v2-dubbridge-consumes-fenix`. **DubBridge consumes Fenix.** No business workflow/model activation.
 
+## B4.Q5 — Reassignment approved: ChatGPT-first (2026-11-13)
+
+**Active authoritative responsibility matrix.** This section supersedes any earlier wording assigning formatting/implementation to a local agent. **ChatGPT is accountable for ALL source fixes, analysis, evidence consolidation and orchestration; the local environment is only a mechanical execution/certification runner.** The independent security reviewer alone owns an independent verdict. The owner is not assigned technical work. No additional local prompts before Cloud remediation and SHA freeze. No CI, new branch, token, endpoint/capability activation, deployment or merge.
+
+| Order | Task | Primary responsible | Execution-only support | Status / acceptance |
+|---|---|---|---|---|
+| **Q5.1** | Analyze local L0–L3 gate evidence and classify confirmed vs false-positive findings | **ChatGPT** | None | **DONE** — [Q5 triage](../audit/dubbridge-fenix-b4q-q5-gate-triage-2026-11-13.md); NO-GO retained |
+| **Q5.2** | Own Fenix Go formatting remediation for 11 reported changed files, verify pure-format diff, reject unrelated functional changes | **ChatGPT** | Go `gofmt` executable **only** if no compatible Cloud formatter; operator executes mechanical command, never designs fixes | **PENDING** — `fmt-check` still FAIL; no fake PASS |
+| **Q5.3** | Own DubBridge Rust formatting remediation: S2S connector, inspect `workspace.rs` and `proxy.rs` unrelated global drift, prepare only formatting changes or explicit disposition | **ChatGPT** | Rustfmt executable **only** for deterministic formatting/validation; no agent implementation | **PENDING** — global `cargo fmt` still FAIL |
+| **Q5.4** | Fix five `manual_async_fn` Clippy violations, preserve `impl Future + Send` traits and tests | **ChatGPT** | None until final recertification | **SOURCE DONE** — DubBridge `2fc5b2b`; cargo Clippy on new source **NOT_RUN** |
+| **Q5.5** | Check cross-repo security/contract semantics and build complete two-repo diff/negative-test review packet, explicitly exclude known reviewer false positives | **ChatGPT** | None | **PENDING** — independent security assessment remains absent |
+| **Q5.6** | Consolidate purely scoped fixes, freeze **new exact SHA pair**, prepare one minimal recertification script/matrix; retain prior checks on unchanged bytes | **ChatGPT** | None | **PENDING** |
+| **Q5.7** | Execute affected gates ONLY: Go fmt/prepush (no duplicate nested tests), Rust fmt/check/test/clippy against the new SHA pair | **Local toolchain/executor** | ChatGPT specifies precise gates and assesses outputs | **PENDING** — one consolidated batch after Q5.2–Q5.6; no autonomous development |
+| **Q5.8** | Independently review **complete** source/security diff and verified test matrix, with file/line evidence | **Independent security reviewer** | ChatGPT prepares packet, findings verification and classification | **PENDING** — no signoff from incomplete Devstral packet |
+| **Q5.9** | Triage any new failures, implement scoped Cloud repairs, reconcile SHA-specific evidence and issue a factual GO/NO-GO recommendation | **ChatGPT** | Local runner repeats only invalidated gates, if any | **PENDING** — no unilateral runtime activation |
+
+**Task leaves / dependencies (two levels):** `Q5.2.a` identify exact Go files and `Q5.2.b` mechanical-only format patch; `Q5.3.a` connector rustfmt and `Q5.3.b` non-integration formatting disposition; `Q5.5.a` complete full-diff packet and `Q5.5.b` cross-repo threat/negative tests; `Q5.6.a` scope audit + SHA freeze and `Q5.6.b` deduplicated command matrix; `Q5.7.a` Go fmt/prepush and `Q5.7.b` Rust fmt/check/test/clippy; `Q5.8.a` independent analysis and `Q5.8.b` reproducible blocking findings; `Q5.9.a` remediation and `Q5.9.b` final result. Dependencies: **Q5.1 → (Q5.2 ∥ Q5.3 ∥ Q5.4) → Q5.5 → Q5.6 → Q5.7 → Q5.8 → Q5.9**.
+
+**Accounting:** ChatGPT is **primary owner of 7/9 tasks**, local toolchain 1/9, independent reviewer 1/9. Q5.4 is source-done but not certified. Do not transfer any source remediation, task decomposition or review-finding triage to local agents. The `L0` clean detached worktree evidence is valid for source fidelity even though the earlier handoff's literal original-checkout requirement failed.
+
 ## 2026-11-13 Cloud C1–C4 completion checkpoint
 
 **Cloud audit:** [B4.Q C1–C3 preflight](../audit/dubbridge-fenix-b4q-cloud-first-preflight-2026-11-13.md). **Final deferred local handoff:** [one L0–L3 batch](../handoffs/dubbridge-fenix-b4q-final-local-batch-2026-11-13.md).
