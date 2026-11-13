@@ -15,6 +15,16 @@ tags: [dubbridge, fenix, s2s, cloud, qa]
 
 **Repositories:** `krukmat/fenix` and `krukmat/dubbridge`, existing branch `feature/int-v2-dubbridge-consumes-fenix`. **DubBridge consumes Fenix.** No business workflow/model activation.
 
+## Q5.2 incremental formatter execution — 2026-11-13
+
+**Actually published two verified gofmt-only source corrections**, using GitHub source and `gofmt` against isolated reconstructed test files:
+- `internal/infra/sqlite/s2s_capability_policy_migration_test.go` — commit `a572b136536b3bde959bce78294d33ce4c4d9594`, fixes spacing in the `provisionArgs` literal.
+- `internal/api/s2s_policy_operator_test.go` — commit `e2442c407a4ae35c170e6ebf52e93c513756cdb7`, fixes whitespace and field alignment in operator RBAC tests.
+
+**Q5.2 is PARTIAL**: original user-reported `fmt-check` failed for 11 Go files; without the original complete `L1_GO_PREPUSH.log` file and a directly accessible full Go repository checkout in the execution sandbox, the remaining exact set cannot be certified from these two changes. No Go prepush, full Go compile, local Rustfmt, Cargo QA or L3 independent security review executed in this incremental pass.
+
+**Q5.3 remains PENDING**: Rustfmt binary/toolchain is absent from the Cloud execution container. Do not substitute manual formatting or claim `cargo fmt` PASS. The existing [scoped formatter runner](../../scripts/int_b4q_format_only.sh) is prepared for one mechanical isolated-worktree run with pinned current SHAs (now changed from prior checkpoints). No direct user checkout was touched. **Global state NO-GO**, and the final post-format SHA freeze is pending actual completion and verification.
+
 ## Q5 execution checkpoint — Cloud deliverables after owner approval (2026-11-13)
 
 **Q5.2/Q5.3 ChatGPT Cloud:** authored [scoped deterministic format remediation script](../../scripts/int_b4q_format_only.sh) using real `gofmt` and `rustfmt` in clean isolated pinned worktrees. It identifies actual Go files requiring format, formats the S2S Rust connector plus the two previously flagged workspace-wide Rustfmt files (`workspace.rs`, `proxy.rs`), validates `git diff -w` and `cargo fmt --all -- --check`, and **never commits/pushes**. **Script committed, NOT_RUN; source gofmt/rustfmt still NOT_FIXED**. The Cloud GitHub connector can read/write source but has no Go/Rust formatting toolchain in its execution context; the model must not fabricate gofmt/rustfmt output. No local agent development is authorized. ChatGPT remains the owner of reviewing the resulting format-only patch.
