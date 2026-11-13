@@ -18,6 +18,14 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## B4.W1 / W3.1 execution checkpoint — 2026-11-13
+
+**W1.1 source reviewed, W1.2 candidate authored:** Fenix has a standalone build-tagged `internal/api/s2s_nonproduction_router.go` and negative tagged test file. Only explicit `-tags=s2s_nonproduction` + `Enabled=true` + `Environment="integration-test"` + non-nil DB create a **separate isolated router** for `POST /integrations/dubbridge/operations`. It uses persisted service-identity/capability/operation admission and an IP rate limiter; neither `NewRouter` nor `NewServer` is changed or invokes the new factory. No actual endpoint enabled. The two candidate file copies passed standalone local `gofmt -d` parsing/format inspection; full Go compilation/conditional-tag tests and independent review **NOT_RUN**. W1 **source candidate**, not completed certification.
+
+**W3.1 inventory done:** existing DubBridge `review_tasks.id`, `localization_generation_claims.generation_request_id` and `p2p_publications.id` are business-specific, not neutral persisted Fenix work IDs. [Inventory and immutable-ledger recommendation](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/audit/dubbridge-fenix-b4w3-1-durable-intent-inventory-2026-11-13.md). **Next W3.2:** design/source a neutral durable `fenix_dispatch_intents` record bound to trusted DubBridge actor/org/project, storing stable UUIDv5-derived operation/correlation ID and immutable request digest *before* one-shot send. W3.3 API caller/wiring follows this ledger, not a new random UUID or repurposed business entity.
+
+Current [authoritative B4.W tasks](../tasks/task_dubbridge_fenix_b4_operational_wiring.md) include this dependency correction. **GO CONDICIONAL unchanged:** source development allowed, no credential/route/capability activation, database migration execution, CI or deployment.
+
 ## CURRENT OWNER DECISION — GO CONDICIONAL, resume B4 technical plan (2026-11-13)
 
 **Authoritative status:** **GO_CONDICIONAL for scoped technical development** of DubBridge → Fenix; **NOT** GO to enable S2S or close B4/B5. No structural architectural blocker is currently known. The former unconditional **NO-GO** was a **certification/activation verdict**, not a ban on continuing development. It remains true only for certifying or activating the current unconnected integration, not for working in the feature branches.
