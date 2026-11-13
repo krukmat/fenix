@@ -18,6 +18,12 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## B4.Q5 — Actual frozen-pair local gate evidence and targeted repair (2026-11-13)
+
+**Owner's local evidence for frozen pair:** Fenix `d07adb66`, DubBridge `bf36a9d3`. Source was verified in clean detached worktrees (original checkout mismatch is a procedural L0 FAIL, not a test-source mismatch). Actual L1 Python SQLite **23 PASS**, Go focused **PASS**, vet **PASS**; L1 prepush **FAIL** at 11-file `fmt-check` with later subgates NOT_RUN. L2 Cargo check **PASS**, tests **321 PASS / 1 ignored**, global fmt **FAIL** (connector + two pre-existing unrelated workspace/gateway files), strict Clippy **FAIL** for 5 `manual_async_fn`. L3 reviewer output unreliable/false positives, independent security approval **absent**; no confirmed H/M vulnerability established.
+
+**ChatGPT Q5 fix:** Rust connector's 5 manual async implementations converted to `async fn` in [DubBridge `2fc5b2b`](https://github.com/krukmat/dubbridge/commit/2fc5b2b7a38222a9c9a65c91c35c45de30207fd5), preserving `impl Future + Send` trait signatures. **New code not cargo-retested**, and Go formatting is **still unresolved**. [Full gate triage](https://github.com/krukmat/fenix/blob/feature/int-v2-dubbridge-consumes-fenix/docs/audit/dubbridge-fenix-b4q-q5-gate-triage-2026-11-13.md). Next run only affected format/prepush and Cargo check/test/clippy on updated SHAs, followed by an independent review of the **complete** integration diff. Reuse SQLite and already-green Go focused/vet evidence where unchanged. **NO overall QA PASS** and no route/credential/capability/CI/deploy/merge activation.
+
 ## B4.Q C1–C4 Cloud delivery — local certification remains last (2026-11-13)
 
 **Published C1 findings/fixes:** Go API router test helper now receives `testing.T`; Go forged-workspace negative test correctly mutates the B2.E `"input":{"v":1}` fixture, and an explicit no-op mutation guard prevents recurrence. Rust `reqwest::Response::chunk` API checked; no extra stream feature needed, no dependency churn.
