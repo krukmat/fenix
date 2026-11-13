@@ -18,6 +18,14 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## B4.W2 + W3.2 implementation checkpoint — 2026-11-13
+
+**Fenix W2.1/W2.2 source delivered:** `docs/contracts/fenix-b4w2-integration-diagnostics-v1.schema.json` defines the exact operator-schema-supported `integration.diagnostics` version-1 bounded input. `internal/api/s2s_nonproduction_diagnostic.go` and tagged test define a pure, deterministic, hashed diagnostic. It is not invoked by the existing admission path; no managed handler/capability registration, token, model or HTTP operation has been enabled. W4 operator test activation remains a separate decision.
+
+**DubBridge W3.2.a/b source delivered:** [non-executable migration candidate](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/proposals/0040_fenix_dispatch_intents.up.sql) in `docs/proposals`, not under executable `infra/migrations`, plus typed `crates/db/src/fenix_dispatch_intent_repo.rs` for immutable, tenant-scoped intent creation and single CAS claim. No DB migration application or live caller. A shared `crates/domain/src/fenix_operation_identity.rs` UUIDv5 helper is used by both Rust HTTPS connector and DB draft validation, preventing mismatched operation/trace IDs. `submitted` is only an HTTP admission, not an agent result. No automatic retry from ambiguous/sending/terminal states.
+
+**Next W3.3** (NOT_STARTED): bind the final canonical wire digest to the persisted work ID in a two-phase prepare/build flow before one-shot send; then opt-in API composition. **Next W5** (NOT_STARTED): persist indeterminate/crashed attempts and require manual proof-based reconciliation, C4 GET/status deferred. **W4** activation remains unapproved. Go tagged/Cargo/PostgreSQL tests and independent review have NOT_RUN on these newly published candidates; certification is not claimed.
+
 ## B4.W1 / W3.1 execution checkpoint — 2026-11-13
 
 **W1.1 source reviewed, W1.2 candidate authored:** Fenix has a standalone build-tagged `internal/api/s2s_nonproduction_router.go` and negative tagged test file. Only explicit `-tags=s2s_nonproduction` + `Enabled=true` + `Environment="integration-test"` + non-nil DB create a **separate isolated router** for `POST /integrations/dubbridge/operations`. It uses persisted service-identity/capability/operation admission and an IP rate limiter; neither `NewRouter` nor `NewServer` is changed or invokes the new factory. No actual endpoint enabled. The two candidate file copies passed standalone local `gofmt -d` parsing/format inspection; full Go compilation/conditional-tag tests and independent review **NOT_RUN**. W1 **source candidate**, not completed certification.
