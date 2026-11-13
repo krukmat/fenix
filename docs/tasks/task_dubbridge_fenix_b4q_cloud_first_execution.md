@@ -2,7 +2,7 @@
 doc_type: task
 id: DB-FENIX-B4.Q-CLOUD-FIRST
 title: "B4.Q Cloud-first technical certification — deferred single local batch"
-status: approved_resequenced_cloud_pending
+status: cloud_c1_c4_delivered_local_l1_l3_deferred
 owner: ChatGPT Cloud
 date: 2026-11-13
 phase: B4
@@ -14,6 +14,19 @@ tags: [dubbridge, fenix, s2s, cloud, qa]
 **Decision:** finish all feasible development, source repair, offline checks and documentation in Cloud **before** any local action. One final, consolidated local/environment-specific verification batch is the only planned local work. **No local-agent prompts until Cloud freeze.** No extra branches, CI, route mounting, operational credentials, live capability, paid resources, deployment or main merge. C4 GET/status remains deferred.
 
 **Repositories:** `krukmat/fenix` and `krukmat/dubbridge`, existing branch `feature/int-v2-dubbridge-consumes-fenix`. **DubBridge consumes Fenix.** No business workflow/model activation.
+
+## 2026-11-13 Cloud C1–C4 completion checkpoint
+
+**Cloud audit:** [B4.Q C1–C3 preflight](../audit/dubbridge-fenix-b4q-cloud-first-preflight-2026-11-13.md). **Final deferred local handoff:** [one L0–L3 batch](../handoffs/dubbridge-fenix-b4q-final-local-batch-2026-11-13.md).
+
+| Task | Cloud completion | Actual evidence / boundary |
+|---|---|---|
+| **C1** | Source readiness audited; two confirmed Go test bugs fixed and one fixture-drift guard added | Router test now supplies `testing.T`; forged-workspace negative test mutates the actual input; tests remain NOT_RUN on Go1.25 |
+| **C2** | **Evidence reused, no redundant runs:** exact current migration 040, Node B4 script and three Fenix schemas match 5/5 previously tested Git blobs | Prior actual SQLite **24/24** and Node **29/29** stand for unchanged inputs; new repo Python wrapper remains **NOT_RUN** and is in the deferred L1 batch |
+| **C3** | Current Go test-fixture/contract anchors checked **13/13 static PASS**, with genuine mutation guard | Not an HTTP E2E or executed Go/Rust unit test |
+| **C4** | Audits consolidated, one handoff with stop conditions/commands created; exact final SHA pair is published in Fenix #10 / DubBridge #13 GitHub freeze comments after documentation commit | **Local L1–L3 deliberately deferred**; no activation, merge or review waiver |
+
+**Completion meaning:** all ChatGPT Cloud authoring/reconciliation tasks delivered; it does **not** mean B4.Q formal certification has passed. Await explicit owner choice before running L1–L3. Q5 findings remediation remains Cloud-owned.
 
 ## Baseline — do not repeat completed checks without changed scope
 
