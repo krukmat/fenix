@@ -71,8 +71,8 @@ func TestB4InertAdmissionWireWrongTenantUnknownCapabilityAndBearer(t *testing.T)
 			"123e4567-e89b-42d3-a456-426614174023", 1), integration.ErrS2SAdmissionDenied},
 		{"unknown capability", "", strings.Replace(raw, "integration.diagnostics",
 			"integration.unknown", 1), integration.ErrS2SAdmissionDenied},
-		{"forged workspace", "", strings.Replace(raw, `"input":{}`,
-			`"workspace_id":"another-workspace","input":{}`, 1), integration.ErrS2SAdmissionInvalid},
+		{"forged workspace", "", strings.Replace(raw, `"input":{"v":1}`,
+			`"workspace_id":"another-workspace","input":{"v":1}`, 1), integration.ErrS2SAdmissionInvalid},
 		{"invalid credential", "bad-token", raw, integration.ErrS2SAdmissionDenied},
 	}
 	for _, tc := range cases {
