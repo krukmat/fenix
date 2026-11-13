@@ -104,3 +104,4 @@ logs/
 docs/audits/*
 !docs/audits/digitalocean_online_poc_readiness_audit.md
 tmp/*
+scripts/__pycache__/*
