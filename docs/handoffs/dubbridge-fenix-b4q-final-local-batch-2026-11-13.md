@@ -40,7 +40,7 @@ rustc --version
 cargo --version
 ```
 
-**Stop on SHA mismatch** with the final frozen pair, dirty tree, missing toolchain or unexpected branch. Do not `git reset --hard`, `git clean`, force-push or mutate user-owned files. A `git pull --ff-only` is permitted only before the freeze has been confirmed and with user-approved checkout state; never modify the frozen SHA unannounced.
+**Stop on SHA mismatch** with the newly frozen post-Q5 pair, dirty *isolated verification worktree*, missing toolchain or accidental use of an original working checkout. Detached HEAD at the exact expected SHA is **valid**, provided the worktree is clean; do not require changing the original user's active branch. Do not `git reset --hard`, `git clean`, force-push or mutate user-owned files. A `git pull --ff-only` is permitted only before the freeze has been confirmed and with user-approved checkout state; never modify the frozen SHA unannounced.
 
 ### L1 — Fenix Go and SQLite (single batch)
 
