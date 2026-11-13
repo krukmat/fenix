@@ -32,8 +32,8 @@ func TestB2B4Migration040DeniedByDefaultAndAuditImmutable(t *testing.T) {
         (principal_id,workspace_id,capability_key,schema_version,handler_id,
          schema_json,schema_sha256,updated_by,created_at_unix,updated_at_unix)
         VALUES(?,?,?,?,?,?,?,?,?,?)`
-	provisionArgs := []any{"s2s-p","s2s-w","integration.diagnostics","1","diagnostics-handler",
-		rawSchema,digest[:],"operator-test",int64(2000000010),int64(2000000010)}
+	provisionArgs := []any{"s2s-p", "s2s-w", "integration.diagnostics", "1", "diagnostics-handler",
+		rawSchema, digest[:], "operator-test", int64(2000000010), int64(2000000010)}
 	if _, err := db.Exec(provision, provisionArgs...); err != nil {
 		t.Fatal(err)
 	}
