@@ -15,6 +15,14 @@ tags: [dubbridge, fenix, s2s, cloud, qa]
 
 **Repositories:** `krukmat/fenix` and `krukmat/dubbridge`, existing branch `feature/int-v2-dubbridge-consumes-fenix`. **DubBridge consumes Fenix.** No business workflow/model activation.
 
+## Q5 execution checkpoint — Cloud deliverables after owner approval (2026-11-13)
+
+**Q5.2/Q5.3 ChatGPT Cloud:** authored [scoped deterministic format remediation script](../../scripts/int_b4q_format_only.sh) using real `gofmt` and `rustfmt` in clean isolated pinned worktrees. It identifies actual Go files requiring format, formats the S2S Rust connector plus the two previously flagged workspace-wide Rustfmt files (`workspace.rs`, `proxy.rs`), validates `git diff -w` and `cargo fmt --all -- --check`, and **never commits/pushes**. **Script committed, NOT_RUN; source gofmt/rustfmt still NOT_FIXED**. The Cloud GitHub connector can read/write source but has no Go/Rust formatting toolchain in its execution context; the model must not fabricate gofmt/rustfmt output. No local agent development is authorized. ChatGPT remains the owner of reviewing the resulting format-only patch.
+
+**Q5.5 ChatGPT Cloud:** [complete 2-repository security review packet](../audit/dubbridge-fenix-b4q-q5-independent-review-packet-2026-11-13.md) **DELIVERED**, indexing the actual GitHub full main-to-integration comparisons (Fénix 157 changed files, DubBridge 18 at packet creation) rather than selected snippets. Includes threat boundaries, negative-test expectations and disposition of known non-evidence/false-positive claims. **Independent L3 review NOT_RUN on this full packet**.
+
+**Q5.6 ChatGPT Cloud:** *pre-format input SHAs* and targeted recertification matrix are ready; the **final post-format code SHA pair cannot be frozen before the formatter changes are applied**. That distinction is mandatory. Local execution is limited to an isolated non-agent mechanical format command and affected certification gates once the format-only diff is approved/published, without redoing unchanged historical SQLite checks. User original checkouts stay untouched. **Current formal status: NO-GO.**
+
 ## B4.Q5 — Reassignment approved: ChatGPT-first (2026-11-13)
 
 **Active authoritative responsibility matrix.** This section supersedes any earlier wording assigning formatting/implementation to a local agent. **ChatGPT is accountable for ALL source fixes, analysis, evidence consolidation and orchestration; the local environment is only a mechanical execution/certification runner.** The independent security reviewer alone owns an independent verdict. The owner is not assigned technical work. No additional local prompts before Cloud remediation and SHA freeze. No CI, new branch, token, endpoint/capability activation, deployment or merge.
