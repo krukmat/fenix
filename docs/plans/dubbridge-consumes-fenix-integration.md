@@ -18,6 +18,16 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## CURRENT OWNER DECISION — GO CONDICIONAL, resume B4 technical plan (2026-11-13)
+
+**Authoritative status:** **GO_CONDICIONAL for scoped technical development** of DubBridge → Fenix; **NOT** GO to enable S2S or close B4/B5. No structural architectural blocker is currently known. The former unconditional **NO-GO** was a **certification/activation verdict**, not a ban on continuing development. It remains true only for certifying or activating the current unconnected integration, not for working in the feature branches.
+
+**Next phase is B4.W — operational wiring, source candidate first.** [Authoritative two-level tasks and responsibilities](../tasks/task_dubbridge_fenix_b4_operational_wiring.md). Critical path: **W1** default-OFF, dedicated Fenix route and auth chain → **W2** strictly deterministic, nonproduction diagnostic capability; parallel **W3** existing durable DubBridge work-item/UUIDv5 linkage plus opt-in application caller → **W5** fail-closed ambiguous-result handling without automatic retry. **W4** owner-approved nonproduction credential/capability/endpoint enablement is a separate hard stop → B4.T1–T3 authentic HTTPS, negative isolation and idempotency proof → B5 certification and deployment decision.
+
+**C4 GET/status remains deferred and nonblocking for source-only B4.W;** ambiguity is recorded as indeterminate and reconciled manually from persistent evidence, never silently retried or declared success. No real business workflow/agent/LLM is necessary before B6. No CI, new branches, migration application, live route, credential provisioning, production activation, deployment or main merge is implied by this GO. ChatGPT owns implementation and planning; the user only approves future enablement.
+
+**Historical Q5 formatting and independent review failures remain recorded below, but are not the critical path for unactivated source development.** No claims of passed QA or production readiness. Older plan sections describing B2–B5 as not implemented or saying next action is B1 are archival snapshots and are superseded by this checkpoint.
+
 ## B4.Q5 — Actual frozen-pair local gate evidence and targeted repair (2026-11-13)
 
 **Owner's local evidence for frozen pair:** Fenix `d07adb66`, DubBridge `bf36a9d3`. Source was verified in clean detached worktrees (original checkout mismatch is a procedural L0 FAIL, not a test-source mismatch). Actual L1 Python SQLite **23 PASS**, Go focused **PASS**, vet **PASS**; L1 prepush **FAIL** at 11-file `fmt-check` with later subgates NOT_RUN. L2 Cargo check **PASS**, tests **321 PASS / 1 ignored**, global fmt **FAIL** (connector + two pre-existing unrelated workspace/gateway files), strict Clippy **FAIL** for 5 `manual_async_fn`. L3 reviewer output unreliable/false positives, independent security approval **absent**; no confirmed H/M vulnerability established.
