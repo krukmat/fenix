@@ -22,6 +22,10 @@ verify_isolated_worktree() {
   local root="$1" expected="$2" current
   [[ -d "$root" ]] || { echo "Missing worktree: $root" >&2; exit 2; }
   current="$(git -C "$root" rev-parse HEAD)"
+  if git -C "$root" symbolic-ref -q HEAD >/dev/null; then
+    echo "Refusing active branch checkout at $root; use a clean detached worktree" >&2
+    exit 2
+  fi
   if [[ "$current" != "$expected" ]]; then
     echo "SHA mismatch at $root: expected $expected, found $current" >&2
     exit 2
@@ -85,6 +89,30 @@ echo "DUBBRIDGE_CHANGED:"
 git -C "$DUBBRIDGE_REPO" diff --name-only
 git -C "$FENIX_REPO" diff --check
 git -C "$DUBBRIDGE_REPO" diff --check
+
+# Refuse any changed path outside the exact formatting allowlists.
+while IFS= read -r changed; do
+  [[ -n "$changed" ]] || continue
+  allowed=0
+  for file in "${go_files[@]}"; do
+    if [[ "$file" == "$changed" ]]; then allowed=1; break; fi
+  done
+  if (( !allowed )); then
+    echo "Unexpected Fenix changed path: $changed" >&2
+    exit 1
+  fi
+done < <(git -C "$FENIX_REPO" diff --name-only)
+while IFS= read -r changed; do
+  [[ -n "$changed" ]] || continue
+  allowed=0
+  for file in "${rust_paths[@]}"; do
+    if [[ "$file" == "$changed" ]]; then allowed=1; break; fi
+  done
+  if (( !allowed )); then
+    echo "Unexpected DubBridge changed path: $changed" >&2
+    exit 1
+  fi
+done < <(git -C "$DUBBRIDGE_REPO" diff --name-only)
 if ! git -C "$FENIX_REPO" diff -w --quiet -- '*.go'; then
   echo "GO_SEMANTIC_CHANGE_DETECTED: inspect diff; do not publish" >&2
   exit 1
