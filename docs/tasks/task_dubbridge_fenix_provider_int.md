@@ -9,6 +9,12 @@ rebaseline: 2026-10-31
 
 # Canonical tasks — Fenix as DubBridge's agentic platform
 
+## CURRENT — GO CONDICIONAL and B4.W source-only development (2026-11-13)
+
+Owner authorizes **continued technical development**, not live integration activation or release. [Canonical B4.W wiring tasks](task_dubbridge_fenix_b4_operational_wiring.md) supersede older statements that B2–B5 are all unimplemented. **Next:** W1.1 provider route/auth-chain inventory, W1.2 default-OFF isolated Fenix route; in parallel W3.1 DubBridge durable work-item/UUIDv5 linkage assessment. Then W2 deterministic nonproduction diagnostic capability, W3.2/W3.3 opt-in Rust caller and durable correlation, W5 no-auto-retry ambiguity handling. W4 production-isolated enablement (service token, operator grants and capability config) requires **fresh explicit owner approval**. Only then B4.T1–T3 authenticated real HTTPS; B5 separate QA/security/rollout. C4 GET/status postponed; no B6 workflow needed.
+
+**ChatGPT is responsible for source/planning**, local executor only for actual compatible environment, independent reviewer for separate security verdict. QA historical NO-GO is **not** a blocker for further inert source changes. No CI, separate branches, paid hosting, deployments or activation.
+
 ## Current authoritative integration checkpoint — 2026-11-05
 
 [Cloud B2 audit](../audit/dubbridge-fenix-b2-cloud-checkpoint-2026-11-05.md): **B2.A1**, **B2.A2 standalone SQL-backed Go store**, **B2.A3 unmounted S2S middleware** and **B2.B in-memory, default-deny capability registry** now exist on the assigned Fenix branch with scoped local tests PASS. B2.C has a tested, **non-runtime SQLite idempotency proposal**, not an implemented Go operation store. Security reviewer, full Fenix QA, executable migrations and deployed endpoints remain PENDING; do not infer B2.A or B2.B certification. RRI N/A; real business workflows belong only to B6.
