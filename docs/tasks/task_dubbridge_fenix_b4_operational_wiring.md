@@ -46,6 +46,21 @@ depends_on: [DB-FENIX-INT-B2, DB-FENIX-INT-B3]
 
 **Repo process boundaries:** Fenix's `AGENTS.md` calls for peer task readiness, post-code review and local QA before formal closure/push; these **have not been completed** in this Cloud environment. The two candidate Go files have already been committed through the approved GitHub Cloud path, so **do not mark W1.2 code as certified/closed or use this as an approval to activate**. Next compatible runner must run `gofmt -l` and `go test -tags s2s_nonproduction ./internal/api` on the exact current revision, followed by required scoped peer/security review. User's GO CONDICIONAL applies to continued source work, not waiving repository verification policy.
 
+## W2 + W3.2 authorized source development — 2026-11-13
+
+| Leaf | Published change | Status |
+|---|---|---|
+| **W2.1** | `docs/contracts/fenix-b4w2-integration-diagnostics-v1.schema.json`: exact Fenix supported policy-schema subset for `integration.diagnostics`, version `1`, required bounded `nonce`, additional properties denied. No policy INSERT/enable. | **SOURCE DELIVERED** |
+| **W2.2** | `internal/api/s2s_nonproduction_diagnostic.go` + tagged unit test: pure, deterministic SHA-256 diagnostic, domain separated, bounded input, no workflow, agent, model, ToolRegistry or runtime state. Only builds under `s2s_nonproduction`; **it is not yet invoked by the HTTP admission/reservation path**. Operator-mediated binding/actual nonproduction harness execution belongs to W4 after explicit user approval. | **HANDLER SOURCE DELIVERED**, integration activation not authorized; tagged Go tests/review **NOT_RUN** |
+| **W3.2.a** | [DubBridge candidate PostgreSQL migration](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/proposals/0040_fenix_dispatch_intents.up.sql) with isolated down candidate: `fenix_dispatch_intents` actor/org/project scope, durable immutable digest + UUIDs, send claim, denial/indeterminate states, strict SQL CHECK and trigger-based transition guards. **Deliberately outside `infra/migrations`**, so not auto-applied. | **SCHEMA SOURCE DELIVERED**, PostgreSQL execution **NOT_RUN** |
+| **W3.2.b** | `crates/db/src/fenix_dispatch_intent_repo.rs` and lib export: typed draft, membership/project check on create, `prepared→sending` compare-and-set claim, exactly one classified `sending→submitted/indeterminate/rejected` outcome, token bound to claim, scoped read; no remote call or automatic retry, no background worker. | **REPOSITORY SOURCE DELIVERED**, Cargo/SQL integration **NOT_RUN** |
+
+**Technical boundary:** This source work does **NOT** implement W3.3 application/client wiring, invoke Fenix diagnostic handler on an admitted request, provision operators, issue credentials, apply a migration, expose a route in normal production, or prove real E2E. A `submitted` state means **Fenix admitted a request**, never that a workflow ran. Ambiguous results remain terminal until separately reviewed reconciliation (W5; C4 GET/status deferred).
+
+**Critical W3.3 dependency:** the current Rust `OperationParts::from_persisted_work_item` requires an *already persisted* work UUID, but the draft SQL row stores the immutable digest of the future canonical wire request. W3.3 must specify an atomic **plan/derive/persist/build/send** sequence that proves the request fingerprint is unchanged before a single send. The repository alone cannot establish that relation; do **not** claim operation_id or digest parity has passed. Never auto-generate a new UUID on retry, reuse a business-specific work ID, or send before the intent is durably committed. Capability/key/schema contract mismatch must fail closed.
+
+**Next explicitly separate task:** **W3.3** opt-in application adapter with persisted-intent read and exact UUIDv5/digest parity check, real `PgFenixScopeAuthorizer`, approved secret provider and disabled-by-default dispatch. Then **W5** explicit indeterminate/no-auto-retry and manual reconciliation, followed by W4 separate HITL nonproduction activation approval. B4.T1–T3 and B5 last.
+
 ## Decision gates and meaning
 
 - `GO_CONDITIONAL_DEVELOPMENT`: **YES**, approved. ChatGPT may work autonomously on source-only B4.W1–W3/W5 in the existing feature branches.
