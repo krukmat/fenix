@@ -2,6 +2,20 @@
 
 **Status:** PREPARED, **DO NOT EXECUTE YET** unless the owner explicitly resumes local work. Cloud C1–C3 checkpoint: [2026-11-13 audit](../audit/dubbridge-fenix-b4q-cloud-first-preflight-2026-11-13.md); [cloud-first execution plan](../tasks/task_dubbridge_fenix_b4q_cloud_first_execution.md).
 
+## Q5 format remediation preparation — Cloud-owned, execution-only local runner
+
+ChatGPT prepared the actual [format-only runner](../../scripts/int_b4q_format_only.sh) and the [complete two-repo security diff packet](../audit/dubbridge-fenix-b4q-q5-independent-review-packet-2026-11-13.md). This runner **was not executed in Cloud**; do not treat either repository as formatted or test-certified.
+
+**Only when final mechanical formatting is authorized:** create separate clean, **detached** worktrees from the two current *pre-format* source SHAs, set `FENIX_REPO` and `DUBBRIDGE_REPO` to those absolute paths, and export `FENIX_SHA`/`DUBBRIDGE_SHA` matching their exact heads. In the Fenix detached worktree run:
+
+```bash
+bash scripts/int_b4q_format_only.sh --check
+# After checking expected paths and with only isolated detached worktrees:
+bash scripts/int_b4q_format_only.sh --apply
+```
+
+`--apply` modifies only integration Go files found by gofmt and these three Rustfmt paths: `crates/connectors/src/fenix_s2s.rs`, `apps/api/src/routes/workspace.rs`, `apps/gateway/src/proxy.rs`. It rejects unintended changed paths, non-whitespace diffs, active branch checkouts, dirty worktrees or SHA mismatch. It does **not** commit/push/activate CI. Return the isolated format-only diff to ChatGPT for scope review/publishing; do not have the local runner invent implementation changes. Only after the formatter diff is committed and a **new exact post-format SHA pair is frozen** run affected Go prepush and Rust Cargo gates. Historical 23 Python checks, focused Go and vet are retained if their relevant logic is unchanged. A full independent L3 review is still necessary.
+
 ## Q5 execution evidence amendment — 2026-11-13
 
 The owner returned genuine local gate evidence for the original frozen SHA pair: Fenix `d07adb664bc1f73cdff2e297f945e1e211a6459b`, DubBridge `bf36a9d3751a533dbf6b0a337ea6828d4be07e13`. **L1 SQLite 23 assertions, Go focused and go vet PASS; L2 cargo check and tests PASS (321 pass/1 ignored).** Fenix prepush FAILS at formatting before later subgates; DubBridge `cargo fmt --all -- --check` FAILS in three files; Clippy FAILS for 5 `manual_async_fn` methods in the S2S connector; independent Devstral L3 review was inconclusive and reported spot-checked false positives. **There is no overall GO.** No runtime route or credential was enabled.
