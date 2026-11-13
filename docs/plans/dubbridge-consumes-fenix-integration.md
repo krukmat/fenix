@@ -18,6 +18,12 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## CURRENT — W3.3/W5 source delivered, W4 activation not approved (2026-11-13)
+
+**W3.3 DubBridge:** default-off `apps/api/src/fenix_dispatch.rs` explicitly composes trusted `PgFenixScopeAuthorizer`, immutable Fenix dispatch intent, exact-body SHA256 parity, UUIDv5 correlation, one CAS claim and a single outbound call. It is **not mounted in the normal DubBridge API/router or any worker**, and its SQL source remains outside executable migrations. **W5:** durable unresolved listing and manual stale sending→indeterminate; no retry, status GET or fabricated execution. [Manual operation guide](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/handoffs/dubbridge-fenix-b4w5-manual-reconciliation-2026-11-13.md).
+
+**W2.2 Fenix** adds a test-tagged harness method which calls persisted S2S admission before deterministic diagnosis; it does not expose that capability through normal HTTP. **W4.1/W4.2 preparation** is complete as a [nonproduction enable/stop proposal](../handoffs/dubbridge-fenix-b4w4-nonproduction-activation-proposal-2026-11-13.md), but tokens, operator policies, runtime registration, service routes, migration application and actual HTTPS remain **not authorized**. QA/run evidence on new source remains NOT_RUN. GO_CONDICIONAL only covers source development; real B4.T1–T3 and B5 await W4 activation and independent certification.
+
 ## B4.W2 + W3.2 implementation checkpoint — 2026-11-13
 
 **Fenix W2.1/W2.2 source delivered:** `docs/contracts/fenix-b4w2-integration-diagnostics-v1.schema.json` defines the exact operator-schema-supported `integration.diagnostics` version-1 bounded input. `internal/api/s2s_nonproduction_diagnostic.go` and tagged test define a pure, deterministic, hashed diagnostic. It is not invoked by the existing admission path; no managed handler/capability registration, token, model or HTTP operation has been enabled. W4 operator test activation remains a separate decision.
