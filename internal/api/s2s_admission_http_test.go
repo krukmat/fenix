@@ -190,7 +190,7 @@ func TestB4DormantS2SHTTPRejectsInvalidReceipt(t *testing.T) {
 
 func TestB4DormantS2SHTTPIsAbsentFromNormalRouter(t *testing.T) {
 	db := mustOpenAPITestDB(t)
-	router := mustNewRouterWithConfig(db, testCfg())
+	router := mustNewRouterWithConfig(t, db, testCfg())
 	req := httptest.NewRequest(http.MethodPost, DormantS2SAdmissionPath, strings.NewReader(s2sTestEnvelope))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
