@@ -1,7 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:fenix:b4w2:integration.diagnostics:1",
-  "title": "Nonproduction-only deterministic DubBridge/Fenix diagnostic input (proposal)",
   "type": "object",
   "properties": {
     "nonce": {
