@@ -61,6 +61,25 @@ depends_on: [DB-FENIX-INT-B2, DB-FENIX-INT-B3]
 
 **Next explicitly separate task:** **W3.3** opt-in application adapter with persisted-intent read and exact UUIDv5/digest parity check, real `PgFenixScopeAuthorizer`, approved secret provider and disabled-by-default dispatch. Then **W5** explicit indeterminate/no-auto-retry and manual reconciliation, followed by W4 separate HITL nonproduction activation approval. B4.T1–T3 and B5 last.
 
+## W2 completion and W3.3/W5/W4 source-delivery checkpoint — 2026-11-13
+
+**W2.2 additional source:** Nonproduction-tagged `NonProductionS2SDiagnosticHandler.AdmitAndHandle` now calls the persisted `S2SHTTPAdmission.AdmitWithIdempotencyKey` **before** the deterministic diagnostic. Negative harness tests ensure denied bearer/capability does not execute diagnostics. This is a detached, explicitly invoked test seam; **the normal and tagged HTTP routers do not auto-dispatch any diagnostic** and no capability is enabled. **SOURCE_DELIVERED; Go tagged tests/review NOT_RUN**.
+
+**W3.3 source delivered (DubBridge):**
+- Public, exact serialized outbound JSON from `FenixOperationRequest::outbound_json_bytes` is used by `FenixClient::submit_once`; test callsites adjusted. This prevents drift between bytes fingerprinted and actually sent.
+- Dormant `apps/api/src/fenix_dispatch.rs` module exports `FenixDispatchAdapter` **not mounted in any API route or worker**. Its opt-in defaults disabled and permits only `integration-test`; it constructs the real `PgFenixScopeAuthorizer`.
+- `prepare` authorizes real actor/org/project, creates ONE local UUIDv4 intent, derives immutable shared UUIDv5 operation/trace IDs, computes SHA256 over exact outbound bytes, commits candidate intent before network I/O. `submit_prepared_once` reads owned intent, reauthorizes scope, reconstructs the exact request and constant-time verifies digest + operation/trace IDs, uses single PostgreSQL `prepared→sending` CAS, calls one `FenixClient::submit_once` then persists a sanitized admission/rejected/indeterminate result. A failed persistence finalization leaves `sending` unresolved; never retries HTTP. `submitted` is only reserved/admitted, not a workflow success. **SOURCE_DELIVERED; actual Postgres schema is still uninstalled, Cargo and E2E NOT_RUN**.
+
+**W5 source delivered (DubBridge):**
+- `list_unresolved_fenix_dispatch_intents` returns a bounded actor/org-scoped list of `sending` and `indeterminate` intents; `mark_stale_fenix_send_indeterminate` explicitly classifies a `sending` attempt older than 5 minutes while preserving its immutable send token and never re-enabling a retry. No schedulers, polling endpoints or background retries.
+- [Manual proof and no-retry recovery handoff](https://github.com/krukmat/dubbridge/blob/feature/int-v2-dubbridge-consumes-fenix/docs/handoffs/dubbridge-fenix-b4w5-manual-reconciliation-2026-11-13.md) documents provider-led evidence, distinctions between DubBridge exact-wire and Fenix normalized digests, and unresolved terminal outcomes. **SOURCE_DELIVERED; not deployed/reviewed**.
+
+**W4.1/W4.2 preparation delivered:** [nonproduction-only activation proposal](../handoffs/dubbridge-fenix-b4w4-nonproduction-activation-proposal-2026-11-13.md) gives exact environment/credential/operator/diagnostic/listener/stop boundaries, reversible kill switches and cost/tenancy approval checkpoints. **W4_ACTIVATION_NOT_AUTHORIZED**; the user approved **development**, not issuing credentials, applying SQL or starting external services.
+
+**Next responsibilities:** ChatGPT may handle any verified source issues in current scope. **W4 awaits a separate explicit owner activation decision.** B4.T1–T3 real HTTPS + cross-tenant/idempotency evidence cannot be executed without W4, and B5 release certification follows those. C4 status GET is deferred; B6 business workflows remain on demand. No CI, new branch, secret, enabled route, installed migration, paid infrastructure or deployment.
+
+**Accurate evidence boundary:** source delivery is not tested operation. Rust Cargo, PostgreSQL DDL, Go tagged tests, independent review, real authenticated E2E all **NOT_RUN** on the new source; no production GO is implied.
+
 ## Decision gates and meaning
 
 - `GO_CONDITIONAL_DEVELOPMENT`: **YES**, approved. ChatGPT may work autonomously on source-only B4.W1–W3/W5 in the existing feature branches.
