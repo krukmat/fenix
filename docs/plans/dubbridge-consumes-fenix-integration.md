@@ -18,6 +18,14 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## B4.Q C1–C4 Cloud delivery — local certification remains last (2026-11-13)
+
+**Published C1 findings/fixes:** Go API router test helper now receives `testing.T`; Go forged-workspace negative test correctly mutates the B2.E `"input":{"v":1}` fixture, and an explicit no-op mutation guard prevents recurrence. Rust `reqwest::Response::chunk` API checked; no extra stream feature needed, no dependency churn.
+
+**C2:** confirmed **5/5 exact Git blob identities** for Fenix SQLite 040 migration, DubBridge Node B4 checker and all three pinned schemas against prior executed evidence. Earlier 24/24 actual isolated SQLite + 29/29 actual Node contract checks remain applicable to unchanged inputs; **no duplicate execution in this checkpoint** and the new Fenix Python wrapper **NOT_RUN**. **C3:** 13/13 targeted source fixture/mutation checks PASS (not Go/Rust QA). **C4:** [preflight and explicit verification boundary](https://github.com/krukmat/fenix/blob/feature/int-v2-dubbridge-consumes-fenix/docs/audit/dubbridge-fenix-b4q-cloud-first-preflight-2026-11-13.md), [single deferred local batch handoff](https://github.com/krukmat/fenix/blob/feature/int-v2-dubbridge-consumes-fenix/docs/handoffs/dubbridge-fenix-b4q-final-local-batch-2026-11-13.md), and exact final source SHA freeze in Fenix issue #10/DubBridge issue #13 once documentation is committed.
+
+**Status:** C1–C4 Cloud authoring delivered; Q4 formal Go1.25.13/Cargo/independent review and real authenticated E2E remain **NOT_RUN**. No local agents, CI, route, operator grants, service tokens, deployment, status GET or merge. User explicitly requested **all local work LAST**. Q5 remediation remains ChatGPT-owned after consolidated verification.
+
 ## B4.Q new owner execution order — Cloud-first, local-final (2026-11-13)
 
 **Owner instruction (supersedes earlier Q4/Q5 ordering):** prioritize **all ChatGPT Cloud work**, defer **all local/toolchain/reviewer execution** until the last phase. Authoritative two-level [B4.Q task ledger](https://github.com/krukmat/fenix/blob/feature/int-v2-dubbridge-consumes-fenix/docs/tasks/task_dubbridge_fenix_b4q_cloud_first_execution.md): **C1** review/fix changed Go/Rust source and compile-risk issues; **C2** run committed Python SQLite 038–040 and Node pinned-contract scripts from Cloud; **C3** reconcile cross-repo negative contracts and test source; **C4** audit scoped diffs, freeze both SHA references and prepare **one** local handoff. Completed B4.Q1–Q3 evidence remains historical and must not be needlessly rerun.
