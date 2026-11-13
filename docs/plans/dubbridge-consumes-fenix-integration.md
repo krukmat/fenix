@@ -18,6 +18,12 @@ tags: [fenix, dubbridge, integration, s2s, capability-registry]
 
 DubBridge is the consumer/product and owns user/project permissions, media, review decisions, publication, rights and P2P. Fenix is the agent/workflow infrastructure provider and owns its runtime, S2S authority, tool governance, Blackboard, workspace isolation and execution records.
 
+## B4.Q new owner execution order — Cloud-first, local-final (2026-11-13)
+
+**Owner instruction (supersedes earlier Q4/Q5 ordering):** prioritize **all ChatGPT Cloud work**, defer **all local/toolchain/reviewer execution** until the last phase. Authoritative two-level [B4.Q task ledger](https://github.com/krukmat/fenix/blob/feature/int-v2-dubbridge-consumes-fenix/docs/tasks/task_dubbridge_fenix_b4q_cloud_first_execution.md): **C1** review/fix changed Go/Rust source and compile-risk issues; **C2** run committed Python SQLite 038–040 and Node pinned-contract scripts from Cloud; **C3** reconcile cross-repo negative contracts and test source; **C4** audit scoped diffs, freeze both SHA references and prepare **one** local handoff. Completed B4.Q1–Q3 evidence remains historical and must not be needlessly rerun.
+
+Only after Cloud C1–C4 closure: **L1** Fenix Go1.25.13 build/tests/race/vet/prepush and full migrations, **L2** Rust fmt/check/tests/clippy, **L3** independent focused code/security review; run as **one compact local session/batch**, no parallel code implementation by local agents and no repeated unmodified suites. Then ChatGPT Q5 triages findings. Any source changes invalidate affected evidence only. **No** local-agent requests before C4 freeze; no CI, live route/credential/capability, paid infrastructure, status GET, deployment or merge. Source candidate status is unchanged: Q4/Q5 QA NOT_RUN.
+
 ## B4.Q1–Q3 — Executed Cloud verification checkpoint (2026-11-11)
 
 **Execution and evidence:** [B4.Q audit](../audit/dubbridge-fenix-b4q-cloud-validation-2026-11-11.md). Q1: 21/21 static cross-repo Go/Rust checks PASS; isolated Go1.23.2 stdlib service-token parser regression PASS. Q2: actual SQLite 3.46.1 **migration 040** constraints **22/22 PASS** against minimal parent tables and two-connection transaction/disable ordering **2/2 PASS**; migration exact Git blob `ad31aa7239243c350fd43da02771a8c8637cd1c7`. Q3: exact DubBridge Node script and pinned Fenix schemas actually executed **29/29 PASS**, with provider schema blobs still matching current Fenix GitHub source.
