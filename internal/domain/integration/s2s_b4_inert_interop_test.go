@@ -77,6 +77,11 @@ func TestB4InertAdmissionWireWrongTenantUnknownCapabilityAndBearer(t *testing.T)
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Every forged-envelope case must actually alter the fixture.
+			// A stale strings.Replace needle silently preserves valid JSON.
+			if tc.bearerOverride == "" && tc.request == raw {
+				t.Fatal("negative test fixture did not mutate the envelope")
+			}
 			f := newB2EFixture(t)
 			bearer := f.token
 			if tc.bearerOverride != "" {
