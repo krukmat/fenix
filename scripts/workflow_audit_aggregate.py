@@ -56,17 +56,33 @@ def aggregate(gemma_dir: Path, peer_dir: Path) -> dict[str, Any]:
     peer = list(_read_review_artifacts(peer_dir))
     role_counts = Counter(str(r.get("role", "unknown")) for r in local)
     outcomes = Counter(str(r.get("outcome", "unknown")) for r in local)
-    per_model = Counter(str(r.get("model", "unknown")) for r in local)
+    per_model = Counter(str(r.get("model") or "unknown") for r in local)
     durations = [_numeric(r, "elapsed_s") for r in local]
     durations = [x for x in durations if x is not None]
 
-    def token_metric(key):
-        measured = [_numeric(r, key) for r in local]
+    def token_metric(key, records=None):
+        dataset = local if records is None else records
+        measured = [_numeric(r, key) for r in dataset]
         present = [int(x) for x in measured if x is not None]
         return {
             "records_with_data": len(present),
-            "coverage_ratio": round(len(present) / len(local), 3) if local else None,
+            "coverage_ratio": round(len(present) / len(dataset), 3) if dataset else None,
             "total": sum(present) if present else None,
+        }
+
+    groups = defaultdict(list)
+    for record in local:
+        groups[str(record.get("model") or "unknown")].append(record)
+    model_metrics = {}
+    for model, records in sorted(groups.items()):
+        times = [_numeric(record, "elapsed_s") for record in records]
+        times = [value for value in times if value is not None]
+        model_metrics[model] = {
+            "records": len(records),
+            "mean_elapsed_seconds": round(sum(times) / len(times), 3) if times else None,
+            "p95_elapsed_seconds": _percentile(times, 0.95),
+            "prompt_tokens": token_metric("prompt_tokens", records),
+            "response_tokens": token_metric("response_tokens", records),
         }
 
     review_stage = Counter()
@@ -92,6 +108,7 @@ def aggregate(gemma_dir: Path, peer_dir: Path) -> dict[str, Any]:
         "local": {
             "by_role": dict(sorted(role_counts.items())),
             "by_model": dict(sorted(per_model.items())),
+            "by_model_metrics": model_metrics,
             "outcomes": dict(sorted(outcomes.items())),
             "elapsed_seconds": {
                 "sample_count": len(durations),

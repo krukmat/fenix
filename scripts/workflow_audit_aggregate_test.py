@@ -35,6 +35,8 @@ class AggregateTest(unittest.TestCase):
             self.assertEqual(result["local"]["prompt_tokens"]["coverage_ratio"], 0.5)
             self.assertEqual(result["local"]["prompt_tokens"]["total"], 30)
             self.assertEqual(result["local"]["packet_tokens_est"]["total"], 48)
+            self.assertEqual(result["local"]["by_model_metrics"]["m"]["p95_elapsed_seconds"], 3.0)
+            self.assertEqual(result["local"]["by_model_metrics"]["m"]["prompt_tokens"]["total"], 30)
             self.assertEqual(result["local"]["elapsed_seconds"]["p95"], 3.0)
             self.assertEqual(result["peer"]["by_attempt_role"]["fallback"], 1)
             self.assertNotIn("VERY_PRIVATE_TOKEN", json.dumps(result))
