@@ -1,0 +1,142 @@
+{
+  "schema": "fenix-workflow-corpus-index-v1",
+  "baseline_commit": "0912e0137f50f3bec20fd840b4abb03c9a22a5d5",
+  "scope": "historical_development_tasks_not_product_performance",
+  "status": "historical_source_blobs_frozen_packets_not_frozen",
+  "source_count": 20,
+  "safety": {
+    "cloud_only_lanes": [
+      "policy_cloud_only",
+      "auth_cloud_only"
+    ],
+    "local_replay_requires_isolated_source_copy": true,
+    "secret_free_inputs_required": true
+  },
+  "cases": [
+    {
+      "id": "01",
+      "path": "docs/tasks/task_agentdef_bootstrap_docs_sync.md",
+      "lane": "documentation",
+      "source_blob_sha": "21484345568ed646df9c92b738ea45dfc7b81f95"
+    },
+    {
+      "id": "02",
+      "path": "docs/tasks/task_paw_f14_peer_review_artifact_presentation.md",
+      "lane": "documentation",
+      "source_blob_sha": "9c129af1db38af89c2af5ec811c67018db5c1db3"
+    },
+    {
+      "id": "03",
+      "path": "docs/tasks/task_paw_f17_local_peer_review_prompt_compaction.md",
+      "lane": "structured_analysis",
+      "source_blob_sha": "7eae2895c853ef8c875f431da6935aa75e3c3e9d"
+    },
+    {
+      "id": "04",
+      "path": "docs/tasks/task_fenix_maintainability_gate_wiring_alignment.md",
+      "lane": "policy_cloud_only",
+      "source_blob_sha": "ba035ca416230f8b2028e61ad94c7bc795f78e05"
+    },
+    {
+      "id": "05",
+      "path": "docs/tasks/task_extval_android_recovery_plan.md",
+      "lane": "planning",
+      "source_blob_sha": "44b987b1576872352dd8ceca0bb0cfa964ea37b4"
+    },
+    {
+      "id": "06",
+      "path": "docs/tasks/task_agentdef_bootstrap_impl_b1_characterization.md",
+      "lane": "tests",
+      "source_blob_sha": "2ea87f6083c35812b4aaac4b227fbaaa6f54866f"
+    },
+    {
+      "id": "07",
+      "path": "docs/tasks/task_agentdef_bootstrap_impl_b2_lookup_fix.md",
+      "lane": "small_fix",
+      "source_blob_sha": "526ff9b4069be57f330594266baaaf5fe2ca6d09"
+    },
+    {
+      "id": "08",
+      "path": "docs/tasks/task_mobile_approvals_response_shape_crash.md",
+      "lane": "small_fix",
+      "source_blob_sha": "3815f7f7d750a9e4441a84653517341bfcf99e42"
+    },
+    {
+      "id": "09",
+      "path": "docs/tasks/task_mobile_bff_remediation_5.md",
+      "lane": "small_fix",
+      "source_blob_sha": "740d4cb6d96c286218b4f7a8a236d37b806acd69"
+    },
+    {
+      "id": "10",
+      "path": "docs/tasks/task_extval_o4_o5a_salesbrief_graceful_degradation.md",
+      "lane": "small_fix",
+      "source_blob_sha": "9e727174072c02647b5b6aee55c28f43de997711"
+    },
+    {
+      "id": "11",
+      "path": "docs/tasks/task_extval_o5b_llm_usage_model_token_attribution.md",
+      "lane": "instrumentation",
+      "source_blob_sha": "bd15c39b23c3f249b0a99ba57f54f8f0dc7f6138"
+    },
+    {
+      "id": "12",
+      "path": "docs/tasks/task_extval_o7_signals_403_workspace_owner.md",
+      "lane": "auth_cloud_only",
+      "source_blob_sha": "f5ea6873114d1093251ae5c8f2cd93d929a6ff8a"
+    },
+    {
+      "id": "13",
+      "path": "docs/tasks/task_fenix_integration_w6a_functional_slice.md",
+      "lane": "complex_code",
+      "source_blob_sha": "d9693b2dfb6d9fc28ffddfcd4cdd5b62d879d60f"
+    },
+    {
+      "id": "14",
+      "path": "docs/tasks/task_fenix_integration_w6b_multi_agent_coordination.md",
+      "lane": "complex_code",
+      "source_blob_sha": "4badd96df57f05052cadf17105a013f7fdaf05f2"
+    },
+    {
+      "id": "15",
+      "path": "docs/tasks/task_fenix_integration_w6c_functional_resilience.md",
+      "lane": "resilience",
+      "source_blob_sha": "09ba028e3aea238eec8771e0c18a5cd9b1f219ae"
+    },
+    {
+      "id": "16",
+      "path": "docs/tasks/task_fenix_dubbridge_int_w0.md",
+      "lane": "cross_system_analysis",
+      "source_blob_sha": "6b5ab5c6b8d0b4766f97d50dbe80fb82e8604a32"
+    },
+    {
+      "id": "17",
+      "path": "docs/tasks/task_fenix_integration_w5c_operational_readiness.md",
+      "lane": "readiness",
+      "source_blob_sha": "159d22db408d09370e8a49e95da1c36e922ce1fe"
+    },
+    {
+      "id": "18",
+      "path": "docs/tasks/task_fenix_integration_w6d_product_demo_handoff.md",
+      "lane": "handoff",
+      "source_blob_sha": "513d37d7d951f394730842160fab750060d0bb8c"
+    },
+    {
+      "id": "19",
+      "path": "docs/tasks/task_fr_071_gap_closure.md",
+      "lane": "traceability",
+      "source_blob_sha": "3f113ac84a28c045ce4844fc30b48591571b80f6"
+    },
+    {
+      "id": "20",
+      "path": "docs/tasks/task_fr_202_gap_closure.md",
+      "lane": "traceability",
+      "source_blob_sha": "fbc6ee8ae2735d6164f3edbbcd3262ab404e3b31"
+    }
+  ],
+  "limitations": [
+    "GitHub source blob SHAs are not frozen LLM task packets or expected outcomes.",
+    "No model calls or local benchmarks executed.",
+    "Local evaluation block W4.3 remains last."
+  ]
+}
