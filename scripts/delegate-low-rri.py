@@ -245,6 +245,16 @@ def parse_args():
             "current target file. Required for --mode before-after."
         ),
     )
+    parser.add_argument(
+        "--role-kind",
+        choices=["fix", "complex_code", "documentation", "analysis"],
+        default=None,
+        help="Opt-in role routing. Requires --rri, --task-id, and explicit --allow-path.",
+    )
+    parser.add_argument(
+        "--rri", type=int, default=None,
+        help="Measured RRI for opt-in role routing (only 0-25 accepted).",
+    )
     return parser.parse_args()
 
 
@@ -853,6 +863,15 @@ def apply_before_after(target_path, before_file, after_block, allow_paths, repo_
 
 def main():
     args = parse_args()
+    if args.role_kind is not None:
+        # Import only for opt-in routing; existing Gemma path is unchanged.
+        from workflow_model_router import configured_low_rri_model
+        args.model = configured_low_rri_model(
+            role=args.role_kind,
+            rri=args.rri,
+            paths=tuple(args.allow_path),
+            task_id=args.task_id,
+        )
     packet = read_packet(args.packet).strip()
     if not packet:
         raise RuntimeError("delegation packet is empty")

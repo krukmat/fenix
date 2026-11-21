@@ -1,7 +1,7 @@
 ---
 doc_type: task
 id: FENIX-AI-W1-4
-status: integration_pending
+status: code_committed_peer_qa_pending
 updated: 2026-11-21
 owner: ChatGPT
 confidence_execution_pct: 90
@@ -30,4 +30,4 @@ confidence_execution_pct: 90
 
 ## Status and evidence
 
-Implementation candidate exists in staging only. Do not claim merged or verified.
+Opt-in routing adapter and unit tests were committed to main, with the active default preserved. No runtime model check, full QA or peer gate has run.

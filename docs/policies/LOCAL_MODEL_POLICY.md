@@ -50,6 +50,12 @@ The agent must record which of these applied in the task closure report. Skippin
 the delegation attempt because it seems unnecessary, slower, or a worse fit for
 the task shape is not a valid reason to bypass it.
 
+## Opt-in role routing (W1–W5 pilot)
+
+The active default remains Gemma with existing \`FENIX_LOW_RRI_MODEL\` behavior. An optional CLI selector is available on \`scripts/delegate-low-rri.py\`: \`--role-kind {fix,complex_code,documentation,analysis}\` together with \`--rri 0..25\`, \`--task-id\`, and explicit, non-glob \`--allow-path\` entries. Role IDs are configured via \`FENIX_ROLE_FIX_MODEL\`, \`FENIX_ROLE_COMPLEX_CODE_MODEL\`, \`FENIX_ROLE_DOCUMENTATION_MODEL\` and \`FENIX_ROLE_ANALYSIS_MODEL\`. A missing role model or unsafe scope fails closed without silently falling back. The selected **exact tag** is checked by the existing Ollama availability check before a model call.
+
+This pilot is **opt-in**; it does not change the mandatory local attempt, the default model, permissions, or review requirements. It does not permit RRI 26+ delegation, even if a user has approved the task. Nimble precheck remains advisory and cannot replace deterministic QA or independent peer review. Local model suitability requires W4.3/W5.4 measurements.
+
 ## Model selection
 
 | Role | Default model | Fallback model | Env var override |
