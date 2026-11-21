@@ -13,6 +13,9 @@ ALLOWED_PATHS = ("internal/", "mobile/", "bff/", "scripts/", "docs/", "features/
 PROTECTED_PATHS = (
     "internal/domain/auth/", "internal/domain/audit/", "internal/domain/policy/",
     "internal/infra/auth/", "docs/policies/", "docs/decisions/",
+    "scripts/delegate-low-rri.py", "scripts/workflow_model_router.py",
+    "scripts/peer-workflow-review.py", "scripts/gemma_local.py",
+    "scripts/gemma-code-review.py", "scripts/agent-preflight.py", "scripts/rri.py",
 )
 ROLE_ENV = {
     "fix": "FENIX_ROLE_FIX_MODEL",
@@ -81,3 +84,30 @@ def advisory_precheck(raw: object) -> dict:
         "reason": reason.strip() if valid else "invalid_precheck_contract",
         "evidence_refs": evidence if valid else [],
     }
+
+
+def moderate_delegation_advisory(
+    *, task_id: str, rri: int, paths: Sequence[str], human_approved: bool,
+    critical: bool, has_acceptance_criteria: bool, has_relevant_tests: bool,
+    governance_policy_adopted: bool = False,
+) -> dict:
+    """Describe hypothetical RRI 26-40 eligibility; NEVER authorize execution.
+
+    Deliberately unconnected to delegate-low-rri.py. Adoption requires an
+    independent human-approved governance ADR and full project gate evidence.
+    """
+    if not governance_policy_adopted:
+        return {"eligible": False, "reason": "active_policy_forbids_rri_26_plus"}
+    if type(rri) is not int or not 26 <= rri <= 40:
+        return {"eligible": False, "reason": "outside_moderate_pilot_band"}
+    if not human_approved:
+        return {"eligible": False, "reason": "human_approval_missing"}
+    if critical or not task_id or not task_id.strip():
+        return {"eligible": False, "reason": "critical_or_unattributed_task"}
+    if not has_acceptance_criteria or not has_relevant_tests:
+        return {"eligible": False, "reason": "verification_contract_incomplete"}
+    if not paths or not all(_safe_path(path) for path in paths):
+        return {"eligible": False, "reason": "invalid_scope"}
+    if any(path.startswith(prefix) for path in paths for prefix in PROTECTED_PATHS):
+        return {"eligible": False, "reason": "protected_boundary"}
+    return {"eligible": True, "reason": "advisory_only_policy_adoption_required_in_runtime"}
