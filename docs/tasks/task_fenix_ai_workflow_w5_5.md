@@ -1,7 +1,7 @@
 ---
 doc_type: task
 id: FENIX-AI-W5-5
-status: awaiting_local_evidence
+status: conditional_decisions_published_awaiting_local_evidence
 updated: 2026-11-21
 owner: ChatGPT
 confidence_execution_pct: 95
@@ -30,4 +30,4 @@ confidence_execution_pct: 95
 
 ## Status and evidence
 
-Decision framework can be prepared off-Mac, but final outcome requires local measurements.
+The decision and ranking framework is now versioned in docs/ai-workflow/conditional_decisions.md. Final conclusions require local measurements and gate evidence.
