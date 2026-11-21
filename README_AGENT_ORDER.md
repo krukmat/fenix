@@ -20,11 +20,12 @@
    what autonomy is permitted.
 5. **`docs/policies/RRI_POLICY.md`** — how to score task complexity and risk with
    the RRI formula; run `python3 scripts/rri.py` to compute it.
-6. **`docs/decisions/`** — architecture decisions (ADRs) that constrain
+6. **`docs/policies/LOCAL_MODEL_POLICY.md`** — mandatory low-RRI local attempt, safe fallback and optional role routing.
+7. **`docs/decisions/`** — architecture decisions (ADRs) that constrain
    implementation; check relevant ADRs before touching their governed paths.
-7. **`docs/plans/` and `docs/tasks/`** — the active plan and task ledger for the
+8. **`docs/plans/` and `docs/tasks/`** — the active plan and task ledger for the
    current workstream.
-8. Product, BDD, design, config, and CI docs that constrain the current task
+9. Product, BDD, design, config, and CI docs that constrain the current task
    (`docs/architecture.md`, `features/`, `DESIGN.md`, `.github/workflows/ci.yml`).
 
 ## Operating order for a task
@@ -35,9 +36,10 @@ Follow `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`. In short:
 2. Ensure the plan and individual task ledger exist.
 3. Compute RRI with `python3 scripts/rri.py`.
 4. Resolve the HITL gate from `docs/policies/HITL_AUTONOMY_POLICY.md`.
-5. Implement one approved task.
-6. Run relevant QA gates.
-7. Sync status artifacts, report closure, and wait before starting the next task.
+5. Run primary peer task-readiness; for eligible RRI 0-25 attempt local delegation or record a blocked reason.
+6. Implement one approved task and run relevant QA gates.
+7. Run independent post-code peer review; retain the artifact and apply any required fixes.
+8. Sync status artifacts, report closure, and wait before starting the next task.
 
 ## Related
 
@@ -45,4 +47,5 @@ Follow `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`. In short:
 - `docs/playbooks/AGENT_WORKFLOW_GUIDE.md`
 - `docs/policies/HITL_AUTONOMY_POLICY.md`
 - `docs/policies/RRI_POLICY.md`
+- `docs/policies/LOCAL_MODEL_POLICY.md`
 - `docs/decisions/` (ADR index: `docs/decisions/README.md` — created in PAW-B2)
