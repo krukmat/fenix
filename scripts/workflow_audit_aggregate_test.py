@@ -25,7 +25,7 @@ class AggregateTest(unittest.TestCase):
                     "prompt_tokens": 30, "packet_tokens_est": 48, "response_tokens": 7, "elapsed_s": 2.0,
                     "user_prompt": "VERY_PRIVATE_TOKEN"}) + "\n")
                 f.write(json.dumps({"model": "m", "role": "reviewer", "outcome": "BLOCKED",
-                    "response_tokens": None, "elapsed_s": 3.0}) + "\n")
+                    "response_tokens": None, "elapsed_s": 3.0, "passes_run": 3}) + "\n")
             (root / "peer" / "a.json").write_text(json.dumps({
                 "mode": "post-code-review", "verdict": {"status": "pass"},
                 "packet": {"secret": "VERY_PRIVATE_TOKEN"},
@@ -39,6 +39,9 @@ class AggregateTest(unittest.TestCase):
             self.assertEqual(result["local"]["by_model_metrics"]["m"]["prompt_tokens"]["total"], 30)
             self.assertEqual(result["local"]["elapsed_seconds"]["p95"], 3.0)
             self.assertEqual(result["peer"]["by_attempt_role"]["fallback"], 1)
+            self.assertEqual(result["peer"]["fallback_artifacts"], 1)
+            self.assertEqual(result["peer"]["fallback_rate_observed"], 1.0)
+            self.assertEqual(result["local"]["review_passes"]["passes_total"], 3)
             self.assertNotIn("VERY_PRIVATE_TOKEN", json.dumps(result))
 
     def test_invalid_lines_ignored(self):
@@ -54,6 +57,20 @@ class AggregateTest(unittest.TestCase):
             root = Path(td)
             (root / "2026-11.jsonl").write_text('{"prompt_tokens":true}\n')
             self.assertIsNone(aggregate.aggregate(root, root / "missing")["local"]["prompt_tokens"]["total"])
+
+    def test_fractional_tokens_rejected_not_truncated(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "2026-11.jsonl").write_text('{"prompt_tokens":2.9}\n')
+            out = aggregate.aggregate(root, root / "missing")
+            self.assertIsNone(out["local"]["prompt_tokens"]["total"])
+            self.assertEqual(out["local"]["prompt_tokens"]["records_with_data"], 0)
+
+    def test_no_review_fallback_denominator(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "a.json").write_text('{"mode":"task-readiness","verdict":{"status":"blocked"}}')
+            self.assertIsNone(aggregate.aggregate(root / "missing", root)["peer"]["fallback_rate_observed"])
 
     def test_artifact_without_attempts_is_reported(self):
         with tempfile.TemporaryDirectory() as td:

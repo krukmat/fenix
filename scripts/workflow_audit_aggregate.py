@@ -62,8 +62,8 @@ def aggregate(gemma_dir: Path, peer_dir: Path) -> dict[str, Any]:
 
     def token_metric(key, records=None):
         dataset = local if records is None else records
-        measured = [_numeric(r, key) for r in dataset]
-        present = [int(x) for x in measured if x is not None]
+        # Token counters are integers. Do not silently truncate malformed floats.
+        present = [r[key] for r in dataset if type(r.get(key)) is int and r[key] >= 0]
         return {
             "records_with_data": len(present),
             "coverage_ratio": round(len(present) / len(dataset), 3) if dataset else None,
@@ -85,10 +85,14 @@ def aggregate(gemma_dir: Path, peer_dir: Path) -> dict[str, Any]:
             "response_tokens": token_metric("response_tokens", records),
         }
 
+    reviewer_records = [r for r in local if r.get("role") == "reviewer"]
+    measured_passes = [r["passes_run"] for r in reviewer_records
+                       if type(r.get("passes_run")) is int and r["passes_run"] > 0]
     review_stage = Counter()
     review_attempt_roles = Counter()
     review_verdicts = Counter()
     missing_attempts = 0
+    fallback_artifacts = 0
     for rec in peer:
         review_stage[str(rec.get("mode", "unknown"))] += 1
         verdict = rec.get("verdict", {})
@@ -97,6 +101,8 @@ def aggregate(gemma_dir: Path, peer_dir: Path) -> dict[str, Any]:
         if not isinstance(attempts, list):
             missing_attempts += 1
             continue
+        if any(isinstance(a, dict) and a.get("role") == "fallback" for a in attempts):
+            fallback_artifacts += 1
         for a in attempts:
             if isinstance(a, dict):
                 review_attempt_roles[str(a.get("role", "unknown"))] += 1
@@ -118,12 +124,22 @@ def aggregate(gemma_dir: Path, peer_dir: Path) -> dict[str, Any]:
             "prompt_tokens": token_metric("prompt_tokens"),
             "packet_tokens_est": token_metric("packet_tokens_est"),
             "response_tokens": token_metric("response_tokens"),
+            "review_passes": {
+                "review_records": len(reviewer_records),
+                "records_with_data": len(measured_passes),
+                "coverage_ratio": round(len(measured_passes) / len(reviewer_records), 3)
+                                  if reviewer_records else None,
+                "passes_total": sum(measured_passes) if measured_passes else None,
+            },
         },
         "peer": {
             "by_stage": dict(sorted(review_stage.items())),
             "by_attempt_role": dict(sorted(review_attempt_roles.items())),
             "verdicts": dict(sorted(review_verdicts.items())),
             "artifacts_missing_attempts": missing_attempts,
+            "fallback_artifacts": fallback_artifacts,
+            "fallback_rate_observed": round(fallback_artifacts / (len(peer) - missing_attempts), 3)
+                                       if len(peer) > missing_attempts else None,
         },
         "limitations": [
             "Results are aggregated observations, not matched end-to-end task traces.",
