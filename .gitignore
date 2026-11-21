@@ -103,3 +103,4 @@ logs/
 docs/audits/*
 !docs/audits/digitalocean_online_poc_readiness_audit.md
 tmp/*
+!docs/plans/ai_workflow_w1_w5_execution_plan.md
