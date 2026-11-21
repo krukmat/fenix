@@ -1,7 +1,7 @@
 ---
 doc_type: task
 id: FENIX-AI-W5-3
-status: documented
+status: documented_repo_with_instrumentation
 updated: 2026-11-21
 owner: ChatGPT
 confidence_execution_pct: 95
@@ -30,4 +30,4 @@ confidence_execution_pct: 95
 
 ## Status and evidence
 
-Source-backed analysis exists in [reconciliation](../audits/ai_workflow_w1_w5_reconciliation.md) and prior staging. This is NOT a certified source integration.
+Source-backed audit and a read-only aggregation tool are now in main. No local observations or repository QA artifacts exist yet.
