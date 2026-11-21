@@ -1,0 +1,1 @@
+Classify the following synthetic task as a documentation update or code fix. Reply briefly: Update a README heading.

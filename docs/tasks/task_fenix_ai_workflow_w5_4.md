@@ -1,7 +1,7 @@
 ---
 doc_type: task
 id: FENIX-AI-W5-4
-status: local_last
+status: local_last_ready_for_operator
 updated: 2026-11-21
 owner: Local
 confidence_execution_pct: 90
@@ -30,4 +30,4 @@ confidence_execution_pct: 90
 
 ## Status and evidence
 
-Deferred by agreement: consolidate with the other final Mac-only task.
+Cloud-side probe and handoff are versioned. Local execution remains deferred to the single final Mac block; no measurements have been made.
