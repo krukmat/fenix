@@ -673,6 +673,8 @@ def parse_codex_review_output(raw):
     a JSON string so the existing `parse_verdict` path is unchanged.
     """
     text = raw or ""
+    if not text.strip():
+        raise InvalidVerdict("codex review returned empty output")
     findings = []  # type: List[str]
     for line in text.splitlines():
         match = _CODEX_FINDING.match(line)

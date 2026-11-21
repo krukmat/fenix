@@ -1,7 +1,7 @@
 ---
 doc_type: task
 id: FENIX-AI-W3-4
-status: integration_pending
+status: code_committed_peer_qa_pending
 updated: 2026-11-21
 owner: ChatGPT
 confidence_execution_pct: 85
@@ -30,4 +30,4 @@ confidence_execution_pct: 85
 
 ## Status and evidence
 
-Implementation candidate exists in staging only. Do not claim merged or verified.
+Narrow fail-closed patch prepared for main; repo QA and independent peer review remain unexecuted. Other W3.4 integration substeps are outstanding.

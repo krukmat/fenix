@@ -139,10 +139,13 @@ class CodexReviewOutputParsingTest(unittest.TestCase):
         self.assertEqual(v["status"], "pass")
         self.assertEqual(v["findings"], [])
 
-    def test_empty_output_maps_to_pass_with_default_summary(self):
-        v = _mod.parse_verdict(_mod.parse_codex_review_output(""))
-        self.assertEqual(v["status"], "pass")
-        self.assertEqual(v["summary"], "codex review completed")
+    def test_empty_output_fails_closed(self):
+        with self.assertRaises(_mod.InvalidVerdict):
+            _mod.parse_codex_review_output("")
+
+    def test_whitespace_only_output_fails_closed(self):
+        with self.assertRaises(_mod.InvalidVerdict):
+            _mod.parse_codex_review_output(" \n\t ")
 
 
 class ReviewerExecutableResolutionTest(unittest.TestCase):
