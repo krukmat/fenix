@@ -1,7 +1,7 @@
 ---
 doc_type: task
 id: FENIX-AI-W5-3
-status: documented_repo_with_instrumentation
+status: source_published_isolated_qa_pass_peer_pending
 updated: 2026-11-21
 owner: ChatGPT
 confidence_execution_pct: 95
@@ -30,4 +30,4 @@ confidence_execution_pct: 95
 
 ## Status and evidence
 
-Source-backed audit and a read-only aggregation tool are now in main. No local observations or repository QA artifacts exist yet.
+Source-backed audit and a read-only aggregation tool are now in main. No local observations or full repository QA/independent peer artifacts exist yet. On 2026-11-21 the audit aggregator extension was published in 3502295219381f4982bf1985b46daacf104eb0a4 and the exact Git blobs passed the 7 aggregator unit tests in an isolated Python environment. This does not certify the full workflow.

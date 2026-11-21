@@ -20,7 +20,7 @@ updated: 2026-11-21
 | Final local performance/model runs | **0/2** (W4.3 and W5.4 only) |
 | Final empirical conclusions | **0/2** (W4.4 and W5.5 cannot close before local data) |
 | Full workflow/repository QA + independent peer-gate certifications | **0/21**; no fabricated PASS |
-| New isolated cloud unit tests on exact repo blobs | **28/28 PASS**; not Mac/CI/full repository tests |
+| New isolated cloud unit tests on exact repo blobs | **30/30 PASS**; not Mac/CI/full repository tests |
 | Codex output parser analogue smoke | **6/6 PASS**; not the full peer adapter test suite |
 
 ## Verified source artifacts
@@ -46,12 +46,12 @@ The cloud runtime reproduced the following GitHub files byte-for-byte and compar
 |---|---|
 | `scripts/workflow_model_router.py` | `e07e36deb05db10a2dd68df45d4d8f8b3beb45ce` |
 | `scripts/workflow_model_router_test.py` | `2a23f5f4c2789ba27689eef1daefc7f6bd1cf5e3` |
-| `scripts/workflow_audit_aggregate.py` | `a1334e9b7bf5d8a7dbe619ffcc9d25a649c8e2cd` |
-| `scripts/workflow_audit_aggregate_test.py` | `16444a884cbf9934b898151cde05d373b156a7cc` |
+| `scripts/workflow_audit_aggregate.py` | `4834a7ac4aeea1261ad4d6a965a7f16f1b77704d` |
+| `scripts/workflow_audit_aggregate_test.py` | `4287b134eba51211c36918a0c9e70d601d94998e` |
 | `scripts/workflow_local_probe.py` | `1c6090d058ff0fc6b972f9a705964301b4ae1c2e` |
 | `scripts/workflow_local_probe_test.py` | `a190a2abb570c2043a0ddd72b9a9a723a34e9708` |
 
-Test result: model router **18 PASS**, audit aggregator **5 PASS**, local probe mocks/dry-run **5 PASS**, total **28 PASS**. The Codex parser excerpt additionally passed 6 isolated cases. These results **do not certify** the modified 1,000-line delegates or provider-aware review adapter in their full production context, and are not evidence of Ollama availability.
+Test result: model router **18 PASS**, audit aggregator **7 PASS**, local probe mocks/dry-run **5 PASS**, total **30 PASS**. The Codex parser excerpt additionally passed 6 isolated cases. These results **do not certify** the modified 1,000-line delegates or provider-aware review adapter in their full production context, and are not evidence of Ollama availability.
 
 ## Task-by-task status and original execution confidence
 
@@ -92,3 +92,7 @@ Confidence is an estimated likelihood of technical feasibility **conditional on 
 ## Operating constraints
 
 No new CI, no new branches, no local agent until the final block, no unsupported install, no Fénix product-runtime changes. All permanent output is in the repository, not an external ZIP.
+
+## Current confidence gate (2026-11-21)
+
+The owner requested that only tasks above 80% current execution confidence proceed. High-confidence W5.2/W5.3 telemetry refinements were merged to main at `3502295219381f4982bf1985b46daacf104eb0a4`. Their source/test blobs were reproduced and the isolated suite passed **30/30** (18 router, 7 aggregator, 5 probe), plus **6/6** isolated Codex parser cases. The independent peer/repo integration gates remain **NOT RUN**; Mac models remain **NOT RUN**. Later items currently evaluate below 80% closure confidence because of unavailable independent gate artifacts or local evidence, so they are on HOLD rather than reported PASS. See [high-confidence replanning](high_confidence_execution_plan.md).
