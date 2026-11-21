@@ -287,7 +287,7 @@ class AuditEmission(unittest.TestCase):
     def test_pass_emits_one_record_with_reviewer_role(self):
         records = self._run(_mod.gemma_local.StreamChatResult(
             content="STATUS: PASS\nSUMMARY: clean",
-            usage=_mod.gemma_local.StreamUsage(response_tokens=17),
+            usage=_mod.gemma_local.StreamUsage(response_tokens=17, prompt_tokens=29),
         ))
         self.assertEqual(len(records), 1)
         r = records[0]
@@ -302,6 +302,8 @@ class AuditEmission(unittest.TestCase):
         self.assertIn("system_prompt", r)
         self.assertIn("user_prompt", r)
         self.assertEqual(r["response_tokens"], 17)
+        self.assertEqual(r["prompt_tokens"], 29)
+        self.assertTrue(r["model"])
         self.assertGreater(r["packet_tokens_est"], 0)
 
     def test_findings_counts_by_severity(self):

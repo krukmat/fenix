@@ -46,3 +46,7 @@ Freeze task inputs and revision; capture actual `ollama list`, model tag, prompt
 - Report measured, unmeasured and unmeasurable metrics separately.
 - No model becomes stable by default and no review gate is weakened without reproducible benchmark evidence.
 - The present report is a baseline. W5.5 remains conditional on W5.4.
+
+## Token attribution patch
+
+The developer and local reviewer audit writers now include the selected model and Ollama-measured input tokens when returned by the stream. The aggregator reports `prompt_tokens` (measured) and `packet_tokens_est` (estimated) separately, with coverage ratios. Existing history without fields remains missing; no zero-fill or fabricated savings.

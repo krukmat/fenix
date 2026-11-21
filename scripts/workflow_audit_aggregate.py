@@ -99,6 +99,7 @@ def aggregate(gemma_dir: Path, peer_dir: Path) -> dict[str, Any]:
                 "p95": _percentile(durations, 0.95),
             },
             "prompt_tokens": token_metric("prompt_tokens"),
+            "packet_tokens_est": token_metric("packet_tokens_est"),
             "response_tokens": token_metric("response_tokens"),
         },
         "peer": {

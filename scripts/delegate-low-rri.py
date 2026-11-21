@@ -971,6 +971,7 @@ def main():
     gemma_local.append_audit_log({
         "ts": datetime.datetime.utcnow().isoformat() + "Z",
         "role": "developer",
+        "model": args.model,
         "outcome": delegation["status"].upper(),
         "done_reason": "policy" if delegation["status"] == "blocked" else "stop",
         "mode": args.mode,
@@ -979,8 +980,8 @@ def main():
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         "task_id": args.task_id,
-        "rri": None,
-        "band": None,
+        "rri": args.rri if args.role_kind is not None else None,
+        "band": "Low" if args.role_kind is not None else None,
         "attempt": args.attempt,
         "disposition": None,
         "diff_added": diff_added,
@@ -991,6 +992,7 @@ def main():
         "file_lines": None,
         "file_tokens_est": None,
         "packet_tokens_est": gemma_local.estimate_payload_tokens(payload),
+        "prompt_tokens": usage.prompt_tokens,
         "response_tokens": usage.response_tokens,
     })
 

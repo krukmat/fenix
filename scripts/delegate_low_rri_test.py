@@ -705,7 +705,7 @@ class AuditEmission(unittest.TestCase):
                 "PATH: scripts/x.py\nACTION: create\n--- CONTENT ---\n"
                 "x = 1\n=== FILE END ==="
             ),
-            usage=_mod.gemma_local.StreamUsage(response_tokens=13),
+            usage=_mod.gemma_local.StreamUsage(response_tokens=13, prompt_tokens=31),
         )
         records = self._run(response)
         self.assertEqual(len(records), 1)
@@ -720,6 +720,8 @@ class AuditEmission(unittest.TestCase):
         self.assertIsNone(r["attempt"])
         self.assertEqual(r["apply_result"], "skipped")
         self.assertEqual(r["response_tokens"], 13)
+        self.assertEqual(r["prompt_tokens"], 31)
+        self.assertTrue(r["model"])
         self.assertGreater(r["packet_tokens_est"], 0)
 
     def test_no_patch_emits_skipped_apply_result(self):

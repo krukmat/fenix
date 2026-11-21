@@ -22,7 +22,7 @@ class AggregateTest(unittest.TestCase):
             (root / "peer").mkdir()
             with (root / "local" / "2026-11.jsonl").open("w") as f:
                 f.write(json.dumps({"model": "m", "role": "developer", "outcome": "PASS",
-                    "prompt_tokens": 30, "response_tokens": 7, "elapsed_s": 2.0,
+                    "prompt_tokens": 30, "packet_tokens_est": 48, "response_tokens": 7, "elapsed_s": 2.0,
                     "user_prompt": "VERY_PRIVATE_TOKEN"}) + "\n")
                 f.write(json.dumps({"model": "m", "role": "reviewer", "outcome": "BLOCKED",
                     "response_tokens": None, "elapsed_s": 3.0}) + "\n")
@@ -34,6 +34,7 @@ class AggregateTest(unittest.TestCase):
             result = aggregate.aggregate(root / "local", root / "peer")
             self.assertEqual(result["local"]["prompt_tokens"]["coverage_ratio"], 0.5)
             self.assertEqual(result["local"]["prompt_tokens"]["total"], 30)
+            self.assertEqual(result["local"]["packet_tokens_est"]["total"], 48)
             self.assertEqual(result["local"]["elapsed_seconds"]["p95"], 3.0)
             self.assertEqual(result["peer"]["by_attempt_role"]["fallback"], 1)
             self.assertNotIn("VERY_PRIVATE_TOKEN", json.dumps(result))

@@ -553,6 +553,8 @@ def main():
         gemma_local.append_audit_log({
             "ts": datetime.datetime.utcnow().isoformat() + "Z",
             "role": "reviewer",
+        "model": args.model,
+            "model": args.model,
             "outcome": result["status"].upper(),
             "done_reason": "stop",
             "mode": "n/a",
@@ -574,6 +576,7 @@ def main():
             "file_lines": None,
             "file_tokens_est": None,
             "packet_tokens_est": gemma_local.estimate_payload_tokens(payload),
+            "prompt_tokens": usage.prompt_tokens,
             "response_tokens": usage.response_tokens,
         })
 
@@ -678,6 +681,7 @@ def main():
         "file_lines": None,
         "file_tokens_est": None,
         "packet_tokens_est": per_call_packet_tokens * len(usage_results),
+        "prompt_tokens": gemma_local.sum_measured_tokens(usage.prompt_tokens for usage in usage_results),
         "response_tokens": gemma_local.sum_measured_tokens(
             usage.response_tokens for usage in usage_results
         ),
