@@ -661,6 +661,11 @@ def codex_review_command(base, executable="codex"):
 
 # `codex review` finding line: "- [P1] <title> — <file>:<lines>".
 _CODEX_FINDING = re.compile(r"^\s*-\s*\[(P\d+)\]\s*(.+)$")
+_CODEX_CLEAN = re.compile(
+    r"^\s*(?:no (?:blocking |actionable |critical )?(?:issues|findings|problems)\b"
+    r"|(?:0|zero) (?:issues|findings)\b)",
+    re.IGNORECASE,
+)
 
 
 def parse_codex_review_output(raw):
@@ -687,6 +692,10 @@ def parse_codex_review_output(raw):
         if stripped:
             summary = stripped
             break
+    if not findings and not any(
+        _CODEX_CLEAN.match(line) for line in text.splitlines()
+    ):
+        raise InvalidVerdict("codex review did not explicitly confirm no findings")
     status = "needs_changes" if findings else "pass"
     return json.dumps(
         {

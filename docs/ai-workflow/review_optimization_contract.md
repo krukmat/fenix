@@ -33,3 +33,7 @@ Schema: `{"status":"PASS|FINDINGS|ESCALATE","reason":"non-empty","evidence_refs"
 1. Run Python regression tests in an authorized repo environment.
 2. Run real independent task-readiness and post-code gates, retain artifacts.
 3. Run the local benchmark block before changing multi-pass defaults or installing new model dependencies.
+
+### Ambiguous native Codex summaries
+
+A non-empty Codex stdout without a recognized `[P#]` finding or an explicit clean-review line now raises `InvalidVerdict`. This can surface reviewer-format compatibility issues as BLOCKED rather than false PASS. Relevant regression tests were committed but must be executed in an authorized repository checkout.

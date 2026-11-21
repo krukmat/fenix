@@ -147,6 +147,14 @@ class CodexReviewOutputParsingTest(unittest.TestCase):
         with self.assertRaises(_mod.InvalidVerdict):
             _mod.parse_codex_review_output(" \n\t ")
 
+    def test_ambiguous_nonempty_output_fails_closed(self):
+        with self.assertRaises(_mod.InvalidVerdict):
+            _mod.parse_codex_review_output("Reviewer could not inspect target files.")
+
+    def test_explicit_no_findings_passes(self):
+        verdict = _mod.parse_verdict(_mod.parse_codex_review_output("No findings detected.\n"))
+        self.assertEqual(verdict["status"], "pass")
+
 
 class ReviewerExecutableResolutionTest(unittest.TestCase):
     def test_explicit_codex_override_wins(self):
