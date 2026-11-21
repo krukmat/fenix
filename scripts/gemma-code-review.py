@@ -553,7 +553,6 @@ def main():
         gemma_local.append_audit_log({
             "ts": datetime.datetime.utcnow().isoformat() + "Z",
             "role": "reviewer",
-        "model": args.model,
             "model": args.model,
             "outcome": result["status"].upper(),
             "done_reason": "stop",
@@ -653,6 +652,7 @@ def main():
     gemma_local.append_audit_log({
         "ts": datetime.datetime.utcnow().isoformat() + "Z",
         "role": "reviewer",
+        "model": args.model,
         "outcome": aggregate["status"].upper(),
         "done_reason": "stop",
         "mode": "n/a",
