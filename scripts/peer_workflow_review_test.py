@@ -151,6 +151,15 @@ class CodexReviewOutputParsingTest(unittest.TestCase):
         with self.assertRaises(_mod.InvalidVerdict):
             _mod.parse_codex_review_output("Reviewer could not inspect target files.")
 
+    def test_readiness_json_is_not_native_post_code_success(self):
+        with self.assertRaises(_mod.InvalidVerdict):
+            _mod.parse_codex_review_output(_verdict_json("pass"))
+
+    def test_explicit_clean_text_does_not_override_findings(self):
+        raw = "No findings detected.\n- [P1] Fix scope — scripts/x.py:2\n"
+        verdict = _mod.parse_verdict(_mod.parse_codex_review_output(raw))
+        self.assertEqual(verdict["status"], "needs_changes")
+
     def test_explicit_no_findings_passes(self):
         verdict = _mod.parse_verdict(_mod.parse_codex_review_output("No findings detected.\n"))
         self.assertEqual(verdict["status"], "pass")
@@ -523,7 +532,7 @@ class MainTest(unittest.TestCase):
                 with patch.object(
                     _mod.subprocess,
                     "run",
-                    return_value=_completed(stdout=_verdict_json("pass")),
+                    return_value=_completed(stdout="No findings detected.\n"),
                 ):
                     self.assertEqual(_mod.main(argv), 0)
 
@@ -534,7 +543,7 @@ class MainTest(unittest.TestCase):
                  patch.object(
                      _mod.subprocess,
                      "run",
-                     return_value=_completed(stdout=_verdict_json("pass")),
+                     return_value=_completed(stdout="No findings detected.\n"),
                  ), \
                  patch.object(_mod, "invoke_advisory_qwen_reviewer") as advisory:
                 self.assertEqual(_mod.main(argv), 0)
@@ -563,7 +572,7 @@ class MainTest(unittest.TestCase):
                  patch.object(
                      _mod.subprocess,
                      "run",
-                     return_value=_completed(stdout=_verdict_json("pass")),
+                     return_value=_completed(stdout="No findings detected.\n"),
                  ), \
                  patch.object(
                      _mod,

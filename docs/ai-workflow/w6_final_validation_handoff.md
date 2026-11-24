@@ -49,3 +49,7 @@ Use approved frozen current readiness fixtures, one known defect and one clean c
 ## Return format (brief)
 
 HEAD; deterministic tests PASS/FAIL and counts; preflight bytes/prefix; independent gate verdicts/artifacts; CLI usage capability; bounded pilot outcomes only if eligible; blockers. No raw prompt, credentials, model downloads, new CI or branches. Leave workflow defaults unchanged.
+
+## Local report reconciliation (2026-11-24)
+
+The first run on fb50b02f602a1b209130f08eb7c5f66105685230 returned workflow 126 PASS, native 3 FAIL of 239, preflight 9 PASS. Three native mocks corrected without changing runtime gate; two negative/precedence regressions added. Rerun native suite only initially, since no workflow code changed. Preserve prior workflow/preflight results as pinned evidence, not a certification of a new checkout. C source evidence: https://github.com/openai/codex/blob/rust-v0.171.0-alpha.13.2/codex-rs/exec/src/exec_events.rs declares usage counters. Runtime completeness and exact CLI behavior still unknown. No D, inference or optional reviewer calls until prerequisites. Human W6.2 criticality decision pending; do not relabel without it.
