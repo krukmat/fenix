@@ -15,7 +15,7 @@ Owner approved the W6 plan and autonomous preparation on 2026-11-24. This is a p
 
 - Work on main only. No new CI, model downloads, always-on service, Internet exposure of Ollama, or changes to CRM runtime.
 - ChatGPT owns W6.1–W6.7 and W6.9. W6.8 is the last Mac execution block; consolidate eligible remaining W4/W5 checks rather than repeatedly invoking local models.
-- Do not skip task-specific RRI, readiness review, required QA, post-code review, or HITL. Autonomous planning authorization is not an ADR-037 waiver. Task estimates are conditional feasibility, not certification.
+- For cloud-only W6 candidate development, the owner directed that peer readiness be omitted in the cloud environment (2026-11-24). Continue autonomous candidate preparation and deterministic tests here. Record cloud readiness as DEFERRED, not PASS; prior non-pass evidence remains valid. This instruction is scoped to cloud execution and is not an ADR-037 waiver or a change to the active workflow gates. Before integration/adoption, reconcile actual independent review, outstanding criticality resolution, RRI/HITL, and applicable QA. No local model delegation for routine development. Task estimates are conditional feasibility, not certification.
 - No activation of the opt-in exchange path or change in routing defaults until W6.9 and separate required governance approval.
 
 ## Task ledger
@@ -42,3 +42,7 @@ Owner approved the W6 plan and autonomous preparation on 2026-11-24. This is a p
 ## Current checkpoint
 
 Pinned audit source: 0c0ba347dd03f48b874d285c521a368c644adb96. W6.1 source analysis recorded; W6.2–W6.7 design requirements prepared in the [exchange draft](../ai-workflow/cloud_local_interaction_draft.md). Local session on 2026-11-24 reported RRI scores W6.1–W6.7 = 11, 28, 35, 45, 33, 25, 30 (developer-scored; gitignored evidence not inspected in cloud), and Codex readiness needs_changes for W6.1 and W6.2. W6.3–W6.7 were not run. The W6.1 source audit has been performed, but the task is not closed; the revised record requires genuine readiness PASS. W6.2 remains blocked by W6.1 and human resolution of the criticality dispute (proposed critical). No implementation, code-review certification, local Ollama inference or benchmark has run. W6.8/W6.9 remain pending. Next: rerun W6.1 readiness and close its audit; resolve W6.2 criticality explicitly, then rerun readiness with the linked wire contract and obtain any required task-specific approval. Continue W6.3/W6.5 → W6.4 → W6.6 → W6.7 per dependencies. Missing executable or authentication is a blocker, not a PASS.
+
+## Cloud-only execution checkpoint — 2026-11-24
+
+Owner directed: omit peer readiness in cloud. Candidate preparation and isolated deterministic verification may proceed here; do not claim certified readiness, change the active policy, or activate the candidate. Local gate evidence and the W6.2 criticality dispute remain outstanding for integration. A standalone W6.2 Python prototype was prepared in an isolated cloud workspace and passed 13/13 unittest cases; its source is not yet in this repository. This is prototype evidence only, not task closure or full repository QA. No local inference, provider calls, or active workflow changes were performed.
