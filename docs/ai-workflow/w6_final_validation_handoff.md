@@ -2,11 +2,22 @@
 doc_type: plan
 id: FENIX-AI-W6-FINAL-VALIDATION
 title: W6 consolidated execution-environment validation
-status: pending_required_environment_and_governance
+status: prospective_observation_hold_adoption
 created: 2026-11-24
 ---
 
 # W6 — one consolidated validation block
+
+## Current operating mode — prospective observation (owner-approved)
+
+This section supersedes the immediate scheduling of A–D below, not their adoption prerequisites. Freeze new infrastructure and artificial/replayed model benchmarks. Observe ordinary authorized tasks only; do not add model calls, a background collector, optional reviewers, downloads, CI or branches. No candidate activation or routing changes.
+
+- On each ordinary task, when available from existing reports/artifacts, capture task ID, lane/RRI, source SHA, exact provider/model and versions, final acceptance/verification, attempts and fallback reasons, wall-clock elapsed time including retries, measured input/output/cached tokens with counter semantics, and Mac memory pressure/residency. Reuse the existing aggregator and optional shadow instrumentation only if already authorized for that run. Missing fields are null; do not execute extra inference merely to populate them. Do not export private raw context.
+- Retain failed and incomplete attempts. Compare within similar task/risk/model/version/residency groups; keep historical aggregates separate and avoid claims of causation from observational differences. Report coverage, medians/ranges, verified completion and token cost per verified accepted task only where complete. Memory pressure is host-level, not per-model attribution.
+- As a lightweight operational review point, consolidate the first ten naturally occurring completed task records plus all their failed attempts (not a statistically sufficient sample or a quota requiring new tasks). If data are heterogeneous or incomplete, extend observation instead of creating work. ChatGPT will evaluate supplied evidence at that point or earlier on a material stability issue. No autonomous collection from the Mac is implied.
+- A candidate comparison or adoption requires applicable QA/independent review, authority and adequate matched evidence. The three native test fixture corrections remain to be verified during ordinary checkout QA; W6.2 criticality remains unresolved. No waiver. Original performance targets remain hypotheses. Maintain baseline if benefit is unproven. Prior section D is deferred, not scheduled.
+
+Compact per-task report: task/lane/RRI | source | provider/model/version | accepted/verification | elapsed | attempts/fallback | measured input/output/cache | memory pressure | missing fields. Existing logs can supply fields; no new reporting framework required.
 
 Purpose: avoid repeated handoffs or unnecessary inference. ChatGPT prepared candidate modules, shadow hooks, offline transport and stable-prefix pilot. Native workflow defaults and required RRI/HITL/independent gates unchanged. Historical readiness non-pass is not waived. The cloud cannot clone the full checkout or run authenticated Claude/Codex/Ollama CLIs. This handoff requests validation, not further delegated development.
 

@@ -2,7 +2,7 @@
 doc_type: plan
 id: FENIX-AI-WORKFLOW-W6
 title: Cloud-local interaction optimization
-status: candidate_development_hold_adoption
+status: prospective_observation_hold_adoption
 created: 2026-11-24
 scope: development-agent-workflow-only
 ---
@@ -29,7 +29,7 @@ Owner approved the W6 plan and autonomous preparation on 2026-11-24. This is a p
 | [W6.5](../tasks/task_fenix_ai_workflow_w6_5.md) | ChatGPT | W6.2 | 90% | advisory paired-comparison candidate tested; no policy activation |
 | [W6.6](../tasks/task_fenix_ai_workflow_w6_6.md) | ChatGPT | W6.2, W6.4 | 93% | native shadow events and CLI aggregate staged; verified supervisor closure pending |
 | [W6.7](../tasks/task_fenix_ai_workflow_w6_7.md) | ChatGPT | W6.3, W6.4, W6.5, W6.6 | 92% | 26 fresh isolated tests PASS; historical 70 separate; full checkout regression and independent review pending |
-| [W6.8](../tasks/task_fenix_ai_workflow_w6_8.md) | Local agent | W6.7 | 85% | HOLD: distinct model-efficiency candidate and applicable gates pending |
+| [W6.8](../tasks/task_fenix_ai_workflow_w6_8.md) | Local agent | W6.7 | 85% | prospective observation of normal development; adoption HOLD |
 | [W6.9](../tasks/task_fenix_ai_workflow_w6_9.md) | ChatGPT | W6.8 | 95% | draft; not executed |
 
 ## Acceptance targets (hypotheses, not results)
@@ -46,7 +46,7 @@ Owner approved the W6 plan and autonomous preparation on 2026-11-24. This is a p
 - Enable observation only for authorized bounded runs: FENIX_W6_SHADOW=1 with a unique supervisor-supplied FENIX_W6_RUN_ID. Aggregate with --w6-shadow-dir logs/workflow-shadow. Legacy observations do not prove delivery or acceptance; trusted supervisor closure remains missing.
 - Synthetic transfer: 20,750 to 2,065 bytes (envelope only, excluding packet/cache setup); reconstructed native input unchanged at 14,041 bytes. No inference token savings demonstrated. Codex native post-code --base excluded from explicit-context equivalence bridge. The bridge does not replace current provider invocation.
 - W6.8 adoption benchmark HOLD: isolate a real efficiency candidate (validated prompt compaction, supported provider prefix caching or retained context). Measure model-reported input/cached usage, paired latency, complete closure and fallback traces, and independent QA/peer outcomes. Do not spend Mac inference on a transport-only claim. No extra or removed reviewer calls by default.
-- Next: continue cloud candidate optimization and deterministic verification, then reconcile required RRI/HITL, W6.1/W6.2 readiness/criticality, full repository regression, independent post-code review, and run the consolidated Mac benchmark only when prerequisites hold.
+- Next (owner-approved replan): observe ordinary authorized development tasks, using existing telemetry and no additional inference. Freeze additional W6 infrastructure and artificial benchmark execution; preserve candidate source and applicable adoption prerequisites. See prospective observation in the validation handoff.
 
 ## References
 
@@ -64,3 +64,7 @@ Owner approved the W6 plan and autonomous preparation on 2026-11-24. This is a p
 ## W6.8 local validation correction (2026-11-24)
 
 Owner-reported local tests: 126 workflow PASS, 3 native FAIL of 239; 9/9 preflight section equality. Three native Codex post-code fixtures corrected; two parser regressions added. Production code unchanged. Five extracted parser checks PASS, full native regression rerun required. C counters documented at exact Codex source tag but runtime completeness still UNKNOWN. W6.2 human criticality and actual gates remain pending. Adoption HOLD, no D. See candidate evidence and handoff.
+
+## Prospective observation decision (2026-11-24)
+
+Owner approved replacing the immediate artificial benchmark with measurement during ordinary development. Historical uncorrelated logs are descriptive only; no provider ranking, timeout tuning or reviewer-pass reduction justified. Use the [prospective handoff](../ai-workflow/w6_final_validation_handoff.md). Existing targets, safety gates, default workflow, W6.2 criticality dispute and outstanding native regression remain unchanged. W6.9 stays HOLD pending comparable evidence; no claim of realized savings.
