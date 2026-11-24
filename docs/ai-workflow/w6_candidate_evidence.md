@@ -100,3 +100,7 @@ Verification command: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v workflow
 |---|---|
 | scripts/workflow_exchange_bridge.py | b3781b91b1bcfe43696ddd12ba993a90916c0c2d |
 | scripts/workflow_exchange_bridge_test.py | 22e0a90db658f6bc63689aa220a4f9b6ca14126a |
+
+## Readiness context size audit
+
+At c5c366364ac1f44ce2fff386731d166614a66701, the W6 plan occupied 11108 UTF-8 bytes. In nine actual W6 task+plan pairs, exact repeated nonblank lines accounted for only 0.2–0.7% of their combined framed content, even before reference overhead. The material source of context growth was accumulated historical checkpoints. Consolidated current plan to 6803 bytes (38.8% smaller), preserving the original constraints and acceptance target sections byte-for-byte, all task IDs/dependencies, current blockers, evidence references and the archived full plan. This reduces the plan component of native review input; the full prompt also includes task, instructions and other evidence, and any required linked evidence must still be supplied. This is an actual document-byte measurement, not a provider token estimate or benchmark PASS. No code or governance policy changed in this checkpoint.
