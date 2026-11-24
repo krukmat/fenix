@@ -66,7 +66,7 @@ def envelope(packet, delivery, *, repository, raw=None, artifact_path=None,
             expected_mode = {'task_readiness': 'task-readiness', 'post_code_review': 'post-code-review'}[packet['stage']]
             w.require(native.get('mode') == expected_mode, 'native stage mismatch')
             verdict = native.get('verdict'); w.require(type(verdict) is dict, 'missing native verdict')
-            n = verdict.get('status'); w.enum(n, {'pass', 'needs_changes', 'blocked', 'fail'})
+            n = verdict.get('status'); w.enum(n, {'pass', 'needs_changes', 'blocked', 'out_of_scope'})
             w.require(type(native.get('reviewer')) is str and bool(native['reviewer'].strip()), 'missing reviewer')
             status = 'BLOCKED' if n == 'blocked' else 'REVIEW_REPORTED'
             if status == 'BLOCKED': error = 'NATIVE_BLOCKED'

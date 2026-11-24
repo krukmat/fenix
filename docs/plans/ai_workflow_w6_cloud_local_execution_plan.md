@@ -25,10 +25,10 @@ Owner approved the W6 plan and autonomous preparation on 2026-11-24. This is a p
 | [W6.1](../tasks/task_fenix_ai_workflow_w6_1.md) | ChatGPT | None | 98% | source analysis recorded; needs_changes; revised task pending re-review |
 | [W6.2](../tasks/task_fenix_ai_workflow_w6_2.md) | ChatGPT | W6.1 | 95% | candidate source tested; final readiness and criticality resolution pending |
 | [W6.3](../tasks/task_fenix_ai_workflow_w6_3.md) | ChatGPT | W6.2 | 92% | candidate resolver tested; integration pending |
-| [W6.4](../tasks/task_fenix_ai_workflow_w6_4.md) | ChatGPT | W6.2, W6.3 | 90% | candidate native artifact adapter tested; live transport hooks pending |
+| [W6.4](../tasks/task_fenix_ai_workflow_w6_4.md) | ChatGPT | W6.2, W6.3 | 90% | native opt-in observation hooks staged; actual exchange transport and certification pending |
 | [W6.5](../tasks/task_fenix_ai_workflow_w6_5.md) | ChatGPT | W6.2 | 90% | advisory paired-comparison candidate tested; no policy activation |
-| [W6.6](../tasks/task_fenix_ai_workflow_w6_6.md) | ChatGPT | W6.2, W6.4 | 93% | attempt telemetry candidate tested; supervisor closure instrumentation pending |
-| [W6.7](../tasks/task_fenix_ai_workflow_w6_7.md) | ChatGPT | W6.3, W6.4, W6.5, W6.6 | 92% | synthetic pipeline tests pass; live compatibility pending |
+| [W6.6](../tasks/task_fenix_ai_workflow_w6_6.md) | ChatGPT | W6.2, W6.4 | 93% | native shadow events and CLI aggregate staged; verified supervisor closure pending |
+| [W6.7](../tasks/task_fenix_ai_workflow_w6_7.md) | ChatGPT | W6.3, W6.4, W6.5, W6.6 | 92% | synthetic and extracted native hook tests PASS; full checkout regression pending |
 | [W6.8](../tasks/task_fenix_ai_workflow_w6_8.md) | Local agent | W6.7 | 85% | draft; not executed |
 | [W6.9](../tasks/task_fenix_ai_workflow_w6_9.md) | ChatGPT | W6.8 | 95% | draft; not executed |
 
@@ -54,3 +54,7 @@ W6.2–W6.4 have standalone candidate modules in scripts/ with 33/33 isolated Py
 ## W6.5–W6.7 candidate checkpoint — 2026-11-24
 
 Added isolated advisory DSS, attempt telemetry, and synthetic pipeline integration tests. Combined suite: 40/40 PASS, verified exact source blobs. No current model selection or peer gate changes. No live transport hooks or trusted supervisor closure records yet; end-to-end latency, accepted-task tokens and fallback rate remain unknown. W6.8 cannot start an adoption-grade benchmark until the candidate is actually instrumented and applicable governance/QA is reconciled. See [candidate evidence](../ai-workflow/w6_candidate_evidence.md).
+
+## Native shadow integration checkpoint — 2026-11-24
+
+Owner approved W6.4a/b, W6.6a/b and W6.7a. Opt-in observation hooks are now staged in peer-workflow-review.py, delegate-low-rri.py and workflow_audit_aggregate.py; no model routing, verdict, fallback condition, or default input changes. FENIX_W6_SHADOW=1 and a supervisor-supplied FENIX_W6_RUN_ID enable per-attempt observations, including advisory retries; without opt-in no shadow records are written. The new aggregator option --w6-shadow-dir logs/workflow-shadow includes observations separately from legacy totals. Legacy native calls do not establish W6 receipt delivery or a frozen snapshot; never convert observations into accepted-task evidence. The strict candidate exchange path remains disconnected from actual transport. Tests: 60/60 PASS in isolated cloud with exact candidate files and five verified extracted native functions, provider and IO boundaries mocked. Full checkout regression, live provider compatibility, independent gate resolution and W6.8 benchmark remain pending. No new local inference, CI, branch or active default change. See [candidate evidence](../ai-workflow/w6_candidate_evidence.md).

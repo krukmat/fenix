@@ -48,3 +48,25 @@ Result: 40/40 isolated tests PASS (33 prior + 7 synthetic pipeline/metrics/DSS t
 | scripts/workflow_exchange_integration_test.py | 93553419406ef0d8b893f473a82c9e90d3d3fe6a |
 
 DSS is advisory and returns no authorization, rejects RRI >25 for local delegation, and returns UNKNOWN with insufficient matched verified observations. The minimum five-pair threshold is a provisional descriptive pilot threshold, not statistical certification. Attempt telemetry deduplicates exact replays and excludes conflicting runs; measured and estimated tokens remain separate. Accepted tasks, end-to-end latency and fallback rates remain unknown without trusted supervisor closure and complete traces. W6.7 exercises candidate functions on synthetic context/peer artifacts only. Actual provider transport, live legacy hooks, full repository regression tests, independent gates and Mac measurements remain pending. No new model calls, local delegation, CI, branch, or activation.
+
+
+## W6.4a/b, W6.6a/b, W6.7a — native shadow integration
+
+Baseline 112f23a3309e4668c1c3e88acd4560a786f75f23. Candidate shadow observation hooks now connect existing peer review (primary, fallback, advisory retries), delegate and aggregator entry points. Explicit opt-in: FENIX_W6_SHADOW=1; FENIX_W6_RUN_ID must be supplied uniquely by supervisor for one task run. Peer task ID from task frontmatter and delegation --task-id must match for correlation. Logs are private, exclusive per-attempt JSON files under logs/workflow-shadow; no prompts, patch bodies, exception text or raw verdict findings added. Writes are best effort, nonauthoritative. Prepared prompt bytes are not provider tokens. Codex native --base is separately classified; all delivery states remain unknown. Actual strict TaskPacket/ContextReceipt/ResultEnvelope delivery and trusted supervisor closure are not connected. The candidate adapter was corrected to accept the native out_of_scope review status.
+
+Read separate aggregate: `python3 scripts/workflow_audit_aggregate.py --w6-shadow-dir logs/workflow-shadow`. Existing default aggregate shape is preserved. Do not turn on shadow globally; enable for bounded authorized benchmark runs only. The independent review and RRI/HITL gates are untouched.
+
+Isolated cloud test command (run from staged Python workspace): `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -q workflow_exchange_test workflow_context_test workflow_exchange_adapter_test workflow_exchange_integration_test workflow_shadow_test workflow_shadow_hooks_test`. Result: 60/60 PASS (40 prior, 1 native status case, 12 shadow cases, 7 native hook tests). The native hook tests executed the exact extracted peer invoke_reviewer/main, delegation main/_main and aggregator main with mocked provider/IO dependencies. Their extracted source hashes matched the staged Git blobs. Advisory retry and native local fallback transport bodies were inspected but not individually exercised; full native repository suite is not run because the cloud container cannot clone GitHub. Existing repository tests, full CLI compatibility, W6.2 criticality resolution, independent review and live benchmark remain pending. No provider/model invocation during these tests.
+
+| File | Staged Git blob SHA |
+|---|---|
+| scripts/workflow_shadow.py | da2431c171b24be26266e441d04da5559659a959 |
+| scripts/workflow_shadow_test.py | 9fd4d0b825394c074f75b9a0627504f97a603acf |
+| scripts/workflow_shadow_hooks_test.py | 92ea71a878f1ef1b106bb819fafa7c54ecee8f0b |
+| scripts/workflow_exchange_adapter.py | 1ce5ef1889129cd897ac1e559781b2b99978c4ca |
+| scripts/workflow_exchange_adapter_test.py | c521c738ad52297cc42e60fd8ac72e79f5be4d9c |
+| scripts/peer-workflow-review.py | c13e2dacb551576de1e3cdbc84fb17c52de3ee27 |
+| scripts/delegate-low-rri.py | 21f11f5962aaed343abf3d81a809e304d1e82df8 |
+| scripts/workflow_audit_aggregate.py | b6e48b66ca81655136b703de2df3fd5507ad5f3c |
+
+Exact extracted source fragment blobs: peer f376d96040441f1277e573752b92a2a75b670d39; delegation 9e4ca7a399cfac3e132e1ce62821e21f11af77f0; aggregate 62b9bd61fca318d5ffdee4214909fde415f97b42. These are test input fragments, not replacement scripts.

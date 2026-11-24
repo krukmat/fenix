@@ -155,8 +155,13 @@ def main(argv=None):
     parser.add_argument("--gemma-log-dir", type=Path, default=Path("logs/gemma-audit"))
     parser.add_argument("--peer-log-dir", type=Path, default=Path("logs/peer-workflow-review"))
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--w6-shadow-dir", type=Path, default=None,
+                        help="Include separate W6 native shadow observations (opt-in).")
     args = parser.parse_args(argv)
     report = aggregate(args.gemma_log_dir, args.peer_log_dir)
+    if args.w6_shadow_dir is not None:
+        from workflow_shadow import aggregate as aggregate_shadow
+        report["w6_shadow"] = aggregate_shadow(args.w6_shadow_dir)
     content = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

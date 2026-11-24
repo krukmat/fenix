@@ -28,6 +28,10 @@ class Adapter(unittest.TestCase):
         p,d,_=fixture(); r=a.envelope(p,d,repository=REPO,raw=native('needs_changes'),artifact_path='logs/review.json',duration_ms=4)
         self.assertEqual(r['status'],'REVIEW_REPORTED')
 
+    def test_out_of_scope_native_verdict(self):
+        p,d,_=fixture(); r=a.envelope(p,d,repository=REPO,raw=native('out_of_scope'),artifact_path='logs/review.json',duration_ms=4)
+        self.assertEqual(r['status'],'REVIEW_REPORTED')
+
     def test_no_receipt_no_normal_review(self):
         p,d,_=fixture()
         with self.assertRaises(w.InvalidExchange): a.envelope(p,None,repository=REPO,raw=native(),artifact_path='logs/review.json',duration_ms=4)

@@ -46,6 +46,7 @@ from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gemma_local
+import workflow_shadow
 
 VALID_CALLER_KINDS = {
     "claude-code",
@@ -730,10 +731,13 @@ def invoke_reviewer(reviewer, mode, packet, base, timeout):
     prompt = build_prompt(mode, packet)
     executable = resolve_reviewer_executable(reviewer)
     if reviewer == "claude":
+        workflow_shadow.note("explicit_prompt", model=DEFAULT_CLAUDE_REVIEW_MODEL, prompts=(prompt,))
         return _run(claude_command(prompt, executable=executable), timeout)
     if reviewer == "codex":
         if mode == "task-readiness":
+            workflow_shadow.note("explicit_prompt", prompts=(prompt,))
             return _run(codex_exec_command(prompt, executable=executable), timeout)
+        workflow_shadow.note("native_base_only")
         raw = _run(codex_review_command(base, executable=executable), timeout)
         return parse_codex_review_output(raw)
     raise ReviewerUnavailable("unknown reviewer: %s" % reviewer)
@@ -805,6 +809,7 @@ def invoke_local_fallback_reviewer(mode, packet, timeout):
             temperature=temperature,
             think=think,
         )
+        workflow_shadow.note_payload("local_compacted_prompt", payload, model=model)
         result = gemma_local.stream_chat(
             gemma_local.endpoint(host, "/api/chat"),
             payload,
@@ -812,6 +817,7 @@ def invoke_local_fallback_reviewer(mode, packet, timeout):
             max_wall=max_wall,
             progress_label="peer-review-fallback",
         )
+        workflow_shadow.usage(lambda: gemma_local.stream_result_usage(result))
     except gemma_local.GemmaIdleTimeout as err:
         raise ReviewerTimeout(str(err))
     except gemma_local.GemmaWallTimeout as err:
@@ -882,38 +888,47 @@ def invoke_advisory_qwen_reviewer(mode, packet, timeout):
 
     last_err = None  # type: Optional[ReviewerError]
     for attempt in (1, 2):
-        try:
-            gemma_local.ensure_model_available(host, model, idle_timeout)
-            payload = gemma_local.build_chat_payload(
-                model=model,
-                system_prompt=build_advisory_local_system_prompt(),
-                packet=build_prompt(mode, compact_packet_for_local_review(mode, packet)),
-                num_ctx=num_ctx,
-                num_predict=num_predict,
-                temperature=temperature,
-                think=think,
-                keep_alive=0,
-            )
-            result = gemma_local.stream_chat(
-                gemma_local.endpoint(host, "/api/chat"),
-                payload,
-                idle_timeout=idle_timeout,
-                max_wall=max_wall,
-                progress_label="peer-review-critical-advisory",
-            )
-            verdict = parse_verdict(gemma_local.stream_result_content(result))
-            return _attempt_record("advisory-local", ADVISORY_LOCAL_REVIEWER, verdict)
-        except gemma_local.GemmaIdleTimeout as err:
-            last_err = ReviewerTimeout(str(err))
-        except gemma_local.GemmaWallTimeout as err:
-            last_err = ReviewerTimeout(str(err))
-        except RuntimeError as err:
-            last_err = ReviewerUnavailable(str(err))
-        except InvalidVerdict as err:
-            verdict = advisory_blocked_verdict(err.reason, str(err))
-            return _attempt_record("advisory-local", ADVISORY_LOCAL_REVIEWER, verdict)
-        if attempt == 2:
-            break
+        with workflow_shadow.observe(mode, "advisory", ADVISORY_LOCAL_REVIEWER,
+                                     task_id=workflow_shadow.task_id_from_text(packet.get("task"))):
+            try:
+                gemma_local.ensure_model_available(host, model, idle_timeout)
+                payload = gemma_local.build_chat_payload(
+                    model=model,
+                    system_prompt=build_advisory_local_system_prompt(),
+                    packet=build_prompt(mode, compact_packet_for_local_review(mode, packet)),
+                    num_ctx=num_ctx,
+                    num_predict=num_predict,
+                    temperature=temperature,
+                    think=think,
+                    keep_alive=0,
+                )
+                workflow_shadow.note_payload("local_compacted_prompt", payload, model=model)
+                result = gemma_local.stream_chat(
+                    gemma_local.endpoint(host, "/api/chat"),
+                    payload,
+                    idle_timeout=idle_timeout,
+                    max_wall=max_wall,
+                    progress_label="peer-review-critical-advisory",
+                )
+                workflow_shadow.usage(lambda: gemma_local.stream_result_usage(result))
+                verdict = parse_verdict(gemma_local.stream_result_content(result))
+                workflow_shadow.outcome(verdict)
+                return _attempt_record("advisory-local", ADVISORY_LOCAL_REVIEWER, verdict)
+            except gemma_local.GemmaIdleTimeout as err:
+                last_err = ReviewerTimeout(str(err))
+                workflow_shadow.failure("timeout")
+            except gemma_local.GemmaWallTimeout as err:
+                last_err = ReviewerTimeout(str(err))
+                workflow_shadow.failure("timeout")
+            except RuntimeError as err:
+                last_err = ReviewerUnavailable(str(err))
+                workflow_shadow.failure("unavailable")
+            except InvalidVerdict as err:
+                workflow_shadow.failure("invalid")
+                verdict = advisory_blocked_verdict(err.reason, str(err))
+                return _attempt_record("advisory-local", ADVISORY_LOCAL_REVIEWER, verdict)
+            if attempt == 2:
+                break
 
     blocked_reason = last_err.reason if last_err else "reviewer_error"
     detail = str(last_err) if last_err else "advisory reviewer failed"
@@ -1096,20 +1111,25 @@ def main(argv=None):
     attempts = []
     reviewer = primary_reviewer
 
-    try:
-        raw = invoke_reviewer(primary_reviewer, args.mode, packet, base, args.timeout)
-        verdict = parse_verdict(raw)
-    except ReviewerError as err:
-        verdict = blocked_verdict(err.reason, str(err))
+    task_id = workflow_shadow.task_id_from_text(packet.get("task"))
+    with workflow_shadow.observe(args.mode, "primary", primary_reviewer, task_id=task_id):
+        try:
+            raw = invoke_reviewer(primary_reviewer, args.mode, packet, base, args.timeout)
+            verdict = parse_verdict(raw)
+        except ReviewerError as err:
+            verdict = blocked_verdict(err.reason, str(err))
+        workflow_shadow.outcome(verdict)
     attempts.append(_attempt_record("primary", primary_reviewer, verdict))
 
     if should_attempt_fallback(verdict):
         reviewer = resolve_fallback_reviewer()
-        try:
-            raw = invoke_local_fallback_reviewer(args.mode, packet, args.timeout)
-            verdict = parse_verdict(raw)
-        except ReviewerError as err:
-            verdict = blocked_verdict(err.reason, str(err))
+        with workflow_shadow.observe(args.mode, "fallback", reviewer, task_id=task_id):
+            try:
+                raw = invoke_local_fallback_reviewer(args.mode, packet, args.timeout)
+                verdict = parse_verdict(raw)
+            except ReviewerError as err:
+                verdict = blocked_verdict(err.reason, str(err))
+            workflow_shadow.outcome(verdict)
         attempts.append(_attempt_record("fallback", reviewer, verdict))
 
     if args.mode == "post-code-review" and getattr(args, "criticality", "standard") == "critical":

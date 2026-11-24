@@ -40,6 +40,7 @@ from urllib.error import URLError
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gemma_local
+import workflow_shadow
 
 
 DEFAULT_HOST = gemma_local.DEFAULT_HOST
@@ -863,6 +864,13 @@ def apply_before_after(target_path, before_file, after_block, allow_paths, repo_
 
 def main():
     args = parse_args()
+    with workflow_shadow.observe("delegation", "developer", "ollama",
+                                 task_id=getattr(args, "task_id", None),
+                                 active=not args.dry_run):
+        return _main(args)
+
+
+def _main(args):
     if args.role_kind is not None:
         # Import only for opt-in routing; existing Gemma path is unchanged.
         from workflow_model_router import configured_low_rri_model
@@ -911,6 +919,7 @@ def main():
     system_prompt = payload["messages"][0]["content"]
     user_prompt = payload["messages"][1]["content"]
 
+    workflow_shadow.note_payload("ollama_packet", payload, model=args.model)
     ensure_model_available(args.host, args.model, args.idle_timeout)
     wall_start = time.monotonic()
     stream_result = stream_chat(
@@ -921,6 +930,7 @@ def main():
     )
     content = gemma_local.stream_result_content(stream_result)
     usage = gemma_local.stream_result_usage(stream_result)
+    workflow_shadow.usage(lambda: usage)
 
     if args.mode == "before-after":
         delegation = parse_replacement_response(content)
@@ -996,6 +1006,7 @@ def main():
         "response_tokens": usage.response_tokens,
     })
 
+    workflow_shadow.outcome(delegation)
     return 0
 
 
