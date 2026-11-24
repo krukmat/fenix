@@ -104,3 +104,21 @@ Verification command: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v workflow
 ## Readiness context size audit
 
 At c5c366364ac1f44ce2fff386731d166614a66701, the W6 plan occupied 11108 UTF-8 bytes. In nine actual W6 task+plan pairs, exact repeated nonblank lines accounted for only 0.2–0.7% of their combined framed content, even before reference overhead. The material source of context growth was accumulated historical checkpoints. Consolidated current plan to 6803 bytes (38.8% smaller), preserving the original constraints and acceptance target sections byte-for-byte, all task IDs/dependencies, current blockers, evidence references and the archived full plan. This reduces the plan component of native review input; the full prompt also includes task, instructions and other evidence, and any required linked evidence must still be supplied. This is an actual document-byte measurement, not a provider token estimate or benchmark PASS. No code or governance policy changed in this checkpoint.
+
+
+## W6.4d/W6.7b — inference-context candidate and deterministic preflight
+
+Pinned fixture: historical plan c5c366364ac1f44ce2fff386731d166614a66701; consolidated plan and identical task/evidence/native renderer d9cd010b10d5203f59358f9a4c20cc826147c88e. Nine W6 task-readiness documents compared using a direct reproduction of native build_prompt in the cloud connector runtime. Simple prompt reduction averaged 28.09% of UTF-8 bytes (range 23.29–31.24%); with identical 50,220-byte four-document evidence bundle (wire, benchmark, HITL, RRI) it averaged only 6.56% (6.26–6.72%). This bundle is a descriptive fixture, not complete current authorization or independent readiness evidence. No evidence was removed to manufacture savings.
+
+Candidate stable-prefix layout preserves exact native instructions and all complete section blocks; only order changes (plan, task_card, task). The common prefix over nine evidence-inclusive prompts grows from 841 to 57,899 UTF-8 bytes; total prompt bytes unchanged for compact vs prefix. Potential cache reuse, NOT observed cache hits, fewer total input tokens, acceptance, or latency. Official Anthropic prompt-caching documentation distinguishes uncached input, cache creation and cache read; OpenAI prompt caching counts cached tokens within total input. See https://platform.claude.com/docs/en/build-with-claude/prompt-caching and https://developers.openai.com/cookbook/examples/prompt_caching_201. The CLI/version must actually expose comparable usage before drawing conclusions; do not infer cache from prefix length.
+
+Fresh cloud regression: 26/26 PASS (9 verified bridge, 12 layout, 5 pilot tests) in isolated Python workspace using verified Git blobs and exact extracted native renderer fragment SHA 2dbd39edcb084817441fd87522b422004f6bb836. Pilot tests use synthetic pinned-reader fixtures. Historical 70/70 remains separately reported and was not rerun. The full pinned-source preflight CLI is staged for checkout execution; its historical inputs were measured through the connector, not by running that CLI against a checkout. No provider/model invocation, new CI, branch, service, routing default or gate change.
+
+| File | Tested Git blob SHA |
+|---|---|
+| scripts/workflow_prompt_layout.py | 942b35da7adef3e3311510710a29f194ba8bc7c2 |
+| scripts/workflow_prompt_layout_test.py | c8c814a2e2314c039e7571790a6cab4a622d87a9 |
+| scripts/workflow_prompt_pilot.py | 35dd711df31576e128051b748e556b7dc85f15b0 |
+| scripts/workflow_prompt_pilot_test.py | 4089b5fb434c95e5c3b08966b4457f84c2117084 |
+
+The candidate is a separate offline renderer and preflight, not a replacement for actual native provider invocation. Default native gate remains intact. W6.8 stays HOLD for adoption-grade benchmark until full checkout regression, genuine independent evidence and W6.2 criticality resolution, and actual usage capability. A cache-only improvement cannot satisfy the original total-input-token target. Do not spend inference on a cache experiment unless the installed provider exposes suitable measured counters. See [consolidated handoff](w6_final_validation_handoff.md).

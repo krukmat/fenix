@@ -25,10 +25,10 @@ Owner approved the W6 plan and autonomous preparation on 2026-11-24. This is a p
 | [W6.1](../tasks/task_fenix_ai_workflow_w6_1.md) | ChatGPT | None | 98% | source analysis recorded; needs_changes; revised task pending re-review |
 | [W6.2](../tasks/task_fenix_ai_workflow_w6_2.md) | ChatGPT | W6.1 | 95% | candidate source tested; final readiness and criticality resolution pending |
 | [W6.3](../tasks/task_fenix_ai_workflow_w6_3.md) | ChatGPT | W6.2 | 92% | candidate resolver tested; integration pending |
-| [W6.4](../tasks/task_fenix_ai_workflow_w6_4.md) | ChatGPT | W6.2, W6.3 | 90% | shadow hooks and offline equivalence bridge tested; provider execution pending |
+| [W6.4](../tasks/task_fenix_ai_workflow_w6_4.md) | ChatGPT | W6.2, W6.3 | 90% | shadow hooks, offline bridge and stable-prefix candidate tested; live pilot pending |
 | [W6.5](../tasks/task_fenix_ai_workflow_w6_5.md) | ChatGPT | W6.2 | 90% | advisory paired-comparison candidate tested; no policy activation |
 | [W6.6](../tasks/task_fenix_ai_workflow_w6_6.md) | ChatGPT | W6.2, W6.4 | 93% | native shadow events and CLI aggregate staged; verified supervisor closure pending |
-| [W6.7](../tasks/task_fenix_ai_workflow_w6_7.md) | ChatGPT | W6.3, W6.4, W6.5, W6.6 | 92% | isolated tests reported; full checkout regression and independent review pending |
+| [W6.7](../tasks/task_fenix_ai_workflow_w6_7.md) | ChatGPT | W6.3, W6.4, W6.5, W6.6 | 92% | 26 fresh isolated tests PASS; historical 70 separate; full checkout regression and independent review pending |
 | [W6.8](../tasks/task_fenix_ai_workflow_w6_8.md) | Local agent | W6.7 | 85% | HOLD: distinct model-efficiency candidate and applicable gates pending |
 | [W6.9](../tasks/task_fenix_ai_workflow_w6_9.md) | ChatGPT | W6.8 | 95% | draft; not executed |
 
@@ -54,3 +54,9 @@ Owner approved the W6 plan and autonomous preparation on 2026-11-24. This is a p
 - [Exchange draft](../ai-workflow/cloud_local_interaction_draft.md) and [wire contract](../ai-workflow/cloud_local_wire_contract_v1_draft.md)
 - [Benchmark contract](../ai-workflow/cloud_local_integration_benchmark_draft.md)
 - [Archived chronological plan at previous commit](https://github.com/krukmat/fenix/blob/c5c366364ac1f44ce2fff386731d166614a66701/docs/plans/ai_workflow_w6_cloud_local_execution_plan.md) — historical checkpoints retained; current ledger supersedes stale intermediate statuses. Linked evidence must be included when required by a reviewer; no authorization/evidence omission.
+
+## W6.4d/W6.7b checkpoint — 2026-11-24
+
+- Nine pinned actual task prompts: historical-to-compact average reduction 28.09% of bytes without extra evidence, 6.56% with identical four-document evidence bundle. Stable-prefix candidate keeps full identical blocks and increases shared prefix from 841 to 57,899 bytes, with no reduction in total bytes. Provider token/cache and latency measurements remain unknown. No change to original targets or authority.
+- 26/26 fresh isolated tests PASS (9 bridge + 17 new layout/pilot); 70 historical tests not rerun in current environment. Offline preflight and candidate published without modifying native provider invocation. No local inference. Cloud lacks full checkout and authenticated CLIs; final checkout regression and independent/real-usage verification genuinely require the execution environment.
+- [Single consolidated validation handoff](../ai-workflow/w6_final_validation_handoff.md). W6.8 remains HOLD until prerequisites. W6.9 remains ChatGPT's responsibility. Do not run a full benchmark on evidence of transport or cache-prefix bytes alone.
