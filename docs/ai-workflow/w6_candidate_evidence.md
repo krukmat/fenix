@@ -70,3 +70,17 @@ Isolated cloud test command (run from staged Python workspace): `PYTHONDONTWRITE
 | scripts/workflow_audit_aggregate.py | b6e48b66ca81655136b703de2df3fd5507ad5f3c |
 
 Exact extracted source fragment blobs: peer f376d96040441f1277e573752b92a2a75b670d39; delegation 9e4ca7a399cfac3e132e1ce62821e21f11af77f0; aggregate 62b9bd61fca318d5ffdee4214909fde415f97b42. These are test input fragments, not replacement scripts.
+
+
+## W6 candidate full/delta transport
+
+Baseline e73d94580841226149cdcccb34960523246aaac3. Added serialization and receiver-side reconstruction without a network dependency. The supervisor supplies the separately validated packet, scoped cache, export authority and budgets. Full capsule, partial delta and cached references reconstruct identical bytes. Invalid digest, cache miss/corruption, unknown fields, replay under changed identity, unauthorized export and budget excess reject the transfer. The supervisor may resend a full capsule after rejection; no automatic retry or inference occurs. Reconstruction ACK verifies content/transfer binding but is not authentication and cannot establish provider receipt or acceptance. Existing shadow hooks and default workflow are unchanged. A synthetic test verifies fewer serialized transfer bytes with a cached 10,000-byte section; it does not measure model input tokens or latency.
+
+Command: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -q workflow_exchange_test workflow_context_test workflow_exchange_adapter_test workflow_exchange_integration_test workflow_shadow_test workflow_shadow_hooks_test workflow_exchange_transport_test`. Result: 70/70 PASS (60 prior + 10 transport tests), isolated cloud workspace with extracted/mocked native hook functions, not full repository QA. Existing datetime.utcnow deprecation warnings observed in extracted delegation function; behavior unchanged. No local model, provider invocation, new CI or branch.
+
+| File | Git blob SHA |
+|---|---|
+| scripts/workflow_exchange_transport.py | 28ad3f39d46de73d5f1be2ecb94e5ffe4c074f06 |
+| scripts/workflow_exchange_transport_test.py | d35199915a4b4ec15c6d25cb427579988c5fb28d |
+
+Remaining: actual trusted provider boundary integration, full repository regressions, independent governance gates/criticality resolution, matched benchmark. No claim of cloud/local production integration or savings.
