@@ -23,9 +23,9 @@ Owner approved the W6 plan and autonomous preparation on 2026-11-24. This is a p
 | Task | Owner | Dependency | Confidence | State |
 |---|---|---|---:|---|
 | [W6.1](../tasks/task_fenix_ai_workflow_w6_1.md) | ChatGPT | None | 98% | source analysis recorded; needs_changes; revised task pending re-review |
-| [W6.2](../tasks/task_fenix_ai_workflow_w6_2.md) | ChatGPT | W6.1 | 95% | needs_changes; human criticality resolution pending |
-| [W6.3](../tasks/task_fenix_ai_workflow_w6_3.md) | ChatGPT | W6.2 | 92% | draft; not executed |
-| [W6.4](../tasks/task_fenix_ai_workflow_w6_4.md) | ChatGPT | W6.2, W6.3 | 90% | draft; not executed |
+| [W6.2](../tasks/task_fenix_ai_workflow_w6_2.md) | ChatGPT | W6.1 | 95% | candidate source tested; final readiness and criticality resolution pending |
+| [W6.3](../tasks/task_fenix_ai_workflow_w6_3.md) | ChatGPT | W6.2 | 92% | candidate resolver tested; integration pending |
+| [W6.4](../tasks/task_fenix_ai_workflow_w6_4.md) | ChatGPT | W6.2, W6.3 | 90% | candidate native artifact adapter tested; live transport hooks pending |
 | [W6.5](../tasks/task_fenix_ai_workflow_w6_5.md) | ChatGPT | W6.2 | 90% | draft; not executed |
 | [W6.6](../tasks/task_fenix_ai_workflow_w6_6.md) | ChatGPT | W6.2, W6.4 | 93% | draft; not executed |
 | [W6.7](../tasks/task_fenix_ai_workflow_w6_7.md) | ChatGPT | W6.3, W6.4, W6.5, W6.6 | 92% | draft; not executed |
@@ -46,3 +46,7 @@ Pinned audit source: 0c0ba347dd03f48b874d285c521a368c644adb96. W6.1 source analy
 ## Cloud-only execution checkpoint — 2026-11-24
 
 Owner directed: omit peer readiness in cloud. Candidate preparation and isolated deterministic verification may proceed here; do not claim certified readiness, change the active policy, or activate the candidate. Local gate evidence and the W6.2 criticality dispute remain outstanding for integration. A standalone W6.2 Python prototype was prepared in an isolated cloud workspace and passed 13/13 unittest cases; its source is not yet in this repository. This is prototype evidence only, not task closure or full repository QA. No local inference, provider calls, or active workflow changes were performed.
+
+## Candidate source checkpoint — 2026-11-24
+
+W6.2–W6.4 have standalone candidate modules in scripts/ with 33/33 isolated Python unittest methods passing (13 wire, 11 context, 9 adapter). Exact tested bytes were confirmed by the Git blob SHAs in [candidate evidence](../ai-workflow/w6_candidate_evidence.md). No existing CLI or default policy was changed. The adapter accepts trusted observed coverage, not inferred model claims; actual provider delivery instrumentation is still required. This supersedes the previous prototype-not-published status, not the recorded independent non-pass evidence. W6.1 closure, W6.2 human criticality dispute, actual independent review, applicable repository QA and activation remain unresolved. W6.5–W6.7 pending.
