@@ -28,11 +28,11 @@ confidence_execution_pct: 93
 **Summary:** Correlate task/run/attempt, distinguish transport bytes, estimates and provider-measured tokens; retain errors.
 **Code affected:** scripts/workflow_audit_aggregate.py, scripts/workflow_audit_aggregate_test.py
 **Criticality:** standard (provisional; RRI and reviewer concurrence pending)
-**Effort/reasoning:** Medium — bounded scope
-**Recommended model:** resolve from current workflow policy and measured RRI; no new model assignment.
+**Effort/reasoning:** Low — bounded telemetry changes; mandatory local attempt remains applicable if implementing
+**Recommended model:** claude-sonnet-5-5. Non-default recommendation: currently active successor to the repository's pinned Sonnet tier; official model catalog checked 2026-11-24 (https://platform.claude.com/docs/en/models/overview). This is a task recommendation, not a change to reviewer configuration or routing defaults.
 **Estimated tokens:** ~3000 (planning estimate, not provider usage).
-**RRI:** NOT RUN.
-**Peer readiness review approval:** NOT RUN; no artifact.
+**RRI:** 25 (Low); developer-scored local session, 2026-11-24; evidence: `logs/rri-w6/w6_6.json` (owner-reported; gitignored, not inspected in cloud). RRI criticality suggestion: false. Recompute if scope or scoring inputs change.
+**Peer readiness review approval:** NOT RUN; blocked transitively by W6.2 (local session 2026-11-24).
 **Peer code review approval:** NOT RUN; no artifact.
 
 ## Acceptance criteria

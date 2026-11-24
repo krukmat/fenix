@@ -8,7 +8,7 @@ created: 2026-11-24
 
 # W6.2–W6.3 — Wire contract v1 (draft)
 
-This is the implementation-oriented refinement of [the W6 exchange draft](cloud_local_interaction_draft.md), not an active policy or implementation. It resolves field ownership, digest scope and transport capability ambiguity before code changes. The [W6 plan](../plans/ai_workflow_w6_cloud_local_execution_plan.md) remains authoritative for task order and adoption. No peer verdict or RRI score is claimed.
+This is the implementation-oriented refinement of [the W6 exchange draft](cloud_local_interaction_draft.md), not an active policy or implementation. It resolves field ownership, digest scope and transport capability ambiguity before code changes. The [W6 plan](../plans/ai_workflow_w6_cloud_local_execution_plan.md) remains authoritative for task order and adoption. The local readiness session reported needs_changes for W6.2; see the current task file. No peer PASS is claimed.
 
 ## Trust boundary
 
@@ -81,6 +81,8 @@ Constructed is not delivered. Delivered means the trusted adapter observed succe
 | usage | {input_tokens, output_tokens, cached_input_tokens, measurement, estimated_input_tokens} |
 | duration_ms | Nonnegative integer measured with a monotonic clock |
 
+Every documented field is required even when explicitly nullable. Normal terminal statuses PROPOSED, NO_PATCH and REVIEW_REPORTED require a matching delivered or receiver-confirmed receipt and at least one evidence reference identifying native output. Normal statuses require error_code=null. BLOCKED, INVALID and TIMEOUT require a nonempty error_code; null receipt is allowed only when successful delivery is not established by the trusted adapter. A constructed-only receipt is insufficient. Reject mismatched common identity and missing required metadata; shape validation alone never establishes authorization, source existence, actual delivery or approval. Invalid input yields a typed error; any INVALID envelope must be constructed independently by the trusted supervisor from already validated identity, never from arbitrary malformed model input.
+
 Measurement enum provider_reported, estimated, unavailable. Token counters are nonnegative integers or null. Estimated tokens never populate provider-measured fields. A provider cache count must not be added to total input tokens without checking provider semantics. ACCEPTED is deliberately absent: existing supervisor policy derives acceptance from actual QA, current approval and independent peer evidence.
 
 ## Canonical encoding and digest scopes
@@ -123,6 +125,6 @@ Measurement enum provider_reported, estimated, unavailable. Token counters are n
 
 ## Scope and next action
 
-Implement as opt-in pure validation/canonicalization helpers in scripts/workflow_exchange.py only after the W6.2 readiness gate. Unit-test W6-WIRE-01 through W6-WIRE-05 first; leave actual file resolution to W6.3 and provider adapters to W6.4. The existing native CLI and Ollama output contract stay unchanged. No production runtime changes.
+Implement as opt-in pure validation/canonicalization helpers in scripts/workflow_exchange.py only after the W6.2 readiness gate. Unit-test W6-WIRE-01 through W6-WIRE-05 plus shape, receipt binding, forbidden acceptance and failure consistency first; leave actual file resolution to W6.3 and provider adapters to W6.4. The existing native CLI and Ollama output contract stay unchanged. No production runtime changes.
 
-As of 2026-11-24, the cloud execution environment does not expose authenticated Claude/Codex/Ollama executables or a repository checkout. Independent task-readiness remains NOT RUN; no artifact is invented. This draft can be reviewed without invoking a local model, but execution remains gated. Consolidate local work at the end wherever governance permits; do not call this design a certified implementation.
+As of 2026-11-24, the local session reported Codex readiness needs_changes for W6.2. Its artifact remains local and was not inspected in cloud. W6.1 and explicit human criticality resolution remain blocking; re-review this revised task and contract together. This draft can be reviewed without invoking a local model, but execution remains gated. Consolidate local work at the end wherever governance permits; do not call this design a certified implementation.

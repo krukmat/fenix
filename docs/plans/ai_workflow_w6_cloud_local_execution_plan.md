@@ -22,8 +22,8 @@ Owner approved the W6 plan and autonomous preparation on 2026-11-24. This is a p
 
 | Task | Owner | Dependency | Confidence | State |
 |---|---|---|---:|---|
-| [W6.1](../tasks/task_fenix_ai_workflow_w6_1.md) | ChatGPT | None | 98% | source analysis recorded; readiness pending |
-| [W6.2](../tasks/task_fenix_ai_workflow_w6_2.md) | ChatGPT | W6.1 | 95% | draft; not executed |
+| [W6.1](../tasks/task_fenix_ai_workflow_w6_1.md) | ChatGPT | None | 98% | source analysis recorded; needs_changes; revised task pending re-review |
+| [W6.2](../tasks/task_fenix_ai_workflow_w6_2.md) | ChatGPT | W6.1 | 95% | needs_changes; human criticality resolution pending |
 | [W6.3](../tasks/task_fenix_ai_workflow_w6_3.md) | ChatGPT | W6.2 | 92% | draft; not executed |
 | [W6.4](../tasks/task_fenix_ai_workflow_w6_4.md) | ChatGPT | W6.2, W6.3 | 90% | draft; not executed |
 | [W6.5](../tasks/task_fenix_ai_workflow_w6_5.md) | ChatGPT | W6.2 | 90% | draft; not executed |
@@ -41,4 +41,4 @@ Owner approved the W6 plan and autonomous preparation on 2026-11-24. This is a p
 
 ## Current checkpoint
 
-Pinned audit source: 0c0ba347dd03f48b874d285c521a368c644adb96. W6.1 source analysis recorded; W6.2–W6.7 design requirements prepared in the [exchange draft](../ai-workflow/cloud_local_interaction_draft.md). No implementation, RRI certification, actual peer gate, local inference or benchmark has run. W6.8/W6.9 remain pending. Next executable step: obtain genuine task-readiness evidence for the first implementation task; missing executable or authentication is a blocker, not a PASS.
+Pinned audit source: 0c0ba347dd03f48b874d285c521a368c644adb96. W6.1 source analysis recorded; W6.2–W6.7 design requirements prepared in the [exchange draft](../ai-workflow/cloud_local_interaction_draft.md). Local session on 2026-11-24 reported RRI scores W6.1–W6.7 = 11, 28, 35, 45, 33, 25, 30 (developer-scored; gitignored evidence not inspected in cloud), and Codex readiness needs_changes for W6.1 and W6.2. W6.3–W6.7 were not run. The W6.1 source audit has been performed, but the task is not closed; the revised record requires genuine readiness PASS. W6.2 remains blocked by W6.1 and human resolution of the criticality dispute (proposed critical). No implementation, code-review certification, local Ollama inference or benchmark has run. W6.8/W6.9 remain pending. Next: rerun W6.1 readiness and close its audit; resolve W6.2 criticality explicitly, then rerun readiness with the linked wire contract and obtain any required task-specific approval. Continue W6.3/W6.5 → W6.4 → W6.6 → W6.7 per dependencies. Missing executable or authentication is a blocker, not a PASS.

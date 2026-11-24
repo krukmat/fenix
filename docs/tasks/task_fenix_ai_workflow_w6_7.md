@@ -28,11 +28,11 @@ confidence_execution_pct: 92
 **Summary:** Validate legacy/new shadow paths and negative tests; collect actual QA and peer results before activation.
 **Code affected:** scripts/workflow_exchange_test.py, scripts/peer_workflow_review_test.py, scripts/delegate_low_rri_test.py, scripts/workflow_audit_aggregate_test.py
 **Criticality:** critical (provisional; RRI and reviewer concurrence pending)
-**Effort/reasoning:** High — governance and evidence compatibility
-**Recommended model:** resolve from current workflow policy and measured RRI; no new model assignment.
+**Effort/reasoning:** Medium — bounded implementation with explicit negative tests and peer gates
+**Recommended model:** claude-sonnet-5-5. Non-default recommendation: currently active successor to the repository's pinned Sonnet tier; official model catalog checked 2026-11-24 (https://platform.claude.com/docs/en/models/overview). This is a task recommendation, not a change to reviewer configuration or routing defaults.
 **Estimated tokens:** ~3000 (planning estimate, not provider usage).
-**RRI:** NOT RUN.
-**Peer readiness review approval:** NOT RUN; no artifact.
+**RRI:** 30 (Moderate); developer-scored local session, 2026-11-24; evidence: `logs/rri-w6/w6_7.json` (owner-reported; gitignored, not inspected in cloud). RRI criticality suggestion: false. Recompute if scope or scoring inputs change.
+**Peer readiness review approval:** NOT RUN; blocked transitively by W6.2 (local session 2026-11-24).
 **Peer code review approval:** NOT RUN; no artifact.
 
 ## Acceptance criteria
