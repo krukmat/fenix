@@ -84,3 +84,19 @@ Command: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -q workflow_exchange_tes
 | scripts/workflow_exchange_transport_test.py | d35199915a4b4ec15c6d25cb427579988c5fb28d |
 
 Remaining: actual trusted provider boundary integration, full repository regressions, independent governance gates/criticality resolution, matched benchmark. No claim of cloud/local production integration or savings.
+
+
+## Native input equivalence checkpoint — 2026-11-24
+
+The published transport is now connected to a callable offline native-input equivalence bridge (not the active provider invocation path). It accepts a supervisor-authorized packet/cache and trusted renderer, reconstructs context, and requires byte-identical legacy input before returning prepared bytes. Claude readiness/post-code, Codex readiness and Ollama delegation are supported for this boundary test; Codex native post-code --base is explicitly excluded. No provider is invoked and no delivery/acceptance or token-usage evidence is created.
+
+Fresh independent execution in the current cloud container: 9/9 bridge tests PASS using exact previously published wire and transport blobs. The earlier 70-test suite is historical evidence and was not rerun in this container. A synthetic fixture transferred 20,750 bytes full vs 2,065 bytes delta (transfer envelope only; separately transmitted packet and cache population excluded). Both rendered native inputs were exactly 14,041 bytes. This is a transport-only benefit, not an inference-token reduction. Actual current peer and delegation entry points still render their existing full/compacted native input; the strict bridge does not replace those paths.
+
+Decision: do not run an expensive Mac benchmark expecting token savings from this transport alone. Separate transport equivalence (deterministic, zero inference) from an actual model-efficiency candidate (provider-supported prefix caching, validated prompt compaction, or retained provider context). For that latter lane require measured model input/cached token semantics, complete verified closures and comparable QA/peer outcomes; no additional or removed reviewer calls by default. Existing -30% input-token / -25% latency / -50% fallback targets are unproven. W6.8 remains HOLD for adoption-grade efficiency benchmarking until an actual distinct candidate and full regression/gate evidence exist. Do not activate a policy or route to achieve targets by bypassing controls.
+
+Verification command: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v workflow_exchange_bridge_test` (9/9, 0.098 seconds, isolated cloud workspace, synthetic fixture renderer; no actual CLI or API). Dependencies rehydrated and verified via git hash-object: workflow_exchange.py f6040853a040db06cf4b70ec759ceacde3432a03; workflow_exchange_transport.py 28ad3f39d46de73d5f1be2ecb94e5ffe4c074f06.
+
+| File | Tested Git blob SHA |
+|---|---|
+| scripts/workflow_exchange_bridge.py | b3781b91b1bcfe43696ddd12ba993a90916c0c2d |
+| scripts/workflow_exchange_bridge_test.py | 22e0a90db658f6bc63689aa220a4f9b6ca14126a |
