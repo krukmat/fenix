@@ -34,3 +34,17 @@ Result: 33/33 unittest methods PASS (13 wire, 11 context, 9 adapter; synthetic f
 No live provider transport or existing-script instrumentation is connected; the native artifact adapter is callable candidate code only. No independent peer gate, full repository QA, Mac benchmark, end-to-end accepted-task measurement or policy activation. Full RFC 8785 cross-language interoperability and actual provider output compatibility need further checks. Previous local W6.1/W6.2 readiness verdicts remain non-pass; W6.2 criticality dispute awaits human resolution. Cloud readiness deferred per owner instruction, not a waiver. No new CI, branch, service or product-runtime change.
 
 The next candidate work is W6.5 advisory suitability, W6.6 trace aggregation, and W6.7 deterministic end-to-end compatibility; final integration must satisfy the remaining independent gates.
+
+## W6.5–W6.7 extension — 2026-11-24
+
+Command: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -q workflow_exchange_test workflow_context_test workflow_exchange_adapter_test workflow_exchange_integration_test`
+
+Result: 40/40 isolated tests PASS (33 prior + 7 synthetic pipeline/metrics/DSS tests). Exact tested Git blobs:
+
+| File | Git blob SHA |
+|---|---|
+| scripts/workflow_exchange_metrics.py | c5f0daca2f3b8bf7c14bcbeca1e4405ccecbb2a8 |
+| scripts/workflow_suitability.py | 098e2b83753b5f3863a58b80d7a2462d01c3ccd2 |
+| scripts/workflow_exchange_integration_test.py | 93553419406ef0d8b893f473a82c9e90d3d3fe6a |
+
+DSS is advisory and returns no authorization, rejects RRI >25 for local delegation, and returns UNKNOWN with insufficient matched verified observations. The minimum five-pair threshold is a provisional descriptive pilot threshold, not statistical certification. Attempt telemetry deduplicates exact replays and excludes conflicting runs; measured and estimated tokens remain separate. Accepted tasks, end-to-end latency and fallback rates remain unknown without trusted supervisor closure and complete traces. W6.7 exercises candidate functions on synthetic context/peer artifacts only. Actual provider transport, live legacy hooks, full repository regression tests, independent gates and Mac measurements remain pending. No new model calls, local delegation, CI, branch, or activation.
