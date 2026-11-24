@@ -39,6 +39,7 @@ Cloud supervisor --> TaskPacket --> local policy/scope validation
 | task_id | Stable ledger identifier, nonempty, max 128 ASCII characters |
 | run_id | Unique supervisor-generated identifier for one task execution, nonempty, max 128 ASCII characters |
 | attempt_id | Unique within run, nonempty, max 128 ASCII characters |
+| stage | Exact enum: delegation, task_readiness, post_code_review; bound across all three messages |
 | input_digest | Lowercase 64 hex SHA-256; matches the validated TaskPacket |
 
 IDs are correlation values only, not security credentials. A retry generates a different attempt_id while retaining run_id. Changed snapshot or task criteria require a fresh packet and fresh attempt; never silently reuse prior receipts.
@@ -55,7 +56,16 @@ IDs are correlation values only, not security credentials. A retry generates a d
 | rri_evidence_ref | ContextRef to current computed evidence, not a trusted number supplied by the model |
 | context_refs | Array of ContextRef objects, including required task/plan/diff evidence for the actual stage |
 
-ContextRef = {path, sha256, byte_length, source_kind, required, classification}. source_kind is git_blob or frozen_snapshot. required is boolean. classification is local_only or cloud_permitted as determined by the existing authority, never a model. path must resolve within the authorized root and must not contain absolute paths, dot segments, backslashes, NUL, or symlink escapes. Read exact bytes from a pinned blob or frozen manifest; recheck at time of use and reject mismatches.
+ContextRef = {section_id, role, path, sha256, byte_length, source_kind, required, classification}. section_id is a unique nonempty identifier within the packet; role is task, plan, policy, rri, source, diff, verification, or native_output. source_kind is git_blob or frozen_snapshot. required is boolean. classification is local_only or cloud_permitted as determined by the existing authority, never a model. path must resolve within the authorized root and must not contain absolute paths, dot segments, backslashes, NUL, or symlink escapes. Read exact bytes from a pinned blob or frozen manifest; recheck at time of use and reject mismatches.
+
+## Mandatory evidence by stage
+
+- All stages: task and plan context refs, nonempty policy_refs with role policy, rri_evidence_ref with role rri, and nonempty acceptance_criteria. Required refs must have required=true. Roles are explicit, not inferred from filenames.
+- delegation: authorized source context for the proposed change. A create-only task may have no existing target file; its manifest must record the absent target explicitly in W6.3.
+- task_readiness: current task and plan plus applicable governing specifications and policies. No post-code diff or verification is required at this stage.
+- post_code_review: frozen diff and verification evidence, task, plan, current criteria and governing policies. A legitimate empty diff must be explicit rather than omitted; it cannot certify code that was never reviewed.
+- The required section IDs from the packet must be accounted for in the receipt. Duplicate IDs, unknown IDs and overlapping delivered/omitted IDs are invalid. An omitted required section blocks candidate acceptance. The validator checks shape and identity; W6.3 resolves content and W6.4 records actual transport coverage.
+- REVIEW_REPORTED is valid only for review stages; PROPOSED and NO_PATCH only for delegation. No normal result implies that the underlying peer verdict is PASS.
 
 ## ContextReceipt fields
 
@@ -122,6 +132,22 @@ Measurement enum provider_reported, estimated, unavailable. Token counters are n
 | W6-WIRE-12 | Required content local_only and remote receiver | Block external delivery |
 | W6-WIRE-13 | Missing provider tokens or estimated-only tokens | Null measured fields |
 | W6-WIRE-14 | Stale readiness artifact or missing mandatory peer gate | No supervisor acceptance |
+
+## Deterministic canonicalization reference vectors
+
+The following ASCII examples were evaluated directly in the cloud Python environment using compact sorted-key UTF-8 JSON and hashlib SHA-256. They test the basic canonicalization property only, not the future validator, full RFC 8785 conformance, receipt authenticity or peer readiness.
+
+| Canonical UTF-8 JSON | SHA-256 |
+|---|---|
+| `{"a":1,"b":2}` (both input orders) | `43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777` |
+| `{"criteria":["A","B"]}` | `2510ba38521d18bb3d9fdcd98916e432882b82a160081cfd7ba8d0fe58773dfe` |
+| `{"criteria":["B","A"]}` | `4656a0d1e18f5fad0fe1b2bc816b215a7e936444a7fb7a0444338e7c8a2f38a3` |
+
+For implementation, explicitly test UTF-16 key ordering as required by JCS, non-BMP characters, escaping, and rejection of unpaired surrogates; Python sort_keys alone is not a complete JCS implementation. No production code or model inference was executed.
+
+## Execution responsibility
+
+ChatGPT owns cloud-accessible preparation, implementation after the applicable gates, and deterministic validation. Do not delegate implementation or routine analysis to local LLMs. The existing mandatory independent peer review is separate from delegation; its configured provider and applicable low-RRI rules remain unchanged unless separately approved. Where an independent gate cannot run from the cloud environment, report the blocker rather than simulate a verdict or change the policy. The W6.2 human criticality resolution remains pending.
 
 ## Scope and next action
 
